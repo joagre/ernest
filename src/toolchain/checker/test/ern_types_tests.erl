@@ -185,7 +185,5 @@ format_call_test() ->
 format_error_test() ->
     ?assertEqual("a function of 2 arguments where one of 1 was expected",
                  ern_types:format_error({arity, 1, 2})),
-    ?assertEqual("a function that receives nothing where one that receives is needed",
-                 ern_types:format_error(none_where_mailbox_needed)),
-    ?assertEqual("a function that receives where one that receives nothing is needed",
-                 ern_types:format_error(mailbox_where_none_needed)).
+    ?assertEqual("a type that would contain itself",
+                 ern_types:format_error({occurs, {tvar, 1}, {tcon, ['List'], [{tvar, 1}]}})).

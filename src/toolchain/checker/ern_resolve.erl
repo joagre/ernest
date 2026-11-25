@@ -7,7 +7,7 @@
 %%
 %% The build resolves a module's names here, once it is parsed and before
 %% its dependencies are found and it is checked, so that every later stage
-%% reads each name whole, as it did before names were relative. The pass
+%% reads each name whole. The pass
 %% asks the build which namespaces below the root hold a module,
 %% IsNamespace, since only the build reads the roots; the root holds every
 %% first segment no nearer namespace does, and is asked of only for the help
@@ -294,10 +294,12 @@ out_of_reach(#diagnostic{unknown_namespace = [_ | _] = Namespace, help = undefin
             case AtRoot(First) of
                 true ->
                     Segment = atom_to_list(First),
-                    Diagnostic#diagnostic{help = "`" ++ Segment ++ "` here is `"
-                                                 ++ ern_namespace:text(Hiding) ++ "`; the root's `"
-                                                 ++ Segment ++ "` is out of reach from `"
-                                                 ++ ern_namespace:text(OwnNamespace) ++ "`"};
+                    Diagnostic#diagnostic{help = Segment ++ " here is "
+                                                 ++ ern_namespace:text(Hiding)
+                                                 ++ ", which hides the root's " ++ Segment
+                                                 ++ " from " ++ ern_namespace:text(OwnNamespace)
+                                                 ++ "; give it another name to reach the"
+                                                 " root's"};
                 false ->
                     Diagnostic
             end;

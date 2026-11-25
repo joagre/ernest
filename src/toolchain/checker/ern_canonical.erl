@@ -261,19 +261,25 @@ shims(Namespace, Typed, true) ->
                        {ok, {HostModule, HostFunction, _}}
                            <- [ern_typecheck:foreign_implementation(Implementation)]]).
 
-%% Report §11.1: the interface with the hashes a dependent's forms name, the
-%% reaches of its functions that name a binding or a foreign declaration,
-%% which a dependent's reaches take in, the position of each function in
-%% the unit, by which a dependent calls it, and the host's function of each
-%% exported foreign declaration of the standard library's, which a
-%% dependent's call of it calls.
+%% Report §11.1: the interface with the back end's facts of each name, one
+%% #back_end{}: the hash a dependent's forms name it by, a function's reach
+%% that names a binding or a foreign declaration, which a dependent's
+%% reaches take in, a function's position in the unit, by which a dependent
+%% calls it, and the host's function of an exported foreign declaration of
+%% the standard library's, which a dependent's call of it calls.
 -spec interface(#interface{}, canonical()) -> #interface{}.
 interface(Interface, #{identities := Identities, reaches := Reaches, positions := Positions,
                        shims := Shims}) ->
-    Interface#interface{identities = Identities,
-                        reaches = maps:filter(fun(_, Reach) -> Reach =/= {[], []} end,
-                                              Reaches),
-                        positions = Positions, shims = Shims}.
+    Named = lists:usort(lists:append([maps:keys(Held)
+                                      || Held <- [Identities, Reaches, Positions, Shims]])),
+    Facts = fun(QualifiedName) ->
+                    #back_end{identity = maps:get(QualifiedName, Identities, undefined),
+                              reach = maps:get(QualifiedName, Reaches, {[], []}),
+                              position = maps:get(QualifiedName, Positions, undefined),
+                              shim = maps:get(QualifiedName, Shims, none)}
+            end,
+    Interface#interface{back_end = #{QualifiedName => Facts(QualifiedName)
+                                     || QualifiedName <- Named}}.
 
 %% Report §11.1: the position of each function in the module's unit: its
 %% definitions in the order of their forms, counted from 1, a type taking
@@ -445,41 +451,35 @@ closing(#definition{qualified_name = QualifiedName, hash = Hash}, Closed) ->
 %% Report Appendix H: a sourced form as its form, the source woven into
 %% it taken out, which is what is hashed, recorded and crosses.
 -spec stripped(term()) -> term().
-stripped({'$at', _, Node}) ->
-    stripped(Node);
-stripped(Term) when is_tuple(Term) ->
-    list_to_tuple(stripped(tuple_to_list(Term)));
-stripped([Head | Tail]) ->
-    [stripped(Head) | stripped(Tail)];
 stripped(Term) ->
-    Term.
+    sourced(fun(_, Node) -> Node end, Term).
 
 %% Report §11.2: a sourced form of an input of a shell's session with the
 %% lines of its source as the session counts them, Offset lines after those
 %% the build counted, the locals' names kept, so that the input's code, its
 %% spawn sites and a fault's trace in it name the session's lines.
 -spec session_source(term(), non_neg_integer()) -> term().
-session_source({'$at', {Line, Column, Name}, Node}, Offset) ->
-    {'$at', {Line + Offset, Column, Name}, session_source(Node, Offset)};
-session_source(Term, Offset) when is_tuple(Term) ->
-    list_to_tuple(session_source(tuple_to_list(Term), Offset));
-session_source([Head | Tail], Offset) ->
-    [session_source(Head, Offset) | session_source(Tail, Offset)];
-session_source(Term, _) ->
-    Term.
+session_source(Term, Offset) ->
+    sourced(fun({Line, Column, Name}, Node) -> {'$at', {Line + Offset, Column, Name}, Node} end,
+            Term).
 
 %% Report §11.1, §12.7: a sourced form as the `.erc` records it and a code
 %% frame carries it: the lines of its source, an input's as its session
 %% counts them (session_source/2), and the locals' names left out, so that
 %% a node that reads it makes no atom of a name.
 -spec recorded_source(term()) -> term().
-recorded_source({'$at', {Line, Column, _}, Node}) ->
-    {'$at', {Line, Column, none}, recorded_source(Node)};
-recorded_source(Term) when is_tuple(Term) ->
-    list_to_tuple(recorded_source(tuple_to_list(Term)));
-recorded_source([Head | Tail]) ->
-    [recorded_source(Head) | recorded_source(Tail)];
 recorded_source(Term) ->
+    sourced(fun({Line, Column, _}, Node) -> {'$at', {Line, Column, none}, Node} end, Term).
+
+%% A sourced form with each source woven into it rewritten by Rewrite, given
+%% the source and the node beneath it, itself rewritten first.
+sourced(Rewrite, {'$at', Source, Node}) ->
+    Rewrite(Source, sourced(Rewrite, Node));
+sourced(Rewrite, Term) when is_tuple(Term) ->
+    list_to_tuple(sourced(Rewrite, tuple_to_list(Term)));
+sourced(Rewrite, [Head | Tail]) ->
+    [sourced(Rewrite, Head) | sourced(Rewrite, Tail)];
+sourced(_, Term) ->
     Term.
 
 close({'$own', QualifiedName}, Linking) ->
@@ -532,16 +532,16 @@ within(_) ->
 %% by hash, its own module's from its form and another module's from its
 %% interface (Others); the members of a group share the group's.
 reaches(Definitions, Others) ->
-    Groups = maps:groups_from_list(fun(#definition{group = Group, hash = Hash}) ->
-                                       case Group of
-                                           none -> Hash;
-                                           {GroupHash, _} -> GroupHash
-                                       end
-                                   end, Definitions),
-    ByHash = maps:from_list([{Hash, maps:get(case Group of none -> Hash; {Of, _} -> Of end, Groups)}
-                             || #definition{hash = Hash, group = Group} <- Definitions]),
+    Groups = maps:groups_from_list(fun group_key/1, Definitions),
+    ByHash = maps:from_list([{Hash, maps:get(group_key(Definition), Groups)}
+                             || #definition{hash = Hash} = Definition <- Definitions]),
     lists:foldl(fun(#definition{hash = Hash}, Known) -> element(2, reach(Hash, ByHash, Known)) end,
                 Others, Definitions).
+
+%% The key a definition's group is known by: its group's hash, or its own
+%% where it stands in no group.
+group_key(#definition{group = none, hash = Hash}) -> Hash;
+group_key(#definition{group = {GroupHash, _}}) -> GroupHash.
 
 %% A definition's reach, with every reach found on the way known; one of
 %% another module, or a type's, which names neither, is known or empty. A
@@ -975,7 +975,7 @@ at(Node, Form, Name) ->
 expr_form(#e_literal{kind = Kind, value = Value}, Walk) ->
     {{literal, Kind, literal(Kind, Value)}, Walk};
 expr_form(#e_var{referent = {prelude, ['Address', Name]} = Referent, supplies = Supplies,
-            type = Type}, Walk)
+                 type = Type}, Walk)
   when Name =:= call; Name =:= callForever ->
     %% report §6.6: the reply is checked against the answer's type
     {Reference, Walk1} = value_reference(Referent, Name, Walk),
@@ -989,7 +989,7 @@ expr_form(#e_var{referent = Referent, name = Name, supplies = Supplies}, Walk) -
     {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
     {{var, Reference, SupplyForms}, Walk2};
 expr_form(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
-     Walk) ->
+          Walk) ->
     {Constructor, Walk1} = constructor(Span, Namespace, Name, Walk),
     {ArgForms, Walk2} = construction(Base, Args, Walk1),
     {{construct, Constructor, ArgForms}, Walk2};
@@ -1014,9 +1014,9 @@ expr_form(#e_block{statements = Statements}, #walk{scope = Scope} = Walk) ->
 expr_form(#e_call{callee = Callee, args = Args, pipe = Pipe}, Walk) ->
     %% report §5.1: a pipe evaluates its first argument before a callee that
     %% is not a name, a constructor or a lambda
-    IsNameOrLiteral = is_record(Callee, e_var) orelse is_record(Callee, e_constructor)
+    IsNamedCallee = is_record(Callee, e_var) orelse is_record(Callee, e_constructor)
         orelse is_record(Callee, e_lambda),
-    Tag = case Pipe andalso not IsNameOrLiteral of
+    Tag = case Pipe andalso not IsNamedCallee of
               true -> piped_call;
               false -> call
           end,
@@ -1042,7 +1042,7 @@ expr_form(#e_binop{operator = Operator, left = Left, right = Right, member = Mem
     {Operation, Walk3} = operation(Operator, Left, Member, Walk2),
     {{operator, Operator, LeftForm, RightForm, Operation}, Walk3};
 expr_form(#e_lambda{span = Span, params = Params, body = Body, type = Type},
-     #walk{scope = Scope, functions = Functions} = Walk) ->
+          #walk{scope = Scope, functions = Functions} = Walk) ->
     %% report §8.7: its position, in the order the walk meets it; report
     %% Appendix H: the type the checker gave it, in place of its annotations
     Walk1 = Walk#walk{functions = [Span | Functions]},
@@ -1376,12 +1376,21 @@ read(Beam) ->
             {error, "the module holds no canonical forms"};
         {ok, Chunk} ->
             case ern_chunk:term(Chunk) of
-                {ok, {?FORM_VERSION, #recorded{definitions = Definitions} = Recorded}}
-                  when is_list(Definitions) ->
-                    {ok, Recorded};
-                _ ->
-                    {error, "the canonical forms are of another version of the form"}
+                {ok, {?FORM_VERSION, Recorded}} -> read_recorded(Recorded);
+                _ -> read_recorded(other)
             end;
         error ->
             {error, "not a compiled module"}
     end.
+
+%% The record a chunk holds, where its fields are the lists this build
+%% writes and each definition a #definition{}, or the error of a chunk of
+%% another version of the form.
+read_recorded(#recorded{definitions = Definitions, foreign = Foreign, binding_order = Order}
+              = Recorded) when is_list(Definitions), is_list(Foreign), is_list(Order) ->
+    case lists:all(fun(Definition) -> is_record(Definition, definition) end, Definitions) of
+        true -> {ok, Recorded};
+        false -> read_recorded(other)
+    end;
+read_recorded(_) ->
+    {error, "the canonical forms are of another version of the form"}.

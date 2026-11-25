@@ -32,7 +32,7 @@ prelude_called_test() ->
     Fences = iolist_to_binary([Block || Doc <- prelude_docs(), Block <- fences(Doc)]),
     ?assertNotEqual(<<>>, Fences),
     Functions = [ern_namespace:text(QualifiedName)
-                 || {QualifiedName, Text, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
+                 || {QualifiedName, Text, _, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
                     hd(QualifiedName) =/= 'Sys',
                     lists:prefix("(", Text)],
     Uncalled = [Function || Function <- Functions,
@@ -388,12 +388,12 @@ see_also(File) ->
     {ok, Source} = file:read_file(File),
     {ok, Declarations} = ern_parser:parse_string(Source),
     Known = lists:append([declaration_names(Declaration) || Declaration <- Declarations])
-        ++ [atom_to_list(hd(QualifiedName)) || {QualifiedName, _, _} <- ern_prelude:values(),
+        ++ [atom_to_list(hd(QualifiedName)) || {QualifiedName, _, _, _} <- ern_prelude:values(),
                                                length(QualifiedName) > 1]
         ++ [atom_to_list(hd(Interface#interface.namespace))
             || Interface <- ern_prelude:stdlib_interfaces()]
         ++ [atom_to_list(Name) || {Name, _, _} <- ern_prelude:builtin_types()]
-        ++ [ern_namespace:text(QualifiedName) || {QualifiedName, _, _} <- ern_prelude:values()]
+        ++ [ern_namespace:text(QualifiedName) || {QualifiedName, _, _, _} <- ern_prelude:values()]
         ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
                                         QualifiedName <- maps:keys(Interface#interface.values)]
         ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
@@ -473,16 +473,15 @@ fences(Doc) ->
 stdlib_targets_test() ->
     Missing = [{QualifiedName, Arity}
                || #interface{namespace = Namespace, values = Values,
-                             positions = Positions} <- ern_prelude:stdlib_interfaces(),
+                             back_end = BackEnd} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
                   Arity <- [arity(Scheme) + ern_emitter:site_arity(QualifiedName)],
                   ErlangModule <- [ern_namespace:erlang_module(Namespace)],
+                  Position <- [(maps:get(QualifiedName, BackEnd, #back_end{}))#back_end.position],
                   ern_code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
-                      orelse not is_map_key(QualifiedName, Positions)
+                      orelse Position =:= undefined
                       orelse not erlang:function_exported(
-                                   ErlangModule,
-                                   ern_emitter:function_name(maps:get(QualifiedName, Positions)),
-                                   Arity)],
+                                   ErlangModule, ern_emitter:function_name(Position), Arity)],
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 

@@ -14,7 +14,7 @@
 
 %% report §9.4 to §9.7, Appendix E: every signature the report prints is a
 %% value of the tables with the same type text, and nothing else is
-values_test() ->
+report_signatures_are_the_tables_test() ->
     Lines = code_lines(section("## 9. Prelude", "## Appendix A. ")) ++
         code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
@@ -32,7 +32,7 @@ values_test() ->
     %% installed, and in its module's interface: it counts once when the two
     %% agree, twice and so unequal to the report when they do not
     Tables = lists:usort([{ern_namespace:text(QualifiedName), normalize(Text)}
-                          || {QualifiedName, Text, _} <- ern_prelude:values()]
+                          || {QualifiedName, Text, _, _} <- ern_prelude:values()]
                          ++ Compiled),
     same(Report, Tables).
 
@@ -83,9 +83,9 @@ prelude_documented_test() ->
     {ok, Declarations} = ern_parser:parse_string(ern_prelude:declared_types()),
     Undocumented = [Name || #type_declaration{doc = undefined, name = Name} <- Declarations],
     ?assertEqual([], Undocumented),
-    Own = [QualifiedName || {QualifiedName, _, Doc} <- ern_prelude:values(), is_binary(Doc)],
+    Own = [QualifiedName || {QualifiedName, _, _, Doc} <- ern_prelude:values(), is_binary(Doc)],
     ?assert(length(Own) >= 12),
-    ModuleOnly = [QualifiedName || {QualifiedName, _, module} <- ern_prelude:values()],
+    ModuleOnly = [QualifiedName || {QualifiedName, _, _, module} <- ern_prelude:values()],
     Missing = [QualifiedName || [Namespace, Name] = QualifiedName <- ModuleOnly,
                                 not in_module_docs(Namespace, Name)],
     ?assertEqual([], Missing),
@@ -93,6 +93,27 @@ prelude_documented_test() ->
     {docs_v1, _, ernest, _, _, _, Entries} = ern_prelude:docs(),
     ?assertEqual(length(ern_prelude:builtin_types()) + length(Declarations) + length(Own),
                  length(Entries)).
+
+%% report §6.6: `Address.callForever`'s page names every cause §6.6 gives
+%% its fault, and `Address.call`'s says that a call answers `None` where the
+%% callee's node goes out of reach. A regression test: the pages named six
+%% of the eight causes and left the node out of reach out
+call_pages_test() ->
+    Section = lists:append(section("### 6.6", "### 6.7")),
+    Causes = [Cause || [Cause] <- element(2, re:run(Section, "`Fault\\(\"([^\"]*)\"\\)`",
+                                                     [global, {capture, all_but_first, list},
+                                                      unicode]))],
+    ?assertEqual(7, length(Causes)),
+    Doc = fun(QualifiedName) ->
+                  {_, _, _, Text} = lists:keyfind(QualifiedName, 1, ern_prelude:values()),
+                  unicode:characters_to_list(Text)
+          end,
+    Forever = Doc(['Address', callForever]),
+    ?assertEqual([], [Cause || Cause <- Causes,
+                               string:find(Forever, "`" ++ Cause ++ "`") =:= nomatch]),
+    ?assertNotEqual(nomatch, string:find(Doc(['Address', call]),
+                                         "and so it does when the process's node goes out of"
+                                         " reach")).
 
 in_module_docs(Namespace, Name) ->
     File = filename:join(ern_prelude:stdlib_directory(),

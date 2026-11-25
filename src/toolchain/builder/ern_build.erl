@@ -1624,14 +1624,21 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
 %% written longer than its shortest form an error beside the checker's,
 %% which checks it as resolved all the same. A name unknown where a nearer
 %% namespace hid one at the root, under SourceRoot or a root of the load
-%% path, DependencyRoots, is helped so (ern_resolve:out_of_reach/4).
+%% path, DependencyRoots, is helped so (ern_resolve:out_of_reach/4). The
+%% code a diagnostic writes names another module's name in its shortest
+%% form from the module, which the namespaces looked for as the parse's
+%% resolution looked for them say, asked only where a diagnostic is made.
 -spec checked(#build_module{}, [#interface{}], file:filename() | none, load_path()) ->
           {ok, [tuple()], #interface{}, ern_typecheck:env()}
           | {error, [ern_diagnostic:diagnostic()]}.
 checked(#build_module{namespace = Namespace, declarations = Declarations, shortest = Shortest,
                       too_long = TooLong, resolved = Resolved}, Given, SourceRoot,
         DependencyRoots) ->
-    case ern_typecheck:check_resolved(Namespace, Declarations, Given, Shortest, TooLong) of
+    IsNamespace = fun(Candidate) ->
+                      (namespace_test(hd(Namespace), SourceRoot, DependencyRoots))(Candidate)
+                  end,
+    case ern_typecheck:check_resolved(Namespace, Declarations, Given, Shortest, TooLong,
+                                      IsNamespace) of
         {error, Diagnostics} ->
             AtRoot = fun(Segment) -> at_root(Segment, SourceRoot, DependencyRoots) end,
             {error, [ern_resolve:out_of_reach(Diagnostic, Namespace, Resolved, AtRoot)
@@ -2134,8 +2141,9 @@ current(Namespace, Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
                           binary() | none) -> boolean().
 is_compiled_against(#{deps := RecordedHashes, references := References, stdlib := StdlibHash},
                     DependencyHashes, DependencyInterfaces, StdlibHash) ->
-    Identities = lists:foldl(fun(#interface{identities = Held}, Acc) -> maps:merge(Acc, Held) end,
-                             #{}, DependencyInterfaces),
+    Identities = lists:foldl(fun(Interface, Acc) ->
+                                     maps:merge(Acc, ern_interface:identities(Interface))
+                             end, #{}, DependencyInterfaces),
     lists:sort(RecordedHashes) =:= DependencyHashes
         andalso lists:all(fun({QualifiedName, Hash}) ->
                               maps:get(QualifiedName, Identities, undefined) =:= Hash

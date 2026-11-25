@@ -496,21 +496,22 @@ receive_test() ->
 %% as in a declaration
 receive_takes_a_message_test() ->
     Refusal = fun(Time) ->
-                      "a `receive` takes a message; to wait a time, write `Clock.sleep("
-                          ++ Time ++ ")`"
+                      {"a `receive` takes a message",
+                       "to wait a time, write `Clock.sleep(" ++ Time ++ ")`"}
               end,
-    ?assertEqual({Refusal("0"), undefined},
-                 expression_refusal_and_help("receive { after 0 -> world }")),
-    ?assertMatch({error, #diagnostic{message = "a `receive` takes a message; to wait a time,"
-                                               " write `Clock.sleep(100)`",
+    ?assertEqual(Refusal("0"), expression_refusal_and_help("receive { after 0 -> world }")),
+    ?assertMatch({error, #diagnostic{message = "a `receive` takes a message",
+                                     help = "to wait a time, write `Clock.sleep(100)`",
                                      span = {3, 9, _}}},
                  ern_parser:parse_string("fn f() : Unit = {\n    receive {\n"
                                          "        after 100 -> Unit\n    }\n}\n")),
-    ?assertEqual(Refusal("ms"), refusal("fn f(ms : Int) : Unit = receive { after ms -> Unit }")),
+    ?assertEqual(Refusal("ms"),
+                 refusal_and_help("fn f(ms : Int) : Unit = receive { after ms -> Unit }")),
     ?assertEqual(Refusal("state.ms"),
-                 refusal("fn f(state : State) : Unit = receive { after state.ms -> Unit }")),
+                 refusal_and_help("fn f(state : State) : Unit ="
+                                  " receive { after state.ms -> Unit }")),
     ?assertEqual(Refusal("..."),
-                 refusal("fn f(ms : Int) : Unit = receive { after ms * 2 -> Unit }")).
+                 refusal_and_help("fn f(ms : Int) : Unit = receive { after ms * 2 -> Unit }")).
 
 %% report §6.3, Appendix A: the `after` clause of a `receive` comes last, so
 %% one a clause follows is refused at the `after` for its place, first or
@@ -794,25 +795,40 @@ listed_type_mark_test() ->
     ?assertMatch(#fn_declaration{result_type = #t_var{name = a, equality = false},
                                  body = #e_var{name = needs}},
                  declaration("fn f(needs : a) : a = needs")),
-    %% outside a foreign function the help drops the mark, and in a foreign
-    %% function's parameter it names the lists of types where it stands: a
-    %% regression test, where the help outside led to a second error
-    ?assertEqual({"a type in parentheses takes no equality mark",
-                  "write `a`; the mark is written in a foreign function's parameters alone"},
-                 refusal_and_help("fn f(x : (a=)) : Int = 1")),
+    %% in a foreign function's parameter a mark in parentheses is refused,
+    %% the help naming the lists of types where it stands; elsewhere it is
+    %% read, for the checker to refuse as any mark there (ern_typecheck_tests'
+    %% foreign_fn_equality_mark_test)
     ?assertEqual({"a type in parentheses takes no equality mark",
                   "the mark stands in a list of types, as `List(a=)` or `(a=) -> Bool`"},
                  refusal_and_help("foreign fn f(x : List((a=))) : Int = \"m:f/1\"")),
-    ?assertEqual({"a type in parentheses takes no equality mark",
-                  "write `a`; the mark is written in a foreign function's parameters alone"},
-                 refusal_and_help("foreign fn f(x : a=) : (a=) = \"m:f/1\"")),
+    ?assertMatch(#fn_declaration{params = [#param{annotation = #t_var{equality = true}}]},
+                 declaration("fn f(x : (a=)) : Int = 1")),
+    %% report §4.7: a mark before the `=` of a body or a binding is read as
+    %% one, `: a= = x`, and the process-only mark is refused wherever it is
+    %% written, `receiving e+` among them; a regression test, where each
+    %% was a syntax error that named the next token
+    ?assertMatch(#foreign_fn_declaration{result_type = #t_var{name = a, equality = true,
+                                                              span = {1, 30, {1, 32}}}},
+                 declaration("foreign fn f(x : List(a=)) : a= = \"m:f/1\"")),
+    ?assertMatch(#fn_declaration{result_type = #t_var{equality = true}, body = #e_var{name = x}},
+                 declaration("fn f(x : a) : a= = x")),
+    ?assertMatch(#let_declaration{annotation = #t_var{equality = true}},
+                 declaration("let x : a= = 1")),
+    ?assertEqual(ok, element(1, ern_parser:parse_string("fn f() = { let x : a= = 1; x }"))),
+    Plus = {"the process-only mark is never written", "write `e`; the compiler infers the mark"},
+    ?assertEqual(Plus, refusal_and_help("fn f() : Unit receiving e+ = Unit")),
+    ?assertEqual(Plus, refusal_and_help("fn f(g : () -> Unit receiving e+) : Unit = g()")),
+    ?assertEqual(Plus, refusal_and_help("foreign fn f(x : List(e+)) : Int = \"m:f/1\"")),
+    ?assertMatch({error, #diagnostic{span = {1, 25, {1, 27}}}},
+                 ern_parser:parse_string("fn f() : Unit receiving e+ = Unit")),
     %% report §11.5, Appendix A's Param: a function's parameter takes a
     %% type and no list of types, so a mark there is refused over the
     %% variable and the mark, as one elsewhere outside a foreign function
     %% is; a regression test, written after the code, where the refusal
     %% stood at the `=` without a help
     ?assertEqual({"the equality mark is written in a foreign function's parameters alone",
-                  "write `a`; `a` has equality where a body compares its values with `==`"},
+                  "write `a`; the compiler infers the mark"},
                  refusal_and_help("fn f(x : a=) : Int = 1")),
     ?assertMatch({error, #diagnostic{span = {1, 10, {1, 12}}}},
                  ern_parser:parse_string("fn f(x : a=) : Int = 1")),
@@ -872,8 +888,8 @@ doc_placement_test() ->
     ?assertNot(is_incomplete_program("fn f() = {\n    /// not a doc\n    1\n}")),
     ?assertEqual("expected `,` or `)` instead of the reserved word `fn`",
                  refusal("fn f() : Int = g(1\n\n/// Two.\nfn g(x : Int) : Int = 2")),
-    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
-                 " `}`",
+    ?assertEqual("expected a declaration (`export`, `type`, `abstract`, `fn`, `let`, `foreign`)"
+                 " instead of `}`",
                  refusal("fn f() : Int = 1 }\n\n/// Two.\nfn g() : Int = 2")).
 
 %% report Appendix B
@@ -904,7 +920,7 @@ two_clause_function_test() ->
 %% naming the token found
 juxtaposition_test() ->
     ?assertEqual("the name `x` cannot follow an expression", refusal("fn g() = f x")),
-    ?assertEqual("a call is written f(x), and statements are separated by `;`",
+    ?assertEqual("a call is written `f(x)`, and statements are separated by `;`",
                  help("fn g() = f x")),
     ?assertEqual("the integer `1` cannot follow an expression",
                  expression_refusal("{ let a = f 1; a }")).
@@ -928,9 +944,9 @@ if_without_else_test() ->
 %% `Io(println)`, `_p` was told it began `_p`, and `Circle()` was told it
 %% had no fields, which the parser cannot see
 help_lines_hold_test() ->
-    ?assertEqual("a type's arguments are written in parentheses, as List(a), and a lowercase"
+    ?assertEqual("a type's arguments are written in parentheses, as `List(a)`, and a lowercase"
                  " name after `.` names a value", help("fn f(x : Io.println) : Int = 1")),
-    ?assertEqual("a type name begins with an uppercase letter: P", help("type _p = A")),
+    ?assertEqual("a type name begins with an uppercase letter: `P`", help("type _p = A")),
     ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")).
 
 %% report §4.6
@@ -976,11 +992,11 @@ operator_grammar_test() ->
 %% report §4.5, §4.6, Appendix A's DeclName and LetDecl: a member is an
 %% operator, `compare` or `negate`, declared with `fn`
 member_names_test() ->
-    ?assertEqual({"`push` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+    ?assertEqual({"push cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
                   " `<>`, `compare` or `negate`",
                   "a type's other operations are functions of its module: write `fn push`"},
                  refusal_and_help("fn Stack.push(s, x) = s")),
-    ?assertEqual({"`size` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+    ?assertEqual({"size cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
                   " `<>`, `compare` or `negate`",
                   "a type's other operations are functions of its module: write `fn size`"},
                  refusal_and_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
@@ -1016,10 +1032,11 @@ declaration_form_errors_test() ->
                  refusal("foreign fn f(x : Int) = \"m:f/1\"")),
     %% `export` begins a declaration, once: a regression test, the list had
     %% left it out
-    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
-                 " `}`",
+    ?assertEqual("expected a declaration (`export`, `type`, `abstract`, `fn`, `let`, `foreign`)"
+                 " instead of `}`",
                  refusal("}")),
-    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
+    ?assertEqual("expected a declaration (`type`, `abstract`, `fn`, `let`, `foreign`) instead of"
+                 " `}`",
                  refusal("export }")).
 
 %% report Appendix A, §11.5: what the parser expected where the input
@@ -1037,8 +1054,8 @@ expected_token_errors_test() ->
 %% symbol, its text as written, a float's as Ernest writes its value
 token_found_test() ->
     Found = fun(Source) ->
-                    "expected a declaration (export, type, abstract, fn, let, foreign) instead of "
-                        ++ Rest = refusal(Source),
+                    "expected a declaration (`export`, `type`, `abstract`, `fn`, `let`,"
+                    " `foreign`) instead of " ++ Rest = refusal(Source),
                     Rest
             end,
     ?assertEqual("the name `x`", Found("x")),
@@ -1051,7 +1068,8 @@ token_found_test() ->
     ?assertEqual("a string literal", Found("\"s\"")),
     ?assertEqual("a character literal", Found("'c'")),
     ?assertEqual("`}`", Found("}")),
-    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of a doc block",
+    ?assertEqual("expected a declaration (`type`, `abstract`, `fn`, `let`, `foreign`) instead of"
+                 " a doc block",
                  refusal("export\n/// D.\nfn f() : Int = 1")),
     ?assertEqual("expected an expression instead of the end of input", refusal("fn f() : Int =")).
 
@@ -1085,7 +1103,7 @@ items_close_test() ->
 %% as before, and `#()`, which is no `()`, has no such help. A regression
 %% test, written after the code: the error had no help
 empty_parentheses_name_unit_test() ->
-    Help = "Unit's one value is written Unit",
+    Help = "Unit's one value is written `Unit`",
     ?assertMatch({error, #diagnostic{span = {1, 28, _},
                                      message = "expected an expression instead of `)`",
                                      help = Help}},
@@ -1108,7 +1126,7 @@ empty_parentheses_name_unit_test() ->
 %% continues
 type_form_helps_test() ->
     ?assertEqual({"expected a type inside the parentheses, or `->` after them",
-                  "the type with one value is Unit, and its value is written Unit"},
+                  "the type with one value is Unit, and its value is written `Unit`"},
                  refusal_and_help("fn f(x : ()) : Int = 1")),
     ?assertEqual({"expected `->` after a parameter list instead of `)`",
                   "a tuple type is written with `#(`, as `#(Int, Int)`"},

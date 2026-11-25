@@ -102,8 +102,7 @@
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
-                    identities = #{}, reaches = #{}, positions = #{}, terms = #{}, shims = #{},
-                    private_values = #{}}).
+                    back_end = #{}, private_values = #{}}).
 %% private_types: the module's private types an exported declaration names,
 %% a mailbox type an exported function receives wherever an arrow's effect
 %% names it, or a type an exported abstract type's fields name, and those
@@ -113,31 +112,39 @@
 %% private_values: the module's private functions and bindings, whose
 %% forms its compiled form carries (§11.1), #{qualified_name() =>
 %% {function | binding, namespace()}}, by which a dependent and the shell's
-%% prompt refuse such a
-%% name as private (§11.5); no dependent's code reaches one
+%% prompt refuse such a name as private (§11.5); no dependent's code
+%% reaches one
 %% lets: the qualified names among `values` that were declared with `let`,
 %% which the emitter calls through their getter (report §4.6, §8.5)
 %% namespace: qualified_name(); types: #{qualified_name() => #type_info{}};
 %% values: #{qualified_name() => #scheme{}} for exported fn, let, and foreign fn
-%% identities: #{qualified_name() => binary() | foreign}, the hash of each of
-%% the module's definitions, by which a dependent's canonical forms name it,
-%% and `foreign` for each foreign declaration, which has none (report
+%% back_end: #{qualified_name() => #back_end{}}, the back end's facts of
+%% each of the module's definitions and foreign declarations, by which a
+%% dependent's forms name it and its code calls or reads it (report §8.7,
 %% §11.1, Appendix H); the compiler fills it in, and the checker's interface
 %% has none
-%% reaches: #{qualified_name() => ern_canonical:reach()}, each function's
-%% reach that names a binding or a foreign declaration, which a dependent's
-%% reaches take in (report §8.7, §11.1); the compiler fills it in too
-%% positions: #{qualified_name() => pos_integer()}, the number of each
-%% function of the module's unit, a definition's or a foreign function's,
-%% by which its unit names it, '$3' (report §11.1), and a dependent calls
-%% it; the compiler fills it in too
-%% terms: #{qualified_name() => term()}, the value of each of `lets` whose
-%% initializer is a ground term, which a dependent's code holds where it
-%% reads the binding (report §11.1); the compiler fills it in too
-%% shims: #{qualified_name() => {module(), atom()}}, the host's module and
-%% function each exported foreign declaration of a module of the standard
-%% library names, which a dependent's code calls in place of the
-%% declaration's function (report §11.1), and none for any other module;
-%% the compiler fills it in too
+
+%% The back end's facts of one definition or foreign declaration of a
+%% compiled module, each at its default where the definition has none, so
+%% that a fact is one field and an interface replaces a name's facts whole.
+-record(back_end, {identity, reach = {[], []}, position, term = none, shim = none}).
+%% identity: binary() | foreign, the definition's hash, by which a
+%% dependent's canonical forms name it, `foreign` for a foreign declaration,
+%% which has none (report §11.1, Appendix H)
+%% reach: ern_canonical:reach(), a function's reach where it names a binding
+%% or a foreign declaration, which a dependent's reaches take in (§8.7,
+%% §11.1)
+%% position: pos_integer(), the number of a function of the module's unit,
+%% a definition's or a foreign function's, by which its unit names it,
+%% '$3' (§11.1), and a dependent calls it; in a checker's environment
+%% {namespace(), pos_integer()}, with the namespace of the module that
+%% declares it
+%% term: {term, term()}, the value of a binding of `lets` whose initializer
+%% is a ground term, which a dependent's code holds where it reads the
+%% binding (§11.1)
+%% shim: {module(), atom()}, the host's module and function an exported
+%% foreign declaration of a module of the standard library names, which a
+%% dependent's code calls in place of the declaration's function (§11.1),
+%% and none for any other module
 
 -endif.

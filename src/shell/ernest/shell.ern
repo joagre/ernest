@@ -1120,8 +1120,10 @@ fn obey(state : State,
             }
       | Command.Type ->
             match declaredType(session, argument) {
-                Some(text) -> answerCommand(state, screen, [argument <> " : " <> text])
-              | None -> typeOf(state, screen, argument, column)
+                Some(#(text, notes)) ->
+                    answerCommand(state, screen, [argument <> " : " <> text] <> notes)
+              | None ->
+                    typeOf(state, screen, argument, column)
             }
       | Command.Forget ->
             match forget(session, argument) {
@@ -2417,9 +2419,10 @@ foreign fn typeText(checked : Checked) : String =
     "ern_shell:type_text/1"
 
 // Report §11.2, §4.9: the type of an input that is one name, as its
-// declaration writes it, its requirement among it; none for any other
-// input, which is checked.
-foreign fn declaredType(session : Session, input : String) : Optional(String) =
+// declaration writes it, its requirement among it, and the lines after it
+// that say a primitive is one (§3.11); none for any other input, which is
+// checked.
+foreign fn declaredType(session : Session, input : String) : Optional(#(String, List(String))) =
     "ern_shell:declared_type/2"
 
 // Report §11.2: a value of type `Unit` prints nothing.

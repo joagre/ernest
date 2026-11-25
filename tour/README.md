@@ -449,7 +449,7 @@ Counter.CounterMsg changed: the binding counter is of its previous version, Coun
 input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg is bound to its node, since it holds a function
 1 | Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: start it on the peer from `Peer.compute`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross (report §3.11)
+  | = help: start it on the peer from `Peer.compute`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross
 > kill(Process.fromAddress(counter))
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)

@@ -269,7 +269,9 @@ not_utf8_test() ->
 %% report §2.5: a string ends on its line, at its closing quote
 string_literal_errors_test() ->
     ?assertEqual({1, 1, "the string literal never closes"}, refusal("\"abc")),
-    ?assertEqual({1, 5, "a line break in a string literal; use `\\n`"}, refusal("\"abc\ndef\"")).
+    ?assertEqual({1, 5, "a line break in a string literal"}, refusal("\"abc\ndef\"")),
+    %% report §11.5: the fix stands in the help line
+    ?assertMatch({error, #diagnostic{help = "use `\\n`"}}, ern_lexer:tokenize("\"abc\ndef\"")).
 
 %% report §2.5: an escape is one of §2.5's, and `\u{...}` names a Unicode
 %% scalar value in one to six hex digits
@@ -280,7 +282,8 @@ escape_errors_test() ->
     ?assertEqual({1, 2, "unknown escape `\\q`"}, refusal("\"\\q\"")),
     %% a line break after a backslash is named, not printed into the message; a
     %% regression test, the catalog of diagnostics having found it printed
-    ?assertEqual({1, 2, "a line break cannot follow `\\`; use `\\n`"}, refusal("\"\\\nx\"")),
+    ?assertEqual({1, 2, "a line break cannot follow `\\`"}, refusal("\"\\\nx\"")),
+    ?assertMatch({error, #diagnostic{help = "use `\\n`"}}, ern_lexer:tokenize("\"\\\nx\"")),
     ?assertEqual({1, 2, "`\\u{D800}` is not a Unicode scalar value"}, refusal("\"\\u{D800}\"")),
     ?assertEqual({1, 2, "`\\u{110000}` is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
     ?assertEqual({1, 2, "`\\u{` needs one to six hexadecimal digits followed by `}`"},
@@ -304,7 +307,9 @@ char_literal_errors_test() ->
     ?assertEqual({1, 1, "a character literal holds one code point; a string is written"
                         " between double quotes"}, refusal("'ab'")),
     ?assertEqual({1, 1, "the character literal never closes"}, refusal("'a")),
-    ?assertEqual({1, 1, "the character literal never closes"}, refusal("'ab\n'")).
+    ?assertEqual({1, 1, "the character literal never closes"}, refusal("'ab\n'")),
+    ?assertEqual({1, 1, "a line break in a character literal"}, refusal("'\n'")),
+    ?assertMatch({error, #diagnostic{help = "use `'\\n'`"}}, ern_lexer:tokenize("'\n'")).
 
 %% report §2.1, §2.3: a character no token begins with is refused where it
 %% stands

@@ -215,7 +215,7 @@ member_declaration_error_test_() ->
 
 member_declaration_error() ->
     {0, Output} = line_session("type Pt = Pt(Int)\nfn Pt.push(Pt(a), x : Int) : Pt = Pt(x)\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"`push` cannot be a member of Pt">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"push cannot be a member of Pt">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"expected `(`">>)).
 
 %% report §11.2, §8.1, §6.9: with a file the shell is the entry point and
@@ -500,8 +500,8 @@ prelude_shown() ->
     {0, Output} = line_session(":browse Prelude\n:doc Prelude\n:doc Prelude.spawn\n"
                                ":doc Prelude.List.size\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> Prelude.List.size: Prelude takes one name the"
-                                                " prelude declares, as `Prelude.Some`; nothing"
-                                                " here hides it; write `List.size`\n">>)),
+                                                " prelude declares, as `Prelude.Some`; write"
+                                                " `List.size`\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"List.size(list : List(a)) : Int">>)),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn(f : () -> Unit receiving n) : Address(n)">>,
@@ -3691,18 +3691,21 @@ effect_variable() ->
                                                 "> g : () -> Int receiving e+\n">>)).
 
 %% report §11.2, §11.5: an input whose binding's type it does not settle is
-%% refused at the whole binding, and an address with the mailbox its spawned
-%% function may declare. A regression test: column 1
-%% alone was underlined, and the help showed a list
+%% refused at the whole binding, and an address with its annotation, and
+%% with the mailbox its spawned function may declare where the binding's
+%% right side is a spawn. A regression test: column 1 alone was underlined,
+%% and the help showed a list
 unsettled_binding_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun unsettled_binding/0).
 
 unsettled_binding() ->
     {0, Output} = line_session("fn kept(f : () -> Unit receiving m) : Address(m) = spawn(f)\n"
-                               "let p = kept(fn() : Unit = Unit)\n"),
+                               "let p = kept(fn() : Unit = Unit)\n"
+                               "let q = spawn(fn() = receive { Some(_) -> Unit })\n"),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n">>,
-                 <<"annotate the binding, `let p : Address(T) = ...`, or give the spawned"
+                 <<"annotate the binding, `let p : Address(T) = ...`\n">>,
+                 <<"annotate the binding, `let q : Address(T) = ...`, or give the spawned"
                    " function its mailbox type, `fn() : Unit receiving T = ...`">>]].
 
 %% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
@@ -5471,6 +5474,45 @@ one_name_type() ->
                  binary:match(Output, <<"spawn : (() -> Unit receiving n) -> Address(n)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"<function> : () -> Optional(String)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
+
+%% report §11.5, §11.2: a prelude type a session's type hides prints as
+%% `Prelude.x`, in a diagnostic and in `:type`, and the session's plain. A
+%% regression test of the cold reading's finding (cold3/CA/t10b): the two
+%% printed alike
+session_hides_a_prelude_type_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun session_hides_a_prelude_type/0).
+
+session_hides_a_prelude_type() ->
+    {0, Output} = line_session("type Optional(a) = Nothing | Some(a)\n"
+                               "let x : Int = Prelude.Some(1)\n"
+                               "fn f(o : Prelude.Optional(Int)) : Optional(Int) = Nothing\n"
+                               ":type f\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"expected Int, found Prelude.Optional(Int)\n">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"f : (Prelude.Optional(Int)) -> Optional(Int)\n">>)).
+
+%% report §11.2, §3.11: `:type` of one of the five primitives prints
+%% `a primitive: called where it is named` on a second line, and of
+%% `Code.running` what its variables are; of another name, and of a call of
+%% a primitive, whose value is no primitive, it prints the type alone
+primitive_type_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun primitive_type/0).
+
+primitive_type() ->
+    {0, Output} = line_session(":type Peer.spawn\n:type Peer.spawnMonitored\n"
+                               ":type Peer.compute\n:type Peer.computeAnywhere\n"
+                               ":type Code.running\n:type spawn\n"
+                               "fn f() : Unit = Unit\n:type Peer.spawn(\"p\", f, 10)\n"),
+    ?assertEqual(4, ern_pty:count(Output, <<"\na primitive: called where it is named\n">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"Code.running : (a) -> List(Address(m))\n"
+                                        "a primitive: called where it is named; a is the name"
+                                        " of a top-level fn and m its mailbox type\n">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"spawn : (() -> Unit receiving n) -> Address(n)\n> ">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"Peer.spawn(\"p\", f, 10) : Either(Io.Error,"
+                                        " Address(Never))\n> ">>)).
 
 %% report §11.2, §11.4: every name that completes after `:doc` has
 %% documentation. A constructor's is its type's, the prelude's, the

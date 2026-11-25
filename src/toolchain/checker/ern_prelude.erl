@@ -1,4 +1,4 @@
-%% The prelude, report section 9, as data, with its documentation beside
+%% The prelude, report §9, as data, with its documentation beside
 %% each entry (report §9, Appendix E.0 shape rule 6). Types are Ernest source;
 %% values are name, type text, and documentation, the type parsed by
 %% ern_parser:parse_type/1 and converted by the checker. An operation a
@@ -320,12 +320,14 @@ declared_types() ->
     type Path = Path(String)
     """.
 
-%% Qualified name, type text, and documentation, or `module` for an
-%% operation its type's module documents (report §9).
--spec values() -> [{[atom()], string(), binary() | module}].
+%% Qualified name, type text, the parameters' names and the documentation,
+%% or none and `module` for an operation its type's module documents
+%% (report §9): the parameters are named for their roles as the report's §6
+%% names them, which their pages and `Shift-Tab` show (§11.4).
+-spec values() -> [{[atom()], string(), [atom()] | none, binary() | module}].
 values() ->
     [%% §9.4 built-in functions
-     {[self], "() -> Address(m) receiving m",
+     {[self], "() -> Address(m) receiving m", [],
       <<"""
       The address of the calling process. A process gives it to another that
       is to answer or tell it something: `let me = self()`, then
@@ -341,7 +343,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[send], "(Address(a), a) -> Unit",
+     {[send], "(Address(a), a) -> Unit", [address, message],
       <<"""
       Puts `message` in the mailbox of the process at `address`, and returns at
       once, without waiting for it to be received.
@@ -356,7 +358,7 @@ values() ->
       send(self(), 42)
       ```
       """/utf8>>},
-     {[spawn], "(() -> Unit receiving n) -> Address(n)",
+     {[spawn], "(() -> Unit receiving n) -> Address(n)", [f],
       <<"""
       Starts a process that runs `f`, and answers its address. The process
       runs beside the caller, on this node, and `spawn` returns at once.
@@ -378,6 +380,7 @@ values() ->
       ```
       """/utf8>>},
      {[spawnMonitored], "(() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m",
+      [f, wrap],
       <<"""
       Starts a process as `spawn` does, and watches it from its first moment:
       `wrap(d)` is put in the caller's mailbox when it ends, `d` the `Down`
@@ -391,7 +394,7 @@ values() ->
       ```
       """/utf8>>},
      %% §9.5 process functions
-     {[adapted], "(Address(b), (a) -> b) -> Address(a)",
+     {[adapted], "(Address(b), (a) -> b) -> Address(a)", [target, wrap],
       <<"""
       An adapted address of `target`, which turns each message with `wrap` and
       delivers it to `target`. It is no process of its own.
@@ -413,6 +416,7 @@ values() ->
       since 0.4.0
       """/utf8>>},
      {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a)",
+      [address, request, ms],
       <<"""
       Asks the process at `address` and waits for its answer: `Some(answer)`,
       or `None` where none came within `ms` milliseconds.
@@ -424,8 +428,9 @@ values() ->
 
       `None` does not cancel the work: the process asked may still do it, and
       an answer that comes late is dropped. Where that process has ended, or
-      ends or restarts before it answers, the call answers `None` at once.
-      The clock starts at the call. The request is made and sent whatever the
+      ends or restarts before it answers, the call answers `None` at once,
+      and so it does when the process's node goes out of reach. The clock
+      starts at the call. The request is made and sent whatever the
       time, and `ms` bounds only the wait for the answer, which ends at once
       where the time has already passed (report §6.6).
 
@@ -438,7 +443,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {['Address', callForever], "(Address(m), (Reply(a)) -> m) -> a",
+     {['Address', callForever], "(Address(m), (Reply(a)) -> m) -> a", [address, request],
       <<"""
       Asks as `Address.call` does, and waits for the answer without a deadline,
       answering the answer itself. A process asked that lives and never
@@ -447,7 +452,7 @@ values() ->
       ### Errors
 
       Faults where the process asked has ended, or ends or restarts before it
-      answers (report §6.6):
+      answers, or its node goes out of reach (report §6.6):
 
       - with that process's own cause, where it faulted;
       - `callee was killed`, where `kill` or its owner's death ended it;
@@ -455,7 +460,10 @@ values() ->
       - `callee was closed`, where the program closed it, a socket or a
         listener;
       - `callee was restarted`, where a supervisor asked it to restart;
-      - `callee had ended`, where it had ended before the call.
+      - `callee had ended`, where it had ended before the call;
+      - `callee ended with its program`, where it is a process of another
+        node that ended with that node's program;
+      - `callee is unreachable`, where its node went out of reach.
 
       ### Examples
 
@@ -466,7 +474,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[answer], "(Reply(a), a) -> Unit",
+     {[answer], "(Reply(a), a) -> Unit", [reply, value],
       <<"""
       Answers a request: sends `value` to the caller waiting on `reply`.
 
@@ -480,7 +488,7 @@ values() ->
       spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
       ```
       """/utf8>>},
-     {[restarting], "(RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n",
+     {[restarting], "(RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n", [limit, f],
       <<"""
       A function that runs `f`, and runs it again in the same process each time
       it faults. A program spawns what it answers: `spawn(restarting(limit, f))`.
@@ -516,7 +524,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[monitor], "(Process, (Down) -> m) -> Unit receiving m",
+     {[monitor], "(Process, (Down) -> m) -> Unit receiving m", [process, wrap],
       <<"""
       Watches a process: `wrap(d)` is put in the caller's mailbox when
       `process` ends, `d` the `Down` that says how.
@@ -537,7 +545,7 @@ values() ->
       }
       ```
       """/utf8>>},
-     {[monitorService], "(Process, (Down) -> m) -> Unit receiving m",
+     {[monitorService], "(Process, (Down) -> m) -> Unit receiving m", [process, wrap],
       <<"""
       Watches a process as `monitor` does, and is told of its restarts too:
       `wrap(d)` is put in the caller's mailbox at each restart of `process`,
@@ -563,7 +571,7 @@ values() ->
 
       since 0.5.0
       """/utf8>>},
-     {[demonitor], "(Process) -> Unit",
+     {[demonitor], "(Process) -> Unit", [process],
       <<"""
       Ends every watch the caller holds on `process`, those `monitor`,
       `monitorService` and `spawnMonitored` made alike (report §6.9).
@@ -583,7 +591,7 @@ values() ->
 
       since 0.5.0
       """/utf8>>},
-     {[kill], "(Process) -> Unit",
+     {[kill], "(Process) -> Unit", [process],
       <<"""
       Ends the process. Its monitors see the reason `Killed`.
 
@@ -600,31 +608,32 @@ values() ->
       ```
       """/utf8>>},
      %% §9.6 operations required by the language, documented by their modules
-     {['Int', '+'], "(Int, Int) -> Int", module},
-     {['Int', '-'], "(Int, Int) -> Int", module},
-     {['Int', '*'], "(Int, Int) -> Int", module},
-     {['Int', '/'], "(Int, Int) -> Int", module},
-     {['Int', '%'], "(Int, Int) -> Int", module},
-     {['Int', negate], "(Int) -> Int", module},
-     {['Float', '+'], "(Float, Float) -> Float", module},
-     {['Float', '-'], "(Float, Float) -> Float", module},
-     {['Float', '*'], "(Float, Float) -> Float", module},
-     {['Float', '/'], "(Float, Float) -> Float", module},
-     {['Float', negate], "(Float) -> Float", module},
-     {['String', '<>'], "(String, String) -> String", module},
-     {['List', '<>'], "(List(a), List(a)) -> List(a)", module},
-     {['Bytes', '<>'], "(Bytes, Bytes) -> Bytes", module},
-     {['Path', '<>'], "(Path, Path) -> Path", module},
-     {['Int', compare], "(Int, Int) -> Ordering", module},
-     {['Float', compare], "(Float, Float) -> Ordering", module},
-     {['String', compare], "(String, String) -> Ordering", module},
-     {['Char', compare], "(Char, Char) -> Ordering", module},
-     {['Bool', compare], "(Bool, Bool) -> Ordering", module},
-     {['List', compare], "(List(a), List(a)) -> Ordering needs a.compare", module},
-     {['Optional', compare], "(Optional(a), Optional(a)) -> Ordering needs a.compare", module},
+     {['Int', '+'], "(Int, Int) -> Int", none, module},
+     {['Int', '-'], "(Int, Int) -> Int", none, module},
+     {['Int', '*'], "(Int, Int) -> Int", none, module},
+     {['Int', '/'], "(Int, Int) -> Int", none, module},
+     {['Int', '%'], "(Int, Int) -> Int", none, module},
+     {['Int', negate], "(Int) -> Int", none, module},
+     {['Float', '+'], "(Float, Float) -> Float", none, module},
+     {['Float', '-'], "(Float, Float) -> Float", none, module},
+     {['Float', '*'], "(Float, Float) -> Float", none, module},
+     {['Float', '/'], "(Float, Float) -> Float", none, module},
+     {['Float', negate], "(Float) -> Float", none, module},
+     {['String', '<>'], "(String, String) -> String", none, module},
+     {['List', '<>'], "(List(a), List(a)) -> List(a)", none, module},
+     {['Bytes', '<>'], "(Bytes, Bytes) -> Bytes", none, module},
+     {['Path', '<>'], "(Path, Path) -> Path", none, module},
+     {['Int', compare], "(Int, Int) -> Ordering", none, module},
+     {['Float', compare], "(Float, Float) -> Ordering", none, module},
+     {['String', compare], "(String, String) -> Ordering", none, module},
+     {['Char', compare], "(Char, Char) -> Ordering", none, module},
+     {['Bool', compare], "(Bool, Bool) -> Ordering", none, module},
+     {['List', compare], "(List(a), List(a)) -> Ordering needs a.compare", none, module},
+     {['Optional', compare], "(Optional(a), Optional(a)) -> Ordering needs a.compare",
+      none, module},
      {['Either', compare], "(Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare",
-      module},
-     {[fault], "(String) -> a",
+      none, module},
+     {[fault], "(String) -> a", [cause],
       <<"""
       Ends the calling process with `cause`. It has every type, so it stands
       wherever a value is expected, and nothing catches the fault (report
@@ -644,7 +653,7 @@ values() ->
       fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
       """/utf8>>},
-     {[compare], "(a, a) -> Ordering needs a.compare",
+     {[compare], "(a, a) -> Ordering needs a.compare", [left, right],
       <<"""
       Compares `left` with `right` by the order of their type: `Less`, `Equal`
       or `Greater`. It is the type's own `compare`, `Int.compare` for two
@@ -679,27 +688,15 @@ signature(Text) ->
                            [Variable, Member] <- [string:split(Written, ".")]]}
     end.
 
-%% Report §9.4, §9.5, §11.4: the parameters of the prelude's functions, named
-%% for their roles as the report's §6 names them, which their pages and
-%% `Shift-Tab` show; none for a value that is no function the prelude
-%% documents.
+%% Report §9.4, §9.5, §11.4: the parameters of the prelude's function named
+%% QualifiedName, as values/0 names them; none for a value that is no
+%% function the prelude documents.
 -spec parameters([atom()]) -> [atom()] | none.
-parameters([self]) -> [];
-parameters([send]) -> [address, message];
-parameters([spawn]) -> [f];
-parameters([spawnMonitored]) -> [f, wrap];
-parameters([adapted]) -> [target, wrap];
-parameters(['Address', call]) -> [address, request, ms];
-parameters(['Address', callForever]) -> [address, request];
-parameters([answer]) -> [reply, value];
-parameters([restarting]) -> [limit, f];
-parameters([monitor]) -> [process, wrap];
-parameters([monitorService]) -> [process, wrap];
-parameters([demonitor]) -> [process];
-parameters([kill]) -> [process];
-parameters([fault]) -> [cause];
-parameters([compare]) -> [left, right];
-parameters(_) -> none.
+parameters(QualifiedName) ->
+    case lists:keyfind(QualifiedName, 1, values()) of
+        {_, _, Params, _} -> Params;
+        false -> none
+    end.
 
 %% Report §4.2, §9.5, §9.6: the prelude's types whose namespace the
 %% prelude fills, with their members or, `Address`, functions of its own,
@@ -707,7 +704,7 @@ parameters(_) -> none.
 %% type takes none, `Reply` and `Down` among them.
 -spec member_types() -> [atom()].
 member_types() ->
-    lists:usort([hd(QualifiedName) || {QualifiedName, _, _} <- values(),
+    lists:usort([hd(QualifiedName) || {QualifiedName, _, _, _} <- values(),
                                       length(QualifiedName) > 1]).
 
 %% Report §4.2, §4.5: whether a qualified name is a member a prelude type
@@ -740,9 +737,8 @@ docs() ->
             || #type_declaration{name = Name, params = Params, doc = Doc} <- Declarations],
     Env = ern_typecheck:prelude_env(),
     Values = [entry({function, dotted(QualifiedName), arity(Signature)},
-                    [declaration(QualifiedName, Env)], Doc,
-                    #{params => parameters(QualifiedName)})
-              || {QualifiedName, Signature, Doc} <- values(), Doc =/= module],
+                    [declaration(QualifiedName, Params, Env)], Doc, #{params => Params})
+              || {QualifiedName, Signature, Params, Doc} <- values(), Doc =/= module],
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, #{<<"en">> => prelude_doc()},
      #{source => <<"the prelude, report §9"/utf8>>}, Types ++ Values}.
 
@@ -754,10 +750,9 @@ entry(Key, Signature, Doc, Meta) ->
 
 %% Report §11.4: a function's declaration as its page shows it, its
 %% parameters named and its restrictions marked (§11.5).
-declaration(QualifiedName, Env) ->
+declaration(QualifiedName, Params, Env) ->
     {ok, Scheme} = ern_typecheck:declared_scheme(lists:droplast(QualifiedName),
                                                  lists:last(QualifiedName), Env),
-    Params = parameters(QualifiedName),
     {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params),
                                                  ern_typecheck:type_state(Env)),
     unicode:characters_to_binary([ern_namespace:text(QualifiedName), Head, Marked, Rest]).
@@ -781,18 +776,14 @@ group_texts(["type " ++ Rest = Line | Lines], Acc) ->
     {Continued, Others} = lists:splitwith(fun(Next) -> lists:prefix(" ", Next) end, Lines),
     Key = list_to_atom(hd(string:lexemes(Rest, " ("))),
     Texts = [unicode:characters_to_binary(Text) || Text <- [Line | Continued]],
-    group_texts(Others, Acc#{Key => Texts});
-group_texts([_ | Lines], Acc) ->
-    group_texts(Lines, Acc).
+    group_texts(Others, Acc#{Key => Texts}).
 
 dotted(QualifiedName) -> list_to_atom(ern_namespace:text(QualifiedName)).
 
 arity(Text) ->
     {TypeText, _} = signature(Text),
-    case ern_parser:parse_type(TypeText) of
-        {ok, #t_fn{params = Params}} -> length(Params);
-        _ -> 0
-    end.
+    {ok, #t_fn{params = Params}} = ern_parser:parse_type(TypeText),
+    length(Params).
 
 %% The prelude page's own doc block.
 prelude_doc() ->

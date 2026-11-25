@@ -12,7 +12,7 @@
 -include_lib("shared/include/ern_diagnostic.hrl").
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
-%%   key(): {con, QualifiedName} | {tuple, Size} | nil | cons | {bool, Bool}
+%%   key(): {constructor, QualifiedName} | {tuple, Size} | nil | cons | {bool, Bool}
 %%        | {lit, Value} | bits
 %% QualifiedName is the constructor's, as the checker keeps it, so a
 %% constructor is read back by it with no name to resolve (report §4.2).
@@ -28,19 +28,40 @@ check(Node, Env) ->
          end, Node).
 
 %% Report §5.9: the unguarded clauses of a `match` cover its scrutinee's
-%% type; where they do not, the message names a value none of them matches.
+%% type; where they do not, the message names up to three patterns none of
+%% them matches, in the order the check finds them, each found added as a
+%% clause before the next is looked for, and says where there are more.
 exhaustive(Span, Scrutinee, Clauses, Env) ->
     Rows = lists:append([alternative_rows(Pattern, Env)
                          || #clause{pattern = Pattern, guard = undefined} <- Clauses]),
-    case useful(Rows, [wild], Env) of
-        no -> ok;
-        {yes, [Witness]} ->
+    case witnesses(Rows, 4, Env) of
+        [] -> ok;
+        Witnesses ->
             Type = ern_typecheck:resolve_type(ern_typecheck:node_type(Scrutinee), Env),
             Shown = ern_types:format(Type, ern_typecheck:type_state(Env)),
-            throw({type_error, Span, lists:flatten(["match on ", Shown,
-                                                    " is not exhaustive; missing ",
-                                                    show(Witness, Env)])})
+            throw({type_error,
+                   #diagnostic{span = ern_diagnostic:span(Span),
+                               message = lists:flatten(["match on ", Shown,
+                                                        " is not exhaustive; missing ",
+                                                        listed([show(Witness, Env)
+                                                                || Witness <- Witnesses])])}})
     end.
+
+%% Up to Count patterns no row matches, each added as a row before the
+%% next is looked for.
+witnesses(_Rows, 0, _Env) ->
+    [];
+witnesses(Rows, Count, Env) ->
+    case useful(Rows, [wild], Env) of
+        no -> [];
+        {yes, [Witness]} -> [Witness | witnesses(Rows ++ [[Witness]], Count - 1, Env)]
+    end.
+
+%% Report §5.9: two joined by `and`, and a fourth found said as `and more`.
+listed([Only]) -> Only;
+listed([First, Second]) -> [First, " and ", Second];
+listed([First, Second, Third]) -> [First, ", ", Second, " and ", Third];
+listed([First, Second, Third | _]) -> [First, ", ", Second, ", ", Third, " and more"].
 
 %% Report §5.9: a clause, or an alternative of one, that can match no value
 %% the clauses before it leave is an error. The label names the earliest
@@ -49,22 +70,11 @@ redundant(Clauses, Env) ->
     lists:foldl(fun(Clause, Earlier) -> rows_through(Clause, Earlier, Env) end, [], Clauses),
     ok.
 
-%% The rows the clauses before this one cover, and this one's own, each
-%% beside its pattern, once each of its alternatives is judged. A guarded
-%% clause adds none, since its guard may fail; the alternatives before one
+%% Report §5.9: the rows the clauses before this one cover, and this
+%% one's own, each beside its pattern, once each of its alternatives is
+%% judged. A guard is not read: a guarded clause is judged by its pattern
+%% and adds no row, since its guard may fail; the alternatives before one
 %% in its own clause cover what they match.
-%%
-%% Report §5.9: a clause whose guard is the literal `false` is redundant
-%% whatever its pattern, and is refused once, its alternatives unjudged; a
-%% guard of any other form is not read.
-rows_through(#clause{pattern = Pattern, guard = #e_literal{kind = bool, value = false} = Guard},
-             _Earlier, _Env) ->
-    throw({type_error,
-           #diagnostic{span = ern_diagnostic:span(ern_ast:span(Pattern)),
-                       message = "this clause can never match",
-                       labels = [{ern_diagnostic:span(ern_ast:span(Guard)),
-                                  "this guard never holds"}],
-                       help = "remove it"}});
 rows_through(#clause{pattern = Pattern, guard = Guard}, Earlier, Env) ->
     Alternatives = alternatives(Pattern),
     IsAlternative = length(Alternatives) > 1,
@@ -151,7 +161,7 @@ simplify(#p_constructor{span = Span, namespace = Namespace, name = Name, args = 
                       {{named, Names}, {named, FieldPatterns}} ->
                           [field_pattern(FieldName, FieldPatterns, Env) || FieldName <- Names]
                   end,
-    {con, {con, QualifiedName}, SubPatterns};
+    {con, {constructor, QualifiedName}, SubPatterns};
 simplify(#p_bitstring{}, _) -> {con, bits, []}.
 
 %% Report §5.10: a field a pattern omits matches any value.
@@ -232,11 +242,11 @@ complete([{tuple, _} = Key | _], _Env) ->
     {true, [Key]};
 complete([Key | _] = Keys, _Env) when Key =:= nil; Key =:= cons ->
     missing([nil, cons], Keys);
-complete([{con, QualifiedName} | _] = Keys, Env) ->
+complete([{constructor, QualifiedName} | _] = Keys, Env) ->
     #constructor_info{type_qualified_name = TypeQualifiedName} =
         ern_typecheck:constructor_info(QualifiedName, Env),
     #type_info{constructors = Constructors} = ern_typecheck:lookup_type(TypeQualifiedName, Env),
-    missing([{con, ConstructorQualifiedName}
+    missing([{constructor, ConstructorQualifiedName}
              || #constructor_info{qualified_name = ConstructorQualifiedName} <- Constructors],
             Keys).
 
@@ -246,7 +256,7 @@ missing(All, Keys) ->
         [First | _] -> {false, First}
     end.
 
-arity({con, QualifiedName}, Env) ->
+arity({constructor, QualifiedName}, Env) ->
     (ern_typecheck:constructor_info(QualifiedName, Env))#constructor_info.tag_arity;
 arity({tuple, Size}, _) -> Size;
 arity(cons, _) -> 2;
@@ -254,7 +264,9 @@ arity(_, _) -> 0.
 
 %%
 %% Witness printing. A witness holds only the constructors of a type whose
-%% values complete/2 can list, so no literal and no bitstring.
+%% values complete/2 can list, so no literal and no bitstring. A witness is
+%% code, each constructor in its shortest resolving form where the `match`
+%% stands (report §11.5).
 %%
 
 show(wild, _) -> "_";
@@ -262,23 +274,26 @@ show({con, {bool, Bool}, []}, _) -> atom_to_list(Bool);
 show({con, {tuple, _}, SubPatterns}, Env) ->
     ["#(", join([show(SubPattern, Env) || SubPattern <- SubPatterns]), ")"];
 show({con, nil, []}, _) -> "[]";
-show({con, cons, [Head, Tail]}, Env) -> [show_atom(Head, Env), " :: ", show(Tail, Env)];
-show({con, {con, QualifiedName}, SubPatterns}, Env) ->
-    #constructor_info{name = Name, fields = Fields} =
+show({con, cons, [Head, Tail]}, Env) -> [show_head(Head, Env), " :: ", show(Tail, Env)];
+show({con, {constructor, QualifiedName}, SubPatterns}, Env) ->
+    #constructor_info{fields = Fields} = ConstructorInfo =
         ern_typecheck:constructor_info(QualifiedName, Env),
+    Name = ern_typecheck:constructor_code(ConstructorInfo, Env),
     case {Fields, SubPatterns} of
-        {none, []} -> atom_to_list(Name);
-        {positional, [SubPattern]} -> [atom_to_list(Name), "(", show(SubPattern, Env), ")"];
+        {none, []} -> Name;
+        {positional, [SubPattern]} -> [Name, "(", show(SubPattern, Env), ")"];
         {{named, Names}, _} ->
             Shown = [[atom_to_list(FieldName), " = ", show(SubPattern, Env)]
                      || {FieldName, SubPattern} <- lists:zip(Names, SubPatterns),
                         SubPattern =/= wild],
             %% report §5.10: `Circle()` matches any `Circle`, and a bare
             %% `Circle` is no pattern
-            [atom_to_list(Name), "(", join(Shown), ")"]
+            [Name, "(", join(Shown), ")"]
     end.
 
-show_atom({con, cons, _} = Pattern, Env) -> ["(", show(Pattern, Env), ")"];
-show_atom(Pattern, Env) -> show(Pattern, Env).
+%% A cons's head, in parentheses where it is a cons itself, since `::`
+%% groups to the right.
+show_head({con, cons, _} = Pattern, Env) -> ["(", show(Pattern, Env), ")"];
+show_head(Pattern, Env) -> show(Pattern, Env).
 
 join(Parts) -> lists:join(", ", Parts).

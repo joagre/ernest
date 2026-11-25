@@ -371,7 +371,7 @@ string_body([$" | Rest], Line, Column, _StartLine, _StartColumn, Acc) ->
     {lists:reverse(Acc), Rest, Line, Column + 1};
 string_body([Char | _], Line, Column, _StartLine, _StartColumn, _Acc)
   when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "a line break in a string literal; use `\\n`");
+    error_at(Line, Column, "a line break in a string literal", "use `\\n`");
 string_body([$\\ | Rest], Line, Column, StartLine, StartColumn, Acc) ->
     {Char, Rest1, Length} = escape(Rest, Line, Column),
     string_body(Rest1, Line, Column + 1 + Length, StartLine, StartColumn, [Char | Acc]);
@@ -397,7 +397,7 @@ char_body([$\\ | Rest], Line, Column) ->
 char_body([$' | _], Line, Column) ->
     error_at(Line, Column, "empty character literal");
 char_body([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "a line break in a character literal; use `'\\n'`");
+    error_at(Line, Column, "a line break in a character literal", "use `'\\n'`");
 char_body([Char | Rest], Line, Column) ->
     closed_char(Char, Rest, Line, Column, Column + 2);
 char_body([], Line, Column) ->
@@ -444,7 +444,7 @@ escape([$u, ${ | Rest], Line, Column) ->
                                      " `}`")
     end;
 escape([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "a line break cannot follow `\\`; use `\\n`");
+    error_at(Line, Column, "a line break cannot follow `\\`", "use `\\n`");
 escape([Char | _], Line, Column) ->
     %% report §2.5: the help lists the escapes, and the one that writes any
     %% code point

@@ -3,17 +3,16 @@
 %% is in #type_state{} and threaded; nothing is mutated.
 -module(ern_types).
 
--export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
+-export([new/0, fresh/1, fresh/2, fresh_named/2, annotation_name/2, restrictions/2,
          add_restriction/3, is_marked_in_value_position/2, settled_none/2, is_unknown/2,
-         unknown_marked/2, unfixed/2, is_enclosing/2, enter/1, leave/1,
-         resolve/2, substitute/2, unify/3, free_variables/2,
-         monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
-         unknown_instance/2, value_positions_marked/2, replace_variables/2,
-         mismatch_pair/3, format/2, format_annotation/2, format_pair/4, instance_names/3,
-         named_as_declared/2,
-         value_variables/2, value_args/3, args_in_value/3, set_scope/5, printing/1,
-         printed_scope/1, set_effect_params/2,
-         format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
+         unknown_marked/2, unfixed/2, is_enclosing/2, enter/1, leave/1, resolve/2, substitute/2,
+         unify/3, free_variables/2, monomorphic/1, generalize/2, generalize/3, instantiate/2,
+         instance/2, unknown_instance/2, value_positions_marked/2, replace_variables/2,
+         mismatch_pair/3, format/2, format/3, format_annotation/2, format_pair/4, format_pair/5,
+         format_pair/6, instance_names/3, named_as_declared/2, value_variables/2, value_args/3,
+         args_in_value/3, set_scope/5, printing/1, printed_scope/1, set_forms/2, code_namespace/2,
+         as_code/1, set_effect_params/2, format_scheme/2, format_with_requirement/3, format_call/4,
+         format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
 
@@ -29,23 +28,32 @@
               | {tfn, [type()], effect(), type()}.
 
 -record(type_state, {next = 1, level = 0, substitution = #{}, variables = #{}, namespace = [],
-                     session_types = [], shadows = [], input_names = #{}, effect_params = #{}}).
+                     session_types = [], shadows = [], input_names = #{}, effect_params = #{},
+                     forms = undefined, code = false}).
 %% namespace, session_types, shadows: the module being checked, whose
 %% types print unqualified; the session's types that print so too, each
-%% the latest declaration of its name (report §11.2); and the module's
-%% type names that shadow prelude names, which print qualified (§11.5)
+%% the latest declaration of its name (report §11.2); and the prelude's
+%% type names that a type of the module or the session hides, which print
+%% as `Prelude.x` (§11.5)
 %% input_names: the name each module of the session's inputs prints
 %% with, `$Input4` for the fourth input's (report §11.2)
 %% effect_params: for each type with a parameter that is no value position
 %% (report §3.9), whether each of its arguments is one
+%% forms: while a module is checked, the shortest resolving form of a
+%% namespace from it (ern_resolve:shortest/3), or undefined; code: whether
+%% a type prints as code a diagnostic writes, another module's type in
+%% that form (report §11.5)
 -opaque type_state() :: #type_state{}.
 
 %% The names a type's variables print with, given as the type is printed
 %% (report §11.5). named: the name given each variable met so far;
 %% effect_only: the variables in no value position, which print as effect
 %% variables; values, effects: how many fresh names of each kind have been
-%% tried; taken: the names in use, without their marks.
--record(variable_names, {named = #{}, effect_only = [], values = 0, effects = 0, taken = []}).
+%% tried; taken: the names in use, without their marks; claimed: each
+%% annotation's name the type's variables carry, by the first variable to
+%% carry it, which keeps it, so that no fresh name takes it first.
+-record(variable_names, {named = #{}, effect_only = [], values = 0, effects = 0, taken = [],
+                         claimed = #{}}).
 
 %%
 %% State and variables
@@ -69,6 +77,20 @@ fresh_named(Name, TypeState) ->
     Variable = maps:get(Id, Variables),
     Named = Variable#type_variable{name = Name},
     {Type, TypeState1#type_state{variables = Variables#{Id => Named}}}.
+
+%% The name of the annotation that wrote a type, a variable resolved, or
+%% none where it is no variable an annotation names (report §11.5).
+-spec annotation_name(type(), type_state()) -> atom() | none.
+annotation_name(Type, #type_state{variables = Variables} = TypeState) ->
+    case resolve(Type, TypeState) of
+        {tvar, Id} ->
+            case Variables of
+                #{Id := #type_variable{name = Name}} when Name =/= undefined -> Name;
+                _ -> none
+            end;
+        _ ->
+            none
+    end.
 
 -spec restrictions(id(), type_state()) -> restrictions().
 restrictions(Id, #type_state{variables = Variables}) ->
@@ -283,8 +305,7 @@ bind_variable(Id, Variable, Type, _Reason, TypeState) ->
 
 %% Report §3.10: a variable with the equality restriction passes it to the
 %% variables in value positions of the type it is bound to, so that what
-%% they are bound to later is compared as the variable's own binding is. A
-%% regression: `eq([x], [x])` left `x` free to be a function.
+%% they are bound to later is compared as the variable's own binding is.
 pass_equality(Id, Type, TypeState) ->
     case lists:member(equality, restrictions(Id, TypeState)) of
         true ->
@@ -444,10 +465,10 @@ effect_positions({tcon, _, Args}, Acc) -> lists:foldl(fun effect_positions/2, Ac
 effect_positions({ttuple, Elements}, Acc) -> lists:foldl(fun effect_positions/2, Acc, Elements);
 effect_positions(_, Acc) -> Acc.
 
-%% Fresh variables for the quantified ones, restrictions copied.
+%% Fresh variables for the quantified ones, restrictions copied. An
+%% instance's variables carry no names: a name belongs to the annotation
+%% that wrote it, not to a use of the value (report §11.5).
 -spec instantiate(#scheme{}, type_state()) -> {type(), type_state()}.
-%% An instance's variables carry no names: a name belongs to the
-%% annotation that wrote it, not to a use of the value (report §11.5).
 instantiate(Scheme, TypeState) ->
     {Type, _, TypeState1} = instance(Scheme, TypeState),
     {Type, TypeState1}.
@@ -548,10 +569,7 @@ differing(Expected, Actual, _TypeState) ->
 
 %% The parts unified in order, each under what the parts before it bound,
 %% and the first that does not unify named. A part where either side is a
-%% variable does not differ, since the variable takes the other. A
-%% regression: the help named a variable against the type it would take,
-%% `a` and `Set(a)`, where the results differed; and another, the help named
-%% `Set(Int)` against `Set(a=)`, which unify, where the results differed.
+%% variable does not differ, since the variable takes the other.
 first_differing(ExpectedParts, ActualParts, Whole, TypeState) ->
     first_failing(lists:zip(ExpectedParts, ActualParts), Whole, TypeState).
 
@@ -574,25 +592,33 @@ is_variable(_) -> false.
 
 -spec format(type() | none, type_state()) -> string().
 format(Type, TypeState) ->
+    format(Type, [], TypeState).
+
+%% InScope as format_pair/6 takes it.
+-spec format(type() | none, [{atom(), id()}], type_state()) -> string().
+format(Type, InScope, TypeState) ->
     %% report §11.5: a function's own effect variable that occurs nowhere
     %% else, outside a parameter, and is not process-only, prints as none,
     %% but one a call of `self` or `monitor` marked while its definition is
     %% inferred, which is a mailbox type until the definition ends (§3.9)
     Elided = elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
-    {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
+    {Text, _} = format_type(Elided, TypeState,
+                            #variable_names{effect_only = EffectOnly,
+                                            claimed = maps:merge(in_scope(InScope),
+                                                                 claimed(Elided, TypeState))}),
     lists:flatten(Text).
 
-%% Report §11.5: a type as a help writes it in an annotation, each variable
-%% left in it, which the writer chooses, written `...`, a process-only
-%% effect variable among them: `Address(Optional(...))`,
-%% `() -> Unit receiving ...`.
+%% Report §11.5: a type as a help writes it in an annotation, as code
+%% (as_code/1), each variable left in it, which the writer chooses, written
+%% `...`, a process-only effect variable among them:
+%% `Address(Optional(...))`, `() -> Unit receiving ...`.
 -spec format_annotation(type() | none, type_state()) -> string().
 format_annotation(Type, TypeState) ->
     Substituted = substitute(Type, TypeState),
     Chosen = maps:from_list([{Id, {tcon, ['...'], []}}
                              || Id <- free_variables(Substituted, TypeState)]),
-    format(replace_variables(Substituted, Chosen), TypeState).
+    format(replace_variables(Substituted, Chosen), as_code(TypeState)).
 
 %% Report §11.5: two types a message prints together, an expected one and
 %% one found, named as one, so that a variable has one name in both and
@@ -601,15 +627,31 @@ format_annotation(Type, TypeState) ->
 %% `#(a, b)` reads `#(c, d)` and not the pattern again.
 -spec format_pair(type(), type(), [string()], type_state()) -> {string(), string()}.
 format_pair(Expected, Actual, Taken, TypeState) ->
+    format_pair(Expected, Actual, Taken, [], TypeState).
+
+%% Kept: the effect variables printed though lone, an annotation's whose
+%% binding the mismatch is (report §11.5).
+-spec format_pair(type(), type(), [string()], [id()], type_state()) -> {string(), string()}.
+format_pair(Expected, Actual, Taken, Kept, TypeState) ->
+    format_pair(Expected, Actual, Taken, Kept, [], TypeState).
+
+%% InScope: the names the variables of the signature around the error
+%% carry, by their ids, which no other variable is given (report §11.5).
+-spec format_pair(type(), type(), [string()], [id()], [{atom(), id()}], type_state()) ->
+          {string(), string()}.
+format_pair(Expected, Actual, Taken, Kept, InScope, TypeState) ->
     {ttuple, [SubstitutedExpected, SubstitutedActual]} = Substituted =
         substitute({ttuple, [Expected, Actual]}, TypeState),
     Counts = count_variables(Substituted, #{}),
+    Unmarked = unmarked(TypeState),
+    Elides = fun(Id) -> Unmarked(Id) andalso not lists:member(Id, Kept) end,
     {ttuple, [ElidedExpected, ElidedActual]} = Elided =
-        {ttuple, [elided_own_effect(SubstitutedExpected, Counts, unmarked(TypeState),
-                                    TypeState),
-                  elided_own_effect(SubstitutedActual, Counts, unmarked(TypeState), TypeState)]},
+        {ttuple, [elided_own_effect(SubstitutedExpected, Counts, Elides, TypeState),
+                  elided_own_effect(SubstitutedActual, Counts, Elides, TypeState)]},
     EffectOnly = effect_only_variables(Elided, TypeState),
-    Names = #variable_names{effect_only = EffectOnly, taken = Taken},
+    Names = #variable_names{effect_only = EffectOnly, taken = Taken,
+                            claimed = maps:merge(in_scope(InScope),
+                                                 claimed(Elided, TypeState))},
     {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
     {ActualText, _} = format_type(ElidedActual, TypeState, Names1),
     {lists:flatten(ExpectedText), lists:flatten(ActualText)}.
@@ -718,9 +760,9 @@ value_positions_list(Types, EffectParams, Acc) ->
     lists:foldl(fun(Type, TypeAcc) -> value_positions(Type, EffectParams, TypeAcc) end, Acc,
                 Types).
 
-%% The module being checked, the session's types, the type names that
-%% shadow prelude names, which print qualified (report §11.5), and the
-%% names the session's inputs print with (§11.2).
+%% The module being checked, the session's types, the prelude's type names
+%% they hide, which print as `Prelude.x` (report §11.5), and the names the
+%% session's inputs print with (§11.2).
 -spec set_scope(qualified_name(), [qualified_name()], [atom()], #{qualified_name() => string()},
                 type_state()) -> type_state().
 set_scope(Namespace, SessionTypes, Shadows, InputNames, TypeState) ->
@@ -737,11 +779,33 @@ printing(#type_state{namespace = Namespace, session_types = SessionTypes, shadow
                 input_names = InputNames, effect_params = EffectParams}.
 
 %% Report §11.5, §12.7: the module a type prints from, its namespace, and the
-%% prelude names its types shadow, which print qualified, by which a code
-%% frame carries how a definition's module writes a type (set_scope/5).
+%% prelude names its types shadow, which print as `Prelude.x`, by which a
+%% code frame carries how a definition's module writes a type (set_scope/5).
 -spec printed_scope(type_state()) -> {qualified_name(), [atom()]}.
 printed_scope(#type_state{namespace = Namespace, shadows = Shadows}) ->
     {Namespace, Shadows}.
+
+%% Report §11.5: the shortest resolving form of each namespace from the
+%% module being checked, Forms, or undefined, where every name is printed
+%% whole.
+-spec set_forms(fun(([atom(), ...]) -> [atom(), ...]) | undefined, type_state()) ->
+          type_state().
+set_forms(Forms, TypeState) ->
+    TypeState#type_state{forms = Forms}.
+
+%% Report §11.5: a namespace as code a diagnostic writes it, its shortest
+%% resolving form from the module being checked, or whole where no form is
+%% known.
+-spec code_namespace([atom(), ...], type_state()) -> [atom(), ...].
+code_namespace(Namespace, #type_state{forms = undefined}) -> Namespace;
+code_namespace(Namespace, #type_state{forms = Forms}) -> Forms(Namespace).
+
+%% Report §11.5: the state a type prints under as code a diagnostic writes,
+%% in its message or its help: another module's type in its shortest
+%% resolving form where the error stands.
+-spec as_code(type_state()) -> type_state().
+as_code(TypeState) ->
+    TypeState#type_state{code = true}.
 
 %% Report §3.9: the types with a parameter that occurs in no value position
 %% of their fields, each with whether each of its arguments is a value
@@ -750,20 +814,26 @@ printed_scope(#type_state{namespace = Namespace, shadows = Shadows}) ->
 set_effect_params(EffectParams, TypeState) ->
     TypeState#type_state{effect_params = EffectParams}.
 
-%% Report §11.5: a type name as the module would write it.
-type_name([Name], _TypeState) ->
-    atom_to_list(Name);
+%% Report §11.5: a type name plain where the module or the session
+%% declares it, a prelude type that one of theirs hides as `Prelude.x`, and
+%% another module's whole, from the root.
+type_name([Name], #type_state{shadows = Shadows}) ->
+    case lists:member(Name, Shadows) of
+        true -> "Prelude." ++ atom_to_list(Name);
+        false -> atom_to_list(Name)
+    end;
 type_name(QualifiedName, #type_state{namespace = Namespace, session_types = SessionTypes,
-                                     shadows = Shadows, input_names = InputNames}) ->
+                                     input_names = InputNames, forms = Forms, code = Code}) ->
     Name = lists:last(QualifiedName),
     IsOwn = lists:droplast(QualifiedName) =:= Namespace
         orelse lists:member(QualifiedName, SessionTypes),
-    case {IsOwn andalso not lists:member(Name, Shadows),
-          maps:find(lists:droplast(QualifiedName), InputNames)} of
+    case {IsOwn, maps:find(lists:droplast(QualifiedName), InputNames)} of
         {true, _} -> atom_to_list(Name);
         %% report §11.2: a session type a later input shadowed prints under
         %% the input that declared it
         {false, {ok, InputName}} -> InputName ++ "." ++ atom_to_list(Name);
+        {false, error} when Code, Forms =/= undefined ->
+            ern_namespace:text(Forms(lists:droplast(QualifiedName)) ++ [Name]);
         {false, error} -> ern_namespace:text(QualifiedName)
     end.
 
@@ -774,7 +844,9 @@ format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeStat
     SchemeState = scheme_state(Scheme, TypeState),
     Elided = elided_own_effect(substitute(Type, SchemeState), unmarked(SchemeState), SchemeState),
     EffectOnly = effect_only_variables(Elided, SchemeState),
-    {Text, Names} = format_type(Elided, SchemeState, #variable_names{effect_only = EffectOnly}),
+    {Text, Names} = format_type(Elided, SchemeState,
+                                #variable_names{effect_only = EffectOnly,
+                                                claimed = claimed(Elided, SchemeState)}),
     lists:flatten([Text | requirement_text(over_variables(Requirement), SchemeState, Names)]).
 
 %% Report §4.9, §11.5: an instance of a declaration's type, the type at a
@@ -783,7 +855,9 @@ format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeStat
 format_with_requirement(Type, Requirement, TypeState) ->
     Elided = elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
-    {Text, Names} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
+    {Text, Names} = format_type(Elided, TypeState,
+                                #variable_names{effect_only = EffectOnly,
+                                                claimed = claimed(Elided, TypeState)}),
     lists:flatten([Text | requirement_text([{substitute(Instance, TypeState), Member}
                                             || {Instance, Member} <- Requirement],
                                            TypeState, Names)]).
@@ -840,7 +914,8 @@ format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
     case elided_own_effect(substitute(Type, SchemeState), unmarked(SchemeState),
                            SchemeState) of
         {tfn, ParamTypes, Effect, Result} = Elided ->
-            Names = #variable_names{effect_only = effect_only_variables(Elided, SchemeState)},
+            Names = #variable_names{effect_only = effect_only_variables(Elided, SchemeState),
+                                    claimed = claimed(Elided, SchemeState)},
             {Shown, Names1} = lists:mapfoldl(fun(ParamType, Acc) ->
                                                  format_type(ParamType, SchemeState, Acc)
                                              end, Names, ParamTypes),
@@ -886,14 +961,17 @@ padded(_, Count) -> lists:duplicate(Count, '_').
 %% Report §11.5: the annotation's name if the variable has one and it is
 %% not in use for another, else a fresh name that is not in use.
 format_type({tvar, Id}, TypeState,
-            #variable_names{named = Named, effect_only = EffectOnly, taken = Taken} = Names) ->
+            #variable_names{named = Named, effect_only = EffectOnly, taken = Taken,
+                            claimed = Claimed} = Names) ->
     case Named of
         #{Id := Name} -> {Name, Names};
         _ ->
             Given = annotated_name(Id, TypeState),
-            {Base, Names1} = case Given =:= undefined orelse lists:member(Given, Taken) of
-                                 true -> fresh_name(Id, Names);
-                                 false -> {Given, Names}
+            Keeps = Given =/= undefined andalso not lists:member(Given, Taken)
+                andalso maps:get(Given, Claimed, Id) =:= Id,
+            {Base, Names1} = case Keeps of
+                                 true -> {Given, Names};
+                                 false -> fresh_name(Id, Names)
                              end,
             %% report §11.5: a process-only variable is marked where it
             %% occurs in no value position, since one that does is never none
@@ -939,23 +1017,48 @@ format_list(Types, TypeState, Names) ->
                                      Names, Types),
     {lists:join(", ", Texts), Names1}.
 
-%% a, b, c, ... or e, e1, ..., skipping names in use.
+%% a, b, c, ... or e, e1, ..., skipping names in use and those an
+%% annotation's variable keeps.
 fresh_name(Id, #variable_names{effect_only = EffectOnly, values = ValueCount,
-                               effects = EffectCount, taken = Taken} = Names) ->
+                               effects = EffectCount, taken = Taken, claimed = Claimed} = Names) ->
+    InUse = fun(Name) -> lists:member(Name, Taken) orelse is_map_key(Name, Claimed) end,
     case lists:member(Id, EffectOnly) of
         true ->
             Names1 = Names#variable_names{effects = EffectCount + 1},
-            case lists:member(effect_variable_name(EffectCount), Taken) of
+            case InUse(effect_variable_name(EffectCount)) of
                 true -> fresh_name(Id, Names1);
                 false -> {effect_variable_name(EffectCount), Names1}
             end;
         false ->
             Names1 = Names#variable_names{values = ValueCount + 1},
-            case lists:member(value_variable_name(ValueCount), Taken) of
+            case InUse(value_variable_name(ValueCount)) of
                 true -> fresh_name(Id, Names1);
                 false -> {value_variable_name(ValueCount), Names1}
             end
     end.
+
+in_scope(InScope) ->
+    maps:from_list([{atom_to_list(Name), Id} || {Name, Id} <- InScope]).
+
+%% Each annotation's name the variables of a substituted type carry, by
+%% the first of them in the order the type prints.
+claimed(Type, TypeState) ->
+    claimed(Type, TypeState, #{}).
+
+claimed({tvar, Id}, TypeState, Acc) ->
+    case annotated_name(Id, TypeState) of
+        undefined -> Acc;
+        Name -> maps:merge(#{Name => Id}, Acc)
+    end;
+claimed({tcon, _, Args}, TypeState, Acc) ->
+    lists:foldl(fun(Arg, Acc1) -> claimed(Arg, TypeState, Acc1) end, Acc, Args);
+claimed({ttuple, Elements}, TypeState, Acc) ->
+    lists:foldl(fun(Element, Acc1) -> claimed(Element, TypeState, Acc1) end, Acc, Elements);
+claimed({tfn, Params, Effect, Result}, TypeState, Acc) ->
+    lists:foldl(fun(Part, Acc1) -> claimed(Part, TypeState, Acc1) end, Acc,
+                Params ++ [Result, Effect]);
+claimed(_, _TypeState, Acc) ->
+    Acc.
 
 annotated_name(Id, #type_state{variables = Variables}) ->
     case Variables of
@@ -986,10 +1089,6 @@ effect_variable_name(Count) -> "e" ++ integer_to_list(Count).
 format_error({arity, ExpectedCount, ActualCount}) ->
     lists:flatten(io_lib:format("a function of ~B argument~s where one of ~B was expected",
                                 [ActualCount, plural(ActualCount), ExpectedCount]));
-format_error(none_where_mailbox_needed) ->
-    "a function that receives nothing where one that receives is needed";
-format_error(mailbox_where_none_needed) ->
-    "a function that receives where one that receives nothing is needed";
 format_error({occurs, _, _}) ->
     "a type that would contain itself".
 

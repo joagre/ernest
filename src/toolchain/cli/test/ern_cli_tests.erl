@@ -2360,8 +2360,9 @@ hidden_root_module_help_test() ->
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Output, <<"shell.ern:1:51: unknown name"
                                                 " Top.Shell.Util.g\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"help: `Util` here is `Top.Shell.Util`; the root's"
-                                                " `Util` is out of reach from `Top.Shell`\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"help: Util here is Top.Shell.Util, which hides"
+                                                " the root's Util from Top.Shell; give it another"
+                                                " name to reach the root's\n">>)).
 
 %% report §4.2, §11.5: the root holds the libraries of the toolchain's own,
 %% each under a root of the load path, and a type's name is helped as a
@@ -2376,8 +2377,9 @@ hidden_library_help_test() ->
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Output, <<"shell.ern:1:26: unknown type"
                                                 " Top.Shell.Json.Value\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"help: `Json` here is `Top.Shell.Json`; the root's"
-                                                " `Json` is out of reach from `Top.Shell`\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"help: Json here is Top.Shell.Json, which hides"
+                                                " the root's Json from Top.Shell; give it another"
+                                                " name to reach the root's\n">>)).
 
 %% report §4.2, §11.5: where no module of the first segment stands at the
 %% root, nothing is out of reach, and the unknown name has no help
@@ -5197,7 +5199,7 @@ shell_load_hashed_test() ->
                                                          ern_build:load_path_of([Dir]),
                                                          #{['Geo'] => GeoInterface}, #{}),
     {ok, #recorded{definitions = [#definition{hash = Area}]}} = ern_canonical:read(Geo),
-    ?assertEqual(Area, maps:get(['Geo', area], GeoInterface#interface.identities)),
+    ?assertEqual(Area, maps:get(['Geo', area], ern_interface:identities(GeoInterface))),
     {ok, #{references := [{['Geo', area], Area}]}} = ern_interface:read(Room),
     {ok, #recorded{definitions = [#definition{qualified_name = ['Room', floor]}]}} =
         ern_canonical:read(Room).

@@ -469,7 +469,7 @@ door(#tour{shell = Shell} = Tour) ->
            "  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
            "  | = help: start it on the peer from `Peer.compute`, whose function spawns it"
            " and answers an adapted address of a type that crosses, or keep a function on this"
-           " node and send the process values that cross (report §3.11)"]},
+           " node and send the process values that cross"]},
          {"kill(Process.fromAddress(counter))", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
          {"let far <- Peer.compute(\"foo\", fn() = Counter.start(), 5000)",

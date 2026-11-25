@@ -127,17 +127,23 @@ interface(Namespace, #interface{lets = Lets} = Interface,
 with_terms(#interface{lets = []} = Interface, Canonical, _) ->
     ern_canonical:interface(Interface, Canonical);
 with_terms(#interface{lets = Lets} = Interface, Canonical, Unit) ->
-    (ern_canonical:interface(Interface, Canonical))#interface{
-      terms = ern_emitter:ground_terms(Unit, Lets)}.
+    #interface{back_end = BackEnd} = Compiled = ern_canonical:interface(Interface, Canonical),
+    Grounded = maps:fold(fun(QualifiedName, Term, Acc) ->
+                                 Facts = maps:get(QualifiedName, Acc, #back_end{}),
+                                 Acc#{QualifiedName => Facts#back_end{term = {term, Term}}}
+                         end, BackEnd, ern_emitter:ground_terms(Unit, Lets)),
+    Compiled#interface{back_end = Grounded}.
 
 %% Report §11.2: an expression's interface with the position of the getter
 %% of the value its unit holds, by which a later input reads it.
 held(Interface, #unit{held = none}) ->
     Interface;
-held(#interface{positions = Positions} = Interface,
+held(#interface{back_end = BackEnd} = Interface,
      #unit{namespace = Namespace, held = {Name, _}} = Unit) ->
-    Interface#interface{positions = Positions#{Namespace ++ [Name] =>
-                                                   ern_emitter:held_position(Unit)}}.
+    Facts = maps:get(Namespace ++ [Name], BackEnd, #back_end{}),
+    Interface#interface{back_end = BackEnd#{Namespace ++ [Name] =>
+                                                Facts#back_end{
+                                                  position = ern_emitter:held_position(Unit)}}}.
 
 %% Report §11.2, §11.1: a compiled module made a unit of the name Unit from
 %% what its compiled form records, by the back end as an exchange's unit is
@@ -169,8 +175,9 @@ from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->
                                                           scheme = Scheme} <- ForeignFunctions]),
     %% the qualified name of each definition of another module by its hash,
     %% which its forms name it by
-    Named = #{Hash => QualifiedName || #interface{identities = Identities} <- Interfaces,
-                                       QualifiedName := Hash <- Identities, is_binary(Hash)},
+    Named = #{Hash => QualifiedName || Interface <- Interfaces,
+                                       QualifiedName := Hash <- ern_interface:identities(Interface),
+                                       is_binary(Hash)},
     Forms = [Form || #definition{form = Form} <- Definitions],
     Hashes = [Hash || {hash, Hash} <- references(Forms), is_map_key(Hash, Named)],
     Canonical = #{definitions => Definitions, foreign_schemes => ForeignSchemes,

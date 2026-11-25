@@ -342,7 +342,7 @@ fn opposite(direction : Direction) : Direction =
     }
 ```
 
-The compiler checks that clauses cover every case; a missing case is a type error. So is a clause that can never match, because the clauses above it take every value it would: after `North -> South`, a second `North -> ...` is never reached. A clause whose guard is the literal `false` can never match either (§2.6).
+The compiler checks that clauses cover every case; a missing case is a type error. So is a clause that can never match, because the clauses above it take every value it would: after `North -> South`, a second `North -> ...` is never reached.
 
 Constructors can carry data. `Optional(a)` is the standard example:
 
@@ -354,7 +354,7 @@ type Optional(a) = None | Some(a)
 
 A constructor has one of three shapes. A constructor of no fields, `None` or `North`, is an ordinary value, named where it is used. A constructor of one positional field, `Some(a)`, carries one value, and is also a function, `(a) -> Optional(a)`, which can be passed: `List.map(xs, Some)`. A constructor takes one positional value or named fields; several values without names are a tuple, `Point(#(Int, Int))`, `#(Int, Int)` a tuple type (§2.5). A constructor of named fields, `Person(name : String, age : Int)`, is built with the fields' syntax, `Person(name = "Alice", age = 30)`, and is no function value.
 
-A type that holds a string is a wrapper, `type Word = Word(String)`: there is no type alias, and `type Word = String` is refused, since it would declare a nullary constructor named `String`, and the compiler refuses a constructor named as a type in scope other than its own (report §3.1).
+A type that holds a string is a wrapper, `type Word = Word(String)`: there is no type alias, and `type Word = String` is refused, since it would declare a nullary constructor named `String`, and the compiler refuses a type whose one constructor is named as a type in scope other than its own (report §3.1).
 
 The prelude's types are in scope in every module (§2.9), so a constructor may not take one's name: `type Command = Set(key : String, value : String) | Clear` is refused for its `Set`, and the constructor is named otherwise, `Assign`.
 
@@ -392,7 +392,7 @@ Person(name = "Bob", age = 40) : Person
 Person(name = "Bob", age = 30) : Person
 ```
 
-A pun names a field, so a constructor with one positional field takes none: `Some(=x)` is refused, ``Some has one positional field; write `Some(x)` ``.
+A pun names a field, so a constructor with one positional field takes none: `Some(=x)` is refused, `Some has one positional field`, with the help ``write `Some(x)` ``.
 
 A field of a field is updated through a path:
 
@@ -541,7 +541,7 @@ A guard after the alternatives sees the shared variables. The same works in `rec
 
 `as` binds the whole value beside its parts: `Some(x) as present` binds `x` to the payload and `present` to the whole `Optional`.
 
-A guard is a `Bool` expression that receives nothing. A guard that is `false` passes to the next clause; one that faults faults the process. A clause whose guard is the literal `false` can never match, and is refused as §2.3's is; no other guard is read for it. A guarded clause does not count toward coverage, so a `match` with guards usually ends in an unguarded clause.
+A guard is a `Bool` expression that receives nothing. A guard that is `false` passes to the next clause; one that faults faults the process. No guard is read for redundancy or for coverage: a guarded clause does not count toward coverage, so a `match` with guards usually ends in an unguarded clause.
 
 ### 2.7 `if` and `<-`
 
@@ -723,10 +723,11 @@ fn twice(value) =
 
 ```console
 $ ern build twice.ern
-twice.ern:2:5: the operand type of `+` is not determined; annotate value
+twice.ern:2:5: the operand type of `+` is not determined
 1 | fn twice(value) =
 2 |     value + value
   |     ^^^^^^^^^^^^^
+  | = help: annotate the parameter, `value : ...`
 ```
 
 Without a source that fixes the type, `value + value` is a type error, and `(value : Int)` or `(value : Float)` fixes it. A field read is the same: `fn age(person) = person.age` is refused until `person : Person` says whose field it is. Once the type is fixed, `+` is that type's: `Int.+` for an `Int`, and `Distance.+` for a user type that declares it as a member, `fn Distance.+` (report §3.5, §4.8). A member is reached by its operator and is no value, so where a function is wanted a lambda passes the operation, `List.foldLeft(xs, 0, fn(sum, x) = sum + x)` (report §4.5).
@@ -2903,7 +2904,7 @@ bound.ern:4:54: the function Peer.spawn starts captures listener, whose type Add
 3 |         Right(listener) -> {
 4 |             let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
   |                                                      ^^^^^^^^
-  | = help: compute what the process needs of listener before the spawn and capture that, or spawn on this node (report §3.11)
+  | = help: compute what the process needs of listener before the spawn and capture that, or spawn on this node
 ```
 
 A program that needs such a thing on another node makes it there: the spawned function opens the listener on `alice`, with the address to bind captured in its place. State in a table crosses the same way, as the entries it is made of, from which the peer fills a table of its own (§8.5).

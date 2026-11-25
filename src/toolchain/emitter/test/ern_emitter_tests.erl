@@ -326,16 +326,18 @@ shim_call_is_the_host_function_test() ->
 %% a program's holds none, its foreign function called through its check
 %% (§8.4). A regression test, written after the code.
 interface_shims_test() ->
-    [#interface{shims = IntShims}] = [Interface
-                                      || #interface{namespace = ['Int']} = Interface
-                                             <- ern_prelude:stdlib_interfaces()],
+    [IntShims] = [shims(Interface) || #interface{namespace = ['Int']} = Interface
+                                          <- ern_prelude:stdlib_interfaces()],
     ?assertEqual({erlang, 'band'}, maps:get(['Int', bitAnd], IntShims)),
     ?assertNot(is_map_key(['Int', shiftedRight], IntShims)),
     Text = "export foreign fn size(list : List(Int)) : Int =\n    \"erlang:length/1\"\n",
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
     Canonical = ern_canonical:module(['M'], Typed, Env, false),
-    #interface{shims = Shims} = ern_compile:interface(['M'], Interface, Canonical, Env, #{}),
-    ?assertEqual(#{}, Shims).
+    ?assertEqual(#{}, shims(ern_compile:interface(['M'], Interface, Canonical, Env, #{}))).
+
+%% An interface's shims, by qualified name.
+shims(#interface{back_end = BackEnd}) ->
+    #{QualifiedName => Shim || QualifiedName := #back_end{shim = Shim} <- BackEnd, Shim =/= none}.
 
 %% report §12.3, Appendix E.21, §11.1: a raise in a foreign function of the
 %% standard library's, called at the call site, faults with the cause that
@@ -1414,7 +1416,7 @@ ground_terms_test() ->
            "export fn summed() : Int = anInt + negated\n",
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Ground'], Text),
     Canonical = ern_canonical:module(['Ground'], Typed, Env, false),
-    #interface{terms = Terms} = ern_compile:interface(['Ground'], Interface, Canonical, Env, #{}),
+    Terms = terms(ern_compile:interface(['Ground'], Interface, Canonical, Env, #{})),
     ?assertEqual(#{anInt => 16777216, aFloat => 1.5, aString => <<"> ">>, aChar => $c,
                    aBool => true, aUnit => 'Unit', negated => -1, zero => 0.0, red => 'Red',
                    wrapped => {'Wrapped', 3}, point => {'Point', 1, 2},
@@ -1429,6 +1431,10 @@ ground_terms_test() ->
     {Sited, _} = binary:match(Source, <<"ern_rt:initializing(<<\"Ground.product:17\">>)">>),
     ?assert(Given < Sited),
     ?assertEqual(nomatch, binary:match(Source, <<"Ground.anInt:">>)).
+
+%% An interface's ground terms, by qualified name.
+terms(#interface{back_end = BackEnd}) ->
+    #{QualifiedName => Term || QualifiedName := #back_end{term = {term, Term}} <- BackEnd}.
 
 %% report §11.1: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
@@ -1445,11 +1451,13 @@ interface_chunk_test() ->
     ?assert(is_map_key(['Stack', push], Read#interface.values)),
     %% the checker's interface, with the numbers the compiler gives the
     %% unit's functions and the values of its ground bindings (report §11.1)
-    ?assertEqual(#{['Stack', empty] => {'Stack', []}}, Read#interface.terms),
-    ?assertEqual(ern_interface:hash(Interface#interface{positions = Read#interface.positions,
-                                                        terms = Read#interface.terms}),
+    ?assertEqual(#{['Stack', empty] => {'Stack', []}}, terms(Read)),
+    ?assertEqual(ern_interface:hash(Interface#interface{back_end = Read#interface.back_end}),
                  ern_interface:hash(Read)),
-    ?assertNotEqual(ern_interface:hash(Read#interface{terms = #{}}), ern_interface:hash(Read)),
+    Termless = maps:map(fun(_, Facts) -> Facts#back_end{term = none} end,
+                        Read#interface.back_end),
+    ?assertNotEqual(ern_interface:hash(Read#interface{back_end = Termless}),
+                    ern_interface:hash(Read)),
     {ok, _, Interface2, _} = ern_typecheck:check_string(Namespace,
                                                         <<"fn f(x) = x\n", Source/binary>>),
     ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)),
@@ -3135,7 +3143,8 @@ function_value_ok_is_unit_test() ->
 %% a tuple a return holds, an `ok` inside a list a function value foreign
 %% code gave answers at a call, and an `ok` a foreign function or a
 %% function value answers where its result is declared a program's own
-%% type named `Unit`, which is not the prelude's. A regression test,
+%% type named `Unit`, which is not the prelude's, and which the cause names
+%% plain, as §11.5 prints it in the module (§12.3). A regression test,
 %% written after the code
 foreign_ok_elsewhere_faults_test() ->
     Main = "export fn main() : Unit = ",
@@ -3165,10 +3174,10 @@ foreign_ok_elsewhere_faults_test() ->
           "    : (Int) -> Unit = \"erlang:make_fun/3\"\n"
           "export fn main() : Prelude.Unit = ",
     {Result5, _} = run(Own ++ "Io.println(Io.show(pause(0)))\n"),
-    ?assertEqual(return_cause("timer:sleep/1", "M.Unit"), cause_of(Result5)),
+    ?assertEqual(return_cause("timer:sleep/1", "Unit"), cause_of(Result5)),
     {Result6, _} = run(Own ++ "Io.println(Io.show(made(Foreign.atom(\"timer\"),"
                        " Foreign.atom(\"sleep\"), 1)(0)))\n"),
-    ?assertEqual(return_cause("timer:sleep/1", "M.Unit"), cause_of(Result6)).
+    ?assertEqual(return_cause("timer:sleep/1", "Unit"), cause_of(Result6)).
 
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one
@@ -4410,7 +4419,7 @@ system_reference_in_let_test() ->
 %% checker knows is emitted as a call to a function that exists, with the
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
-    Missing = [QualifiedName || {QualifiedName, Text, _} <- ern_prelude:values(),
+    Missing = [QualifiedName || {QualifiedName, Text, _, _} <- ern_prelude:values(),
                                 {HostModule, HostFunction, Arity}
                                     <- [prelude_target(QualifiedName, Text)],
                                 code:ensure_loaded(HostModule) =/= {module, HostModule} orelse

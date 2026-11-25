@@ -423,7 +423,8 @@ session_namespace_test() ->
                     X = Holder ++ [x],
                     Bound = #interface{namespace = Holder,
                                        values = #{X => #scheme{type = {tcon, ['Int'], []}}},
-                                       lets = [X], identities = #{X => <<7:256>>}},
+                                       lets = [X],
+                                       back_end = #{X => #back_end{identity = <<7:256>>}}},
                     {ok, Typed, _, Env} = ern_typecheck:check(Namespace, Declarations, [Bound],
                                                               #{values => #{x => X}},
                                                               ern_typecheck:prelude_env()),
@@ -573,7 +574,7 @@ other_module_test() ->
                         canonical(['B'], "fn caller() : Int = A." ++ Name ++ "() + 1",
                                   [Interface]),
                     {(named(Definitions, caller))#definition.hash, References,
-                     maps:get(['A', list_to_atom(Name)], Interface#interface.identities)}
+                     maps:get(['A', list_to_atom(Name)], ern_interface:identities(Interface))}
                 end,
     {Hash, [{['A', f], FHash}], FHash} = Dependent("1", "f"),
     ?assertMatch({Hash, _, _}, Dependent("1", "g")),
@@ -593,9 +594,9 @@ foreign_test() ->
     Int = applied('Int'),
     ?assert(holds({var, {foreign, ['T', now], {scheme, [], {arrow, [], none, Int}, []}}, []},
                   form(Text, later))),
-    ?assertEqual(foreign, maps:get(['T', now], Interface#interface.identities)),
-    ?assertEqual(foreign, maps:get(['T', 'Handle'], Interface#interface.identities)),
-    ?assertEqual(hash(Text, later), maps:get(['T', later], Interface#interface.identities)).
+    ?assertEqual(foreign, maps:get(['T', now], ern_interface:identities(Interface))),
+    ?assertEqual(foreign, maps:get(['T', 'Handle'], ern_interface:identities(Interface))),
+    ?assertEqual(hash(Text, later), maps:get(['T', later], ern_interface:identities(Interface))).
 
 %% report Appendix H: a type of the module is referenced by its hash, and
 %% the type variable its signature writes by its number in the scheme
@@ -709,10 +710,12 @@ reach_test() ->
                                       "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
                                       "export fn noted() : Int = note + now()\n"
                                       "export fn plain() : Int = 2\n", []),
-    NoteHash = maps:get(['A', note], Interface#interface.identities),
+    NoteHash = maps:get(['A', note], ern_interface:identities(Interface)),
     Reached = {[{['A', note], NoteHash}], [['A', now]]},
-    ?assertEqual(Reached, maps:get(['A', noted], Interface#interface.reaches)),
-    ?assertNot(maps:is_key(['A', plain], Interface#interface.reaches)),
+    #{['A', noted] := #back_end{reach = NotedReach},
+      ['A', plain] := #back_end{reach = PlainReach}} = Interface#interface.back_end,
+    ?assertEqual(Reached, NotedReach),
+    ?assertEqual({[], []}, PlainReach),
     Text = "let own : Int = 3\n"
            "fn even(n : Int) : Bool = if n == 0 then true else odd(n - 1)\n"
            "fn odd(n : Int) : Bool = if n == 0 then A.noted() == own else even(n - 1)\n"
@@ -762,3 +765,32 @@ other_form_version_test() ->
                                   [binary, {extra_chunks, [{ern_canonical:chunk_name(), Chunk}]}]),
     ?assertEqual({error, "the canonical forms are of another version of the form"},
                  ern_canonical:read(Beam)).
+
+%% report §11: a `.erc` may come from anywhere, and a chunk of this version
+%% of the form whose record holds what this build does not write reads as
+%% the error of another version, not as a record a later reader raises on
+malformed_recorded_test() ->
+    [?assertEqual({error, "the canonical forms are of another version of the form"},
+                  ern_canonical:read(crafted_beam(ern_canonical:chunk_name(),
+                                                  {ern_canonical:form_version(), Recorded})))
+     || Recorded <- [#recorded{definitions = not_a_list}, #recorded{foreign = not_a_list},
+                     #recorded{binding_order = not_a_list}, #recorded{definitions = [nothing]},
+                     not_a_record]].
+
+%% report §11, §11.1: an interface chunk of this build's format whose
+%% interface's fields are not those this build writes reads as another
+%% build's, `compiled by another build of ern`, and raises nothing. A
+%% regression test: a field that was no list of pairs raised `badarg`
+malformed_interface_test() ->
+    {ok, _, Written, _} = ern_typecheck:check_string(['M'], "fn f() : Int = 1\n"),
+    #{format := Format} = binary_to_term(ern_interface:encode(#{}, Written)),
+    Interface = {interface, ['M'], not_a_list, [], [], [], [], []},
+    ?assertEqual({error, "compiled by another build of ern"},
+                 ern_interface:read(crafted_beam(ern_interface:chunk_name(),
+                                                 #{format => Format, interface => Interface}))).
+
+%% A compiled module whose chunk Name holds Term.
+crafted_beam(Name, Term) ->
+    {ok, _, Beam} = compile:forms([{attribute, 1, module, ern_canonical_crafted}],
+                                  [binary, {extra_chunks, [{Name, term_to_binary(Term)}]}]),
+    Beam.

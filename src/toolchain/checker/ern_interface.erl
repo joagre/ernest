@@ -5,14 +5,14 @@
 %% through here, so that the format has one owner.
 -module(ern_interface).
 
--export([chunk_name/0, encode/2, read/1, written/1, hash/1]).
+-export([chunk_name/0, encode/2, read/1, written/1, identities/1, hash/1]).
 
 -export_type([chunk/0]).
 
 -include_lib("checker/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 12).
+-define(FORMAT, 13).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], references => [{[atom()], binary()}],
@@ -38,14 +38,14 @@ encode(Facts, Interface) ->
 read(Beam) ->
     case ern_chunk:read(Beam, ?CHUNK) of
         {ok, Chunk} ->
-            %% data alone, since a `.erc` may come from anywhere (ern_chunk)
-            try ern_chunk:term(Chunk) of
+            %% data alone, since a `.erc` may come from anywhere (ern_chunk),
+            %% and an interface whose fields are not what this build writes
+            %% is another build's
+            try
                 {ok, #{format := ?FORMAT,
-                       interface := {interface, _, _, _, _, _, _, _, _, _, _, _} = Written}
-                     = Read} ->
-                    {ok, Read#{interface => interface(Written)}};
-                _ ->
-                    {error, "compiled by another build of ern"}
+                       interface := {interface, _, _, _, _, _, _, _} = Written}
+                     = Read} = ern_chunk:term(Chunk),
+                {ok, Read#{interface => interface(Written)}}
             catch _:_ ->
                 {error, "compiled by another build of ern"}
             end;
@@ -61,14 +61,19 @@ read(Beam) ->
 written(Interface) ->
     interface(canonical(Interface, keep)).
 
-interface({interface, Namespace, Types, Values, Lets, PrivateTypes, Identities, Reaches,
-           Positions, Terms, Shims, PrivateValues}) ->
+interface({interface, Namespace, Types, Values, Lets, PrivateTypes, BackEnd, PrivateValues}) ->
     #interface{namespace = Namespace, types = maps:from_list(Types),
                values = maps:from_list(Values), lets = Lets,
                private_types = maps:from_list(PrivateTypes),
-               identities = maps:from_list(Identities), reaches = maps:from_list(Reaches),
-               positions = maps:from_list(Positions), terms = maps:from_list(Terms),
-               shims = maps:from_list(Shims), private_values = maps:from_list(PrivateValues)}.
+               back_end = maps:from_list(BackEnd),
+               private_values = maps:from_list(PrivateValues)}.
+
+%% Report §11.1, Appendix H: the hash of each of an interface's definitions,
+%% `foreign` for a foreign declaration, by qualified name.
+-spec identities(#interface{}) -> #{[atom()] => binary() | foreign}.
+identities(#interface{back_end = BackEnd}) ->
+    #{QualifiedName => Identity
+      || QualifiedName := #back_end{identity = Identity} <- BackEnd, Identity =/= undefined}.
 
 %% The hash a dependent records, which leaves the definitions' hashes out,
 %% and their reaches, which follow from them: a change to a dependency's
@@ -84,10 +89,19 @@ interface({interface, Namespace, Types, Values, Lets, PrivateTypes, Identities, 
 %% out too, which no dependent names but in a refusal (§11.5), so that one
 %% added or taken away recompiles no dependent.
 -spec hash(#interface{}) -> binary().
-hash(#interface{values = Values, positions = Positions} = Interface) ->
-    Bodiless = Interface#interface{identities = #{}, reaches = #{},
-                                   positions = maps:with(maps:keys(Values), Positions),
-                                   private_values = #{}},
+hash(#interface{values = Values, back_end = BackEnd} = Interface) ->
+    Called = fun(QualifiedName, Position) ->
+                     case is_map_key(QualifiedName, Values) of
+                         true -> Position;
+                         false -> undefined
+                     end
+             end,
+    Held = #{QualifiedName => Kept
+             || QualifiedName := #back_end{position = Position} = Facts <- BackEnd,
+                Kept <- [Facts#back_end{identity = undefined, reach = {[], []},
+                                        position = Called(QualifiedName, Position)}],
+                Kept =/= #back_end{}},
+    Bodiless = Interface#interface{back_end = Held, private_values = #{}},
     crypto:hash(sha256, term_to_binary(canonical(Bodiless, strip))).
 
 %% Quantified variables renumbered and maps as sorted lists, so that equal
@@ -95,8 +109,7 @@ hash(#interface{values = Values, positions = Positions} = Interface) ->
 %% strip: the hash leaves the variables' names out, since a renamed
 %% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets,
-                     private_types = PrivateTypes, identities = Identities, reaches = Reaches,
-                     positions = Positions, terms = Terms, shims = Shims,
+                     private_types = PrivateTypes, back_end = BackEnd,
                      private_values = PrivateValues},
           VariableNames) ->
     {interface, Namespace,
@@ -110,11 +123,7 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
      %% the hash
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
                  || {QualifiedName, TypeInfo} <- maps:to_list(PrivateTypes)]),
-     lists:sort(maps:to_list(Identities)),
-     lists:sort(maps:to_list(Reaches)),
-     lists:sort(maps:to_list(Positions)),
-     lists:sort(maps:to_list(Terms)),
-     lists:sort(maps:to_list(Shims)),
+     lists:sort(maps:to_list(BackEnd)),
      lists:sort(maps:to_list(PrivateValues))}.
 
 %% A type's parameters numbered by place, and its constructors' schemes
@@ -133,7 +142,7 @@ canonical_type(#type_info{params = Params, param_names = ParamNames,
                         scheme = canonical_scheme(Scheme, Numbers, VariableNames)}
                       || #constructor_info{scheme = Scheme} = Constructor <- Constructors]}.
 
-%% Numbers: the numbers some quantified variables have already, a type's
+%% Given: the numbers some quantified variables have already, a type's
 %% parameters; the rest are numbered after them in the order quantified.
 canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names,
                          requirement = Requirement}, Given, VariableNames) ->

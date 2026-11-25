@@ -1,14 +1,15 @@
 %% What more than one stage reads of the AST the parser builds, typed or
 %% not: a node's span; every node in pre-order; what a pattern binds; the
 %% type variables a declaration's signature names; the unqualified names
-%% free in an expression; and an expression as a help writes it. The
+%% free in an expression; and an expression and a type as a help writes
+%% them. The
 %% parser, the formatter, the checker, the reply check, the exhaustiveness
 %% check and the emitter each use them rather than a copy of their own,
 %% since copies of one rule drift.
 -module(ern_ast).
 
 -export([span/1, walk/3, pattern_binders/1, pattern_bindings/1, free_names/2,
-         free_uses/2, help_text/1]).
+         free_uses/2, help_text/1, type_text/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -143,3 +144,32 @@ help_text(#e_literal{kind = int, value = Value}) ->
     integer_to_list(Value);
 help_text(_) ->
     "...".
+
+%% Report §11.5: a type as a help writes it, each name as the source writes
+%% it, which is its shortest form (§4.2), and a function-typed result under
+%% an outer `receiving` in parentheses, so that the `receiving` is the outer
+%% arrow's (§3.4).
+-spec type_text(tuple()) -> string().
+type_text(#t_named{written = Written, name = Name, args = []}) ->
+    ern_namespace:text(Written ++ [Name]);
+type_text(#t_named{written = Written, name = Name, args = Args}) ->
+    ern_namespace:text(Written ++ [Name]) ++ "(" ++ types_text(Args) ++ ")";
+type_text(#t_var{name = Name, equality = false}) ->
+    atom_to_list(Name);
+type_text(#t_var{name = Name, equality = true}) ->
+    atom_to_list(Name) ++ "=";
+type_text(#t_tuple{elements = Elements}) ->
+    "#(" ++ types_text(Elements) ++ ")";
+type_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
+    ResultText = case {Result, Effect} of
+                     {#t_fn{}, Outer} when Outer =/= undefined -> "(" ++ type_text(Result) ++ ")";
+                     _ -> type_text(Result)
+                 end,
+    "(" ++ types_text(Params) ++ ") -> " ++ ResultText
+        ++ case Effect of
+               undefined -> "";
+               _ -> " receiving " ++ type_text(Effect)
+           end.
+
+types_text(Types) ->
+    lists:append(lists:join(", ", [type_text(Type) || Type <- Types])).

@@ -355,8 +355,8 @@ declaration(Tokens) ->
         [Token | _] ->
             %% Appendix A's Declaration: `export` may begin one, once
             Starts = case Export of
-                         true -> "type, abstract, fn, let, foreign";
-                         false -> "export, type, abstract, fn, let, foreign"
+                         true -> "`type`, `abstract`, `fn`, `let`, `foreign`";
+                         false -> "`export`, `type`, `abstract`, `fn`, `let`, `foreign`"
                      end,
             wanted(declaration, ern_lexer:position(Token),
                    "expected a declaration (" ++ Starts ++ ") instead of " ++ describe(Token))
@@ -521,7 +521,7 @@ member([Token | _]) ->
 declaration_name([{ident, _, Name} | Rest]) ->
     {undefined, Name, Rest};
 declaration_name([{typename, _, MemberOf}, {'.', _}, {ident, Position, Name} | Rest]) ->
-    NoMember = "`" ++ atom_to_list(Name) ++ "` cannot be a member of " ++ atom_to_list(MemberOf)
+    NoMember = atom_to_list(Name) ++ " cannot be a member of " ++ atom_to_list(MemberOf)
                ++ ": a member is " ++ members_text(declaration),
     Help = "a type's other operations are functions of its module: write `fn "
            ++ atom_to_list(Name) ++ "`",
@@ -586,15 +586,28 @@ param(Tokens) ->
 %% variable and its mark in the words of a mark elsewhere outside a foreign
 %% function.
 unmarked(#t_var{span = Span, name = Name}, [{'=', MarkPosition} | _]) ->
-    {Line, Column, _} = ern_diagnostic:span(Span),
-    {_, _, End, _} = MarkPosition,
-    Text = atom_to_list(Name),
-    fail({Line, Column, End}, "the equality mark is written in a foreign function's parameters"
-                              " alone",
-         "write `" ++ Text ++ "`; `" ++ Text ++ "` has equality where a body compares its"
-         " values with `==`");
+    fail(mark_span(ern_diagnostic:span(Span), MarkPosition),
+         "the equality mark is written in a foreign function's parameters alone",
+         inferred_mark_help(Name));
 unmarked(_, _) ->
     ok.
+
+%% Report §4.7, §11.5: a mark outside a foreign function's parameters is
+%% refused over the variable and its mark, and the help drops the mark,
+%% which the compiler infers.
+inferred_mark_help(Name) ->
+    "write `" ++ atom_to_list(Name) ++ "`; the compiler infers the mark".
+
+mark_span({Line, Column, _}, {_, _, End, _}) ->
+    {Line, Column, End}.
+
+%% Report §4.7: a type variable marked `=` before the `=` of a body or a
+%% binding, `: a= = x`, is read as marked, for the checker to refuse as it
+%% refuses a mark in any annotation and in a foreign function's result.
+marked_before_body({#t_var{equality = false} = Variable, [{'=', _}, {'=', _} | _] = Tokens}) ->
+    spanned({Variable#t_var{equality = true}, tl(Tokens)});
+marked_before_body(Parsed) ->
+    Parsed.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
 %% as a parameter's is. `->` after the parameters is refused with the form
@@ -604,7 +617,7 @@ optional_result_type([{'->', Position} | _]) ->
     fail(Position, "a function's result is annotated with `:`, not `->`",
          "write `: T` after the parameters, as a parameter's type is written");
 optional_result_type([{':', _} | Rest]) ->
-    {Type, Rest1} = type(Rest),
+    {Type, Rest1} = marked_before_body(type(Rest)),
     case Rest1 of
         [{receiving, Position} | Rest2] ->
             %% Appendix A: a function type's `receiving` is its own, so the
@@ -613,8 +626,8 @@ optional_result_type([{':', _} | Rest]) ->
             not is_bare_effectful_function(Type) orelse
                 fail(Position, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after the type in parentheses,"
-                     " : ((A) -> B receiving M) receiving N"),
-            {Effect, Rest3} = type(Rest2),
+                     " `: ((A) -> B receiving M) receiving N`"),
+            {Effect, Rest3} = marked_before_body(type(Rest2)),
             {Type, Effect, Rest3};
         _ ->
             {Type, undefined, Rest1}
@@ -634,7 +647,7 @@ is_bare_effectful_function(_) ->
 let_declaration([{'let', Position} | Rest], Doc, Export) ->
     {Name, Rest1} = let_name(Rest),
     {Annotation, Rest2} = case Rest1 of
-                              [{':', _} | AfterColon] -> type(AfterColon);
+                              [{':', _} | AfterColon] -> marked_before_body(type(AfterColon));
                               _ -> {undefined, Rest1}
                           end,
     Rest3 = case Rest2 of
@@ -723,7 +736,8 @@ type(Tokens) ->
 
 %% Marks: `foreign` within a foreign function's parameter, where a type
 %% variable in a list of types may carry the equality mark (report §4.7),
-%% `plain` elsewhere; it chooses the help of a mark in parentheses.
+%% `plain` elsewhere; it chooses whether a mark in parentheses is refused
+%% here.
 type([{'(', Position} | Rest], Marks) ->
     {Types, Rest1} = case Rest of
                          [{')', _} | _] -> {[], Rest};
@@ -747,13 +761,18 @@ type([{typename, Position, _} | _] = Tokens, Marks) ->
             %% argument, `List.a`, or is a value's, `Io.println`
             fail(span_through(Position, Tokens, Rest),
                  "expected a type name; a qualified type ends in an uppercase name",
-                 "a type's arguments are written in parentheses, as List(a), and a lowercase"
+                 "a type's arguments are written in parentheses, as `List(a)`, and a lowercase"
                  " name after `.` names a value");
         {{member, _, _}, Rest} ->
             %% report §4.5: a member's name, `Int.+`, names no type
             fail(span_through(Position, Tokens, Rest),
                  "expected a type name; a qualified type ends in an uppercase name")
     end;
+type([{ident, Position, Name}, {'+', MarkPosition} | _], _Marks) ->
+    %% report §4.7, §3.9: the process-only mark is inferred, and never
+    %% written in any annotation
+    fail(mark_span(ern_diagnostic:span(Position), MarkPosition),
+         "the process-only mark is never written", inferred_mark_help(Name));
 type([{ident, Position, Name} | Rest], _Marks) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
 type([{fn, Position} | _], _Marks) ->
@@ -785,25 +804,22 @@ parenthesized(Position, Params, [{'->', _} | Rest], Marks) ->
             not is_bare_effectful_function(ResultType) orelse
                 fail(ReceivingPosition, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after its result in parentheses,"
-                     " (A) -> ((B) -> C receiving M) receiving N"),
+                     " `(A) -> ((B) -> C receiving M) receiving N`"),
             {Effect, Rest3} = type(Rest2, Marks),
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType,
                            effect = Effect}, Rest3});
         _ ->
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType}, Rest1})
     end;
-parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, Marks) ->
-    %% report §3, §4.7: the mark is written in a foreign function's
-    %% parameters alone, so outside them the help drops it, and within them
-    %% it names the lists of types where it stands
+parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, foreign) ->
+    %% report §3, §4.7: the mark stands in a list of types of a foreign
+    %% function's parameters, and the help names them; outside the
+    %% parameters a mark in parentheses is the checker's to refuse, as any
+    %% mark there is, parentheses making no node
     Text = atom_to_list(Name),
-    Help = case Marks of
-               plain -> "write `" ++ Text ++ "`; the mark is written in a foreign function's"
-                        " parameters alone";
-               foreign -> "the mark stands in a list of types, as `List(" ++ Text ++ "=)` or `("
-                          ++ Text ++ "=) -> Bool`"
-           end,
-    fail(Span, "a type in parentheses takes no equality mark", Help);
+    fail(Span, "a type in parentheses takes no equality mark",
+         "the mark stands in a list of types, as `List(" ++ Text ++ "=)` or `(" ++ Text
+         ++ "=) -> Bool`");
 parenthesized(Position, [Type], Rest, _Marks) ->
     %% report §11.5: a type in parentheses spans its parentheses, as a
     %% parenthesized expression does, so a diagnostic underlines it whole;
@@ -812,7 +828,7 @@ parenthesized(Position, [Type], Rest, _Marks) ->
 parenthesized(Position, [], Rest, _Marks) ->
     %% report §11.2: at the input's end a further line may hold the `->`
     Diagnostic = diagnostic(Position, "expected a type inside the parentheses, or `->` after them",
-                            "the type with one value is Unit, and its value is written Unit"),
+                            "the type with one value is Unit, and its value is written `Unit`"),
     throw({parse_error, Diagnostic#diagnostic{incomplete = is_at_end(Rest)}});
 parenthesized(_, _, [Token | _], _Marks) ->
     fail(ern_lexer:position(Token),
@@ -892,7 +908,7 @@ refuse_juxtaposition([Token | _]) ->
     case lists:member(ern_lexer:symbol(Token), [ident, typename, int, float, char, string, bool]) of
         true ->
             fail(ern_lexer:position(Token), describe(Token) ++ " cannot follow an expression",
-                 "a call is written f(x), and statements are separated by `;`");
+                 "a call is written `f(x)`, and statements are separated by `;`");
         false ->
             ok
     end.
@@ -954,8 +970,8 @@ receive_clauses([{'after', Position} | Rest], Acc) ->
             fail(Position, "the `after` clause of a `receive` comes last",
                  "move it after the pattern clauses");
         {[{'}', _} | _], []} ->
-            fail(Position, "a `receive` takes a message; to wait a time, write `Clock.sleep("
-                 ++ ern_ast:help_text(Timeout) ++ ")`");
+            fail(Position, "a `receive` takes a message",
+                 "to wait a time, write `Clock.sleep(" ++ ern_ast:help_text(Timeout) ++ ")`");
         _ ->
             {After, _} = spanned({#after_clause{span = Position, timeout = Timeout,
                                                 body = Body}, Rest2}),
@@ -1163,7 +1179,7 @@ primary([{'(', _}, {')', Position} | _]) ->
     %% report §3.1, §11.5: `()` is no value, and the help says how Unit's
     %% one value is written
     wanted(expression, Position, "expected an expression instead of `)`",
-           "Unit's one value is written Unit");
+           "Unit's one value is written `Unit`");
 primary([{'(', {Line, Column, _, _}} | Rest]) ->
     %% report §11.5: a parenthesized expression spans its parentheses, so a
     %% diagnostic underlines it whole; parentheses make no node
@@ -1365,7 +1381,7 @@ statement([{'let', Position} | Rest]) ->
     {Pattern, Rest1} = pattern(Rest),
     no_or_inside([Pattern], binding),
     {Annotation, Rest2} = case Rest1 of
-                              [{':', _} | AfterColon] -> type(AfterColon);
+                              [{':', _} | AfterColon] -> marked_before_body(type(AfterColon));
                               _ -> {undefined, Rest1}
                           end,
     %% report §5.4, §11.5: the message names what may stand, an annotation's
@@ -1788,7 +1804,7 @@ expect_typename_position([{typename, Position, Name} | Rest]) -> {Name, Position
 expect_typename_position([{ident, IdentPosition, Name} = Token | _]) ->
     Help = case meant_typename(atom_to_list(Name)) of
                none -> "a type name begins with an uppercase letter";
-               Typename -> "a type name begins with an uppercase letter: " ++ Typename
+               Typename -> "a type name begins with an uppercase letter: `" ++ Typename ++ "`"
            end,
     Diagnostic = diagnostic(IdentPosition, "expected a type name instead of " ++ describe(Token),
                             Help),

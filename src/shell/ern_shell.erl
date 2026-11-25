@@ -1156,23 +1156,43 @@ unsettled(Type, Env, Binds, Typed) ->
                                               io_lib:format(undetermined_text(Binds),
                                                             [bound_names(Binds), Text])),
                                   help = undetermined_help(ern_types:resolve(Type, TypeState),
-                                                           Binds)}}
+                                                           Binds, Typed)}}
     end.
 
 %% Report §11.2, §6.1: an address whose mailbox type is open is settled by
-%% its annotation or by the mailbox type the spawned function declares;
-%% any other type by an annotation.
-undetermined_help({tcon, ['Address'], _}, {name, Name}) ->
-    address_help(Name, "=");
-undetermined_help({tcon, ['Address'], _}, {arrow, [Name], _, _}) ->
-    address_help(Name, "<-");
-undetermined_help(_, _) ->
+%% its annotation, and where the binding's right side is a spawn, by the
+%% mailbox type the spawned function declares; any other type by an
+%% annotation.
+undetermined_help({tcon, ['Address'], _}, {name, Name}, Typed) ->
+    address_help(Name, "=", Typed);
+undetermined_help({tcon, ['Address'], _}, {arrow, [Name], _, _}, Typed) ->
+    address_help(Name, "<-", Typed);
+undetermined_help(_, _, _) ->
     "bind it with an annotation that settles the variable, as in `let xs : List(Int) = []`, or"
     " declare a function with `fn`".
 
-address_help(Name, Operator) ->
-    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) " ++ Operator
-    ++ " ...`, or give the spawned function its mailbox type, `fn() : Unit receiving T = ...`".
+address_help(Name, Operator, Typed) ->
+    Annotation = "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) "
+                 ++ Operator ++ " ...`",
+    #e_block{statements = [#binding{expr = Expr} | _]} = entry_body(Typed),
+    case is_spawn(Expr) of
+        true -> Annotation ++ ", or give the spawned function its mailbox type,"
+                              " `fn() : Unit receiving T = ...`";
+        false -> Annotation
+    end.
+
+%% Report §6.2, Appendix E.27: a call of a name that starts a process of
+%% the function it is given.
+is_spawn(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}})
+  when Spawn =:= spawn; Spawn =:= spawnMonitored ->
+    true;
+is_spawn(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['Peer'],
+                                                                 member_of = undefined,
+                                                                 name = Spawn}}})
+  when Spawn =:= spawn; Spawn =:= spawnMonitored ->
+    true;
+is_spawn(_) ->
+    false.
 
 undetermined_text({arrow, Names, _, _}) ->
     undetermined_text({names, Names});
@@ -1423,12 +1443,12 @@ binding(declarations, _Session, #checked{namespace = Namespace, printed_name = P
         _ErlangModule, Beam, Compiled) ->
     {declared, #scoped{interface = Compiled, declared = {Namespace, Beam, PrintedName}}};
 binding({it, Scheme}, _Session, #checked{namespace = Namespace}, ErlangModule, _Beam,
-        #interface{identities = Identities, positions = Positions}) ->
+        #interface{back_end = BackEnd} = Compiled) ->
     It = Namespace ++ [it],
-    Position = maps:get(It, Positions),
+    #{It := #back_end{position = Position}} = BackEnd,
     Interface = #interface{namespace = Namespace, values = #{It => Scheme}, lets = [It],
-                           identities = #{It => maps:get(Namespace ++ [?ENTRY], Identities)},
-                           positions = #{It => Position}},
+                           back_end = #{It => #back_end{identity = entry_hash(Namespace, Compiled),
+                                                        position = Position}}},
     {held, {ErlangModule, ern_emitter:function_name(Position)}, #scoped{interface = Interface}};
 binding({names, Named}, Session, #checked{namespace = Namespace}, _ErlangModule, _Beam,
         Compiled) ->
@@ -2001,11 +2021,17 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
     end.
 
 %% The state a session name's type is printed under: the session's types
-%% print unqualified, as they do in an input (report §11.2).
+%% print unqualified, as they do in an input (report §11.2), and a prelude
+%% type one of them hides as `Prelude.x` (§11.5).
 session_type_state(#session{scope = Scope} = Session) ->
     TypeState = ern_typecheck:scope_state(checked_interfaces(Session), prelude()),
-    ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], input_names(Session),
-                        TypeState).
+    session_printing(Scope, Session, TypeState).
+
+session_printing(Scope, Session, TypeState) ->
+    SessionTypes = maps:values(maps:get(types, Scope, #{})),
+    Hidden = ern_typecheck:hidden_prelude_types([lists:last(Type) || Type <- SessionTypes],
+                                                prelude()),
+    ern_types:set_scope([], SessionTypes, Hidden, input_names(Session), TypeState).
 
 %% Report §11.2: `:forget` removes a name the session declared, and `*`
 %% every one of them. A type is forgotten with its constructors. A holder
@@ -2191,8 +2217,7 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope} = Sessi
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(checked_interfaces(Session) ++ [Last],
                                                    prelude()),
-            TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
-                                            input_names(Session), ScopeState),
+            TypeState = session_printing(Scope, Session, ScopeState),
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
@@ -2551,10 +2576,11 @@ scheme_of(Session, Text) ->
     end.
 
 %% Report §11.2, §4.9: the type of an input that is one name, as its
-%% declaration writes it, which `:type` shows; any other input is checked,
-%% a member's name among them, which stands in no expression and is
-%% refused as one (§4.5).
--spec declared_type(#session{}, binary()) -> {'Some', binary()} | 'None'.
+%% declaration writes it, which `:type` shows, and the lines after it that
+%% say a primitive is one (§3.11); any other input is checked, a member's
+%% name among them, which stands in no expression and is refused as one
+%% (§4.5).
+-spec declared_type(#session{}, binary()) -> {'Some', {binary(), [binary()]}} | 'None'.
 declared_type(Session, Input) ->
     case one_name_declared(Session, Input) of
         {ok, Namespace, Name, Scheme, Env} ->
@@ -2563,7 +2589,10 @@ declared_type(Session, Input) ->
                     'None';
                 false ->
                     Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env)),
-                    {'Some', unicode:characters_to_binary(Text)}
+                    {ok, Referent} = ern_typecheck:declared_referent(Namespace, Name, Env),
+                    {'Some', {unicode:characters_to_binary(Text),
+                              [unicode:characters_to_binary(Line)
+                               || Line <- ern_bound:primitive_note(Referent)]}}
             end;
         none ->
             'None'
@@ -4070,8 +4099,8 @@ stale_users(#session{source_hashes = Loaded} = Session, Set, CompiledModules) ->
                                 orelse ern_interface:hash(maps:get(Namespace, LoadedInterfaces))
                                        =/= ern_interface:hash(Interface)],
     Identities = maps:from_list([{QualifiedName, Hash}
-                                 || {_, #interface{identities = Held}} <- Compiled,
-                                    {QualifiedName, Hash} <- maps:to_list(Held)]),
+                                 || {_, Interface} <- Compiled,
+                                    QualifiedName := Hash <- ern_interface:identities(Interface)]),
     IsChanged = fun({QualifiedName, Hash}) ->
                         lists:any(fun({Namespace, _}) -> lists:prefix(Namespace, QualifiedName)
                                   end, Compiled)
@@ -4190,8 +4219,8 @@ with_dependencies(Namespace, ByNamespace, {Order, Seen} = Acc) ->
 reached_inputs(#session{beams = Beams, scope = Scope} = Session, Compiled) ->
     Changed = [{Namespace, Identities}
                || #compiled{namespace = Namespace, beam = Beam} <- Compiled,
-                  {ok, #{interface := #interface{identities = Identities}}}
-                      <- [ern_interface:read(Beam)]],
+                  {ok, #{interface := Interface}} <- [ern_interface:read(Beam)],
+                  Identities <- [ern_interface:identities(Interface)]],
     InScope = #{Segment => true || Which <- [values, types, constructors],
                                    [Segment | _] <- maps:values(maps:get(Which, Scope, #{}))},
     Inputs = lists:sort([{Number, [Segment]}
@@ -4282,8 +4311,7 @@ new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Se
               site_namespace => printed_namespace(Session), units => Units#{Namespace => Unit},
               input_name => InputName},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    {ok, #{interface := #interface{identities = Identities} = Compiled} = Chunk} =
-        ern_interface:read(Beam),
+    {ok, #{interface := Compiled} = Chunk} = ern_interface:read(Beam),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
     unit_loaded(Unit, Beam),
     record_uses(Unit, Beam, #checked{namespace = Namespace, interface = Compiled,
@@ -4301,7 +4329,7 @@ new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Se
                             units = with_unit(Namespace, Unit, Units)},
     {Versioned, Moved} = versioned(Session, After, [Namespace]),
     named_versions(PrintedName, Moved),
-    {Versioned, Identities, Moved}.
+    {Versioned, ern_interface:identities(Compiled), Moved}.
 
 %% Report §11.2: each previous version a declaring input's new version made
 %% of its types named as the input prints, with the version's number,
@@ -4385,13 +4413,13 @@ versioned(Before, After, Reloaded) ->
 returned(#session{interfaces = Interfaces, previous = PreviousInterfaces}, Reloaded, Units) ->
     Declared = maps:from_list([{Hash, QualifiedName}
                                || Namespace <- Reloaded,
-                                  #interface{identities = Identities} = Interface
-                                      <- [interface_of(Namespace, Interfaces)],
+                                  Interface <- [interface_of(Namespace, Interfaces)],
+                                  Identities <- [ern_interface:identities(Interface)],
                                   QualifiedName <- declared_types(Interface),
                                   #{QualifiedName := Hash} <- [Identities]]),
     Returns = maps:from_list([{QualifiedName, Current}
-                              || #interface{identities = Identities} = Interface
-                                     <- PreviousInterfaces,
+                              || Interface <- PreviousInterfaces,
+                                 Identities <- [ern_interface:identities(Interface)],
                                  QualifiedName <- declared_types(Interface),
                                  #{QualifiedName := Hash} <- [Identities],
                                  #{Hash := Current} <- [Declared]]),
@@ -4406,9 +4434,9 @@ declared_types(#interface{types = Types, private_types = PrivateTypes}) ->
     maps:keys(Types) ++ maps:keys(PrivateTypes).
 
 %% An interface without the types Gone names, their constructors, which
-%% their records hold, their members, and their hashes.
+%% their records hold, their members, and their back-end facts.
 without_types(#interface{types = Types, private_types = PrivateTypes, values = Values,
-                         identities = Identities} = Interface, Gone) ->
+                         back_end = BackEnd} = Interface, Gone) ->
     IsGone = fun(QualifiedName, _) ->
                      is_map_key(QualifiedName, Gone)
                          orelse is_map_key(lists:droplast(QualifiedName), Gone)
@@ -4417,8 +4445,8 @@ without_types(#interface{types = Types, private_types = PrivateTypes, values = V
                         private_types = maps:without(maps:keys(Gone), PrivateTypes),
                         values = maps:filter(fun(Name, Scheme) -> not IsGone(Name, Scheme) end,
                                              Values),
-                        identities = maps:filter(fun(Name, Hash) -> not IsGone(Name, Hash) end,
-                                                 Identities)}.
+                        back_end = maps:filter(fun(Name, Facts) -> not IsGone(Name, Facts) end,
+                                               BackEnd)}.
 
 %% A previous version's interface, of the types the new version does not
 %% hold of one hash, their constructors and their members, under the
@@ -4426,10 +4454,12 @@ without_types(#interface{types = Types, private_types = PrivateTypes, values = V
 %% module's version counted.
 previous_version(Before, After, Namespace, {Renames, Previous, Units, Versions}) ->
     Version = maps:get(Namespace, Versions, 1),
-    #interface{types = Types, private_types = PrivateTypes, values = Values,
-               identities = Identities} = interface_of(Namespace, Before#session.interfaces),
-    #interface{types = NewTypes, private_types = NewPrivateTypes, identities = NewIdentities} =
+    #interface{types = Types, private_types = PrivateTypes, values = Values} = Old =
+        interface_of(Namespace, Before#session.interfaces),
+    #interface{types = NewTypes, private_types = NewPrivateTypes} = New =
         interface_of(Namespace, After#session.interfaces),
+    Identities = ern_interface:identities(Old),
+    NewIdentities = ern_interface:identities(New),
     Held = maps:merge(NewTypes, NewPrivateTypes),
     IsGone = fun(QualifiedName, _) ->
                      not is_map_key(QualifiedName, Held)
@@ -4459,9 +4489,9 @@ previous_version(Before, After, Namespace, {Renames, Previous, Units, Versions})
                                    private_types = Moved(PrivateTypes),
                                    values = #{In(QualifiedName) => Scheme
                                               || QualifiedName := Scheme <- Members},
-                                   identities = #{In(QualifiedName) => Hash
-                                                  || QualifiedName := Hash <- Identities,
-                                                     is_map_key(QualifiedName, Moving)}},
+                                   back_end = #{In(QualifiedName) => #back_end{identity = Hash}
+                                                || QualifiedName := Hash <- Identities,
+                                                   is_map_key(QualifiedName, Moving)}},
             {maps:merge(Renames, #{QualifiedName => In(QualifiedName)
                                    || QualifiedName := _ <- Gone}),
              [Interface | Previous], Units#{VersionNamespace => unit(Before, Namespace)},
@@ -4972,8 +5002,9 @@ flush_screen() ->
 
 %% Report §8.7, Appendix H: a name the session binds is a binding, whose
 %% definition is the input that computed it.
-entry_hash(Namespace, #interface{identities = Identities}) ->
-    maps:get(Namespace ++ [?ENTRY], Identities).
+entry_hash(Namespace, #interface{back_end = BackEnd}) ->
+    #back_end{identity = Hash} = maps:get(Namespace ++ [?ENTRY], BackEnd),
+    Hash.
 
 %% Report §11.2: whether the input leaves `it` as it was, its value's type
 %% not being determined by the input itself: an expression's, or the type
@@ -5013,9 +5044,9 @@ holder_bound(Bindings, {SessionNamespace, Hash}, Session) ->
                            values = #{HolderNamespace ++ [Name] => Scheme
                                       || {Name, _, Scheme} <- Bindings},
                            lets = [HolderNamespace ++ [Name] || Name <- Names],
-                           identities = #{HolderNamespace ++ [Name] => Hash || Name <- Names},
-                           positions = #{HolderNamespace ++ [Name] => Position
-                                         || {Position, {Name, _, _}} <- Numbered}},
+                           back_end = #{HolderNamespace ++ [Name] => #back_end{identity = Hash,
+                                                                              position = Position}
+                                        || {Position, {Name, _, _}} <- Numbered}},
     Keys = [{ErlangModule, ern_emitter:function_name(Position)} || {Position, _} <- Numbered],
     %% report Appendix H, §8.7: each by its identity as a form names it, its
     %% name under the session's one namespace, whatever holder holds it
@@ -5471,12 +5502,14 @@ redeclared(#interface{types = Declared} = Interface, _Interfaces)
   when map_size(Declared) =:= 0 ->
     {Interface, []};
 redeclared(#interface{namespace = [Own] = Namespace, types = Declared,
-                      identities = Identities} = Interface,
+                      back_end = BackEnd} = Interface,
            Interfaces) ->
+    Identities = ern_interface:identities(Interface),
     Held = maps:from_list([{Hash, TypeInfo}
-                           || #interface{namespace = [Segment], types = Types,
-                                         identities = HeldIdentities} <- Interfaces,
+                           || #interface{namespace = [Segment], types = Types} = HeldInterface
+                                  <- Interfaces,
                               Segment =/= Own, is_session_segment(Segment),
+                              HeldIdentities <- [ern_interface:identities(HeldInterface)],
                               QualifiedName := TypeInfo <- Types,
                               #{QualifiedName := Hash} <- [HeldIdentities]]),
     Again = #{QualifiedName => maps:get(Hash, Held)
@@ -5491,7 +5524,7 @@ redeclared(#interface{namespace = [Own] = Namespace, types = Declared,
             Renamed = renamed(Interface, Renames),
             needs_named(Namespace, Renamed),
             {Renamed#interface{types = maps:without(maps:keys(Renames), Renamed#interface.types),
-                               identities = maps:without(maps:keys(Renames), Identities)},
+                               back_end = maps:without(maps:keys(Renames), BackEnd)},
              maps:values(Again)}
     end.
 
