@@ -9,6 +9,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §12.7: the milliseconds a spawn's or a compute's frame says its
 %% spawner waits, by which the exchange gives up a reach that does not
@@ -223,8 +224,10 @@ received_whole_test() ->
         ?assertEqual({[], []}, Apart),
         ?assertMatch([{spawned, _}, {spawned, _}], Answers),
         ?assertEqual('Unit', Computed),
-        [{Unit, _, _, _} | _] = Spawnable,
-        ?assertMatch([{Unit, _, 0, _}, {Unit, _, 1, _}, {Unit, _, 1, _}], Spawnable),
+        [#held_function{unit = Unit} | _] = Spawnable,
+        ?assertMatch([#held_function{unit = Unit, arity = 0},
+                      #held_function{unit = Unit, arity = 1},
+                      #held_function{unit = Unit, arity = 1}], Spawnable),
         ?assertMatch("ern$" ++ _, atom_to_list(Unit)),
         {ok, #recorded{definitions = Kept}} = ern_code:forms(Unit),
         %% report §12.7, Appendix H: a function and a type by the qualified
@@ -302,7 +305,7 @@ received_linked_test() ->
                    Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
                    Exchange ! {ern_frame, self(), code_frame(Ref, [Linked], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
-                   {Unit, Function, 0, Reach} =
+                   #held_function{unit = Unit, function = Function, arity = 0, reach = Reach} =
                        ern_code:spawnable({hash, Linked#definition.hash}),
                    true = persistent_term:erase({BoundUnit, '$1'}),
                    Ground = Unit:'$spawned'(Function, []),
@@ -396,7 +399,7 @@ received_beyond_reach_test() ->
                    [Outer] = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
                    Exchange ! {ern_frame, self(), code_frame(Ref, [Definition], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
-                   {Unit, _, _, _} = ern_code:spawnable({hash, Outer}),
+                   #held_function{unit = Unit} = ern_code:spawnable({hash, Outer}),
                    Faults = [try Unit:Lacked() catch throw:Fault -> Fault end
                              || Lacked <- ['$lacked_1', '$lacked_2']],
                    Declared = [ern_code:spawnable({foreign, [<<"Exbeyond">>, Name]})
@@ -446,7 +449,7 @@ received_beyond_reach_test() ->
                       {ern, fault, <<"the module ern_exchange_tests_elsewhere, which"
                                      " Exbeyond.absent calls, is not here">>}],
                      Faults),
-        ?assertMatch([{Unit, _, 0, _}, none], Declared),
+        ?assertMatch([#held_function{unit = Unit, arity = 0}, none], Declared),
         ?assertEqual([], Said())
     after
         unloaded(Unit)
@@ -529,7 +532,7 @@ in_let_test() ->
                    [Exchange ! {ern_frame, self(), code_frame(Ref, [Member])}
                     || Member <- [HeavyDefinition, JobDefinition]],
                    Computed = receive {Alias, computed, Value} -> Value end,
-                   {Arrival, _, 0, _} = ern_code:spawnable(Lambda),
+                   #held_function{unit = Arrival, arity = 0} = ern_code:spawnable(Lambda),
                    Onward = make_ref(),
                    Exchange ! {ern_frame, self(), {lacks, Onward, [Job]}},
                    Self ! {peer, Lacked, Computed, Arrival, frames(Onward)}

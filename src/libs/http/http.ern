@@ -1457,9 +1457,10 @@ fn encoding(char : Char) : Optional(#(Char, Char)) =
 /// something outside `root`.
 ///
 /// It reads `target`'s path. An empty path is `/` where the target has a
-/// scheme, as RFC 9110, section 4.2.3 has it, and a path that does not begin
-/// with `/` is `None`, a `CONNECT` request's and an `OPTIONS` request's `*`
-/// among them. The path is parted at `/` while still encoded, its empty
+/// scheme, but in an `OPTIONS` request, whose empty path stays empty, as
+/// RFC 9110, section 4.2.3 has it, and a path that does not begin with `/`
+/// is `None`, a `CONNECT` request's and an `OPTIONS` request's `*` among
+/// them. The path is parted at `/` while still encoded, its empty
 /// segments dropped, and each segment is decoded as `Uri.decode` decodes it:
 /// one whose octets hold a separator or U+0000, or are not UTF-8, is `None`,
 /// so that `%2F` parts nothing. The segments are placed under `root` by
@@ -1490,10 +1491,11 @@ fn encoding(char : Char) : Optional(#(Char, Char)) =
 /// since 0.11.0
 export fn filePath(request : Request, root : Path) : Optional(Path) = {
     let reference <- target(request);
-    let path = if reference.path == "" && Optional.isSome(reference.scheme) then
-        "/"
-    else
-        reference.path;
+    // RFC 9110, section 4.2.3: an `OPTIONS` of an empty path asks of the
+    // server as a whole
+    let isRoot =
+        reference.path == "" && Optional.isSome(reference.scheme) && request.method != "OPTIONS";
+    let path = if isRoot then "/" else reference.path;
     let relative <- String.stripPrefix(path, "/");
     let encoded = List.filter(String.split(relative, "/"), fn(segment) = !String.isEmpty(segment));
     let segments <- decodedSegments(encoded, []);
@@ -3896,9 +3898,11 @@ let chunksWritten =
 // a target of no form, a path that does not begin with `/`, and a segment
 // whose octets hold a separator or U+0000, are not UTF-8 or are a step,
 // encoded or not, are `None`; an empty path of a target with a scheme is
-// `/`; empty segments are dropped, a query parted off, and a name that
+// `/`, but an `OPTIONS` request's, which is `None`, with a query or
+// without; empty segments are dropped, a query parted off, and a name that
 // begins with a dot kept. Written with the code, the targets those the
-// steps were weighed on
+// steps were weighed on, and the `OPTIONS` ones after the reading of RFC
+// 9110, section 4.2.3
 let filePaths =
     Test.Case(name = "a request's path is placed under a root, its segments decoded first",
               run = fn() = {
@@ -3927,7 +3931,11 @@ let filePaths =
                        #("GET", "/%C0%AF..%C0%AFetc"),
                        #("GET", "/a#top"),
                        #("OPTIONS", "*"),
-                       #("CONNECT", "example.org:443")];
+                       #("CONNECT", "example.org:443"),
+                       #("OPTIONS", "http://example.org"),
+                       #("OPTIONS", "http://example.org?x=1"),
+                       #("OPTIONS", "/"),
+                       #("OPTIONS", "http://example.org/")];
                   Test.equal(List.map(targets, placed),
                              [Some("/srv"),
                               Some("/srv/index.html"),
@@ -3949,7 +3957,11 @@ let filePaths =
                               None,
                               None,
                               None,
-                              None])
+                              None,
+                              None,
+                              None,
+                              Some("/srv"),
+                              Some("/srv")])
               })
 
 // report Appendix G.11: written with the code.

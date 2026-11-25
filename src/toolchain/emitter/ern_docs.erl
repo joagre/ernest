@@ -232,9 +232,13 @@ signature(#foreign_type_declaration{name = Name, params = Params, equality = Equ
                        end || {Param, Written} <- lists:zip(Params, Equality)])]).
 
 %% Report §11.4: a function's head, `List.take(list : List(a), count : Int)
-%% : List(a)`, as `Shift-Tab` prints a signature, its parameters named.
+%% : List(a)`, as `Shift-Tab` prints a signature, its parameters named, one
+%% written as a pattern as `_`, `_ : Plan`.
 head(Prefix, Name, Params, Scheme, Env) ->
-    Names = param_names(Params),
+    Names = [case Named of
+                 '_' -> {written, "_"};
+                 _ -> Named
+             end || Named <- param_names(Params)],
     {Head, Marked, Rest} = ern_types:format_call(Scheme, Names, length(Names),
                                                  ern_typecheck:type_state(Env)),
     text([Prefix, atom_to_list(Name), Head, Marked, Rest]).

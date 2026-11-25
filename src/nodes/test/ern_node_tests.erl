@@ -440,7 +440,8 @@ name_not_resolved_test() ->
 
 %% report §12.5: the node's key is private-key.pem's, and a certificate.pem
 %% that certifies another key, or that names another host than its key
-%% gives, is refused with the file and the rule. A regression test: a
+%% gives, is refused with the file and the rule, and the advice to remove
+%% it, which the node then makes from its key. A regression test: a
 %% certificate of the node's key named no host, which every peer then
 %% refused, and the node started
 certificate_refusals_test() ->
@@ -448,12 +449,17 @@ certificate_refusals_test() ->
     Certificate = filename:join(Dir, "certificate.pem"),
     {ok, Own} = file:read_file(Certificate),
     ok = file:write_file(Certificate, other_certificate()),
-    ?assertEqual(Certificate ++ ": certifies another key than private-key.pem",
+    ?assertEqual(Certificate ++ ": certifies another key than private-key.pem; remove it, and the"
+                 " node makes one from its key",
                  refusal(fun() -> ern_node:read(Dir) end)),
     ok = file:write_file(Certificate, named(Dir, "a.b")),
     ?assertEqual(Certificate ++ ": names another host than its key gives, and a peer refuses it;"
-                 " ern config makes one that names it",
+                 " remove it, and the node makes one from its key",
                  refusal(fun() -> ern_node:read(Dir) end)),
+    ok = file:delete(Certificate),
+    ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)),
+    ?assert(ern_carrier:names_own_host(public_key:pkix_decode_cert(
+                                          certificate_der(Certificate), otp))),
     ok = file:write_file(Certificate, Own),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
@@ -507,7 +513,8 @@ certificate_made_test() ->
 
 %% report §11.3, §12.5: `ern config --peer-dir` reads the peer's certificate as
 %% a node reads its own, and one that names another host than its key
-%% gives is refused, naming the peer's certificate; nothing is written
+%% gives is refused, naming the peer's certificate, with the advice to
+%% remove it, which the peer's node makes at its start; nothing is written
 peer_certificate_test() ->
     Dir = made(),
     Peer = filename:join(tmp(), "peer"),
@@ -517,9 +524,15 @@ peer_certificate_test() ->
     Conf = filename:join(Dir, "ernest.conf"),
     {ok, Before} = file:read_file(Conf),
     ?assertEqual(Certificate ++ ": names another host than its key gives, and a peer refuses it;"
-                 " ern config makes one that names it",
+                 " remove it, and its node makes one from its key at its start",
                  refusal(fun() -> ern_node:add_peer(Dir, Peer) end)),
     ?assertEqual({ok, Before}, file:read_file(Conf)).
+
+%% The certificate a PEM file holds, in DER.
+certificate_der(File) ->
+    {ok, Pem} = file:read_file(File),
+    [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
+    Der.
 
 %% Another directory's certificate.
 other_certificate() ->
@@ -834,7 +847,7 @@ signaled_test() ->
     %% the signal 0 sends nothing, and asks whether the node lives
     ?assertEqual(ok, ern_node:signaled(Dir, 0)),
     ok = ern_node:stopped(Dir),
-    ?assertEqual(Pid ++ ": no such file: no node runs from the directory",
+    ?assertEqual(Pid ++ ": no such file or directory: no node runs from the directory",
                  refusal(fun() -> ern_node:signaled(Dir, 0) end)),
     Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
     %% named once it has echoed: until it first runs, the process the host

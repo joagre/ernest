@@ -20,6 +20,12 @@
 %% (ern_build:compile/4).
 -record(named_package, {name, build, src, roots = [], manifest, uses = [], failed = []}).
 
+%% An entry of a manifest of its form (report §11.9): its name, its
+%% version, and its `url` and its `sha256` where it has them, none where it
+%% has not, which `ern unpack` alone uses (ern_package, ern_unpack).
+-record(package_entry, {name :: string(), version :: string(), url :: binary() | none,
+                        sha256 :: binary() | none}).
+
 %% A job's load path (report §11.1, §11.2, §11.9): its directories in
 %% order, `roots`, which the host's code path and a node's start take
 %% whole, and the named packages, `named`, in the manifest's order, each of

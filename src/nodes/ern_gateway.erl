@@ -170,8 +170,9 @@ gateway(Workers, Ends, Deadline, Departed) ->
         %% report §8.7, Appendix E.27: every interval, each connected peer
         %% told how busy the node is, until the node ends; the host's timer
         %% takes a slice of a long interval at a time, and is set again
-        %% until the moment comes, and one set before the node ended comes
-        %% to nothing
+        %% until the moment comes. Only the timer of the current deadline is
+        %% taken here: one of an earlier deadline, or one set before the
+        %% node ended, comes to nothing (the clause after)
         {deadline, Deadline} when not Departed ->
             case ern_rt:remaining(Deadline) of
                 0 ->

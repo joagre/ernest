@@ -157,7 +157,8 @@
  *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
- * flags and tells the host to write no crash dump (report §10), the host's
+ * flags, its installation, its code path and its limit of ports and tells
+ * the host to write no crash dump (report §10), the host's
  * own launcher sets four variables and the head of PATH, and bin/ern keeps
  * each as it was given under ERN_GIVEN_ and its
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
@@ -259,8 +260,9 @@ static char *directory_text = NULL;
 static void given_environment(void)
 {
     static const char *const names[] = {"PATH", "BINDIR", "EMU", "PROGNAME", "ROOTDIR",
-                                        "ERL_AFLAGS", "ERL_FLAGS", "ERL_ZFLAGS", "ERL_LIBS",
-                                        "ERL_CRASH_DUMP_SECONDS"};
+                                        "ERL_AFLAGS", "ERL_FLAGS", "ERL_ZFLAGS",
+                                        "ERL_OTP29_FLAGS", "ERL_ROOTDIR", "ERL_LIBS",
+                                        "ERL_MAX_PORTS", "ERL_CRASH_DUMP_SECONDS"};
     size_t index;
 
     if (getenv("ERN_GIVEN") == NULL)

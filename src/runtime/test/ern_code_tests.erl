@@ -10,6 +10,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% A module compiled as the build compiles it, with its canonical forms and
 %% the '$code'/0 the table reads, loaded, and put in the table as the
@@ -163,11 +164,11 @@ unit_load_fills_table_test() ->
     Unit = 'ern@tablefill',
     try
         Definitions = definitions(Beam),
-        ?assertEqual({Unit, '$3', 1, {[], []}},
+        ?assertEqual(#held_function{unit = Unit, function = '$3', arity = 1, reach = {[], []}},
                      ern_code:spawnable({hash, hash(['Tablefill', twice], Definitions)})),
-        ?assertEqual({Unit, '$2', 2, {[], []}},
+        ?assertEqual(#held_function{unit = Unit, function = '$2', arity = 2, reach = {[], []}},
                      ern_code:spawnable({hash, hash(['Tablefill', 'Box', compare], Definitions)})),
-        ?assertEqual({Unit, '$4', 1, {[], []}},
+        ?assertEqual(#held_function{unit = Unit, function = '$4', arity = 1, reach = {[], []}},
                      ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
         ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
         Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
@@ -184,7 +185,8 @@ unit_load_fills_table_test() ->
         ?assertEqual([{Unit, lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
         ?assertEqual([{Unit, lists, reverse}],
                      ern_code:foreign(Called, [<<"Tablefill">>, <<"backwards">>])),
-        ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
+        ?assertEqual(#held_function{unit = Unit, function = '$6',
+                                    arity = 1, reach = {[], [['Tablefill', backwards]]}},
                      ern_code:spawnable({foreign, ['Tablefill', backwards]})),
         ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
         %% every definition the chunk holds, and nothing else, the names first,
@@ -234,7 +236,7 @@ linkable_test() ->
     Unit = 'ern@tablelink',
     try
         Definitions = definitions(Beam),
-        ?assertEqual({function, Unit, '$3', 1, {[], []}},
+        ?assertEqual(#held_function{unit = Unit, function = '$3', arity = 1, reach = {[], []}},
                      ern_code:linkable(hash(['Tablelink', twice], Definitions))),
         ?assertEqual({type, Unit}, ern_code:linkable(hash(['Tablelink', 'Box'], Definitions))),
         ?assertEqual(none, ern_code:linkable(hash(['Tablelink', hidden], Definitions))),
@@ -267,11 +269,13 @@ spawnable_test() ->
         Definitions = definitions(Beam),
         Note = {['Tablespawn', note], hash(['Tablespawn', note], Definitions)},
         Reach = {[Note], [['Tablespawn', now]]},
-        ?assertEqual({Unit, '$3', 0, Reach},
+        ?assertEqual(#held_function{unit = Unit, function = '$3', arity = 0, reach = Reach},
                      ern_code:spawnable({hash, hash(['Tablespawn', calls], Definitions)})),
-        ?assertEqual({Unit, '$4.1.entry', 1, {[], []}},
+        ?assertEqual(#held_function{unit = Unit, function = '$4.1.entry',
+                                    arity = 1, reach = {[], []}},
                      ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 1})),
-        ?assertEqual({Unit, '$5', 0, {[], [['Tablespawn', now]]}},
+        ?assertEqual(#held_function{unit = Unit, function = '$5',
+                                    arity = 0, reach = {[], [['Tablespawn', now]]}},
                      ern_code:spawnable({foreign, ['Tablespawn', now]})),
         ?assertEqual(none,
                      ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 2}))
@@ -286,7 +290,8 @@ unit_loaded_again_replaces_its_rows_test() ->
     Before = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 1\n")),
     try
         F1 = hash(['Tablereload', f], Before),
-        Held = {'ern@tablereload', '$1', 1, {[], []}},
+        Held = #held_function{unit = 'ern@tablereload', function = '$1',
+                              arity = 1, reach = {[], []}},
         ?assertEqual(Held, ern_code:spawnable({hash, F1})),
         Again = loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n"),
         After = definitions(Again),
@@ -312,7 +317,9 @@ one_hash_in_two_units_test() ->
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text, Version))),
     try
         ern_code:unloaded('ern@tablesame'),
-        ?assertEqual({'ern@tablesame$2', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
+        ?assertEqual(#held_function{unit = 'ern@tablesame$2', function = '$1',
+                                    arity = 1, reach = {[], []}},
+                     ern_code:spawnable({hash, Hash})),
         ern_code:unloaded('ern@tablesame$2'),
         ?assertEqual(none, ern_code:spawnable({hash, Hash}))
     after
@@ -382,7 +389,8 @@ versions_answer_the_evaluated_unit_test() ->
         Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
         Self = self(),
         Entry = fun() ->
-                    {Unit, '$2', 1, _} = ern_code:spawnable({hash, Same}),
+                    #held_function{unit = Unit, function = '$2', arity = 1} =
+                        ern_code:spawnable({hash, Same}),
                     Self ! {answered, Unit, ern_code:absent_binding(Unit, [Answer])}
                 end,
         Answered = fun(Initialized) ->
@@ -443,8 +451,8 @@ reach_read_where_the_code_reads_test() ->
     try
         Greeting = {['Tablegreet', greeting],
                     hash(['Tablegreet', greeting], BuildGreetDefinitions)},
-        {_, _, _, {[Greeting], []}} = ern_code:spawnable({hash, hash(['Tablecaller', call],
-                                                                     CallDefinitions)}),
+        #held_function{reach = {[Greeting], []}} =
+            ern_code:spawnable({hash, hash(['Tablecaller', call], CallDefinitions)}),
         ?assertEqual(#{'ern@tablecaller' => true, 'ern@tablegreet' => true},
                      ern_code:called('ern@tablecaller')),
         Self = self(),

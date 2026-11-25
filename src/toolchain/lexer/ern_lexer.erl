@@ -85,15 +85,17 @@ place([_ | Rest], Line, Column) -> place(Rest, Line, Column + 1).
 
 %% Report §2.1: a control character but tab, line feed and carriage return
 %% is an error wherever it stands, a comment and a doc block among them,
-%% so that no source carries one to a terminal.
+%% so that no source carries one to a terminal; its help writes the escape
+%% (§11.5).
 refuse_controls([], _, _) ->
     ok;
 refuse_controls([$\n | Rest], Line, _) ->
     refuse_controls(Rest, Line + 1, 1);
 refuse_controls([Char | _], Line, Column) when Char < 16#20, Char =/= $\t, Char =/= $\r;
                                                Char >= 16#7F, Char =< 16#9F ->
-    error_at(Line, Column, io_lib:format("control character U+~4.16.0B; a string or a character"
-                                         " literal writes it `\\u{~.16B}`", [Char, Char]));
+    error_at(Line, Column, io_lib:format("control character U+~4.16.0B", [Char]),
+             lists:flatten(io_lib:format("a string or a character literal writes it `\\u{~.16B}`",
+                                         [Char])));
 refuse_controls([_ | Rest], Line, Column) ->
     refuse_controls(Rest, Line, Column + 1).
 
@@ -407,8 +409,8 @@ closed_char(Char, [$' | Rest], _Line, _StartColumn, QuoteColumn) ->
     {Char, Rest, QuoteColumn + 1};
 closed_char(_Char, Rest, Line, StartColumn, _QuoteColumn) ->
     case is_closed_on_line(Rest) of
-        true -> error_at(Line, StartColumn, "a character literal holds one code point; a string"
-                                            " is written between double quotes");
+        true -> error_at(Line, StartColumn, "a character literal holds one code point",
+                         "a string is written between double quotes");
         false -> error_at(Line, StartColumn, "the character literal never closes")
     end.
 

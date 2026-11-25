@@ -119,7 +119,7 @@ The stack with nothing on it.
 ## Template.push
 
 ```ernest
-Template.push(Stack, shape : Shape) : Stack
+Template.push(_ : Stack, shape : Shape) : Stack
 ```
 
 *Since 0.2.0.*
@@ -129,7 +129,7 @@ The stack with the shape on top.
 ## Template.pop
 
 ```ernest
-Template.pop(Stack) : Optional(#(Shape, Stack))
+Template.pop(_ : Stack) : Optional(#(Shape, Stack))
 ```
 
 *Since 0.2.0.*

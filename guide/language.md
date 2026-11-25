@@ -2034,7 +2034,7 @@ export fn check() : Unit =
 
 ```console
 $ ern build --build-root build .         # walks the source tree, writes build/shop/order.erc and build/main.erc
-$ ern run --main Main.check build/main.erc
+$ ern run --main check build/main.erc
 None
 ```
 
@@ -2042,7 +2042,7 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one or more lowercase words joined by `_`, and the namespace capitalizes each word and drops the `_`, `ordered_set.ern` for `OrderedSet`. A directory adds a namespace segment: `shop/order.ern` is `Shop.Order`, a module apart from `shop_order.ern`'s `ShopOrder`.
 
-The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. No segment of a module's namespace, at any depth, may be a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `shop/io.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1). The namespace of a library of the toolchain's own, `Json` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library's, which stands last on the load path (report §4.2). A module that hides one another library uses is refused, as `time.ern` is, since `Http` uses `Time`: `time.ern: Time hides the library Time, which the library Http uses` (report §11.1).
+The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. No segment of a module's namespace, at any depth, may be a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `shop/io.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1). The namespace of a library of the toolchain's own, `Json` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library's, which stands last on the load path (report §4.2). A module that hides one another library uses is refused where the program uses that library, as `time.ern` is beside a module that uses `Http`, since `Http` uses `Time`: `time.ern: Time hides the library Time, which the library Http uses` (report §4.2, report §11.1).
 
 **Declarations use local names.** In `shop/order.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Shop.Order.parse`, and the code inside by its plain name (report §4.2).
 
@@ -2083,9 +2083,12 @@ $ ern test checks.erc
 adds two: passed
 a worker answers back: passed
 Checks.add example 1: passed
+3 cases, 0 failed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, faulted with its cause, or killed. It exits with status 1 unless every case passed, the doc examples below among them, and no process faulted during the run. A fault of a process `Test.faults` started does not count, nor one of a process a test started while that test runs; a fault of a service the module's bindings started does (report §11.8). A process a test started outlives the test and runs on while the module's run goes on, so a later test may meet it, among a deadlock's waiting processes (§5.4).
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, faulted with its cause, or killed. Last it prints a line that counts the cases and those that did not pass, and names any fault that counted outside a case, `3 cases, 0 failed, 1 fault outside a case`. It exits with status 1 unless every case passed, the doc examples below among them, and no process faulted during the run.
+
+A fault of a process `Test.faults` started does not count, nor one of a process a test started while that test runs, whose line names the test, `, started by the case "adds two"`; a fault of a service the module's bindings started does (report §11.8). A process a test started outlives the test and runs on while the module's run goes on, so a later test may meet it, among a deadlock's waiting processes (§5.4).
 
 It then runs the module's doc examples as cases (report §11.2). A doc example is an `ernest` block in a declaration's doc block, the `///` lines above it (below), and is named by the declaration, `Checks.add example 1`. One whose last line is `// => v`, alone on its line, passes where `Io.show` of its value is `v`; one without the line is reported `compiled` where it compiles.
 
@@ -3178,7 +3181,7 @@ The tools are one command, `ern`, whose first word is its job, and a mode for Em
 - `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints its site and `killed`, `Hello.main killed`, and the status is 1.
 
   A termination tells the processes that subscribed with `Os.subscribeTermination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
-- `--main Module.name` runs another exported function of no arguments instead of `main`.
+- `--main name` runs another exported function of the module, of no arguments, instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
 - `--package-dir dir` names the program's root package where the program is started from another directory (§9.6).
@@ -3320,7 +3323,7 @@ So a checkout linked at `lib/leaf`, a package worked on beside its program, is b
 ```console
 $ cd ..
 $ ern run chart/build/main.erc
-ern run: cannot find module Leaf (leaf.erc), which Main needs, on the load path
+ern run: no module Leaf, which Main uses, on the load path
 $ ern run --package-dir chart chart/build/main.erc
 to be or not
 ```

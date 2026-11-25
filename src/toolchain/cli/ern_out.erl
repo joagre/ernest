@@ -17,7 +17,7 @@
 
 -behaviour(logger_handler).
 
--export([take/0, logged/0, log/2, is_terminal/1, finish/1, end_job/1]).
+-export([take/0, logged/0, log/2, is_terminal/1, finish/1, end_job/1, gone_status/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [finished/1, loop/2, dropping/1]}).
@@ -226,13 +226,25 @@ dropping(Stream) ->
             dropping(Stream)
     end.
 
-%% Report §11.8: the job ends at once and says nothing, by the hangup's
-%% signal where the stream was a terminal as the job started, as keys that
-%% can no longer be read end it, and otherwise with the status 141 that
-%% shells give a process a closed pipe ended.
+%% Report §11.8: the job ends at once and says nothing, as gone_status/1
+%% says.
 -spec end_job(stdout | stderr) -> no_return().
 end_job(Stream) ->
+    case gone_status(Stream) of
+        sighup -> ern_signals:die(sighup, ern_signals:status(sighup));
+        Status -> erlang:halt(Status, [{flush, false}])
+    end.
+
+%% Report §12.1, §11.8: how the job ends where Stream can no longer be
+%% written, or the terminal's keys read: by the hangup's signal where the
+%% terminal has gone, keys that can no longer be read or a stream that was
+%% a terminal as the job started, and otherwise with the status 141 that
+%% shells give a process a closed pipe ended.
+-spec gone_status(stdout | stderr | terminal) -> sighup | 141.
+gone_status(terminal) ->
+    sighup;
+gone_status(Stream) ->
     case is_terminal(Stream) of
-        true -> ern_signals:die(sighup, ern_signals:status(sighup));
-        false -> erlang:halt(141, [{flush, false}])
+        true -> sighup;
+        false -> 141
     end.

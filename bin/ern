@@ -11,9 +11,12 @@
 # alone (report §8.2), and -noinput comes after -noshell, since the host
 # takes the last of the two; its break handler is off (+B), so that the
 # interrupt ends it (report §8.6); and it reads no ~/.erlang. The host's
-# flags from the environment, ERL_AFLAGS, ERL_FLAGS and ERL_ZFLAGS, and its
-# code path from ERL_LIBS, are cleared, since they would change the host,
-# or run code with -eval, with nothing in the command saying so. A
+# flags from the environment, ERL_AFLAGS, ERL_FLAGS, ERL_ZFLAGS and
+# ERL_OTP29_FLAGS, which the host of OTP 29 reads, its installation from
+# ERL_ROOTDIR, its code path from ERL_LIBS and its limit of ports from
+# ERL_MAX_PORTS, are cleared, since they would change the host, or run
+# code with -eval, with nothing in the command saying so, and the limit
+# is the host's own as report §12.5 states it (report §11). A
 # standard output or standard error closed as the job begins can no longer
 # be written, and the host would open /dev/null in its place: ern exits
 # with status 141, and writes nothing (report §11.8).
@@ -61,8 +64,8 @@ fi
 # in, so what is cleared here, and what the host's own launcher sets or
 # changes, is kept as it was given under ERN_GIVEN_ and its name, which the
 # runtime's helper puts back for a program and takes away (ern_exec.c).
-for name in PATH BINDIR EMU PROGNAME ROOTDIR ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS \
-            ERL_CRASH_DUMP_SECONDS; do
+for name in PATH BINDIR EMU PROGNAME ROOTDIR ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_OTP29_FLAGS \
+            ERL_ROOTDIR ERL_LIBS ERL_MAX_PORTS ERL_CRASH_DUMP_SECONDS; do
     if eval "[ \"\${$name+set}\" = set ]"; then
         eval "ERN_GIVEN_$name=\$$name"
         export "ERN_GIVEN_$name"
@@ -73,7 +76,7 @@ done
 ERN_GIVEN=1
 export ERN_GIVEN
 
-unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
+unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_OTP29_FLAGS ERL_ROOTDIR ERL_LIBS ERL_MAX_PORTS
 
 # Report §10, §11.8: a program that exhausts the host's memory ends with
 # status 1 and the host's message, and the host writes no crash dump into

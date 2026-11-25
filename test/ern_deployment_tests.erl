@@ -310,7 +310,7 @@ upgrade(Base) ->
     ern_nodes_tests:lists(Ops, [{"b", B, PortB}]),
     ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none}]),
     ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
-    {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
+    {_, WaitB} = node(Base, "run --config-dir b --main serve upgrade/v1/counter.erc"),
     listens(B, PortB),
     detached = attached(Base, Ops, Session),
     %% section 8's tool, with a peer that nothing answers
@@ -357,7 +357,7 @@ looking_in(Base) ->
     ern_nodes_tests:lists(Ops, [{"b", B, PortB}]),
     ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none}]),
     ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
-    {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
+    {_, WaitB} = node(Base, "run --config-dir b --main serve upgrade/v1/counter.erc"),
     listens(B, PortB),
     detached = attached(Base, Ops, Session),
     [ern_nodes_tests:says(B, Line) || Line <- ["the peer ops connected", "the peer ops ended"]],

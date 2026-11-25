@@ -7,7 +7,7 @@
 -module(ern_signals).
 -behaviour(gen_event).
 
--export([install/0, status/1, taken/0, ended/0, ended/1, die/2, init/1, handle_event/2,
+-export([install/0, number/1, status/1, taken/0, ended/0, ended/1, die/2, init/1, handle_event/2,
          handle_call/2, handle_info/2]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
@@ -42,10 +42,15 @@ install() ->
             ok
     end.
 
+%% Report §8.6, §11.2: the host's number for a signal `ern` takes, as
+%% POSIX fixes it (ern_os:signal_number/1).
+-spec number(sigterm | sighup) -> pos_integer().
+number(sigterm) -> ern_os:signal_number('Termination');
+number(sighup) -> ern_os:signal_number('Hangup').
+
 %% Report §11.2: the status a signal ends `ern` with, 128 plus its number.
 -spec status(sigterm | sighup) -> pos_integer().
-status(sigterm) -> 128 + 15;
-status(sighup) -> 128 + 1.
+status(Signal) -> 128 + number(Signal).
 
 %% Report §11.8: the signal the job took during a launch, which cut short
 %% the launch's end where it did not end the program, or none. A test's
@@ -81,8 +86,7 @@ ended(Signal) ->
 -spec die(sigterm | sighup, integer()) -> no_return().
 die(Signal, Status) ->
     ok = os:set_signal(Signal, default),
-    Number = case Signal of sigterm -> 15; sighup -> 1 end,
-    try ern_os:signal(Number, list_to_integer(os:getpid())) of
+    try ern_os:signal(number(Signal), list_to_integer(os:getpid())) of
         sent -> receive after infinity -> ok end;
         _ -> erlang:halt(Status, [{flush, false}])
     catch

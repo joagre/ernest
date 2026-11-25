@@ -28,6 +28,17 @@
 -record(example_module, {namespace, before = <<>>, interfaces, build, unit = own, uses,
                          waiting = [], documented = none}).
 
+%% Report §11.2: a doc example found: its case's name, where it is
+%% compiled, `inside` the documented module or `outside` it, its block's
+%% text, and the line of the source its first line stands on, or none.
+-record(found_example, {name, where, block, start}).
+
+%% Report §11.2: what names the frames of an example's trace: its case's
+%% name, its module's namespace, the lines of the module's text before the
+%% example's, and the line of the source its first line stands on, or none
+%% (frames/2).
+-record(framing, {name, namespace, before_lines, start}).
+
 %% Report §11.2: an example's case, the units its program initializes and
 %% what names the frames of its fault's trace.
 -type example() :: #example{}.
@@ -56,10 +67,13 @@
 %%
 %% A module an example names is found on LoadPath, the documented module's
 %% root first, and loaded by Load, as the run loads a module the documented
-%% one uses (report §11.1). The source of the module is read once, where it
-%% has examples: a private declaration's example is compiled inside it, and
-%% every example's frames name the line of the source that holds it
-%% (frames/2). Each file is read as every file a job reads is (report §11).
+%% one uses (report §11.1). The source of the module is read once: a
+%% private declaration's example is compiled inside it, and every example's
+%% frames name the line of the source that holds it (frames/2). Report
+%% §11.2: a module whose source has changed since its `.erc`, or is gone,
+%% is refused before anything runs, the refusal thrown as the run's,
+%% `{cli_error, Refusal}`. Each file is read as every file a job reads is
+%% (report §11).
 -spec cases([atom()], [module()], ern_build:load_path(), load()) ->
           {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
@@ -67,12 +81,10 @@ cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Beam = ern_build:read(Erc),
     Interfaces = interfaces(Loaded),
     Documented = documented(Namespace, Beam),
-    Source = case [Doc || {_, Docs} <- Documented, {_, Doc} <- Docs, fences(Doc) =/= []] of
-                 [] -> none;
-                 _ -> module_source(Namespace, Erc, Beam)
-             end,
-    Examples = [{iolist_to_binary([Declaration, " example ", integer_to_list(Number)]), Where,
-                 Block, Start}
+    Source = module_source(Namespace, Erc, Beam),
+    Examples = [#found_example{name = iolist_to_binary([Declaration, " example ",
+                                                        integer_to_list(Number)]),
+                               where = Where, block = Block, start = Start}
                 || {Declaration, Docs} <- lined(Documented, Source),
                    {Number, {Where, Block, Start}}
                        <- lists:enumerate([{Where, Block, example_line(DocLine, Offset)}
@@ -82,7 +94,8 @@ cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Compiled = [example(Name, Block, Start, example_module(Where, Index, Namespace, Interfaces,
                                                            Source, Loaded),
                         Naming)
-                || {Index, {Name, Where, Block, Start}} <- lists:enumerate(Examples)],
+                || {Index, #found_example{name = Name, where = Where, block = Block,
+                                          start = Start}} <- lists:enumerate(Examples)],
     {[Example || {Example, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
 
 %% The interfaces of loaded units, those they use before them, each read
@@ -196,8 +209,7 @@ where(_) -> outside.
 
 %% The documented declarations with each doc block's first line in the
 %% module's source, Source, as the source's doc blocks give it, in the
-%% order both write them, or none for each where no source holds the
-%% module as it was compiled.
+%% order both write them.
 lined(Documented, {source, Source, _}) ->
     {ok, Tokens} = ern_lexer:tokenize(Source, [comments]),
     Lines = [{Line, Text} || {doc, {Line, _, _, _}, Text} <- Tokens],
@@ -205,10 +217,7 @@ lined(Documented, {source, Source, _}) ->
                                      {Own, Rest} = lists:mapfoldl(fun doc_line/2, Left, Docs),
                                      {{Declaration, Own}, Rest}
                                  end, Lines, Documented),
-    Lined;
-lined(Documented, _NoSource) ->
-    [{Declaration, [{Where, Doc, none} || {Where, Doc} <- Docs]}
-     || {Declaration, Docs} <- Documented].
+    Lined.
 
 %% A doc block with the line it begins on, the first of the source's doc
 %% blocks left, Left, that holds its text, and those after that one.
@@ -223,15 +232,15 @@ example_line(DocLine, Offset) -> DocLine + Offset.
 
 %% Report §11.2: the source of the module, Namespace, that its `.erc`, Erc,
 %% was compiled from, as Beam records it, and whether it is the standard
-%% library's own; or why no source holds the module as it was compiled:
-%% gone, or changed since, which the `.erc`'s hash of it tells. A source
+%% library's own; refused where no source holds the module as it was
+%% compiled: gone, or changed since, which the `.erc`'s hash of it tells,
+%% in the texts every job gives them (ern_build:changed_since/3). A source
 %% that reaches what is no regular file is not opened (§11.1), and is gone
 %% as a build finds it gone (ern_build:gone/3).
 module_source(Namespace, Erc, Beam) ->
     {ok, #{source_path := SourcePath, source_hash := Hash}} = ern_interface:read(Beam),
     BuildRoot = ern_build:root_of(Erc, Namespace),
     File = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
-    Compiled = [ern_build:path_text(Erc), " was compiled from ", ern_build:path_text(File)],
     case ern_build:regular_bytes(File) of
         {ok, Source} ->
             case crypto:hash(sha256, Source) of
@@ -239,10 +248,10 @@ module_source(Namespace, Erc, Beam) ->
                     {source, Source,
                      ern_build:is_stdlib_root(ern_build:root_of(File, Namespace))};
                 _ ->
-                    {error, [Compiled, ", which has changed since"]}
+                    throw({cli_error, ern_build:changed_since(Erc, File, Namespace)})
             end;
         {error, _} ->
-            {error, [Compiled, ", which no longer exists"]}
+            throw({cli_error, ern_build:gone_since(Erc, File)})
     end.
 
 %% Report §11.2: the module an example is compiled in. An exported
@@ -254,9 +263,7 @@ module_source(Namespace, Erc, Beam) ->
 %% tests ran, is as it was, and whose program initializes that unit in the
 %% module's place, so that the module's bindings are evaluated once in it
 %% (§8.5), and a module it names that uses the module is a cycle (§4.1).
-%% Each program initializes the modules its example names too. Or why the
-%% example has no module to be compiled in, its source not as it was
-%% compiled.
+%% Each program initializes the modules its example names too.
 example_module(outside, Index, Namespace, Interfaces, _Source, Loaded) ->
     #example_module{namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
                     interfaces = Interfaces, build = #{source_hash => <<>>, deps => []},
@@ -268,9 +275,7 @@ example_module(inside, _Index, Namespace, Interfaces, {source, Source, Standard}
                            Other =/= Namespace],
     #example_module{namespace = Namespace, before = <<Source/binary, "\n">>, interfaces = Others,
                     build = #{source_hash => <<>>, deps => [], standard => Standard},
-                    unit = fresh, uses = Used, waiting = [Namespace]};
-example_module(inside, _Index, _Namespace, _Interfaces, {error, _} = Error, _Loaded) ->
-    Error.
+                    unit = fresh, uses = Used, waiting = [Namespace]}.
 
 texts(Docs) ->
     [Text || #{<<"en">> := Text} <- Docs].
@@ -321,8 +326,6 @@ taken(_Line) ->
 %% `// => v`, standing alone, runs, and fails where `Io.show` of its value
 %% is not `v`; any other is `compiled` where it compiles, and runs nothing
 %% (module_text/3).
-example(Name, _Block, _Start, {error, Text}, _Naming) ->
-    {failed(Name, Text), none};
 example(Name, Block, Start, #example_module{namespace = Namespace, before = Before,
                                             build = Build, unit = Unit} = Module, Naming) ->
     {Text, Value} = module_text(Namespace, Before, Block),
@@ -340,7 +343,8 @@ example(Name, Block, Start, #example_module{namespace = Namespace, before = Befo
                 {ok, Built} ->
                     {Case, Loaded} = loaded(Name, Namespace, Typed, Interface, Env, Built,
                                             Expected),
-                    Named = {Name, Namespace, lines(Before), Start},
+                    Named = #framing{name = Name, namespace = Namespace,
+                                     before_lines = lines(Before), start = Start},
                     {#example{test_case = Case, initialized = [Loaded | Uses],
                               frames = fun(Trace) -> frames(Trace, Named) end},
                      Loaded};
@@ -371,17 +375,17 @@ lines(Text) ->
 
 %% Report §11.2, Appendix E.21: the trace of an example's fault with its
 %% frames named as its case is. A frame of the example's own code, which
-%% its module, of the namespace Namespace, holds past the lines Before
-%% takes, names the case and the line of the module's source that holds
+%% its module, of the namespace Namespace, holds past the lines BeforeLines
+%% counts, names the case and the line of the module's source that holds
 %% it, `Adds.f example 1:12`, the example's lines standing in its module
 %% as they stand in its doc block (module_text/3), or the case alone where
 %% Start, the line its first line stands on, is none. Every other frame is
 %% as the runtime wrote it, the module's own beside a private
 %% declaration's example among them; `docShown` leaves none, since it calls
 %% the example last.
-frames(Trace, {Name, Namespace, Before, Start}) ->
+frames(Trace, #framing{namespace = Namespace} = Named) ->
     Prefix = unicode:characters_to_binary([ern_namespace:text(Namespace), "."]),
-    iolist_to_binary([[framed(Line, Prefix, {Name, Before, Start}), "\n"]
+    iolist_to_binary([[framed(Line, Prefix, Named), "\n"]
                       || Line <- binary:split(Trace, <<"\n">>, [global, trim_all])]).
 
 %% A frame as the runtime wrote it, `Name:Line` or `Name` (§6.9), as an
@@ -398,14 +402,14 @@ framed(Line, Prefix, Named) ->
     end.
 
 %% A frame of the example's module at the line Number: the case's where
-%% the line is past Before's, the example's, at the line of the source that
-%% holds it.
-framed_at(Line, Number, {_Name, Before, _Start}) when Number =< Before ->
+%% the line is past the BeforeLines lines before the example's, at the line
+%% of the source that holds it.
+framed_at(Line, Number, #framing{before_lines = BeforeLines}) when Number =< BeforeLines ->
     Line;
-framed_at(_Line, _Number, {Name, _Before, none}) ->
+framed_at(_Line, _Number, #framing{name = Name, start = none}) ->
     Name;
-framed_at(_Line, Number, {Name, Before, Start}) ->
-    ern_namespace:site_text([Name], Start + Number - Before - 1).
+framed_at(_Line, Number, #framing{name = Name, before_lines = BeforeLines, start = Start}) ->
+    ern_namespace:site_text([Name], Start + Number - BeforeLines - 1).
 
 %% Report §11.2, Appendix E.0 shape rule 6: the text of the module, of the
 %% namespace Namespace, that an example, Block, is compiled in, after

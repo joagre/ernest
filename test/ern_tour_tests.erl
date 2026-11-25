@@ -411,7 +411,7 @@ fault(#tour{shell = Shell} = Tour) ->
 %% Chapter 5: `ern build .` compiles both modules and says nothing, and
 %% `ern test counter.erc` passes the first test and faults the second with
 %% a deadlock, its trace beneath it and the processes left waiting beneath
-%% that, ending with status 1. The reload
+%% that, and counts the two cases, ending with status 1. The reload
 %% loads Tally from the build and names the two bindings of the previous
 %% type, chapter 4's ended counter among them; the counter on foo is
 %% refused the new protocol, with the help naming the previous version;
@@ -421,7 +421,8 @@ per_key(#tour{base = Base, shell = Shell} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "build .")),
     ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:71\n"
                      "    1 process of Counter.countsPerKey:62 waits in Counter.count:11\n"
-                     "    1 process of Counter.reports:69 waits in Counter.count:11\n",
+                     "    1 process of Counter.reports:69 waits in Counter.count:11\n"
+                     "2 cases, 1 failed\n",
                   ""},
                  ern_deployment_tests:job(Base, "test counter.erc")),
     Tour#tour{shell = session(

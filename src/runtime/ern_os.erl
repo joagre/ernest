@@ -18,8 +18,8 @@
 %% (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, input/5, signal/2, locked/2, node_signaled/3,
-         job_locked/1, host/0, umask/0, working_directory/0]).
+-export([loop/0, input/5, signal/2, locked/2, node_signaled/3, job_locked/1,
+         signal_number/1, host/0, umask/0, working_directory/0]).
 
 %% The most bytes an `i` frame carries after its tag: the host writes a
 %% frame's length, its tag among it, in 4 bytes, and cuts a longer one.
@@ -706,7 +706,8 @@ written($a) -> {'Right', 'Unit'};
 written($d) -> {'Left', 'Closed'}.
 
 %% Report Appendix E.23, §8.6: the host's number for each signal Os.signal
-%% names, as POSIX fixes it.
+%% names, as POSIX fixes it, the one table of them (ern_signals:number/1).
+-spec signal_number('Termination' | 'Hangup' | 'Interrupt') -> pos_integer().
 signal_number('Termination') -> 15;
 signal_number('Hangup') -> 1;
 signal_number('Interrupt') -> 2.

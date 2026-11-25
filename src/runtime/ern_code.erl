@@ -69,6 +69,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 -export_type([host_table/0, reach/0]).
 
@@ -460,18 +461,21 @@ forget(Unit, UnitRows) ->
 %% it. Where units hold it, the one that runs it is answering/1's.
 -spec spawnable({hash, binary()} | {lambda, binary(), pos_integer()}
                 | {foreign, [atom() | binary()]}) ->
-          {module(), atom(), arity(), reach()} | none.
+          #held_function{} | none.
 spawnable({foreign, QualifiedName}) ->
     case answering(lookup({foreign, texts(QualifiedName)})) of
         {_, Unit, {foreign, _, _, Function, Arity}} ->
-            {Unit, Function, Arity, {[], [QualifiedName]}};
+            #held_function{unit = Unit, function = Function, arity = Arity,
+                           reach = {[], [QualifiedName]}};
         none ->
             none
     end;
 spawnable(Key) ->
     case answering([Row || {_, _, {function, _, _, _}} = Row <- lookup(Key)]) of
-        {_, Unit, {function, Function, Arity, Reach}} -> {Unit, Function, Arity, Reach};
-        none -> none
+        {_, Unit, {function, Function, Arity, Reach}} ->
+            #held_function{unit = Unit, function = Function, arity = Arity, reach = Reach};
+        none ->
+            none
     end.
 
 %% Report §8.7: the units that hold an identity, a function's or a type's
@@ -493,8 +497,7 @@ holders(Key) ->
 %% exchange's every function it holds (§11.1), so a definition a unit
 %% holds unexported is no definition another unit's code can call: a
 %% peer's exchange counts it lacked and receives it (§12.7).
--spec linkable(binary()) -> {type, module()} | {function, module(), atom(), arity(), reach()}
-                                | none.
+-spec linkable(binary()) -> {type, module()} | #held_function{} | none.
 linkable(Hash) ->
     Rows = lookup({hash, Hash}),
     case [Unit || {_, Unit, type} <- Rows] of
@@ -505,7 +508,8 @@ linkable(Hash) ->
                                erlang:function_exported(Unit, Function, Arity)],
             case answering(Exported) of
                 {_, Unit, {function, Function, Arity, Reach}} ->
-                    {function, Unit, Function, Arity, Reach};
+                    #held_function{unit = Unit, function = Function, arity = Arity,
+                                   reach = Reach};
                 none ->
                     none
             end

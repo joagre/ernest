@@ -345,6 +345,7 @@ reports: faulted: deadlock
     Counter.reports:71
     1 process of Counter.countsPerKey:62 waits in Counter.count:11
     1 process of Counter.reports:69 waits in Counter.count:11
+2 cases, 1 failed
 ```
 
 A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the `receive` it waits in (report Appendix E.21). That is *Why Ernest*'s claim *A deadlock of the whole program is found*: a program that is no node, in which every process waits for a message none can send, ends with a fault and a trace.

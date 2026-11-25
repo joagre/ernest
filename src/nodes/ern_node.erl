@@ -133,15 +133,16 @@ certificate_made(ConfigDir, Key) ->
     ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate, 8#644).
 
 %% Report §11.3, §12.5: the `listen` field `--listen` gives, refused where
-%% a node would refuse it, or none.
+%% a node would refuse it, or none; a value not of the form, an
+%% address:port, refused as the form of the command line is (§11).
 listening(none) ->
     [];
 listening(Listen) ->
     Text = unicode:characters_to_binary(Listen),
     case listener(Text) of
         {ok, _} -> [{<<"listen">>, Text}];
-        not_endpoint -> ern_build:fail("--listen is not address:port: " ++ Listen);
-        no_address -> ern_build:fail("--listen names no address: " ++ Listen);
+        not_endpoint -> ern_build:form_fail("--listen is not address:port: " ++ Listen);
+        no_address -> ern_build:form_fail("--listen names no address: " ++ Listen);
         {mapped, Mapped} -> ern_build:fail("--listen names " ++ mapped_text(Mapped))
     end.
 
@@ -253,7 +254,8 @@ add_peer(ConfigDir, PeerDir) ->
 
 %% Report §11.3, §11.7, §12.5: the key a peer's certificate certifies, and
 %% its `listen`: its directory, `ernest.conf` and certificate read as a node
-%% reads its own, the certificate naming the host its key gives; a
+%% reads its own, the certificate naming the host its key gives, its
+%% refusal advising the removal that the peer's node mends at its start; a
 %% directory without its certificate is no configuration directory, and
 %% none is made for it.
 peer_read(PeerDir) ->
@@ -264,7 +266,8 @@ peer_read(PeerDir) ->
     Certificate = certificate(PeerDir),
     ern_carrier:names_own_host(Certificate)
         orelse fail(PeerDir, ?CERTIFICATE, "names another host than its key gives, and a peer"
-                                           " refuses it; ern config makes one that names it"),
+                                           " refuses it; remove it, and its node makes one from"
+                                           " its key at its start"),
     {certified_key(Certificate), Listen}.
 
 %% Report §11.3: a peer's `network-address` on this machine, its `listen`
@@ -371,14 +374,16 @@ certificate_made(ConfigDir) ->
     end.
 
 %% Report §12.5: the node's certificate certifies its key, Own, and names
-%% the host that key gives.
+%% the host that key gives; each refusal advises the removal, since the
+%% node makes a missing certificate from its key (certificate_made/1).
 certified(ConfigDir, Own) ->
     Certificate = certificate(ConfigDir),
+    Remade = "; remove it, and the node makes one from its key",
     certified_key(Certificate) =:= Own
-        orelse fail(ConfigDir, ?CERTIFICATE, "certifies another key than " ++ ?KEY),
+        orelse fail(ConfigDir, ?CERTIFICATE, "certifies another key than " ++ ?KEY ++ Remade),
     ern_carrier:names_own_host(Certificate)
         orelse fail(ConfigDir, ?CERTIFICATE, "names another host than its key gives, and a peer"
-                                             " refuses it; ern config makes one that names it"),
+                                             " refuses it" ++ Remade),
     ok.
 
 %% Report §12.5, §11: a configuration directory and its `ernest.conf`
@@ -571,12 +576,13 @@ signaled(ConfigDir, Number) ->
 %% ends.
 -spec stopped(file:filename()) -> ok.
 stopped(ConfigDir) ->
-    node_signaled(ConfigDir, 15, true).
+    node_signaled(ConfigDir, ern_os:signal_number('Termination'), true).
 
 node_signaled(ConfigDir, Number, Wait) ->
     case ern_os:node_signaled(file(ConfigDir, pid), Number, Wait) of
         sent -> ok;
-        no_file -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the directory");
+        no_file -> fail(ConfigDir, ?PID_FILE, file:format_error(enoent)
+                                              ++ ": no node runs from the directory");
         unopened -> fail(ConfigDir, ?PID_FILE, ern_build:reason(unopened));
         no_node -> fail(ConfigDir, ?PID_FILE, "no node holds it: no node runs from the directory");
         no_process -> fail(ConfigDir, ?PID_FILE, "names no process");

@@ -21,13 +21,16 @@ refusal(Text) ->
 %% report §2.1: a control character but tab, line feed and carriage return
 %% is an error wherever it stands, a doc block and a comment among them. A
 %% regression test: a doc block carried one to every terminal that showed
-%% it, and a string and a comment were taken as they were
+%% it, and a string and a comment were taken as they were. Report §11.5:
+%% the help line writes its escape
 control_character_test() ->
-    Refused = "control character U+001B; a string or a character literal writes it `\\u{1B}`",
+    Refused = "control character U+001B",
     ?assertEqual({1, 7, Refused}, refusal("/// a \e[2J doc\nlet x = 1\n")),
     ?assertEqual({2, 6, Refused}, refusal("\n// a \e comment\n")),
     ?assertEqual({1, 11, Refused}, refusal("let s = \"a\eb\"")),
-    ?assertMatch({1, 10, "control character U+009B" ++ _}, refusal("let s = \"\x{9B}\"")),
+    ?assertMatch({error, #diagnostic{help = "a string or a character literal writes it `\\u{1B}`"}},
+                 ern_lexer:tokenize("let s = \"a\eb\"")),
+    ?assertEqual({1, 10, "control character U+009B"}, refusal("let s = \"\x{9B}\"")),
     ?assertMatch([_ | _], tokens("let s = \"tab\there\"\r\n")).
 
 %% report §2.4
@@ -304,8 +307,9 @@ char_literal_errors_test() ->
     %% a literal of two code points is closed, and named as what it is; a
     %% regression test, the catalog of diagnostics having found it called
     %% unterminated
-    ?assertEqual({1, 1, "a character literal holds one code point; a string is written"
-                        " between double quotes"}, refusal("'ab'")),
+    ?assertEqual({1, 1, "a character literal holds one code point"}, refusal("'ab'")),
+    ?assertMatch({error, #diagnostic{help = "a string is written between double quotes"}},
+                 ern_lexer:tokenize("'ab'")),
     ?assertEqual({1, 1, "the character literal never closes"}, refusal("'a")),
     ?assertEqual({1, 1, "the character literal never closes"}, refusal("'ab\n'")),
     ?assertEqual({1, 1, "a line break in a character literal"}, refusal("'\n'")),

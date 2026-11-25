@@ -185,9 +185,10 @@ export fn letter() : Char = 'ab'
 
 ```console
 $ ern build example.ern
-example.ern:1:29: a character literal holds one code point; a string is written between double quotes
+example.ern:1:29: a character literal holds one code point
 1 | export fn letter() : Char = 'ab'
   |                             ^
+  | = help: a string is written between double quotes
 ```
 
 ### A Unicode escape with no digit (§2.5)

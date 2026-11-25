@@ -199,7 +199,7 @@ split_since(Doc) ->
     Lines = binary:split(string:trim(Doc, trailing), <<"\n">>, [global]),
     case lists:last(Lines) of
         <<"since ", Version/binary>> ->
-            case is_version(Version) of
+            case is_since_version(Version) of
                 true ->
                     Text = iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))),
                     {string:trim(Text, trailing), Version};
@@ -212,13 +212,13 @@ split_since(Doc) ->
 
 %% A version as a `since` line writes it: a digit, then digits, letters,
 %% `.`, `+` and `-`.
-is_version(<<First, Rest/binary>>) when First >= $0, First =< $9 ->
+is_since_version(<<First, Rest/binary>>) when First >= $0, First =< $9 ->
     lists:all(fun(Char) ->
                   (Char >= $0 andalso Char =< $9) orelse (Char >= $a andalso Char =< $z)
                       orelse (Char >= $A andalso Char =< $Z)
                       orelse Char =:= $. orelse Char =:= $+ orelse Char =:= $-
               end, binary_to_list(Rest));
-is_version(_) ->
+is_since_version(_) ->
     false.
 
 since_line(undefined) -> [];
@@ -301,8 +301,8 @@ since(Beam) ->
 %% with, in a module or the prelude, or undefined for one that has none and
 %% so has its module's.
 -spec declared_since(binary() | prelude, binary()) -> binary() | undefined.
-declared_since(Source, Name) ->
-    {docs_v1, _, _, _, _, _, Entries} = case Source of
+declared_since(Documented, Name) ->
+    {docs_v1, _, _, _, _, _, Entries} = case Documented of
                                             prelude -> ern_prelude:docs();
                                             Beam -> element(2, ern_docs:read(Beam))
                                         end,

@@ -1,8 +1,9 @@
 %% The runtime's records that more than one module reads: a process's row in
 %% the table of the processes it started or adopted, `ern_processes`, which
-%% ern_rt keeps and the tests read (report §6.9, §8.7, §11.2); and a fault
-%% as the runtime holds it from where it is met to its report (§7.3, §11.2,
-%% Appendix E.21).
+%% ern_rt keeps and the tests read (report §6.9, §8.7, §11.2); a fault as
+%% the runtime holds it from where it is met to its report (§7.3, §11.2,
+%% Appendix E.21); and a function a unit of this node holds, as the code
+%% table answers it (§8.7, ern_code:spawnable/1, ern_code:linkable/1).
 
 -ifndef(ERN_RT_HRL).
 -define(ERN_RT_HRL, true).
@@ -40,5 +41,11 @@
 %% the moment it was met, in milliseconds since the epoch as Clock.now
 %% counts them (Appendix E.15). A fault thrown with its trace or its time
 %% none takes the stack and the moment where it is met (ern_rt:met/3).
+
+-record(held_function, {unit, function, arity, reach}).
+%% unit: the unit that holds it; function: its function there, named by
+%% its number (§11.1); arity: how many values it takes, a lambda's the
+%% values it captured; reach: the bindings and the foreign declarations it
+%% names, {[{QualifiedName, Hash}], [QualifiedName]} (ern_code:reach()).
 
 -endif.

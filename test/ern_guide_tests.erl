@@ -86,7 +86,7 @@
 -record(block, {line, info, heading, code}).
 
 %% What a console after an example runs: the job and its options as the
-%% console writes them, `run --main M.f `; the compiled file; the words
+%% console writes them, `run --main f `; the compiled file; the words
 %% after it; the lines it is given on standard input; and what it shows.
 -record(launch, {invocation, compiled_file, words, inputs = [], shown}).
 
@@ -610,12 +610,10 @@ check({continuation, _}) ->
 %% point's name, its site (§6.9, §11.2), and 0 where the entry point
 %% returns. Another job is held to 0.
 exit_status(#launch{invocation = "run " ++ Flags, compiled_file = CompiledFile, shown = Shown}) ->
+    {ok, Segment} = ern_namespace:segment(filename:rootname(CompiledFile)),
     EntryPoint = case re:run(Flags, "--main (\\S+)", [{capture, all_but_first, list}]) of
-                     {match, [Given]} ->
-                         Given;
-                     nomatch ->
-                         {ok, Segment} = ern_namespace:segment(filename:rootname(CompiledFile)),
-                         Segment ++ ".main"
+                     {match, [Given]} -> Segment ++ "." ++ Given;
+                     nomatch -> Segment ++ ".main"
                  end,
     Faulted = list_to_binary(EntryPoint ++ " faulted: "),
     case [Line || Line <- lines(trim(Shown)), string:prefix(Line, Faulted) =/= nomatch] of

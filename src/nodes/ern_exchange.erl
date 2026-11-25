@@ -70,6 +70,7 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0]}).
@@ -530,7 +531,7 @@ reach({foreign, Names} = Key) ->
                 [{Holder, _} | _] -> foreign_reach(Holder, [Names]);
                 [] -> none
             end;
-        {Unit, _Function, _Arity, {[], Foreigns}} ->
+        #held_function{unit = Unit, reach = {[], Foreigns}} ->
             foreign_reach(Unit, Foreigns)
     end.
 
@@ -550,7 +551,7 @@ reach(Key, Hash) ->
     case ern_code:spawnable(Key) of
         none ->
             none;
-        {Unit, _Function, _Arity, {Bindings, Foreigns}} ->
+        #held_function{unit = Unit, reach = {Bindings, Foreigns}} ->
             case reached_definitions([Hash], #{}, #{}) of
                 {ok, Definitions, Read} ->
                     case implementations(Unit, Foreigns, Read) of
@@ -795,10 +796,11 @@ members(Hash, Read) ->
 member_of([], _Hash, _Read) ->
     none;
 member_of([Unit | Units], Hash, Read) ->
-    {Definitions, Read1} = case ern_code:recorded(Unit, Read) of
-                               {#recorded{definitions = Held}, Read2} -> {Held, Read2};
-                               {none, Read2} -> {[], Read2}
-                           end,
+    {Recorded, Read1} = ern_code:recorded(Unit, Read),
+    Definitions = case Recorded of
+                      #recorded{definitions = Held} -> Held;
+                      none -> []
+                  end,
     case [Definition || #definition{hash = Defined} = Definition <- Definitions,
                         Defined =:= Hash] of
         [#definition{group = none} = Definition | _] ->

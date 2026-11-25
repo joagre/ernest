@@ -914,10 +914,12 @@ scheme_state(#scheme{quantified = Quantified, names = Names},
 %% gives one, and the variables named once across the whole: the text
 %% before the parameter at the cursor, counted from 0, that parameter, and
 %% the text after it, so that whoever paints it can mark the middle part.
-%% Params are the declaration's parameters, `_` for a pattern, or none for
-%% a function that has no declaration of its own, a value of a function
-%% type.
--spec format_call(#scheme{}, [atom()] | none, non_neg_integer(), type_state()) ->
+%% Params are the declaration's parameters, `_` for a pattern, shown by its
+%% type alone, or `{written, Text}` for one named so beside its type, as a
+%% page writes a pattern (§11.4); or none for a function that has no
+%% declaration of its own, a value of a function type.
+-spec format_call(#scheme{}, [atom() | {written, string()}] | none, non_neg_integer(),
+                  type_state()) ->
           {string(), string(), string()}.
 format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
@@ -963,6 +965,7 @@ marked(Named, _Marked, Tail) ->
     {lists:flatten(["(", lists:join(", ", Named), Tail]), "", ""}.
 
 parameter('_', Type) -> Type;
+parameter({written, Text}, Type) -> [Text, " : ", Type];
 parameter(Name, Type) -> [atom_to_list(Name), " : ", Type].
 
 padded(Params, Count) when is_list(Params), length(Params) =:= Count -> Params;

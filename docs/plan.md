@@ -24,11 +24,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg: the report written from the copy, the renames of *The Library's Names*, and the
-builds of the front end, the checker, the emitter, the runtime, in two, the nodes and the
-standard library with the libraries are done, the two Fable rounds that item 4 names are
-held, and the cli's build is next, on Opus 5.5 at xhigh (the log's *The First Build of Leg
-4*, *The Renames of the Library's Names*, *The Runtime's Second Build*, *The First Fable
-Round*, *The Nodes' Build*, *The Libraries' Build* and *The Second Fable Round*).**
+builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
+standard library with the libraries and the cli are done, and two Fable rounds are held. A
+third round is next, on Fable 5.2 at high, then the shell's build on Opus 5.5 at xhigh (the
+log's *The First Build of Leg 4*, *The Renames of the Library's Names*, *The Runtime's
+Second Build*, *The First Fable Round*, *The Nodes' Build*, *The Libraries' Build*, *The
+Second Fable Round* and *The Cli's Build*).**
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -187,7 +188,8 @@ says what is left once its readings are in, and no figure stands until then.
       started, the first after the runtime's second build, and the last before `make
       test-full` and the close (the log's *One Fable Round Before the Close* and *A Fable
       Round at a Cut*). The builds go on meanwhile, and each question that waits is named
-      here as it comes, its ways under its line in the findings. None waits now.
+      here as it comes, its ways under its line in the findings. Five wait now, the
+      third round's.
 
       A round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
       running, and reads `docs/agents.md` and each waiting line in the findings. It puts
@@ -207,13 +209,19 @@ says what is left once its readings are in, and no figure stands until then.
 
       The second round was held 2026-11-25 (the log's *The Second Fable Round*), its six
       decisions answered under *T5*, *N C29*, *T18*, *P3 3, P3 9, T25*, twice, and *S3,
-      S6*. The cli's build is next, on Opus 5.5 at xhigh, and takes the five texts, the
-      two of the nodes' code among them: a node's rule after a missing dependency, the
-      count of `ern test`, the refusals that name the help, the certificate's advice and
-      a reload's text for another key. §8.7's sentence, which gains the first, is read
-      cold before that build starts. `Http.filePath`'s `None` for an `OPTIONS` request
-      with a scheme and an empty path is a step of its own beside it, in
-      `src/libs/http/http.ern`.
+      S6*. The cli's build took the five texts and `Http.filePath`'s `OPTIONS` step,
+      §8.7's sentence read cold before it (the log's *The Cli's Build*).
+
+      The third round, after the cli's build and before the shell's, decides five
+      questions, each under its line in the findings as *Comes back*: whether an
+      interrupted input that waited in a call names its callee (*B6*); whether `:reload`
+      passes over a file at a named package's namespace (*Z17*); what `:browse` alone
+      lists (*N C26*); a node's advice for a file that holds another module where its
+      path does not end in that module's segments (*T5*); and how a fault met near its
+      case's end is counted (*N C24*). The shell's build follows, on Opus 5.5 at xhigh,
+      its sentences and its brief waiting in `leg4/builds/`, `cold_shell/edits_shell.py`
+      and `brief_shell.md`, for the round's first three answers; the last two go with it,
+      the cli's code being theirs.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

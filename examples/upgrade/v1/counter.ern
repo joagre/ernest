@@ -21,7 +21,7 @@
 // it:
 //
 //     ern build upgrade/v1
-//     ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
+//     ern run --config-dir b --main serve upgrade/v1/counter.erc &
 //
 
 type CounterMsg =

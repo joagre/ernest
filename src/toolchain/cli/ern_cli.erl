@@ -166,7 +166,7 @@ ern(["--version"], _ErrorDevice) ->
     0;
 %% report §11: an empty first word names no job, as none does
 ern([[] | _], ErrorDevice) ->
-    refuse("a job is required", ErrorDevice);
+    refuse(jobs_help("a job is required"), ErrorDevice);
 ern([Word | Args], ErrorDevice) ->
     case {is_utf8(Word), lists:keyfind(Word, 1, jobs())} of
         {false, _} -> refuse(not_utf8(Word), ErrorDevice);
@@ -175,7 +175,7 @@ ern([Word | Args], ErrorDevice) ->
         {true, false} -> refuse(no_job(Word), ErrorDevice)
     end;
 ern([], ErrorDevice) ->
-    refuse("a job is required", ErrorDevice).
+    refuse(jobs_help("a job is required"), ErrorDevice).
 
 %% The jobs of §11, each with its options, what follows them, and its
 %% function.
@@ -190,25 +190,30 @@ jobs() ->
      {"reload", signal_options("the node that reads its configuration again"), "",
       fun reload/3},
      {"stop", signal_options("the node that ends"), "", fun stop/3},
-     {"unpack", [help_option()], "", fun unpack/3}].
+     {"unpack", [verbose_option(), help_option()], "", fun unpack/3}].
 
 %% Report §11: a first word that is no job, refused with the jobs named
 %% and `ern --help`, which describes them; an option a job takes, given
-%% before it, is refused with where it goes.
+%% before it, is refused with where it goes, and the help named after it.
 no_job("--help") -> "--help stands alone: ern --help, or ern <job> --help";
-no_job("--version") -> "--version stands alone: ern --version";
+no_job("--version") -> jobs_help("--version stands alone: ern --version");
 no_job("-" ++ _ = Word) ->
     Name = option_name(Word),
     Taken = [Job || {Job, Spec, _, _} <- jobs(), {_, _, Long, _, _} <- Spec, "--" ++ Long =:= Name],
     case Taken of
         [] -> no_such_job(Word);
-        _ -> Name ++ " comes after the job: ern <job> " ++ Name
+        _ -> jobs_help(Name ++ " comes after the job: ern <job> " ++ Name)
     end;
 no_job(Word) ->
     case filename:extension(Word) of
-        ".erc" -> "the job comes first: ern run " ++ Word;
+        ".erc" -> jobs_help("the job comes first: ern run " ++ Word);
         _ -> no_such_job(Word)
     end.
+
+%% Report §11: a refusal of the form of a command line before a job is read
+%% ends by naming the help that describes the jobs.
+jobs_help(Refusal) ->
+    Refusal ++ "; ern --help describes the jobs".
 
 no_such_job(Word) ->
     "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell, config, reload,"
@@ -224,10 +229,9 @@ long_name(Spec, Key) ->
     hd(["--" ++ Long || {Taken, _, Long, _, _} <- Spec, Taken =:= Key]).
 
 %% Report §11: a refusal before a job, its text holding no control
-%% character (ern_build:control_free/1).
+%% character (ern_build:control_free/1), and nothing after it.
 refuse(Message, ErrorDevice) ->
     io:format(ErrorDevice, "ern: ~ts~n", [ern_build:control_free(Message)]),
-    usage(ErrorDevice),
     1.
 
 usage(Device) ->
@@ -246,8 +250,9 @@ usage(Device) ->
               []).
 
 %% Run a job with its options parsed by getopt. --help prints and stops
-%% with status 0; a usage error prints the message and the job's usage on
-%% ErrorDevice, any other error one line, both with status 1.
+%% with status 0; a refusal of the form of the command line prints its
+%% message and names the job's help (usage_fail/1), and any other refusal
+%% its message, each one line on ErrorDevice with status 1 (report §11).
 job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
     %% report §12.5, §11.2: the job's own standard error, where a line of the
     %% toolchain's own goes while no launch's takes it (ern_job_line)
@@ -264,16 +269,19 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
                      end,
     try
         lists:foreach(fun(Word) -> is_utf8(Word) orelse ern_build:fail(not_utf8(Word)) end, Own),
-        lists:foreach(fun(Word) -> one_spelling(Word, Spec) end, Own),
+        %% report §11: `--` ends a job's options, and a word after it is
+        %% none, whatever it is spelled
+        lists:foreach(fun(Word) -> one_spelling(Word, Spec) end,
+                      lists:takewhile(fun(Word) -> Word =/= "--" end, Own)),
         {Options, Rest} = case getopt:parse(Spec, Own) of
                               {ok, Parsed} -> Parsed;
-                              {error, {Reason, Data}} ->
-                                  usage_fail(parse_refusal(Job, Spec, Reason, Data))
+                              {error, {Reason, Data}} -> parse_refused(Job, Spec, Reason, Data)
                           end,
-        %% report §11: `--help` stands alone after the job as before it
+        %% report §11: `--help` stands alone after the job as before it,
+        %% the refusal naming the help itself
         case {lists:member(help, Options), Options ++ Rest ++ Program} of
             {true, [help]} -> job_usage(Spec, Name, Positional, standard_io), 0;
-            {true, _} -> usage_fail("--help stands alone: " ++ Name ++ " --help");
+            {true, _} -> ern_build:fail("--help stands alone: " ++ Name ++ " --help");
             {false, _} ->
                 given_once(Options, Spec),
                 Resolved = [resolved_option(Option) || Option <- Options],
@@ -284,8 +292,7 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
         end
     catch
         throw:{cli_usage, Usage} ->
-            io:format(ErrorDevice, "~s: ~ts~n", [Name, Usage]),
-            job_usage(Spec, Name, Positional, ErrorDevice),
+            io:format(ErrorDevice, "~s: ~ts; ~s --help describes the job~n", [Name, Usage, Name]),
             1;
         throw:{cli_error, Refusal} ->
             io:format(ErrorDevice, "~s: ~ts~n", [Name, Refusal]),
@@ -322,7 +329,7 @@ counted(Job, Options, Arguments) ->
                 orelse usage_fail(no_main_file(shell)),
             ok;
         {"unpack", [_ | _]} ->
-            usage_fail("unpack takes no argument");
+            usage_fail(none_taken(Arguments));
         {"run", []} ->
             %% report §11.2: `--config-dir` makes a run a node, and a node
             %% with no `.erc` is a bare node; a run that is no node runs a
@@ -367,7 +374,8 @@ reads_manifest(Job) ->
 %% where Dir holds the name `package.conf`, whatever it reaches, by the job
 %% Job given the paths Arguments and its `--build-root`: the package's
 %% directory, whose `src` and `build` are default roots (§11.1, §11.2), its
-%% named packages, as the load path holds them, under `ern build` the order
+%% own `ebin` where the job runs code and it is there, its named packages,
+%% as the load path holds them (ern_build:load_path/1), under `ern build` the order
 %% it builds them in, under `ern unpack` the entries with their `url` and
 %% their `sha256`, and, where `--verbose` asks, what it says of them, as
 %% data, since the build, which is in the compiler's hash, calls no module
@@ -381,7 +389,11 @@ packaged(Options, Dir, Place, Job, Arguments) ->
             Given = [{argument, Path} || Path <- Arguments]
                 ++ [{build_root, Path} || {build_root, Path} <- Options],
             Package = ern_package:read(Dir, Place, Job, Given),
-            Options ++ [{root_package, ern_build:absolute(Dir)}]
+            Root = ern_build:absolute(Dir),
+            Options ++ [{root_package, Root}]
+                ++ [{root_ebin, Ebin} || lists:member(Job, ["run", "test", "shell"]),
+                                         Ebin <- [filename:join(Root, "ebin")],
+                                         filelib:is_dir(Ebin)]
                 ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
                 ++ [{package_order, Order} || Order <- [ern_package:built_order(Package)],
                                               Order =/= []]
@@ -392,25 +404,27 @@ packaged(Options, Dir, Place, Job, Arguments) ->
         {{error, enoent}, working_directory} ->
             Options;
         {{error, enoent}, package_dir} ->
-            ern_build:fail(ern_build:shown(Manifest) ++ ": no such file");
+            ern_build:refused(Manifest, enoent);
         {{error, Error}, _} ->
             ern_build:refused(Manifest, Error)
     end.
 
 %% Report §11, §11.7: the option parser's refusal in the usage's words: an
 %% option given no value with its metavariable, and one the job does not
-%% take with the jobs that take it.
-parse_refusal(_Job, Spec, missing_option_arg, Key) ->
+%% take with the jobs that take it, which names them in place of the help.
+parse_refused(_Job, Spec, missing_option_arg, Key) ->
     Long = long_name(Spec, Key),
-    Long ++ " takes a value: " ++ Long ++ " " ++ metavariable(Key);
-parse_refusal(Job, _Spec, invalid_option, Word) ->
+    usage_fail(Long ++ " takes a value: " ++ Long ++ " " ++ metavariable(Key));
+parse_refused(Job, _Spec, invalid_option, Word) ->
     Name = option_name(Word),
     Refused = Name ++ " is not an option of ern " ++ Job,
     case [Other || {Other, Spec, _, _} <- jobs(), Other =/= Job,
                    lists:any(fun({_, _, Long, _, _}) -> "--" ++ Long =:= Name end, Spec)] of
-        [] -> Refused;
-        [Other] -> Refused ++ "; ern " ++ Other ++ " takes it";
-        Others -> Refused ++ "; " ++ listed(["ern " ++ Other || Other <- Others]) ++ " take it"
+        [] -> usage_fail(Refused);
+        [Other] -> ern_build:fail(Refused ++ "; ern " ++ Other ++ " takes it");
+        Others ->
+            ern_build:fail(Refused ++ "; " ++ listed(["ern " ++ Other || Other <- Others])
+                           ++ " take it")
     end.
 
 %% Words in a sentence, the last after `and`.
@@ -465,10 +479,13 @@ named_directories(Job, Spec, Options) ->
                               {true, _} -> ok;
                               {false, true} -> ern_build:fail(Directory ++ ": not a directory"
                                                               ++ Named);
-                              {false, false} -> ern_build:fail(Directory ++ ": no such directory"
-                                                               ++ Named)
+                              {false, false} -> no_such_directory(Directory, Named)
                           end;
                      ({peer_dir, Directory}) ->
+                          %% report §11.3: one that names nothing is refused as a
+                          %% --load-path is
+                          filelib:is_file(Directory)
+                              orelse no_such_directory(Directory, ", which --peer-dir names"),
                           lists:all(fun filelib:is_regular/1,
                                     [ern_node:file(Directory, conf),
                                      ern_node:file(Directory, certificate)])
@@ -477,6 +494,11 @@ named_directories(Job, Spec, Options) ->
                      (_) ->
                           ok
                   end, Options).
+
+%% Report §11, §11.7: a directory an option names that names nothing, in
+%% the host's words for a missing path, and the option.
+no_such_directory(Directory, Named) ->
+    ern_build:fail(Directory ++ ": " ++ file:format_error(enoent) ++ Named).
 
 %% Report §11: an option's value is the next word, so `--name=value` is a
 %% second spelling, refused with the first; a flag takes none. A name the
@@ -594,7 +616,7 @@ metavariable(package_dir) -> "dir";
 metavariable(config_dir) -> "dir";
 metavariable(listen) -> "address:port";
 metavariable(peer_dir) -> "dir";
-metavariable(main) -> "Qualified.name";
+metavariable(main) -> "name";
 metavariable(attach) -> "name".
 
 %% An option that may be given more than once, which §11 marks `...`.
@@ -649,6 +671,12 @@ one_argument(_Required, One, Rest) ->
 too_many(One, Rest) ->
     io_lib:format("~s is taken, and ~B were given", [One, length(Rest)]).
 
+%% Report §11: the refusal of the words given to a job that takes none.
+none_taken([_]) ->
+    "no argument is taken, and 1 was given";
+none_taken(Rest) ->
+    io_lib:format("no argument is taken, and ~B were given", [length(Rest)]).
+
 %% Report §11.4: a file's documentation to stdout, a directory's into the
 %% build directory, one document per module and an index, or with --man one
 %% manual page per module and no index.
@@ -665,13 +693,12 @@ doc_path(Options, Path, ErrorDevice) ->
         directory ->
             doc_dir(Options, Path, ErrorDevice);
         regular ->
-            try
-                Beam = beam_of(Options, Path),
-                io:put_chars(page(Options, Beam, source_named(Path, Beam), ErrorDevice)),
-                0
-            catch
-                throw:{errors, File, Diagnostics} ->
-                    ern_build:report_errors(File, Diagnostics, ErrorDevice)
+            case beam_of(Options, Path, ErrorDevice, ern_build:verbose(Options, ErrorDevice)) of
+                {ok, Beam} ->
+                    io:put_chars(page(Options, Beam, source_named(Path, Beam), ErrorDevice)),
+                    0;
+                {failed, Status} ->
+                    Status
             end;
         Kind ->
             ern_build:given_refused(Path, Kind)
@@ -692,9 +719,12 @@ source_named(Path, Beam) ->
     end.
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
-%% is read; a source is compiled first, in memory, so that asking for a page
-%% writes nothing. A file that is neither is refused for both.
-beam_of(Options, Path) ->
+%% is read; a source is compiled first, in memory, as a directory's is, so
+%% that asking for a page writes nothing, each module read or compiled
+%% said by Say (--verbose), the source root and the build root first; a
+%% module that fails is reported as a build reports it, and its status
+%% answered. A file that is neither is refused for both.
+beam_of(Options, Path, ErrorDevice, Say) ->
     lists:member(filename:extension(Path), [".ern", ".erc"])
         orelse ern_build:fail(ern_build:shown(Path) ++ " ends in neither .ern nor .erc"),
     case filename:extension(Path) of
@@ -703,43 +733,21 @@ beam_of(Options, Path) ->
             %% both chunks a page is built from, so that a module whose
             %% chunks are not the compiler's is refused and no page begun
             case {ern_docs:read(Compiled), ern_interface:read(Compiled)} of
-                {{ok, _}, {ok, _}} -> Compiled;
+                {{ok, _}, {ok, #{interface := #interface{namespace = Namespace}}}} ->
+                    Say(["read ", ern_namespace:text(Namespace), " from ",
+                         ern_build:shown(Path)]),
+                    {ok, Compiled};
                 {{error, Error}, _} -> ern_build:fail(Path ++ ": " ++ Error);
                 {_, {error, Error}} -> ern_build:fail(Path ++ ": " ++ Error)
             end;
         _ ->
-            SourceRoot = ern_build:source_root(Options, Path, "."),
-            BuildRoot = ern_build:build_root(Options, SourceRoot),
-            %% report §11.1: a module outside the source root is found under
-            %% build-root, then under each --load-path root, and report
-            %% §11.9: a named package's under its build alone
-            DependencyRoots = ern_build:with_root(BuildRoot, ern_build:load_path(Options)),
-            #build_module{namespace = Namespace, file = File} = Module =
-                ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
-            %% report §11.9, §11.1: a module outside the named packages at a
-            %% named package's namespace, and one that hides a library's
-            %% module another depends on, is refused before it is compiled
-            case {ern_build:outside_package(File, Namespace, DependencyRoots),
-                  ern_build:hiding(File, Namespace, File, ern_tree:libraries(),
-                                   DependencyRoots)} of
-                {none, none} -> ok;
-                {none, Refusal} -> ern_build:fail(Refusal);
-                {Refusal, _} -> ern_build:fail(Refusal)
-            end,
-            [#build_module{namespace = Namespace, file = File, relative = Relative,
-                           dependencies = Dependencies} = Ordered] =
-                ern_build:compile_order([Module], SourceRoot, DependencyRoots),
-            Reached = ern_build:dependency_interfaces(Namespace, Dependencies, #{}, DependencyRoots,
-                                                      SourceRoot),
-            DependencyInterfaces = [DependencyInterface || {_, DependencyInterface} <- Reached],
-            case ern_build:checked(Ordered, DependencyInterfaces, SourceRoot, DependencyRoots) of
-                {ok, Typed, Interface, Env} ->
-                    Build = #{source_hash => <<>>, deps => [],
-                              source => list_to_binary(filename:basename(Relative))},
-                    {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-                    Beam;
-                {error, Diagnostics} ->
-                    throw({errors, File, Diagnostics})
+            case ern_build:compile_in_memory("ern doc", Options, Path, ErrorDevice,
+                                             fun(_) -> #{} end) of
+                {0, Compiled} ->
+                    [Beam] = maps:values(Compiled),
+                    {ok, Beam};
+                {Status, _} ->
+                    {failed, Status}
             end
     end.
 
@@ -783,9 +791,10 @@ in_runtime(Compute, ErrorDevice) ->
 %% compiled, so that every page is of a module that type-checks: a module
 %% whose .erc in build-root is as new as its source is read from it, and
 %% the rest are compiled as `ern build` compiles them, writing nothing.
-%% Where every page is current, nothing is compiled. A file whose path is
-%% no module's fails as a module that does not compile does (§11.1), whose
-%% page is never current.
+%% Where every page is current, nothing is compiled, but where a module
+%% hides a library's, which the build tests by the job's reach (§11.1,
+%% §4.2). A file whose path is no module's fails as a module that does not
+%% compile does (§11.1), whose page is never current.
 %%
 %% A module that fails does not stop the others, as in `ern build`: the
 %% compiled modules are those that neither failed nor use one that failed,
@@ -810,23 +819,29 @@ doc_dir(Options, Path, ErrorDevice) ->
     %% document or page written or removed
     Say = ern_build:verbose(Options, ErrorDevice),
     Outdated = outdated(pages(Kind, Modules, IsStdlib, BuildRoot), code_modified(Kind)),
-    {Status, Compiled} = case {Outdated, Misnamed} of
-                             {[], []} -> {0, #{}};
-                             _ -> ern_build:compile_in_memory("ern doc", Options, Path,
-                                                              ErrorDevice,
-                                                              read_compiled(Modules, BuildRoot,
-                                                                            Say))
+    Libraries = ern_tree:libraries(),
+    Hiding = [Module || #build_module{namespace = Namespace, file = File} = Module <- Modules,
+                        ern_build:hidden_library(Namespace, File, Libraries) =/= none],
+    {Status, Compiled} = case {Outdated, Misnamed, Hiding} of
+                             {[], [], []} -> {0, #{}};
+                             _ -> ern_build:compile_in_memory(
+                                    "ern doc", Options, Path, ErrorDevice,
+                                    fun(SaidRead) ->
+                                        read_compiled(Modules, BuildRoot, SaidRead)
+                                    end)
                          end,
     write_outdated(Kind, [{Output, Make} || {Output, Make, Of} <- Outdated,
                                             Of =:= prelude orelse is_map_key(Of, Compiled)],
                    Compiled, ErrorDevice, Say),
     %% report §11.4: the documents and pages of a module whose source is
     %% gone go, whichever a run writes, as the build's sweep takes its
-    %% .erc, after a run in which every module compiled
+    %% .erc, after a run in which every module compiled, each said with the
+    %% flag or without
     Status =:= 0
         andalso ern_build:sweep_pages(Path, SourceRoot, BuildRoot,
                                       [Namespace || #build_module{namespace = Namespace} <- Modules]
-                                          ++ [['Prelude'] || IsStdlib], Say),
+                                          ++ [['Prelude'] || IsStdlib],
+                                      ern_build:saying(ErrorDevice)),
     write_index(Kind, directory_namespaces(Sources, SourceRoot), IsStdlib, BuildRoot),
     Status.
 
@@ -1022,14 +1037,15 @@ modified(File) ->
 format_options() ->
     [{check, undefined, "check", undefined,
       "name the modules not laid out, and change none"},
-     help_option()].
+     verbose_option(), help_option()].
 
 %% Report §11.6: each module named, and every module under each directory
 %% named, laid out in place; with --check, each one not laid out named on
 %% standard output and none changed, the status 1 when there was one; with
-%% `-`, standard input laid out onto standard output (resolved_arguments/2).
-%% A module that does not parse is left as it is and its diagnostic
-%% written, the status 1.
+%% `-`, standard input laid out onto standard output (resolved_arguments/2);
+%% with --verbose, each module written back said on standard error,
+%% `formatted src/x.ern`. A module that does not parse is left as it is and
+%% its diagnostic written, the status 1.
 format(Options, [standard_input], ErrorDevice) ->
     Text = read_input(open_input(), []),
     case ern_format:format(Text) of
@@ -1113,7 +1129,10 @@ format_file(Options, File, Text, ErrorDevice) ->
         {ok, Output} ->
             case lists:member(check, Options) of
                 true -> io:format("~ts~n", [ern_build:path_text(File)]), changed;
-                false -> ok = ern_build:write_whole(File, Output)
+                false ->
+                    ok = ern_build:write_whole(File, Output),
+                    Say = ern_build:verbose(Options, ErrorDevice),
+                    Say(["formatted ", ern_build:path_text(File)])
             end;
         {error, Diagnostic} ->
             io:format(ErrorDevice, "~ts~n",
@@ -1170,7 +1189,7 @@ verbose_option() ->
 
 run_options() ->
     [config_dir_option("the run is a node"), load_path_option(), libs_dir_option(),
-     package_dir_option(), main_option("the entry point, a qualified exported function"),
+     package_dir_option(), main_option("the entry point, an exported function by its name"),
      verbose_option(), help_option()].
 
 test_options() ->
@@ -1266,7 +1285,13 @@ test(Options, [Path], ErrorDevice) ->
     case ern_build:path_kind(Path) of
         directory ->
             Files = ern_build:compiled_under(Path),
-            LoadPath = ern_build:with_root(ern_build:absolute(Path), ern_build:load_path(Options)),
+            %% report §11.2, §8.7: a node's load path holds the root of each
+            %% module found, as each module's run puts its own first
+            Roots = case is_node(Options) of
+                        true -> module_roots(Files);
+                        false -> []
+                    end,
+            LoadPath = lists:foldr(fun ern_build:with_root/2, ern_build:load_path(Options), Roots),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
                         report_tree(tree_tests(Files, Options, Say, ErrorDevice, Node))
@@ -1275,22 +1300,54 @@ test(Options, [Path], ErrorDevice) ->
             {Namespace, LoadPath, Loaded} = program(Path, Options, Say),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
-                        run_tests(Namespace, Loaded, examples(Namespace, LoadPath, Loaded, Say),
-                                  none, ErrorDevice, Node)
+                        tallied(run_tests(Namespace, Loaded,
+                                          examples(Namespace, LoadPath, Loaded, Say), none,
+                                          ErrorDevice, Node))
                     end);
         Kind ->
             ern_build:given_refused(Path, Kind)
     end.
 
+%% Report §11.2, §8.7: the root of each module of Files, once each, in
+%% their order, a `.erc` at the path of the namespace it holds; one that
+%% does not read or stands elsewhere gives none, and its run refuses it at
+%% its turn (program/3).
+module_roots(Files) ->
+    lists:foldl(fun(File, Roots) ->
+                        Absolute = ern_build:absolute(File),
+                        case module_root(Absolute) of
+                            {ok, Root} -> Roots ++ [Root || not lists:member(Root, Roots)];
+                            none -> Roots
+                        end
+                end, [], Files).
+
+module_root(File) ->
+    case ern_build:regular_bytes(File) of
+        {ok, Beam} ->
+            case ern_interface:read(Beam) of
+                {ok, #{interface := #interface{namespace = Namespace}}} ->
+                    Root = ern_build:root_of(File, Namespace),
+                    case ern_build:relative(File, Root) =:= ern_namespace:module_path(Namespace)
+                         ++ ".erc" of
+                        true -> {ok, Root};
+                        false -> none
+                    end;
+                _ ->
+                    none
+            end;
+        {error, _} ->
+            none
+    end.
+
 %% Report §11.2: the modules of a directory in the order of their paths,
 %% each with tests run as `ern test file.erc` runs it, in a runtime of its
 %% own, its name before its tests' lines, and one without passed over,
-%% loaded and not run; the status of each run. A run a signal ended or
-%% whose end it cut short (report §11.8), or whose output could no longer
-%% be written, is the last. Say says each module read (--verbose). A module
-%% that cannot be loaded ends the job at its turn, and report §11: a `.erc`
-%% found that reaches no regular file is one the job cannot read
-%% (ern_build:read/1).
+%% loaded and not run; what each run came to (run_tests/6). A run a signal
+%% ended or whose end it cut short (report §11.8), or whose output could no
+%% longer be written, is the last. Say says each module read (--verbose). A
+%% module that cannot be loaded, or two of whose tests have one name, ends
+%% the job at its turn, and report §11: a `.erc` found that reaches no
+%% regular file is one the job cannot read (ern_build:read/1).
 tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
@@ -1304,10 +1361,8 @@ tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
         true ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             case run_tests(Namespace, Loaded, Cases, Name, ErrorDevice, Node) of
-                Status when Status =:= 0; Status =:= 1 ->
-                    [Status | tree_tests(Files, Options, Say, ErrorDevice, Node)];
-                Ended ->
-                    [Ended]
+                {ran, _, _} = Ran -> [Ran | tree_tests(Files, Options, Say, ErrorDevice, Node)];
+                Ended -> [Ended]
             end
     end.
 
@@ -1321,13 +1376,42 @@ examples(Namespace, LoadPath, Loaded, Say) ->
     ern_examples:cases(Namespace, Loaded, LoadPath, Load).
 
 %% Report §11.2, §11.8: a directory without a test says so; status 1 where
-%% a test failed or faulted, and the status of the run that ended the job
-%% where one did.
+%% a case failed or a fault counted, and the status of the run that ended
+%% the job where one did; and every module's cases counted in one line, as
+%% a module's are (tallied/1).
 report_tree([]) ->
     io:format("no tests~n"),
     0;
-report_tree(Statuses) ->
-    lists:max(Statuses).
+report_tree(Runs) ->
+    case lists:last(Runs) of
+        {ended, Status} ->
+            Status;
+        {ran, _, _} ->
+            Tallies = [Tally || {ran, _, Tally} <- Runs],
+            tallied({ran, lists:max([Status || {ran, Status, _} <- Runs]),
+                     lists:foldl(fun added/2, {0, 0, 0}, Tallies)})
+    end.
+
+%% Report §11.2: what a job that ran its cases came to, its status, and the
+%% line it ends with on standard output, which counts its cases, those that
+%% failed, and the faults that counted for the status (§11.8) and stand in
+%% no case's line, `14 cases, 2 failed, 1 fault outside a case`; none where
+%% it ran no case, which says so where it had none (tests_entry/4), or where
+%% a refusal or a signal ended it.
+tallied({ended, Status}) ->
+    Status;
+tallied({ran, Status, {0, _, _}}) ->
+    Status;
+tallied({ran, Status, {Cases, Failed, Outside}}) ->
+    io:format("~ts~n", [[plural(Cases, "case"), ", ", integer_to_list(Failed), " failed",
+                         [[", ", plural(Outside, "fault"), " outside a case"] || Outside > 0]]]),
+    Status.
+
+plural(1, Noun) -> ["1 ", Noun];
+plural(Count, Noun) -> [integer_to_list(Count), " ", Noun, "s"].
+
+added({Cases, Failed, Outside}, {CasesAcc, FailedAcc, OutsideAcc}) ->
+    {Cases + CasesAcc, Failed + FailedAcc, Outside + OutsideAcc}.
 
 %% Report §12.5, §11.2: hangup sent to the node that holds the directory's
 %% `ernest.pid`, which reads its configuration again; the directory is read
@@ -1337,10 +1421,10 @@ report_tree(Statuses) ->
 reload(Options, [], _ErrorDevice) ->
     ConfigDir = node_dir(Options),
     _ = ern_node:read(ConfigDir, left),
-    ern_node:signaled(ConfigDir, 1),
+    ern_node:signaled(ConfigDir, ern_signals:number(sighup)),
     0;
-reload(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("reload takes no argument").
+reload(_Options, Rest, _ErrorDevice) ->
+    usage_fail(none_taken(Rest)).
 
 %% Report §8.6, §12.5, §11.2: termination sent to the node that holds the
 %% directory's `ernest.pid`, which ends in order; the status says that the
@@ -1349,19 +1433,19 @@ reload(_Options, _Rest, _ErrorDevice) ->
 stop(Options, [], _ErrorDevice) ->
     ern_node:stopped(node_dir(Options)),
     0;
-stop(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("stop takes no argument").
+stop(_Options, Rest, _ErrorDevice) ->
+    usage_fail(none_taken(Rest)).
 
 %% Report §11.9: `ern unpack`, started in its root package, the working
 %% directory, whose manifest's entries the job's Erlang half holds
-%% (ern_unpack:given/1) for its Ernest, `Ernest.Unpack`, which the shell's
+%% (ern_unpack:given/2) for its Ernest, `Ernest.Unpack`, which the shell's
 %% build holds and is loaded as the shell's is, and runs as `ern run` runs an
 %% entry point; started where there is no manifest it is refused. Its
 %% status is 1 where it refused anything (§11.8), which its `Os.exit` gives.
 unpack(Options, [], ErrorDevice) ->
     lists:keymember(root_package, 1, Options)
-        orelse ern_build:fail("package.conf: no such file"),
-    ern_unpack:given([Entry || {package_entry, Entry} <- Options]),
+        orelse ern_build:refused("package.conf", enoent),
+    ern_unpack:given([Entry || {package_entry, Entry} <- Options], lists:member(verbose, Options)),
     run_started(),
     Namespace = ['Ernest', 'Unpack'],
     ErlangModule = ern_namespace:erlang_module(Namespace),
@@ -1402,8 +1486,8 @@ config(Options, [], _ErrorDevice) ->
             ern_node:add_peer(ConfigDir, PeerDir)
     end,
     0;
-config(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("config takes no argument").
+config(_Options, Rest, _ErrorDevice) ->
+    usage_fail(none_taken(Rest)).
 
 %% Report §11.2: the shell is the entry process, and a file's entry point is
 %% spawned beside it, so §8.6 ends the program when the shell ends and not
@@ -1436,23 +1520,18 @@ shell(Options, Rest, ErrorDevice) ->
     %% are, before those of the file it loads
     {Init, LoadPath} =
         case Rest of
-            [] when Attach =/= none ->
-                %% report §11.2: the shell's own node holds the terminal and
-                %% the operator's files, and its entry point is the local
-                %% half, which spawns the session on the peer
-                GivenLoadPath = ern_build:load_path(Options),
-                host_path(GivenLoadPath),
-                ern_shell:loaded(#loaded{load_path = GivenLoadPath,
-                                         source_root = ern_build:source_root(Options, ".", "."),
-                                         config_startup = config_startup(Options),
-                                         attach = Attach}),
-                {init_fun([ErlangModule]), GivenLoadPath};
             [] ->
+                %% report §11.2: an attached shell's own node holds the
+                %% terminal and the operator's files, and its entry point is
+                %% the local half, which spawns the session on the peer; it
+                %% read no manifest, so its source root is `--source-root`'s
+                %% or the working directory
                 GivenLoadPath = ern_build:load_path(Options),
                 host_path(GivenLoadPath),
                 ern_shell:loaded(#loaded{load_path = GivenLoadPath,
                                          source_root = shell_source_root(Options, "."),
-                                         config_startup = config_startup(Options)}),
+                                         config_startup = config_startup(Options),
+                                         attach = Attach}),
                 {init_fun([ErlangModule]), GivenLoadPath};
             [File] ->
                 given_file(File),
@@ -1470,7 +1549,6 @@ shell(Options, Rest, ErrorDevice) ->
         end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
-    %% report §11.2: Os.exit faults the process that calls it
     %% report §11.1: the unit names its functions by their position
     {EntryName, EntrySite} = case Attach of
                                  none -> {main, <<"Ernest.Shell.main">>};
@@ -1484,6 +1562,8 @@ shell(Options, Rest, ErrorDevice) ->
                           %% nothing of its session's node's end or loss
                           Attach =:= none
                               orelse ern_carrier:attaching(unicode:characters_to_binary(Attach)),
+                          %% report §11.2: Os.exit faults the process that
+                          %% calls it
                           ern_rt:run_main(fun() -> ErlangModule:Main() end, EntrySite,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
                                                 exit => fault,
@@ -1514,8 +1594,8 @@ attachable(Options, Rest) ->
                                   " there, and :load loads a module"),
     lists:foreach(fun({Option, Why}) ->
                       not lists:keymember(Option, 1, Options)
-                          orelse usage_fail(["--", option_word(Option), " is not given with"
-                                             " --attach: ", Why])
+                          orelse usage_fail([long_name(shell_options(), Option),
+                                             " is not given with --attach: ", Why])
                   end, [{main, "the node's program runs there"},
                         {load_path, "the load path is the node's"},
                         {libs_dir, "the load path is the node's"},
@@ -1523,11 +1603,6 @@ attachable(Options, Rest) ->
     is_node(Options)
         orelse usage_fail("--attach needs --config-dir: the shell attaches from a node of its"
                           " own").
-
-option_word(main) -> "main";
-option_word(load_path) -> "load-path";
-option_word(libs_dir) -> "libs-dir";
-option_word(package_dir) -> "package-dir".
 
 %% Report §8.3: a run given `--config-dir` is a node.
 is_node(Options) ->
@@ -1614,7 +1689,7 @@ run_node(ConfigDir, Read, LoadPath, Say, Run) ->
 no_main_file(shell) ->
     "--main names the function to spawn from the file the shell loads, and no file is given";
 no_main_file(run) ->
-    "--main names the entry point of the file run, and no file is given; a bare node has none".
+    "--main names the entry point of the file run, and no file is given: a bare node has none".
 
 %% Report §11.2: every fault on standard error as it happens, a line each:
 %% the process of its spawn site and the cause, the entry process's by its
@@ -1622,11 +1697,11 @@ no_main_file(run) ->
 %% cause, where a call carried the fault from its callee, the callee's site
 %% (§6.6), where a compute or a call carried it from a peer, the peer's
 %% name (§6.6, §8.7), and for a process a peer spawned, the peer, named as
-%% a node's line names it (§12.5), since the site is the spawner's; and
-%% beneath it the fault's trace (§7.3,
-%% indented_trace/1). It goes through standard error's process, so that it
-%% keeps its place among what the program wrote there, and is flushed with
-%% it when the program ends.
+%% a node's line names it (§12.5), since the site is the spawner's; then
+%% Suffix, `ern test`'s case (cases_launch/6); and beneath it the fault's
+%% trace (§7.3, indented_trace/1). It goes through standard error's
+%% process, so that it keeps its place among what the program wrote there,
+%% and is flushed with it when the program ends.
 %%
 %% The runtime's own subscriber of Process.subscribeFaults (Appendix E.21),
 %% given the peer's node or none, by which a peer a reload has removed since
@@ -1638,7 +1713,7 @@ no_main_file(run) ->
 %% of it (Appendix E.24, ern_rt:expected/2). Report §12.4: beneath a
 %% deadlock's trace, the processes it left waiting (left_waiting/1).
 report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, From, Time},
-             Peer, Stamped) ->
+             Peer, Stamped, Suffix) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
@@ -1655,7 +1730,8 @@ report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, 
                 iolist_to_binary([ern_job_line:stamp(Stamped, Time), Of,
                                   ern_show:controls(Site, line), Faulted,
                                   ern_show:controls(Cause, line), carried(Callee, From),
-                                  SpawnedBy, "\n", indented_trace(Trace), left_waiting(Process)])).
+                                  SpawnedBy, Suffix, "\n", indented_trace(Trace),
+                                  left_waiting(Process)])).
 
 %% Report §11.2, §6.6, §8.7: what follows a fault's cause on its line, a
 %% report's and a test's alike: the callee's site where a call carried the
@@ -1693,19 +1769,26 @@ indented_trace(Trace) ->
 %% its time where standard error is neither a terminal nor a journal
 %% (§11.2); in a test, standard error is the test's device.
 reporting_options(RunOptions, ErrorDevice) ->
+    Report = fault_reporter(),
+    Faults = fun(FaultReport, Peer) -> Report(FaultReport, Peer, []) end,
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
-            Stamped = ern_job_line:is_stamped(),
-            RunOptions#{faults => fun(FaultReport, Peer) ->
-                                      report_fault(FaultReport, Peer, Stamped)
-                                  end,
-                        say => fun ern_carrier:say/1, stdout => {fd, 1}, stderr => {fd, 2}};
+            RunOptions#{faults => Faults, say => fun ern_carrier:say/1, stdout => {fd, 1},
+                        stderr => {fd, 2}};
         device ->
-            RunOptions#{faults => fun(FaultReport, Peer) ->
-                                      report_fault(FaultReport, Peer, false)
-                                  end,
+            RunOptions#{faults => Faults,
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
+
+%% A fault's line as report_fault/4 writes it, with what `ern test` writes
+%% after everything else it names (cases_launch/6), stamped where the lines
+%% of a launch from the command line are.
+fault_reporter() ->
+    Stamped = case persistent_term:get({?MODULE, streams}, device) of
+                  fds -> ern_job_line:is_stamped();
+                  device -> false
+              end,
+    fun(FaultReport, Peer, Suffix) -> report_fault(FaultReport, Peer, Stamped, Suffix) end.
 
 %% Report §11.2: whether standard error is a service manager's journal,
 %% which systemd says by JOURNAL_STREAM, the device and inode of the
@@ -1908,7 +1991,7 @@ said_otherwise(_Event, _) ->
 %% returned, `killed` when it was killed, its fault, nothing for a signal,
 %% whose status is 128 plus its number, and nothing for Os.exit, whose
 %% status is its own. The line of a kill is written as a fault's is, its
-%% time first where the lines are stamped, then the site (report_fault/3),
+%% time first where the lines are stamped, then the site (report_fault/4),
 %% on the job's standard error, since the launch has ended.
 report_outcome(_ErrorDevice, _Site, ok) -> 0;
 report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
@@ -1918,11 +2001,11 @@ report_outcome(_ErrorDevice, _Site, {refused, Text}) ->
     ern_build:fail(unicode:characters_to_list(Text));
 %% report §12.1, §11.8: keys that can no longer be read, or a stream that
 %% can no longer be written, by the hangup's signal where the terminal has
-%% gone (is_terminal_gone/1), and otherwise as a shell reports a broken pipe
+%% gone, and otherwise as a shell reports a broken pipe (ern_out:gone_status/1)
 report_outcome(_ErrorDevice, _Site, {gone, Stream}) ->
-    case is_terminal_gone(Stream) of
-        true -> ern_signals:ended(sighup);
-        false -> 128 + 13
+    case ern_out:gone_status(Stream) of
+        sighup -> ern_signals:ended(sighup);
+        Status -> Status
     end;
 report_outcome(ErrorDevice, Site, killed) ->
     io:put_chars(ErrorDevice, [ern_job_line:stamp(ern_job_line:is_stamped()),
@@ -1956,11 +2039,11 @@ report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
 %% the terminal that has gone ends `ern` at the line, by the same signal
 %% (ern_out).
 report_shell_outcome(ErrorDevice, {gone, Stream} = Gone) ->
-    case is_terminal_gone(Stream) of
-        true ->
+    case ern_out:gone_status(Stream) of
+        sighup ->
             io:put_chars(ErrorDevice, "the shell ends: its terminal is gone\n"),
             ern_signals:ended(sighup);
-        false ->
+        _ ->
             report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Gone)
     end;
 %% report §8.5, §11.2: a binding that faulted before the shell began
@@ -1970,12 +2053,6 @@ report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     1;
 report_shell_outcome(ErrorDevice, Other) ->
     report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Other).
-
-%% Report §12.1, §11.8: whether what ended the run is the terminal gone:
-%% keys that can no longer be read, or a stream that was a terminal as the
-%% job started (ern_out:is_terminal/1).
-is_terminal_gone(terminal) -> true;
-is_terminal_gone(Stream) -> ern_out:is_terminal(Stream).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.
@@ -2003,31 +2080,43 @@ run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
                             Running)
             end,
     Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
-    Status = case cases_launch(tests, Entry, Site, headed(Heading, init_fun(Loaded)),
-                               ErrorDevice, Node) of
-                 {told, refused} -> 1;
-                 {told, Passed} -> run_examples(Examples, Passed, ErrorDevice, Node);
-                 {ended, Ended, _} -> report_outcome(ErrorDevice, Site, Ended)
-             end,
+    Ran = case cases_launch(tests, Entry, Site, headed(Heading, init_fun(Loaded)),
+                            ErrorDevice, Node) of
+              {told, refused, _} ->
+                  {ended, 1};
+              {told, {Cases, Failed}, Outside} ->
+                  run_examples(Examples, {Cases, Failed, Outside}, ErrorDevice, Node);
+              {ended, Ended, _, Outside} ->
+                  case report_outcome(ErrorDevice, Site, Ended) of
+                      Status when Status =:= 0; Status =:= 1 -> {ran, Status, {0, 0, Outside}};
+                      Status -> {ended, Status}
+                  end
+          end,
     ern_examples:unload(Units),
-    Status.
+    Ran.
 
 %% Report §11.2: each doc example run as a program of its own (§8.5), in
 %% an empty directory of its own (ern_examples:in_directory/3), by a launch
-%% of its own (example_launch/3). Passed says whether every case before
-%% passed; the status of the module's run.
-run_examples([], Passed, _ErrorDevice, _Node) ->
-    case Passed of
-        true -> 0;
-        false -> 1
+%% of its own (example_launch/3), Tally counting the cases before, those
+%% that failed and the faults outside a case; what the module's run came
+%% to, `{ran, Status, Tally}`, the status 1 where a case failed or a fault
+%% counted (report §11.8), or `{ended, Status}` where its end ends the job.
+run_examples([], {_, Failed, Outside} = Tally, _ErrorDevice, _Node) ->
+    case Failed + Outside of
+        0 -> {ran, 0, Tally};
+        _ -> {ran, 1, Tally}
     end;
-run_examples([Example | Examples], Passed, ErrorDevice, Node) ->
+run_examples([Example | Examples], Tally, ErrorDevice, Node) ->
     Launched = fun(Ready) -> example_launch(Ready, ErrorDevice, Node) end,
     case ern_examples:in_directory(Example, Launched, ErrorDevice) of
-        {told, ExamplePassed} ->
-            run_examples(Examples, Passed andalso ExamplePassed, ErrorDevice, Node);
+        {told, Passed, Outside} ->
+            Failed = case Passed of
+                         true -> 0;
+                         false -> 1
+                     end,
+            run_examples(Examples, added({1, Failed, Outside}, Tally), ErrorDevice, Node);
         {ended, Ended} ->
-            Ended
+            {ended, Ended}
     end.
 
 %% Report §11.2: an example's launch, which initializes the modules the
@@ -2049,13 +2138,13 @@ example_launch(#example{test_case = {'Case', Name, _} = Case, initialized = Init
                 fun() -> Caller ! {ern_tests, run_test(Case, Running, Frames)} end
             end,
     case cases_launch(example, Entry, Name, init_fun(Initialized), ErrorDevice, Node) of
-        {told, _} = Told ->
+        {told, _, _} = Told ->
             Told;
-        {ended, Ended, Carried} ->
+        {ended, Ended, Carried, Outside} ->
             case ended_reason(Ended) of
                 {Reason, Trace} ->
                     io:put_chars(case_line(Name, [ended(Reason), Carried], Frames(Trace))),
-                    {told, false};
+                    {told, false, Outside};
                 none ->
                     {ended, report_outcome(ErrorDevice, Name, Ended)}
             end
@@ -2072,21 +2161,22 @@ ended_reason({signal, _}) -> none;
 ended_reason({gone, _}) -> none.
 
 %% Report §11.2: a launch whose entry process, Entry(Running), runs cases
-%% by run_test/2 and tells the runner what they came to, Init run before it
+%% by run_test/3 and tells the runner what they came to, Init run before it
 %% (§8.5), the cases being the module's tests or a doc example; what it
 %% told, or the outcome it ended with otherwise, and what follows the
-%% cause on the line of an example's entry process's fault (carried/2). A
-%% case's own fault is its line, and so, in an example's launch, is the
-%% entry process's, an initializer's among them, which the outcome carries
-%% (example_launch/3).
+%% cause on the line of an example's entry process's fault (carried/2),
+%% each with the count of the faults outside a case. A case's own fault is
+%% its line, and so, in an example's launch, is the entry process's, an
+%% initializer's among them, which the outcome carries (example_launch/3).
 %%
-%% Every other fault is reported as `ern run` reports it, and makes what
-%% the launch told a failure, since §11.8 has `ern test` exit with status 1
+%% Every other fault is reported as `ern run` reports it, and counts as a
+%% fault outside a case, since §11.8 has `ern test` exit with status 1
 %% where any process faulted during the run, but one a case started,
 %% directly or through one it started, while the case runs, and those
 %% `Test.faults` started, which reach no report (Appendix E.24); the trace
 %% of a fault one of those met that was not the one asked for is kept for
-%% the case's line (run_test/3).
+%% the case's line (run_test/3). The line of a process a case started ends
+%% by naming the case (reported/4).
 %%
 %% A signal the job took during the launch makes its outcome the signal's,
 %% whatever began the end (ern_signals:taken/0).
@@ -2098,7 +2188,7 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% report §11.2: Os.exit faults the test that calls it
     RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node),
                                    ErrorDevice),
-    Report = maps:get(faults, RunOptions),
+    Report = fault_reporter(),
     %% report §11.2: a test's own fault is its line, its trace and what
     %% follows its cause beneath it, which its row keeps until its end is
     %% here; an example's entry process's is the example's line, which the
@@ -2131,33 +2221,44 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                   [{entry, EntryCarried}] -> EntryCarried;
                   [] -> []
               end,
-    Faulted = ets:member(Running, faulted),
+    Outside = case ets:lookup(Running, outside) of
+                  [{outside, Count}] -> Count;
+                  [] -> 0
+              end,
     ets:delete(Running),
     Launched = case Outcome of
-                   ok -> receive {ern_tests, Told} -> {told, failed_by(Told, Faulted)} end;
-                   Ended -> {ended, Ended, Carried}
+                   ok -> receive {ern_tests, Told} -> {told, Told, Outside} end;
+                   Ended -> {ended, Ended, Carried, Outside}
                end,
     %% report §11.8: a signal the launch took ends the job at its end, by
     %% the signal, also where it cut short an end begun otherwise, whose
     %% outcome is what began it (§8.6)
     case ern_signals:taken() of
         none -> Launched;
-        Signal -> {ended, {signal, Signal}, Carried}
+        Signal -> {ended, {signal, Signal}, Carried, Outside}
     end.
 
 %% Report §11.2, §11.8: a fault reported as `ern run` reports it, beside a
-%% case's line, kept so that the run is told failed, but where the process
-%% is one a case that runs started, directly or through one it started,
-%% whose root the case is (run_test/3).
+%% case's line, and counted as a fault outside a case, but where the
+%% process is one a case that runs started, directly or through one it
+%% started, whose root the case is (run_test/3). The line of a process a
+%% case started ends by naming the case, as a string literal is written
+%% (§2.5), and, where the case has ended, saying so: that fault counts. A
+%% case's name stands for the launch, as the runner's list of the tests
+%% holds it (tests_entry/4), since a process of its chain may fault until
+%% the end.
 reported(Running, Report, {'FaultReport', Process, _, _, _, _, _, _, _, _} = FaultReport, Peer) ->
-    ets:member(Running, ern_rt:root_of(Process)) orelse ets:insert(Running, {faulted}),
-    Report(FaultReport, Peer).
-
-%% Report §11.8: what the launch told, failed where a process faulted
-%% during it, but a refusal, which is a failure of its own.
-failed_by(refused, _Faulted) -> refused;
-failed_by(_Told, true) -> false;
-failed_by(Told, false) -> Told.
+    Root = ern_rt:root_of(Process),
+    IsRunning = ets:member(Running, Root),
+    IsRunning orelse ets:update_counter(Running, outside, 1, {outside, 0}),
+    Suffix = case ets:lookup(Running, {'case', Root}) of
+                 [{_, Name}] ->
+                     [", started by the case ", ern_show:show(string, Name),
+                      [", which had ended" || not IsRunning]];
+                 [] ->
+                     []
+             end,
+    Report(FaultReport, Peer, Suffix).
 
 %% Report §11.2: under a directory the module's name stands on a line
 %% before everything its run writes, its initializers' output among it.
@@ -2170,8 +2271,9 @@ headed(Heading, Init) ->
     end.
 
 %% The entry point of a module's tests, which runs them one at a time and
-%% tells Caller whether every one passed, or that they were refused, before
-%% the module's doc examples run, which it is told the module has.
+%% tells Caller how many ran and how many of them failed, or that they were
+%% refused, before the module's doc examples run, which it is told the
+%% module has.
 tests_entry(ErlangModule, HasExamples, Caller, Running) ->
     fun() ->
         Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
@@ -2184,7 +2286,7 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
         case {Tests =:= [] andalso not HasExamples, Names -- lists:usort(Names)} of
             {true, _} ->
                 ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
-                Caller ! {ern_tests, true};
+                Caller ! {ern_tests, {0, 0}};
             {false, [Twice | _]} ->
                 ern_rt:send(ern_rt:system_process(stderr),
                             <<"ern test: two tests are named \"",
@@ -2192,7 +2294,7 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
                 Caller ! {ern_tests, refused};
             {false, []} ->
                 Passed = [run_test(Case, Running, fun(Trace) -> Trace end) || Case <- Tests],
-                Caller ! {ern_tests, not lists:member(false, Passed)}
+                Caller ! {ern_tests, {length(Passed), length([false || false <- Passed])}}
         end
     end.
 
@@ -2219,8 +2321,8 @@ run_test({'Case', Name, Run}, Running, Frames) ->
     ok = ern_rt:deadlock_victim(Pid),
     %% the reporter hears of the test's fault before this process does,
     %% so the test is known before it runs and forgotten only once its end
-    %% is here
-    ets:insert(Running, {Pid}),
+    %% is here; its name stands for the launch (reported/4)
+    ets:insert(Running, [{Pid}, {{'case', Pid}, Name}]),
     Pid ! {Ref, go},
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
@@ -2311,17 +2413,21 @@ shell_entry(Options, Namespace) ->
 %% Report §8.1: the entry point, the loaded module's `main` or the function
 %% of that module `--main` names (§11.2), by its name. It is an exported
 %% `fn` of no parameters whose result is `Unit`, receiving or not; a
-%% top-level `let`, and a function of another shape, is refused.
+%% top-level `let`, a function of another shape, and one the module keeps
+%% private, in §11.5's words for a private name, is refused.
 entry_point(Options, Namespace) ->
     EntryFunction = case proplists:get_value(main, Options) of
                         undefined -> main;
-                        Given -> main_of(Given, Namespace)
+                        Given -> main_name(Given)
                     end,
     Name = ern_namespace:text(Namespace ++ [EntryFunction]),
     Shape = "; an entry point is an exported fn of no parameters whose result is Unit",
     case entry_shape(ern_namespace:erlang_module(Namespace), EntryFunction) of
         entry -> ok;
         missing -> ern_build:fail("no exported function " ++ Name ++ Shape);
+        {private, Kind} ->
+            ern_build:fail([Name, " is a ", atom_to_list(Kind), " ", ern_namespace:text(Namespace),
+                            " keeps private", Shape]);
         {'let', Type} ->
             ern_build:fail(Name ++ " is not an entry point: it is a let of type " ++ Type ++ Shape);
         {other, Type} ->
@@ -2329,29 +2435,21 @@ entry_point(Options, Namespace) ->
     end,
     EntryFunction.
 
-%% Report §11.2: the function `--main` names, which is one of the module
-%% given, so the file and the option never name two modules to run.
-main_of(Given, Namespace) ->
-    {GivenNamespace, Function} = main_name(Given),
-    GivenNamespace =:= Namespace
-        orelse ern_build:fail("--main " ++ Given ++ " names a function of "
-                              ++ ern_namespace:text(GivenNamespace)
-                              ++ ", and the file given is the module "
-                              ++ ern_namespace:text(Namespace)),
-    Function.
-
-%% Report §11.2, Appendix A: `--main` names a function by its qualified
-%% name, a typename for each segment of the module's namespace and an
-%% ident for the function, as the lexer reads them, and nothing between
-%% them or after them.
+%% Report §11.2, Appendix A: `--main` names a function of the file given
+%% by its name alone, an ident as the lexer reads it, so the file and the
+%% option never name two modules to run; a qualified name is refused with
+%% what to write, its last segment, and any other word with the form.
 main_name(Text) ->
     Named = case ern_lexer:tokenize(Text, []) of
                 {ok, Tokens} -> qualified_name(Tokens, 1);
                 {error, _} -> error
             end,
     case Named of
-        {ok, [_ | _] = Namespace, Function} -> {Namespace, Function};
-        _ -> usage_fail("--main takes a qualified name, Module.function")
+        {ok, [], Function} -> Function;
+        {ok, _Namespace, Function} ->
+            usage_fail("--main takes the function's name: --main " ++ atom_to_list(Function));
+        error ->
+            usage_fail("--main takes the function's name: --main name")
     end.
 
 %% The namespace and the function a qualified name's tokens spell, each
@@ -2368,19 +2466,22 @@ qualified_name(_, _) ->
     error.
 
 %% What the interface of a loaded module says of one of its names: an entry
-%% point, a `let`, a function of another shape, or nothing it exports. A
-%% result type that is a type variable is instantiated to `Unit`, as a
-%% polymorphic mailbox type is to `Never` (report §8.1). The file it was
-%% loaded from is read as every file a job reads is (report §11).
+%% point, a `let`, a function of another shape, a name it keeps private,
+%% or nothing it exports. A result type that is a type variable is
+%% instantiated to `Unit`, as a polymorphic mailbox type is to `Never`
+%% (report §8.1). The file it was loaded from is read as every file a job
+%% reads is (report §11).
 entry_shape(ErlangModule, Function) ->
     Beam = ern_build:read(code:which(ErlangModule)),
-    {ok, #{interface := #interface{namespace = Namespace, values = Values, lets = Lets}}} =
-        ern_interface:read(Beam),
+    {ok, #{interface := #interface{namespace = Namespace, values = Values, lets = Lets,
+                                   private_values = Private}}} = ern_interface:read(Beam),
     QualifiedName = Namespace ++ [Function],
-    case maps:find(QualifiedName, Values) of
-        error ->
+    case {maps:find(QualifiedName, Values), Private} of
+        {error, #{QualifiedName := {Kind, _}}} ->
+            {private, Kind};
+        {error, _} ->
             missing;
-        {ok, #scheme{type = SchemeType} = Scheme} ->
+        {{ok, #scheme{type = SchemeType} = Scheme}, _} ->
             Type = ern_types:format_scheme(Scheme, ern_types:new()),
             case {lists:member(QualifiedName, Lets), SchemeType} of
                 {true, _} -> {'let', Type};
@@ -2413,7 +2514,7 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
             no_cycle(Namespace, Waiting),
             File = compiled_file(Namespace, Waiting, LoadPath, Reader),
             Beam = ern_build:read(File),
-            #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam),
+            #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam, Reader),
             same_build(File, Chunk),
             say_read(Say, Namespace, File),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
@@ -2436,7 +2537,7 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
 %% read as it was checked, which what reads the module's interface later
 %% reads (ern_code:load/4). Report §11: a file whose code the host will not
 %% load is no compiled module, the one the program was given refused as
-%% §11 refuses one, and another as a chunk it cannot read is (held_chunk/3).
+%% §11 refuses one, and another as a chunk it cannot read is (held_chunk/4).
 loaded_unit(ErlangModule, File, Beam, Chunk, IsGiven) ->
     case ern_code:load(ErlangModule, File, Beam, Chunk) of
         ok ->
@@ -2530,7 +2631,7 @@ shell_not_built() ->
 %% stands at the path of its namespace under its root; one at another
 %% module's path is refused as a program's load refuses it: a path that
 %% breaks §11.1's shape by the component that breaks it, and one of the
-%% shape naming the file and the module it holds (held_chunk/3), and not
+%% shape naming the file and the module it holds (held_chunk/4), and not
 %% as the module its namespace names, missing at its own path.
 placed(Root, File, Beam, Namespace) ->
     case filename:join(Root, ern_namespace:module_path(Namespace) ++ ".erc") =:= File of
@@ -2540,15 +2641,17 @@ placed(Root, File, Beam, Namespace) ->
             Relative = ern_build:relative(File, Root),
             shaped_under(File, Relative),
             Components = filename:split(filename:rootname(Relative)),
-            _ = held_chunk(ern_namespace:namespace(Components), File, Beam),
+            _ = held_chunk(ern_namespace:namespace(Components), File, Beam, node),
             Namespace
     end.
 
 %% Report §11.2: a module's compiled form, found by its namespace on the
 %% load path, and report §11.9: a named package's under its build alone.
-%% One the path lacks is named with the module that uses it; report §8.7:
-%% and, for a node, with the rule that makes a module the program does not
-%% use its need.
+%% One the path lacks is named with the module that uses it, `no module
+%% Util, which Main uses, on the load path`; report §8.7: and, for a node,
+%% with the rule that makes a module the program does not use its need,
+%% after a semicolon. The program's own load comes first, so a module its
+%% reach lacks is refused with the program's text.
 compiled_file(Namespace, Waiting, LoadPath, Reader) ->
     Path = ern_namespace:module_path(Namespace),
     Relative = Path ++ ".erc",
@@ -2558,25 +2661,30 @@ compiled_file(Namespace, Waiting, LoadPath, Reader) ->
         [Found | _] ->
             Found;
         [] ->
-            ern_build:fail(["cannot find module ", ern_namespace:text(Namespace), " (", Relative,
-                            ")", needed_by(Waiting), " on the load path", read_by(Reader)])
+            ern_build:fail(["no module ", ern_namespace:text(Namespace), used_by(Waiting),
+                            " on the load path", read_by(Reader)])
     end.
 
-needed_by([]) -> "";
-needed_by([User | _]) -> [", which ", ern_namespace:text(User), " needs,"].
+used_by([]) -> "";
+used_by([User | _]) -> [", which ", ern_namespace:text(User), " uses,"].
 
 read_by(program) -> "";
-read_by(node) -> ": a node reads every module of its load path".
+read_by(node) -> "; a node reads every module of its load path".
 
 %% Report §11.2: the interface chunk of a module's compiled form; a file
 %% found by a module's namespace that holds another is no module of that
-%% name.
-held_chunk(Namespace, File, Beam) ->
+%% name, refused with the advice of the program's load or, report §8.7, of
+%% the node's, whose load path holds it.
+held_chunk(Namespace, File, Beam, Reader) ->
+    Advice = case Reader of
+                 program -> rebuild;
+                 node -> node
+             end,
     case ern_interface:read(Beam) of
         {ok, #{interface := #interface{namespace = Namespace}} = Chunk} ->
             Chunk;
         {ok, #{interface := #interface{namespace = Held}}} ->
-            ern_build:fail(ern_build:held_another(File, Held, Namespace, rebuild));
+            ern_build:fail(ern_build:held_another(File, Held, Namespace, Advice));
         {error, Error} ->
             ern_build:fail(ern_build:shown(File) ++ ": " ++ Error)
     end.
@@ -2589,6 +2697,9 @@ same_build(File, Chunk) ->
     maps:get(compiler, Chunk, none) =:= ern_build:compiler_build()
         orelse ern_build:fail(ern_build:shown(File) ++ ": compiled by another build of ern").
 
+%% Report §11.1, §11.2: a compiled form compiled against another standard
+%% library than the run's is refused, naming the module, which a build
+%% compiles again; one that records none is the standard library's own.
 same_stdlib(Namespace, Chunk, StdlibHash) ->
     Name = ern_namespace:text(Namespace),
     lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])
@@ -2620,8 +2731,9 @@ another_interface(Namespace, File, Dependency, Found) ->
             Refusal
     end.
 
-%% Report §11: a refusal of a job's usage, its text holding no control
-%% character (ern_build:control_free/1).
+%% Report §11: a refusal of the form of a job's command line, its text
+%% holding no control character, the job's help named after it
+%% (ern_build:form_fail/1).
 -spec usage_fail(io_lib:chars()) -> no_return().
 usage_fail(Message) ->
-    throw({cli_usage, ern_build:control_free(Message)}).
+    ern_build:form_fail(Message).

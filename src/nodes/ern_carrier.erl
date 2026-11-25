@@ -342,8 +342,7 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
                        measures = NewMeasures, limits = NewLimits} = New) ->
     NewKey =:= Key
         orelse ern_build:fail(ern_build:shown(ern_node:file(ConfigDir, key))
-                              ++ ": holds another key than the running node's, which cannot"
-                              " change while the node runs"),
+                              ++ ": the node's key cannot change while the node runs"),
     NewListen =:= Listen
         orelse ern_build:fail(ern_build:shown(ern_node:file(ConfigDir, conf))
                               ++ ": listen cannot change while the node runs"),
@@ -371,9 +370,9 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
         not lists:keymember(Added, #peer.public_key, Peers)]
         ++ [["the peer ", Name, " was removed"] || #peer{name = Name} <- Removed]
         ++ [["the peer ", Name, " is now named ", NewName]
-            || #peer{name = Name, public_key = Same} <- Peers,
-               #peer{name = NewName, public_key = Same2} <- NewPeers,
-               Same =:= Same2, Name =/= NewName]
+            || #peer{name = Name, public_key = PeerKey} <- Peers,
+               #peer{name = NewName, public_key = NewPeerKey} <- NewPeers,
+               PeerKey =:= NewPeerKey, Name =/= NewName]
         ++ ["the change to limits holds from the node's next start" || NewLimits =/= Limits].
 
 %% Report §8.7, §12.6: a node stops in order, and tells the peers connected

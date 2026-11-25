@@ -46,7 +46,7 @@ A node refuses to start from a directory, or an `ernest.conf`, that any but its 
 - `limits`: the most processes and ports the node holds, `processes` and `ports`, each rounded up to a power of two; a node left without them holds the host's own, a table for 1048576 processes and one for 65536 ports or more, reserved as it starts. A small node, one of many on a machine, states smaller ones: `"limits": {"processes": 65536, "ports": 4096}` (report §12.5).
 - The node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener; a peer's address of the other family is refused when the file is read, and a host name's family is checked at each dial, which fails where the name resolves only to the other.
 
-The host's own settings come from `ernest.conf` and the command line alone: `ern` starts the host without the flags and the code path the environment would give it, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, and the host writes no crash dump (report §11).
+The host's own settings come from `ernest.conf` and the command line alone: `ern` starts the host without the flags, the installation, the code path and the limit of ports the environment would give it, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS`, `ERL_OTP29_FLAGS`, `ERL_ROOTDIR`, `ERL_LIBS` and `ERL_MAX_PORTS`, and the host writes no crash dump (report §11).
 
 A file is refused before anything runs, with a line that names the fault. Report §12.5, *Its configuration*, lists every refusal; among them, a file is refused where it:
 
@@ -67,10 +67,10 @@ A file is refused before anything runs, with a line that names the fault. Report
 ### 1.3 Starting, reloading and stopping
 
 ```console
-$ ern run --config-dir /etc/counter/b --main Counter.serve /srv/counter/build/counter.erc
+$ ern run --config-dir /etc/counter/b --main serve /srv/counter/build/counter.erc
 ```
 
-`--main Counter.serve` names the function the node runs first, its *entry point*, `serve` in the module `Counter`; without it the node runs the program's `main`, and the process that runs it is the *entry process*.
+`--main serve` names the function the node runs first, its *entry point*, `serve` of the file's module `Counter`; without it the node runs the program's `main`, and the process that runs it is the *entry process*.
 
 At its start a node computes the values of the program's top-level bindings, the named values a module declares outside any function, as any program does, and only once all have their values does it listen and dial (report §8.5, §8.7). It reads at its start every module of its *load path*, the directories it loads code from, the program's root and every directory beneath it among them, where `ern run` without a configuration reads the modules the program uses alone, and refuses to start where an `.erc` there holds a module of another namespace than its path gives (section 5.1).
 
@@ -88,7 +88,7 @@ The node says `ernest.conf was read again` and a line for each peer added, remov
 
 A second `ern stop` while the first waits is a second termination, which ends the node at once. A node that ends still writes out what its standard output and standard error hold, and waits until they have taken it; a termination during that wait ends the node, and what was not written is lost (report §8.6). `kill -TERM` by the number in `ernest.pid` signals without waiting.
 
-Both `ern stop` and `ern reload` fail where no node holds the file, `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory`, or `no such file` where the node's end removed it, so that no signal reaches a process whose number the file names by chance.
+Both `ern stop` and `ern reload` fail where no node holds the file, `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory`, or `no such file or directory` where the node's end removed it, so that no signal reaches a process whose number the file names by chance.
 
 A bare node, `ern run --config-dir dir` with no program, ends by termination alone, since it has no entry point to return (report §8.7); section 3.4 says what it is for.
 
@@ -115,7 +115,7 @@ A node is run in the foreground and left to the operating system's service manag
 Description=The counter, node b
 
 [Service]
-ExecStart=/usr/local/bin/ern run --config-dir /etc/counter/b --main Counter.serve /srv/counter/build/counter.erc
+ExecStart=/usr/local/bin/ern run --config-dir /etc/counter/b --main serve /srv/counter/build/counter.erc
 ExecReload=/usr/local/bin/ern reload --config-dir /etc/counter/b
 WorkingDirectory=/srv/counter
 Restart=on-failure
@@ -311,7 +311,7 @@ A shell attached to a node is the operator's window: `ern shell --config-dir ops
 
 `ops` is a directory of its own, made with `ern config` and no `--listen`, since the shell dials in. It lists `b` with its address, and `b` lists it without one, and on one machine `ern config --peer-dir` lists each in the other (section 2.1). Every peer `b` lists may attach to it, as every one may spawn on it. Where `b` runs as a service's user and the operator is another, neither can open the other's directory, so the superuser makes both, lists each in the other with `--peer-dir`, and gives each directory with its files to its user, `chown -R`. A later `--peer-dir` into either directory is then that directory's user's or the superuser's. An `ern reload` of `b`, as section 8's reload step runs it, is the user's who runs `b`, since `ern reload` refuses an `ernest.pid` that is not its user's own (report §11.2).
 
-A session on section 8's `b`, whose counter `--main Counter.serve` started:
+A session on section 8's `b`, whose counter `--main serve` started:
 
 ```
 $ ern shell --config-dir ops --attach b
@@ -373,7 +373,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `a node with the key ... was refused: no peer has its key` | A node dialed in whose key this node's `peers` does not list, named by its key's digest; or this node's own dial of a listed address reached a stranger, named the same way. | Add its key under `peers`, then `ern reload`; or ignore a stranger. |
 | `a node named ... was refused: its key gives another name` | A node dialed in under a name that is not the one its key gives, named as it named itself. | Check which key is listed beside which address on the dialing node; a copied directory is not the cause (section 2.2). |
 | `the peer c was refused: it answered the dial of the peer b` | This node dialed the address listed for `b`, and the node there holds `c`'s key. | Check which address is listed beside which key on this node; a copied directory is not the cause (section 2.2). |
-| `the peer b was refused: its certificate names another host than its key gives` | `b`'s certificate and key disagree: a copied or edited directory. | Make `b`'s directory again with `ern config` on `b`'s machine. |
+| `the peer b was refused: its certificate names another host than its key gives` | `b`'s certificate and key disagree: a copied or edited directory. | Remove `b`'s `certificate.pem` on `b`'s machine and start `b` again, which makes one from its key. |
 | `the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP` | The two run different minor releases of `ern`, different development builds, or different major releases of OTP. | Install one release of each on both. |
 | `the peer b was refused: this node's table of processes is full` | `b` dialed in while this node's table of processes was full, and the connection was closed; the node runs on, and accepts `b` once there is room. Where the node refused it before the TLS handshake gave the key, the line names the address it came from instead, `a connection from 10.0.0.7:53114`. | Find what holds the processes, `:processes` from an attached shell (section 6); or raise `processes` under `limits`, which holds from the node's next start. |
 | The same for ports, `a connection was refused: this node's table of ports is full` | A peer dialed in while this node's table of ports was full. | Find what holds the ports; or raise `ports` under `limits`, which holds from the node's next start. |
@@ -390,7 +390,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the end waits for 1 subscriber: Keeper.main` | Termination has told a subscriber and waits for its answer. | Wait, or a second `ern stop` ends at once, losing what it was writing. |
 | `ern run: dir is the configuration directory of the running node N, which ernest.pid names` | A second start from a directory whose `ernest.pid` a running node holds; the `ern run` command writes it, not a node. | Stop the first, or start from the directory meant. |
 | `ern run: a node needs pidfd_open, of Linux 5.3 and later, which this host, Linux 4.15.0-213-generic, does not have` | The operating system cannot say when a process has ended, which a node's lock on `ernest.pid` needs; the `ern run` command writes it. | Run the node on Linux 5.3 or later; in a container, allow the call. |
-| `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file` where the node's end removed the file. The command writes it. | None; the node is already down. |
+| `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file or directory` where the node's end removed the file. The command writes it. | None; the node is already down. |
 | `ern run: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended before its program ran, with status 1, as a job that cannot start, `ern shell:` for a shell's own node. | Free the port or change `listen`, and start again. |
 
 Lines that name a process by its site and say it `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
@@ -417,8 +417,8 @@ Then `--peer-dir` lists each node where it is to be known (section 2.1). `ern co
 
 ```console
 $ ern build upgrade/v1
-$ ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
-$ ern run --config-dir c --main Counter.serve upgrade/v1/counter.erc &
+$ ern run --config-dir b --main serve upgrade/v1/counter.erc &
+$ ern run --config-dir c --main serve upgrade/v1/counter.erc &
 ```
 
 Each says the address and the port it listens on, `listening on 127.0.0.1:8655` from `b`, and nothing more until a peer connects. The counters wait.

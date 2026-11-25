@@ -37,6 +37,7 @@
 -export_type([identity/0]).
 
 -include_lib("emitter/include/ern_unit.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md):
 %% a find's, a spawn's and a utilization's wait on a peer's answer, a
@@ -898,9 +899,10 @@ restarting(_, Other) ->
 %% The function a unit runs over the captures, where the unit's function
 %% takes as many as came; a function of the identity that takes another
 %% number is one no compiler writes a frame for.
-unit_function({Unit, Function, Arity, Reach}, Captures, _) when length(Captures) =:= Arity ->
+unit_function(#held_function{unit = Unit, function = Function, arity = Arity, reach = Reach},
+              Captures, _) when length(Captures) =:= Arity ->
     {found, fun() -> Unit:'$spawned'(Function, Captures) end, Unit, Reach};
-unit_function({_, _, _, _}, _, _) ->
+unit_function(#held_function{}, _, _) ->
     unreadable;
 unit_function(none, _, Identity) ->
     {lacks, Identity}.

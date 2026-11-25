@@ -54,7 +54,7 @@ It then starts `erl` with the tree's own Erlang, `build/toolchain/*/ebin` and th
 - `-run ern_signals install`, first: the host's termination and hangup are `ern`'s before the entry's module is loaded, since until then the host's own handler ends a program with status 0 (report §12.4);
 - `-run ern_cli start -extra` and the command line: `ern_cli:start/0` runs the job, and a failure of the toolchain itself exits with status 70 instead of writing a crash dump (report §11).
 
-Before it clears the host's flags, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, and sets `ERL_CRASH_DUMP_SECONDS=0`, so that the host writes no crash dump (report §11.8), it keeps each of them, `ERL_CRASH_DUMP_SECONDS` among them, and `PATH`, `BINDIR`, `EMU`, `PROGNAME` and `ROOTDIR`, which the host's own start sets or changes, as `ERN_GIVEN_<NAME>`, with `ERN_GIVEN` to say so: the runtime's helper puts each back, so that a program's environment is the one `ern` was started in (report Appendix E.23).
+Before it clears the host's flags, its installation, its code path and its limit of ports, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS`, `ERL_OTP29_FLAGS`, `ERL_ROOTDIR`, `ERL_LIBS` and `ERL_MAX_PORTS`, and sets `ERL_CRASH_DUMP_SECONDS=0`, so that the host writes no crash dump (report §11.8), it keeps each of them, `ERL_CRASH_DUMP_SECONDS` among them, and `PATH`, `BINDIR`, `EMU`, `PROGNAME` and `ROOTDIR`, which the host's own start sets or changes, as `ERN_GIVEN_<NAME>`, with `ERN_GIVEN` to say so: the runtime's helper puts each back, so that a program's environment is the one `ern` was started in (report Appendix E.23).
 
 It needs `sh`, `readlink` and `iconv`, and uses `nproc` or `getconf` where either is there.
 

@@ -11,7 +11,7 @@
 // §8.1, guide §8.2); then
 //
 //     ern build remote_counter.ern
-//     ern run --config-dir b --main RemoteCounter.serve remote_counter.erc &
+//     ern run --config-dir b --main serve remote_counter.erc &
 //     ern run --config-dir a remote_counter.erc
 //     ern stop --config-dir b
 //

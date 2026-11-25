@@ -53,9 +53,11 @@ is_symbol(Char) -> major(Char) =:= symbol.
 is_separator(Char) -> major(Char) =:= separator.
 
 %% Cc alone, not the rest of the host's `other`: a format character, a
-%% surrogate, a private-use or an unassigned code point
+%% surrogate, a private-use or an unassigned code point. Cc is U+0000 to
+%% U+001F and U+007F to U+009F, which Unicode's stability policy fixes,
+%% the set report §2.1 names.
 -spec is_control(char()) -> boolean().
-is_control(Char) -> unicode_util:category(Char) =:= {other, control}.
+is_control(Char) -> Char < 16#20 orelse (Char >= 16#7F andalso Char =< 16#9F).
 
 %% The major class of the character's general category, the first letter of
 %% Unicode's two: `letter` for L, `mark` for M, `number` for N

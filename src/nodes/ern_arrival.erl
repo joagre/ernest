@@ -64,14 +64,21 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% What the link gathers as it takes each reference outside the unit
 %% (external/4): functions, each reference to a function or a binding
 %% with where it is, #linked{}; others, the reach of each definition of
 %% another unit referenced by hash; types, the type references; and
 %% lacking, what the node lacks beyond the spawned function's reach, each
-%% {Reference, Arity, Kind, Identity, Text}, the last first.
+%% a #lack{}, the last first.
 -record(linking, {functions = #{}, others = #{}, types = [], lacking = []}).
+
+%% A reference the unit lacks: the reference, how many values its use
+%% takes, its kind, `value` or `function`, as #linked{} holds it, its
+%% identity, a binding's hash or `foreign`, and the text its use faults
+%% with (lacked/2).
+-record(lack, {reference, arity, kind, identity, text}).
 
 %% Report §12.7: the definitions Arrived, each of one code frame, verified,
 %% dependencies first, with Declared, the foreign declarations their code
@@ -343,17 +350,18 @@ linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
         throw:{unlinked, Text} -> reason(Text)
     end.
 
-%% Report §12.7: each reference the unit lacks, {Reference, Arity, Kind,
-%% Identity, Text}, linked to a function of the unit's own, `'$lacked_K'`,
-%% that faults with the text; and those functions.
+%% Report §12.7: each reference the unit lacks, a #lack{}, linked to a
+%% function of the unit's own, `'$lacked_K'`, that faults with its text;
+%% and those functions.
 lacked(Unit, Lacking) ->
     Named = [{list_to_atom("$lacked_" ++ integer_to_list(Number)), Lack}
              || {Number, Lack} <- lists:enumerate(Lacking)],
     {maps:from_list([{Reference, #linked{unit = Unit, function = Function, arity = Arity,
                                          kind = Kind, identity = Identity}}
-                     || {Function, {Reference, Arity, Kind, Identity, _}} <- Named]),
+                     || {Function, #lack{reference = Reference, arity = Arity, kind = Kind,
+                                         identity = Identity}} <- Named]),
      [{Function, Arity, unicode:characters_to_binary(Text)}
-      || {Function, {_, Arity, _, _, Text}} <- Named]}.
+      || {Function, #lack{arity = Arity, text = Text}} <- Named]}.
 
 own({hash, Hash}, Hashes, _) -> is_map_key(Hash, Hashes);
 own({foreign, QualifiedName, _}, _, Foreign) -> lists:member(QualifiedName, Foreign);
@@ -369,7 +377,7 @@ external({hash, Hash} = Reference,
     case ern_code:linkable(Hash) of
         {type, _} ->
             Linking#linking{others = Others#{Hash => {[], []}}, types = [Reference | Types]};
-        {function, Unit, Function, Arity, Reach} ->
+        #held_function{unit = Unit, function = Function, arity = Arity, reach = Reach} ->
             Linking#linking{functions = Functions#{Reference => #linked{unit = Unit,
                                                                          function = Function,
                                                                          arity = Arity,
@@ -392,7 +400,9 @@ external({binding, QualifiedName, Hash} = Reference,
                                                                          term = Term}}};
         none ->
             Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
-            Linking#linking{lacking = [{Reference, 0, value, Hash, Absent} | Lacking]}
+            Linking#linking{lacking = [#lack{reference = Reference, arity = 0, kind = value,
+                                             identity = Hash, text = Absent}
+                                       | Lacking]}
     end;
 external({named, QualifiedName} = Reference,
          #linking{functions = Functions, types = Types} = Linking, _Reach, Env) ->
@@ -417,8 +427,9 @@ external({foreign, QualifiedName, Scheme} = Reference, #linking{lacking = Lackin
          {_, Lacked}, _Env) ->
     case Lacked of
         #{Reference := Text} ->
-            Linking#linking{lacking = [{Reference, ern_canonical:scheme_arity(Scheme), function,
-                                        foreign, Text}
+            Linking#linking{lacking = [#lack{reference = Reference,
+                                             arity = ern_canonical:scheme_arity(Scheme),
+                                             kind = function, identity = foreign, text = Text}
                                        | Lacking]};
         #{} ->
             throw({unlinked, ["it calls a foreign function its reach did not declare, ",
@@ -489,10 +500,11 @@ type_form(Hash, Read) ->
                _ -> throw({unlinked, ["it names a type this node does not hold, ",
                                       binary:encode_hex(Hash, lowercase)]})
            end,
-    {Definitions, Read1} = case ern_code:recorded(Unit, Read) of
-                               {#recorded{definitions = Held}, Read2} -> {Held, Read2};
-                               {none, Read2} -> {[], Read2}
-                           end,
+    {Recorded, Read1} = ern_code:recorded(Unit, Read),
+    Definitions = case Recorded of
+                      #recorded{definitions = Held} -> Held;
+                      none -> []
+                  end,
     case [Form || #definition{hash = Defined, form = Form} <- Definitions, Defined =:= Hash] of
         [Form | _] -> {Form, Read1};
         [] -> throw({unlinked, ["it names a type whose form this node does not keep, ",

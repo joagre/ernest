@@ -226,7 +226,8 @@ file_sync() ->
     %% its own tests: a peer's path is stored only where it names a file in
     %% the directory, a regression test: a peer's `../x` was written outside
     %% it
-    ?assertEqual({0, <<"a peer's path is stored only where it names a file here: passed\n">>},
+    ?assertEqual({0, <<"a peer's path is stored only where it names a file here: passed\n"
+                       "1 case, 0 failed\n">>},
                  sh("../bin/ern test build/file_sync.erc")),
     Dir = "build/file_sync",
     ok = reset(Dir),
@@ -995,14 +996,16 @@ os() ->
 %% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored.
 %% Written after the code; the crash dump's variable, which the launcher
 %% sets for the host alone (report §10), joined it with the log's *The Full
-%% Review's Questions, One by One*
+%% Review's Questions, One by One*, and the release's flags, the host's
+%% installation and its limit of ports, which it clears, after them
 given_environment_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun given_environment/0).
 
 given_environment() ->
     SourceRoot = "build/given/src",
     ok = filelib:ensure_path(SourceRoot),
-    Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\", \"ERL_CRASH_DUMP_SECONDS\"]",
+    Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\", \"ERL_CRASH_DUMP_SECONDS\","
+            " \"ERL_OTP29_FLAGS\", \"ERL_ROOTDIR\", \"ERL_MAX_PORTS\"]",
     %% its run of the command given the harness's time for one wait
     ok = file:write_file(
            SourceRoot ++ "/given.ern",
@@ -1011,7 +1014,8 @@ given_environment() ->
             "        Io.println(Optional.withDefault(Os.environment(name), \"unset\")));\n"
             "    let script = \"echo \\\"$PATH\\\"; echo \\\"$BINDIR\\\";"
             " echo \\\"${EMU-unset}\\\"; echo \\\"$ERL_LIBS\\\";"
-            " echo \\\"$ERL_CRASH_DUMP_SECONDS\\\";"
+            " echo \\\"$ERL_CRASH_DUMP_SECONDS\\\"; echo \\\"$ERL_OTP29_FLAGS\\\";"
+            " echo \\\"$ERL_ROOTDIR\\\"; echo \\\"$ERL_MAX_PORTS\\\";"
             " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
             "    let command = Os.command(\"sh\", [\"-c\", script]);\n"
             "    match Os.run(command, ", ern_nodes_tests:wait_ms_text(), ") {\n"
@@ -1024,10 +1028,37 @@ given_environment() ->
     %% under a shell of its own, since the host runs a command by `exec`
     {0, Output} = sh("sh -c 'echo \"$PATH\"; unset EMU;"
                      " BINDIR=mine ERL_LIBS=/given ERL_CRASH_DUMP_SECONDS=7"
+                     " ERL_OTP29_FLAGS=+given ERL_ROOTDIR=/nonexistent ERL_MAX_PORTS=2048"
                      " ../bin/ern run build/given/given.erc'"),
     [Path | Lines] = binary:split(Output, <<"\n">>, [global, trim]),
-    Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>, <<"7">>],
+    Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>, <<"7">>, <<"+given">>,
+             <<"/nonexistent">>, <<"2048">>],
     ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
+
+%% report §11, §12.5: `ern` starts the host without the limit of ports the
+%% environment would give it, so that a run's host holds the host's own
+%% limit, a bare `erl`'s, with ERL_MAX_PORTS set. The program prints the
+%% host's limit through a `foreign fn` of the host's. A regression test,
+%% written with the fix: ERL_MAX_PORTS=2048 moved the limit to 2048
+host_port_limit_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun host_port_limit/0).
+
+host_port_limit() ->
+    Dir = "build/port_limit",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/ports.ern",
+                         "foreign fn host(item : Foreign.Term) : Int = \"erlang:system_info/1\"\n"
+                         "export fn main() : Unit ="
+                         " Io.println(Int.toString(host(Foreign.atom(\"port_limit\"))))\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/ports.ern"),
+    Bare = "erl -noshell -eval"
+           " 'io:format(\"~B~n\", [erlang:system_info(port_limit)]), halt().'",
+    {0, Own} = sh("env -u ERL_AFLAGS -u ERL_FLAGS -u ERL_ZFLAGS -u ERL_OTP29_FLAGS"
+                  " -u ERL_MAX_PORTS " ++ Bare),
+    %% the test's premise, that the variable moves a bare host's limit
+    ?assertEqual({0, <<"2048\n">>}, sh("env ERL_MAX_PORTS=2048 " ++ Bare)),
+    ?assertNotEqual(<<"2048\n">>, Own),
+    ?assertEqual({0, Own}, sh("env ERL_MAX_PORTS=2048 ../bin/ern run " ++ Dir ++ "/ports.erc")).
 
 %% report Appendix E.23, §6.9: a program run end to end under a terminal
 %% from Ernest: its process's site `Os.startTerminal`, its size set by

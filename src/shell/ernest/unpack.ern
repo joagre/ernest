@@ -3,7 +3,9 @@
 /// `VERSION`, unpacked there from its archive in `lib`, which its entry's
 /// SHA-256 checks, in the manifest's order. The job says nothing but its
 /// refusals, each on standard error after `ern unpack: `, and its status is
-/// 1 where it refused anything.
+/// 1 where it refused anything; under `--verbose` it says on standard error
+/// each named package it unpacked, and each that stood at its entry's
+/// version.
 ///
 /// It holds `lib/.unpack` locked while it works, and works in three passes
 /// over the entries: what stands at each name under `lib`, each archive read
@@ -103,7 +105,7 @@ fn passes(entries : List(Entry)) : List(String) = {
 // link stands where its package is at the entry's version, and is replaced
 // otherwise; anything else there is refused and left as it is.
 fn standing(entry : Entry) : Standing = {
-    let path = lib <> "/" <> entry.name;
+    let path = packagePath(entry);
     match Fs.readLink(Path(path), fileMs) {
         Left(Io.NotFound) ->
             Absent
@@ -224,6 +226,10 @@ fn archiveName(entry : Entry) : String =
 
 fn archivePath(entry : Entry) : String =
     lib <> "/" <> archiveName(entry) <> ".tar.gz"
+
+// The path of the entry's package under `lib`.
+fn packagePath(entry : Entry) : String =
+    lib <> "/" <> entry.name
 
 // Report §11.9: the archive's members as the host lists them, each held to
 // its kind and its name, a line for each that breaks a rule, in the
@@ -412,7 +418,7 @@ fn sharedBeam(entry : Entry, beam : String, other : String) : String =
 fn ebinHeld(judged : Judged) : List(String) =
     match #(judged.standing, judged.archive) {
         #(Stands, _) ->
-            match Fs.list(Path(lib <> "/" <> judged.entry.name <> "/ebin"), fileMs) {
+            match Fs.list(Path(packagePath(judged.entry) <> "/ebin"), fileMs) {
                 Right(entries) ->
                     List.filter(List.filterMap(entries, fn(entry) = Path.name(entry.path)),
                                 fn(name) = String.endsWith(name, ".beam"))
@@ -433,23 +439,40 @@ fn ebinHeld(judged : Judged) : List(String) =
 // `lib/.<name>-<version>` once whatever a run left beside its name is
 // removed, and renamed to its name, a link there removed first. A write
 // that fails is refused with its path and the host's reason, and what the
-// job staged is removed.
+// job staged is removed. Under `--verbose` each named package unpacked is
+// said by its archive, `unpacked lib/leaf-1.2.0.tar.gz as lib/leaf`, and
+// each that stood at its entry's version so, `lib/epx stands at 0.2.1`.
 fn unpackedOne(judged : Judged) : List(String) =
     match #(judged.standing, judged.archive, judged.refusals) {
         #(Absent, Some(archive), []) or #(Linked, Some(archive), []) ->
             match unpacking(judged.entry, judged.standing == Linked, archive.unpacked) {
-                Right(_) -> []
-              | Left(refusals) -> refusals
+                Right(_) -> {
+                    said("unpacked "
+                             <> archivePath(judged.entry)
+                             <> " as "
+                             <> packagePath(judged.entry));
+                    []
+                }
+              | Left(refusals) ->
+                    refusals
             }
+      | #(Stands, _, []) -> {
+            said(packagePath(judged.entry) <> " stands at " <> judged.entry.version);
+            []
+        }
       | _ ->
             []
     }
+
+// A line `--verbose` writes on standard error, and nothing without it.
+fn said(line : String) : Unit =
+    if isVerbose() then Io.printlnError(Shell.Refusal.controlFree(line)) else Unit
 
 fn unpacking(entry : Entry,
              linked : Bool,
              unpacked : List(Unpacked)) : Either(List(String), Unit) = {
     let staging = Path(lib <> "/." <> archiveName(entry));
-    let target = Path(lib <> "/" <> entry.name);
+    let target = Path(packagePath(entry));
     let _ <- Either.mapLeft(leftoversRemoved(entry), fn(refusal) = [refusal]);
     let _ <-
         Either.mapLeft(refusedAt(staging, Fs.makeDir(staging, fileMs)), fn(refusal) = [refusal]);
@@ -542,6 +565,10 @@ fn refusedAt(path : Path, result : Either(Io.Error, a)) : Either(String, a) =
 // Report §11.9: the root package's entries, which the command read.
 foreign fn entries() : List(Entry) =
     "ern_unpack:entries/0"
+
+// Report §11.9: whether the command was given `--verbose`.
+foreign fn isVerbose() : Bool =
+    "ern_unpack:is_verbose/0"
 
 // Report §11.9: the archive's members as the host's `erl_tar` lists them,
 // or the host's reason for an archive it cannot read.

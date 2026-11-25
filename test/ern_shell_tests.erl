@@ -358,16 +358,19 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
-%% report §11: `ern` starts the host without the flags and the code path the
-%% environment would give it. A regression test: ERL_AFLAGS could run code
-%% with -eval before any job
+%% report §11: `ern` starts the host without the flags, the installation
+%% and the code path the environment would give it. A regression test:
+%% ERL_AFLAGS could run code with -eval before any job, and so could the
+%% flags variable named for the host's major release, and ERL_ROOTDIR
+%% chose the host
 host_flags_cleared_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun host_flags_cleared/0).
 
 host_flags_cleared() ->
     {0, Output} = ern_pty:sh(
         "ERL_AFLAGS=\"-eval io:format(leaked)\" ERL_FLAGS=\"-eval x\""
-        " ../bin/ern --version"),
+        " ERL_ZFLAGS=\"-eval io:format(leaked)\" ERL_OTP29_FLAGS=\"-eval io:format(leaked)\""
+        " ERL_ROOTDIR=/nonexistent ERL_LIBS=/nonexistent ../bin/ern --version"),
     ?assertEqual(nomatch, binary:match(Output, <<"leaked">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern ">>)).
 
@@ -1577,7 +1580,8 @@ history_control_written() ->
 %% report §11, §11.2, §2.1: the shell writes each control character of a
 %% path it names as its bytes in UTF-8, each `\xHH`: `:load`'s note, its
 %% refusal, which a later name of the module is answered with too, and a
-%% diagnostic's first line, and `:output`'s answers and its refusal
+%% diagnostic's first line, and `:output`'s answers and its refusal. The
+%% refusal gives no advice, which is the build's (§11.1, §11.2)
 load_and_output_control_written_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_and_output_control_written/0).
 
@@ -1597,7 +1601,7 @@ load_and_output_control_written() ->
     Ern = filename:absname("../bin/ern"),
     {0, Output} = ern_pty:sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ Ern
                              ++ " shell --source-root 's\es' --load-path 'l\el' < " ++ InputFile),
-    Refused = <<"compile Lib first, which M uses: l\\x1Bl/lib.erc: not a compiled module\n">>,
+    Refused = <<"no module Lib, which M uses: l\\x1Bl/lib.erc: not a compiled module\n">>,
     ?assertMatch({_, _},
                  binary:match(Output, <<"> Ok, compiled from s\\x1Bs/ok.ern\n"
                                         "> s\\x1Bs/bad.ern:1:16: expected an expression instead"
@@ -1787,11 +1791,13 @@ editor() ->
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
     %% a module with tests is named before them, and one without is passed
-    %% over (report §11.2)
+    %% over, and the job's one count of its cases is its last line (report
+    %% §11.2)
     ?assertEqual([<<"Ernest.Shell.Command">>, <<"Ernest.Shell.Complete">>,
                   <<"Ernest.Shell.Editor">>, <<"Ernest.Shell.History">>,
                   <<"Ernest.Shell.Listing">>, <<"Ernest.Shell.Refusal">>,
-                  <<"Ernest.Shell.Region">>, <<"Ernest.Shell.Style">>],
+                  <<"Ernest.Shell.Region">>, <<"Ernest.Shell.Style">>,
+                  iolist_to_binary([integer_to_list(length(Passed)), " cases, 0 failed"])],
                  Lines -- Passed),
     ?assert(length(Passed) >= 100),
     ?assertEqual(0, Status).
@@ -2924,7 +2930,8 @@ compile_at_a_full_table() ->
 %% and a compiled form it cannot read, with a sentence naming it. A
 %% regression test of compile_source's refusal, which the shell had told
 %% apart from diagnostics by the shape of a list, and, since the release
-%% review, of the refusal's text, which quoted the file's bytes
+%% review, of the refusal's text, which quoted the file's bytes. The
+%% refusal gives no advice, which is the build's (§11.1, §11.2)
 load_unreadable_dependency_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_unreadable_dependency/0).
 
@@ -2933,15 +2940,16 @@ load_unreadable_dependency() ->
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
     {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"compile Dep first, which Top uses: ">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Dep, which Top uses: ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
 %% report §11.2: a compiled form on the load path whose atom chunk is empty
 %% is no compiled module to the shell: a name of its module is unknown with
 %% no `:load` proposed, and `:load` of a module that uses it refuses it as
 %% it refuses any file that is no module. A regression test: the help and
-%% the load each faulted the shell, which ended with status 70
+%% the load each faulted the shell, which ended with status 70. The
+%% refusal gives no advice, which is the build's (§11.1, §11.2)
 load_empty_atoms_dependency_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_empty_atoms_dependency/0).
 
@@ -2952,8 +2960,8 @@ load_empty_atoms_dependency() ->
     {0, Output} = source_root_session(Dir, "Empty.f()\n:load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Empty.f">>)),
     ?assertEqual(nomatch, binary:match(Output, <<":load Empty">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"compile Empty first, which Top uses: ">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"empty.erc: not a compiled module">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Empty, which Top uses: ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"empty.erc: not a compiled module\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"fault">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
@@ -3884,7 +3892,7 @@ non_entry_main() ->
     {0, Output} = line_session(Dir, " " ++ Erc, "1 + 1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"spawned">>)),
-    {1, Refused} = line_session(Dir, " --main Main.main " ++ Erc, "1 + 1\n"),
+    {1, Refused} = line_session(Dir, " --main main " ++ Erc, "1 + 1\n"),
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int">>)).
 
@@ -5408,6 +5416,34 @@ set_rows() ->
     {0, Output} = line_session(":set rows 3\n:set\n:set output 3\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"length 100\nrows 3\ntiming off\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<":set takes depth, length, rows or timing">>)).
+
+%% report §4.2, §11.2: at the prompt a qualified name unknown under the
+%% namespace of a loaded module that hides a library's has the help that
+%% names the two, the module by the file it was loaded from, its compiled
+%% form or the source that form was compiled from, a nested name among
+%% them; where no such module is loaded, `:load` is the answer, as §11.2
+%% gives it. Written before the code, which gave the `:load` answer alone
+library_hidden_help_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun library_hidden_help/0).
+
+library_hidden_help() ->
+    Dir = scratch("ern_library_hidden_"),
+    Lib = filename:join(Dir, "lib"),
+    ok = filelib:ensure_path(Lib),
+    ok = file:write_file(filename:join(Lib, "json.ern"), "export fn mine() : Int = 1\n"),
+    {0, _} = ern_pty:sh("cd " ++ Lib ++ " && " ++ filename:absname("../bin/ern")
+                        ++ " build json.ern"),
+    Help = fun(File) ->
+               iolist_to_binary(["  | = help: Json here is ", File, ", which hides the library"
+                                 " Json; give it another name to reach the library's\n"])
+           end,
+    {0, Unloaded} = line_session_in(Lib, "", "Json.Pretty.nosuch\n"),
+    ?assertMatch({_, _}, binary:match(Unloaded, <<"  | = help: :load Json puts it in scope\n">>)),
+    {0, Loaded} = line_session_in(Lib, "", ":load Json\nJson.encode\nJson.Pretty.nosuch\n"),
+    ?assertEqual(2, length(binary:matches(Loaded, Help("json.ern")))),
+    ok = file:delete(filename:join(Lib, "json.ern")),
+    {0, Compiled} = line_session_in(Dir, " --load-path lib", ":load Json\nJson.encode\n"),
+    ?assertMatch({_, _}, binary:match(Compiled, Help("lib/json.erc"))).
 
 %% report §11.2: `:load` refuses a compiled form on the load path that
 %% holds another module than its path names as `ern run` refuses it,

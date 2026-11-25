@@ -57,6 +57,23 @@ unpacks_test() ->
         ?assertEqual(Before, held("lib"))
     end).
 
+%% report §11.9: under `--verbose` the job says on standard error, in the
+%% manifest's order, each named package it unpacked, by its archive, and
+%% each that stood at its entry's version; a second run says each stands.
+%% Written before the code, which took no `--verbose`
+verbose_test() ->
+    in_root(fun() ->
+        Archive = package_archive("leaf", "1.2.0", []),
+        put_archive("leaf", "1.2.0", Archive),
+        whole("epx", "0.2.1"),
+        manifest([{"epx", "0.2.1", none, none}, {"leaf", "1.2.0", none, digest(Archive)}]),
+        ?assertEqual({0, <<"lib/epx stands at 0.2.1\n"
+                           "unpacked lib/leaf-1.2.0.tar.gz as lib/leaf\n">>},
+                     said(["unpack", "--verbose"])),
+        ?assertEqual({0, <<"lib/epx stands at 0.2.1\nlib/leaf stands at 1.2.0\n">>},
+                     said(["unpack", "--verbose"]))
+    end).
+
 %% report §11.9, §11.2: a package's `ebin` and its `priv`, unpacked by `ern
 %% unpack`, stand where a run finds them: its `ebin` on the load path, as an
 %% application's, and its `priv` beside it, which the host's `code:priv_dir`
@@ -113,16 +130,15 @@ priv_beam() ->
 %%
 
 %% report §11.9, §11: started where there is no manifest the job is
-%% refused, and given an argument it is refused as taking none, with its
-%% usage, before it reads its root package
+%% refused, and given an argument it is refused as taking none, naming its
+%% help, before it reads its root package
 no_manifest_test() ->
     in_root(fun() ->
-        ?assertEqual({1, <<"ern unpack: package.conf: no such file\n">>}, unpack()),
+        ?assertEqual({1, <<"ern unpack: package.conf: no such file or directory\n">>}, unpack()),
         write("package.conf", <<"{">>),
-        {Status, Said} = said(["unpack", "x"]),
-        ?assertMatch({1, {0, _}},
-                     {Status, binary:match(Said, <<"ern unpack: unpack takes no argument\n"
-                                                   "Usage: ern unpack\n">>)})
+        ?assertEqual({1, <<"ern unpack: no argument is taken, and 1 was given; ern unpack --help"
+                           " describes the job\n">>},
+                     said(["unpack", "x"]))
     end).
 
 %% report §11.9: an entry with no `sha256`, its archive's SHA-256 given where

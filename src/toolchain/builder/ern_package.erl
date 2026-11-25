@@ -33,9 +33,8 @@
                   entries = [] :: [entry()],
                   order = [] :: [string()]}).
 
-%% Report §11.9: an entry of its form, its name, its version, and its `url`
-%% and its `sha256` where it has them, which `ern unpack` alone uses.
--type entry() :: {string(), string(), binary() | none, binary() | none}.
+%% Report §11.9: an entry of its form (ern_build.hrl).
+-type entry() :: #package_entry{}.
 
 %% Report §11.9: a manifest as it was read: its faults of form, in the
 %% order of where each stands; its `ernest` where that is of its form, and
@@ -96,8 +95,8 @@ read(Dir, Place, Job, Given) ->
     Absent = [lists:flatten([Shown, ": ", Name, " ", Version, " is not under ",
                              ern_build:shown(Lib), "; ern unpack puts it there"])
               || Job =/= "unpack", {Name, Version, _} <- Unplaced],
-    Under = [Line || Job =:= "build" orelse Job =:= "doc", Path <- Given,
-                     Line <- given_under_lib(Job, Path, Lib, Named)],
+    Under = [Line || Job =:= "build" orelse Job =:= "doc", GivenPath <- Given,
+                     Line <- given_under_lib(Job, GivenPath, Lib, Named)],
     %% report §11.9: `ern build` alone reads the named packages' manifests,
     %% each under `lib`, which its rules hold and its builds follow
     Manifests = [#placed_package{name = Name, version = Version, directory = Package,
@@ -130,7 +129,7 @@ manifest(Manifest) ->
 text(Manifest) ->
     case ern_build:regular_bytes(Manifest) of
         {ok, Text} -> {ok, Text};
-        {error, enoent} -> {fault, "no such file"};
+        {error, enoent} -> {fault, file:format_error(enoent)};
         {error, Error} -> {fault, ern_build:reason(Error)}
     end.
 
@@ -320,7 +319,8 @@ field({field, <<"packages">>, _}) -> #form{faults = ["packages is not a JSON arr
 entries_judged(Items) ->
     {Judged, Names} = lists:mapfoldl(fun entry/2, [], Items),
     #form{faults = lists:append([Faults || {Faults, _} <- Judged]),
-          named = [{Name, Version} || {_, Entry} <- Judged, {Name, Version, _, _} <- Entry],
+          named = [{Name, Version} || {_, Entry} <- Judged,
+                                      #package_entry{name = Name, version = Version} <- Entry],
           entries = lists:append([Entry || {_, Entry} <- Judged]),
           names = Names}.
 
@@ -343,8 +343,9 @@ entry(Item, Earlier) ->
                 ++ [What ++ " has no name" || not lists:member(<<"name">>, Given)]
                 ++ [What ++ " has no version" || not lists:member(<<"version">>, Given)]
                 ++ ["two entries name " ++ Name || Name =/= none, lists:member(Name, Earlier)],
-            Entry = [{Name, Version, string_given(<<"url">>, Said),
-                      string_given(<<"sha256">>, Said)} || Faults =:= []],
+            Entry = [#package_entry{name = Name, version = Version,
+                                    url = string_given(<<"url">>, Said),
+                                    sha256 = string_given(<<"sha256">>, Said)} || Faults =:= []],
             {{Faults, Entry}, [Name || Name =/= none] ++ Earlier}
     end.
 
@@ -483,12 +484,12 @@ taken(Named, Shown) ->
 %% doc` every one but a compiled module given as its argument, which it
 %% reads (§11.4). A path under `lib` and under no named package's directory
 %% has the text of `lib`.
-given_under_lib(Job, {Given, Path}, Lib, Named) ->
+given_under_lib(Job, {How, Path}, Lib, Named) ->
     case ern_build:relative(Path, Lib) of
         outside ->
             [];
         Relative ->
-            IsRead = Job =:= "doc" andalso Given =:= argument
+            IsRead = Job =:= "doc" andalso How =:= argument
                 andalso filename:extension(Path) =:= ".erc" andalso not filelib:is_dir(Path),
             [First | _] = filename:split(Relative),
             case {IsRead, lists:keymember(First, 1, Named)} of

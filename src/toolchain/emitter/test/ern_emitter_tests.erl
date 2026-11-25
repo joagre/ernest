@@ -604,7 +604,7 @@ units_from_forms(Root, Files, LoadPath) ->
           fun(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
               {Interfaces, Acc}) ->
                   Given = ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
-                                                          Roots, SourceRoot),
+                                                          Roots, SourceRoot, {build, true}),
                   {ok, Typed, Interface, Env} =
                       ern_build:checked(Module, [Used || {_, Used} <- Given], SourceRoot,
                                         Roots),

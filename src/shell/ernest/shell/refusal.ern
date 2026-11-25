@@ -20,7 +20,7 @@ export fn named(path : Path) : String =
 /// none; an error no file call answers is shown as `Io` shows it.
 export fn trouble(error : Io.Error) : String =
     match error {
-        Io.NotFound -> "no such file"
+        Io.NotFound -> "no such file or directory"
       | Io.Denied -> "permission denied"
       | Io.Timeout -> "the file system did not answer"
       | Io.Invalid -> "the path is not one the host can take"
@@ -56,7 +56,7 @@ fn hexByte(byte : Int) : String =
 // The tests (report Appendix E.24, §11), run by `ern test`, which `make test-shell` does.
 //
 
-// Report §11: `ern build: a\x1Bb.ern: no such file`, and U+009B is written
+// Report §11: `ern build: a\x1Bb.ern: no such file or directory`, and U+009B is written
 // `\xC2\x9B`.
 let controls =
     Test.Case(name = "a control character is written as its bytes, each \\xHH",
@@ -95,7 +95,7 @@ let reasons =
                                        Io.Invalid,
                                        Io.Other("no space left on device")],
                                       trouble),
-                             ["no such file",
+                             ["no such file or directory",
                               "permission denied",
                               "the file system did not answer",
                               "the path is not one the host can take",

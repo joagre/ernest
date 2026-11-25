@@ -8,23 +8,33 @@
 %% one test `ern build` holds a named package to (ern_package).
 -module(ern_unpack).
 
--export([given/1, entries/0, members/1, files/1, hold/1, is_found_first/1, held_version/1,
-         version_of/1]).
+-export([given/2, entries/0, is_verbose/0, members/1, files/1, hold/1, is_found_first/1,
+         held_version/1, version_of/1]).
+
+-include_lib("builder/include/ern_build.hrl").
 
 %% Report §11.9: the root package's entries, each of its form and the first
-%% of its name, in the manifest's order, which the job reads once its run
-%% has begun. Set once a job, as every persistent term is set at a launch
-%% (docs/design/runtime.md).
--spec given([ern_package:entry()]) -> ok.
-given(Entries) ->
-    persistent_term:put({?MODULE, entries}, Entries).
+%% of its name, in the manifest's order, and whether the job was given
+%% `--verbose`, which the job reads once its run has begun. Set once a job,
+%% as every persistent term is set at a launch (docs/design/runtime.md).
+-spec given([ern_package:entry()], boolean()) -> ok.
+given(Entries, IsVerbose) ->
+    persistent_term:put({?MODULE, entries}, {Entries, IsVerbose}).
 
 %% Report §11.9: the entries as `Ernest.Unpack.Entry` values, each its name,
 %% its version, and its `url` and its `sha256` where it has them.
 -spec entries() -> [{'Entry', binary(), binary(), optional(binary()), optional(binary())}].
 entries() ->
+    {Entries, _} = persistent_term:get({?MODULE, entries}, {[], false}),
     [{'Entry', list_to_binary(Name), list_to_binary(Version), optional(Url), optional(Sha256)}
-     || {Name, Version, Url, Sha256} <- persistent_term:get({?MODULE, entries}, [])].
+     || #package_entry{name = Name, version = Version, url = Url, sha256 = Sha256} <- Entries].
+
+%% Report §11.9: whether the job says each named package unpacked or that
+%% stood at its entry's version, `--verbose`.
+-spec is_verbose() -> boolean().
+is_verbose() ->
+    {_, IsVerbose} = persistent_term:get({?MODULE, entries}, {[], false}),
+    IsVerbose.
 
 -type optional(Value) :: {'Some', Value} | 'None'.
 

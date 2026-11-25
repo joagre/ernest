@@ -38,8 +38,8 @@
 //     ann holds 2
 //     bob holds 3
 //     ledger: ann 1, ann 2, bob 3
-//     the process of LeaseBroker.started:350 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:385
+//     the process of LeaseBroker.started:351 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:386
 //     the broker took back 3 from bob: Restarted
 //     cid holds 3
 //     the broker took back 3 from cid: Killed
@@ -62,10 +62,10 @@
 //     bob holds 2
 //     cid holds 3
 //     LeaseBroker.main faulted: deadlock
-//         LeaseBroker.heard:228
-//         LeaseBroker.holdAndWait:218
-//         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:244
-//         3 processes of LeaseBroker.started:350 wait in LeaseBroker.holding:368 on LeaseBroker.broker:160
+//         LeaseBroker.heard:229
+//         LeaseBroker.holdAndWait:219
+//         1 process of LeaseBroker.broker:161 waits in LeaseBroker.lending:245
+//         3 processes of LeaseBroker.started:351 wait in LeaseBroker.holding:369 on LeaseBroker.broker:161
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the
@@ -74,13 +74,14 @@
 //
 //     $ ern test lease_broker.erc
 //     a broker faults on a lease its caller does not hold: passed
-//     the process of LeaseBroker.started:350 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:385
+//     the process of LeaseBroker.started:351 faulted, restarted: bob's job failed, started by the case "a restarted client's lease goes to the client that waits"
+//         LeaseBroker.holding:386
 //     the broker took back 2 from bob: Restarted
 //     a restarted client's lease goes to the client that waits: passed
-//     the process of LeaseBroker.brokerRestartVoids:488 faulted, restarted: lease 2 is not lent to the caller
-//         LeaseBroker.lending:262
+//     the process of LeaseBroker.brokerRestartVoids:489 faulted, restarted: lease 2 is not lent to the caller, started by the case "a restarted broker has every lease free, and its client none"
+//         LeaseBroker.lending:263
 //     a restarted broker has every lease free, and its client none: passed
+//     3 cases, 0 failed
 //
 // As two nodes, make a and b with ern config, b listening on
 // 127.0.0.1:8655, list each other, and give a the service "leases" on b
@@ -89,7 +90,7 @@
 // Then start a in another: it finds the broker, two clients of its own
 // borrow from it, and bob fails. Once a has ended, b's terminal shows
 //
-//     $ ern run --config-dir b --main LeaseBroker.serve lease_broker.erc
+//     $ ern run --config-dir b --main serve lease_broker.erc
 //     listening on 127.0.0.1:8655
 //     offered
 //     the peer a connected
@@ -99,13 +100,13 @@
 //
 // and a's
 //
-//     $ ern run --config-dir a --main LeaseBroker.visit lease_broker.erc
+//     $ ern run --config-dir a --main visit lease_broker.erc
 //     listening on 0.0.0.0:8654
 //     the peer b connected
 //     ann holds 1
 //     bob holds 2
-//     the process of LeaseBroker.started:350 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:385
+//     the process of LeaseBroker.started:351 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:386
 //     bob: Restarted
 //     bob holds no lease
 //     ledger: ann 1

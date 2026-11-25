@@ -59,6 +59,11 @@
 %% is; forms, made from its forms by the back end.
 -record(placed, {found, unit, made}).
 
+%% A unit to load: its name, the file name the host gives it, its code, and
+%% `file` where the code table reads its forms from that file, or what it
+%% records, kept beside its code (made/2).
+-record(made_unit, {unit, name, beam, recorded}).
+
 %% Appendix E.28: `Right(Unit)`, or `Left` with the load's Io.Error.
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
 load({'Path', Path}) ->
@@ -249,15 +254,18 @@ place(#found{namespace = Namespace, beam = Beam, recorded = Recorded,
 %% (§11.2). A load the host refuses loads none of them; one that would
 %% pass a limit of the host's ends the host (§11.2).
 loaded(Placed) ->
-    Made = [made(Unit, Placed) || #placed{made = How} = Unit <- Placed, How =/= held],
+    Made = [made(Placing, Placed) || #placed{made = How} = Placing <- Placed, How =/= held],
     case Made of
         [] ->
             ok;
         _ ->
-            case code:atomic_load([{Unit, Name, Beam} || {Unit, Name, Beam, _} <- Made]) of
+            case code:atomic_load([{Unit, Name, Beam}
+                                   || #made_unit{unit = Unit, name = Name, beam = Beam} <- Made])
+            of
                 ok ->
-                    lists:foreach(fun({Unit, _, Beam, file}) -> ern_code:loaded(Unit, Beam);
-                                     ({Unit, _, Beam, Recorded}) ->
+                    lists:foreach(fun(#made_unit{unit = Unit, beam = Beam, recorded = file}) ->
+                                          ern_code:loaded(Unit, Beam);
+                                     (#made_unit{unit = Unit, beam = Beam, recorded = Recorded}) ->
                                           ern_code:loaded(Unit, Beam, Recorded)
                                   end, Made),
                     ern_carrier:say_limits();
@@ -267,20 +275,18 @@ loaded(Placed) ->
             end
     end.
 
-%% A unit to load: its name, the file name the host gives it, its code, and
-%% file where the code table reads its forms from that file, or what it
-%% records, kept beside its code. A unit made from its forms is linked
+%% A unit to load, a #made_unit{}. A unit made from its forms is linked
 %% through the interfaces of the modules of the load and the standard
 %% library's, each module's code calling the unit it was placed as.
 made(#placed{found = #found{file = File, beam = Beam}, unit = Unit, made = file}, _) ->
-    {Unit, File, Beam, file};
+    #made_unit{unit = Unit, name = File, beam = Beam, recorded = file};
 made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Placed) ->
     Interfaces = [Interface || #placed{found = #found{chunk = #{interface := Interface}}}
                                    <- Placed]
         ++ ern_prelude:stdlib_interfaces(),
-    Units = #{Namespace => Placed1
-              || #placed{found = #found{namespace = Namespace}, unit = Placed1} <- Placed,
-                 Placed1 =/= ern_namespace:erlang_module(Namespace)},
+    Units = #{Namespace => PlacedUnit
+              || #placed{found = #found{namespace = Namespace}, unit = PlacedUnit} <- Placed,
+                 PlacedUnit =/= ern_namespace:erlang_module(Namespace)},
     Made = try ern_compile:from_compiled(Beam, Unit, Interfaces, ern_typecheck:prelude_env(),
                                          Units) of
                {ok, Compiled} -> Compiled
@@ -289,7 +295,7 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
                                               io_lib:format("~P", [Reason, 6])])
            end,
     {ok, Recorded} = ern_canonical:read(Made),
-    {Unit, atom_to_list(Unit), Made, Recorded}.
+    #made_unit{unit = Unit, name = atom_to_list(Unit), beam = Made, recorded = Recorded}.
 
 %%
 %% The bindings, report §8.5

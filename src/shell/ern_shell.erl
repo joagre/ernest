@@ -3002,14 +3002,42 @@ read_beam(File) ->
 
 %% Report §11.2: a qualified name that names nothing in scope, of a module
 %% the session could load, has the `:load` that puts it there as its help.
+%% Report §4.2: where it has none, one under a namespace whose first
+%% segment's module, which the session loaded, hides a library's has the
+%% help that names the two (ern_build:library_hidden/2).
 load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
                                  help = undefined} = Diagnostic) ->
     case load_help(Session, [atom_to_list(Segment) || Segment <- Namespace]) of
         {ok, Help} -> Diagnostic#diagnostic{help = unicode:characters_to_list(Help)};
-        none -> Diagnostic
+        none -> ern_build:library_hidden(Diagnostic, fun(Root) -> took(Session, Root) end)
     end;
 load_hinted(_Session, Diagnostic) ->
     Diagnostic.
+
+%% Report §4.2: the file the session took for the module Root, where it has
+%% loaded one: its source under the source root, where it compiled it from
+%% there, and its compiled form on the load path otherwise; none where it
+%% has loaded none, or a library's own, its form in the library's build.
+took(#session{interfaces = Interfaces, source_expected = Expected,
+              source_root = SourceRoot} = Session, Root) ->
+    case {lists:keymember(Root, #interface.namespace, Interfaces), is_map_key(Root, Expected)} of
+        {false, _} ->
+            none;
+        {true, true} ->
+            {ok, filename:join(SourceRoot, ern_namespace:module_path(Root) ++ ".ern")};
+        {true, false} ->
+            case compiled_of(Session, Root) of
+                {ok, File, _, _} ->
+                    Libraries = ern_tree:libraries(),
+                    case lists:any(fun(Library) -> ern_build:relative(File, Library) =/= outside
+                                   end, Libraries) of
+                        true -> none;
+                        false -> {ok, File}
+                    end;
+                _ ->
+                    none
+            end
+    end.
 
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
@@ -4016,7 +4044,7 @@ current_form(#session{source_root = SourceRoot} = Session,
              #build_module{namespace = Namespace, dependencies = Dependencies} = Module,
              Interfaces, Units) ->
     try ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
-                                        load_path(Session), SourceRoot) of
+                                        load_path(Session), SourceRoot, shell) of
         DependencyInterfaces ->
             Against = {lists:sort([{Dependency, ern_interface:hash(Interface)}
                                    || {Dependency, Interface} <- DependencyInterfaces]),
@@ -4711,7 +4739,7 @@ diagnosed(Session, File, Diagnostics) ->
 %% is where `ern build` writes by default and which stands first at the
 %% root, and then the load path, as `ern build` and `ern run` in the same
 %% tree find it; the source root is the build root of a module the session
-%% compiles (ern_build:dependency_interfaces/5). For a session attached to
+%% compiles (ern_build:dependency_interfaces/6). For a session attached to
 %% its node, the node's load path alone, since the source root is another
 %% node's (§11.2 *The attached shell*).
 load_path(#session{load_path = LoadPath, attached = true}) ->

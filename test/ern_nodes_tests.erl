@@ -1253,12 +1253,15 @@ unreadable_find_alias(Base) ->
 
 %% report §8.7, §11.2: a node reads every module of its load path at its
 %% start, and is refused where one of them needs a module the path lacks,
-%% the refusal naming the module, the one that needs it and the rule; the
-%% same program run as no node loads only what it uses, and runs. A
-%% regression test, written after the fix: the refusal named neither the
-%% module that needed it nor the rule
+%% the refusal naming the module and the one that needs it and, after a
+%% semicolon, the rule, a bare node's among them; the same program run as
+%% no node loads only what it uses, and runs; and where the program's own
+%% reach lacks the module, its load comes first, and the refusal is `ern
+%% run`'s alone, a node's or not. A regression test, written after the fix:
+%% the refusal named neither the module that needed it nor the rule; the
+%% program's own text written before the code, which gave it the rule
 missing_module_test_() ->
-    nodes_test({waits, 3}, fun missing_module/1).
+    nodes_test({waits, 6}, fun missing_module/1).
 
 missing_module(Base) ->
     Lone = made(Base, "lone", none),
@@ -1268,24 +1271,32 @@ missing_module(Base) ->
     [ok = file:write_file(filename:join(Source, File), Text)
      || {File, Text} <- [{"main.ern", "export fn main() : Unit = Io.println(\"ran\")\n"},
                          {"user.ern", "export fn twice(n : Int) : Int = Extra.double(n)\n"},
+                         {"old.ern", "export fn main() : Unit ="
+                                     " Io.println(Int.toString(User.twice(1)))\n"},
                          {"extra.ern", "export fn double(n : Int) : Int = n * 2\n"}]],
     0 = built(["--build-root", Build, Source]),
     ok = file:delete(filename:join(Build, "extra.erc")),
     Main = filename:join(Build, "main.erc"),
+    Old = filename:join(Build, "old.erc"),
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
+    Missing = "ern run: no module Extra, which User uses, on the load path",
+    Rule = "; a node reads every module of its load path",
     ?assertEqual({0, "ran\n"}, Run(Main)),
-    ?assertEqual({1, "ern run: cannot find module Extra (extra.erc), which User needs, on the"
-                     " load path: a node reads every module of its load path\n"},
-                 Run(["--config-dir ", Lone, " ", Main])),
-    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
+    ?assertEqual({1, Missing ++ Rule ++ "\n"}, Run(["--config-dir ", Lone, " ", Main])),
+    Bare = made(Base, "bare", 0),
+    ?assertEqual({1, Missing ++ Rule ++ "\n"},
+                 Run(["--config-dir ", Bare, " --load-path ", Build])),
+    ?assertEqual({1, Missing ++ "\n"}, Run(Old)),
+    ?assertEqual({1, Missing ++ "\n"}, Run(["--config-dir ", Lone, " ", Old])),
+    [?assertNot(filelib:is_regular(filename:join(Node, "ernest.pid"))) || Node <- [Lone, Bare]].
 
 %% report §11.2, §8.7: a file at a module's path that holds another module
 %% is refused before anything runs, and a node, which reads every module of
 %% its load path, names the file and the module it holds, not the module
-%% missing at the path of the one it holds; the same program run as no
-%% node does not read the file, and runs. A regression test, written after
-%% the fix (the release review before 0.4.0 found the node saying the
-%% module the file holds was not on the load path)
+%% missing at the path of the one it holds, with a node's advice; the same
+%% program run as no node does not read the file, and runs. A regression
+%% test, written after the fix (the release review before 0.4.0 found the
+%% node saying the module the file holds was not on the load path)
 misplaced_module_test_() ->
     nodes_test({waits, 3}, fun misplaced_module/1).
 
@@ -1304,8 +1315,8 @@ misplaced_module(Base) ->
     Main = filename:join(Build, "main.erc"),
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
     ?assertEqual({0, "ran\n"}, Run(Main)),
-    Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; remove it, and"
-        " build Moved from its source root\n",
+    Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; remove it, or"
+        " keep a build root outside the program's root\n",
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
@@ -1349,7 +1360,7 @@ misshapen_load_path(Base) ->
     ?assertEqual({1, "ern run: " ++ ern_build:shown(Dashed)
                      ++ ": path component `bad-dir` must be words joined by `_`, each a lowercase"
                         " letter, then lowercase letters and digits; a module of several words is"
-                        " `ordered_set.ern`\n"},
+                        " `word_count.ern`\n"},
                  Run("dashed")),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
@@ -3932,7 +3943,7 @@ stop_in_order(Base) ->
     ?assertNot(filelib:is_file(filename:join(Store, "ernest.pid"))),
     {Status, Said} = signaled("stop", Store),
     ?assertEqual(1, Status),
-    has(Said, "ernest.pid: no such file: no node runs from the directory").
+    has(Said, "ernest.pid: no such file or directory: no node runs from the directory").
 
 %% report §12.5, §11.2: a node holds ernest.pid locked until its process
 %% has ended, however it ends, and the file is removed then: a node killed
@@ -4868,7 +4879,8 @@ undecodable(Pem) ->
 %% `ernest.conf` any but its owner may write refuses the reload, by `ern
 %% reload` before it signals and by the node at a hangup, with the cause
 %% and then the fix; a `private-key.pem` that holds another key than the
-%% running node's refuses it, and makes no certificate for that key
+%% running node's refuses it, as a changed `listen` does, and makes no
+%% certificate for that key
 reload_reads_directory_test_() ->
     nodes_test({waits, 13}, fun reload_reads_directory/1).
 
@@ -4906,8 +4918,7 @@ reload_reads_directory(Base) ->
     ok = file:delete(Certificate),
     ?assertEqual({0, ""}, signaled("reload", A)),
     says(A, "the reload was refused, and the configuration stays as it was: "
-         ++ ern_build:shown(Key) ++ ": holds another key than the running node's, which cannot"
-         " change while the node runs"),
+         ++ ern_build:shown(Key) ++ ": the node's key cannot change while the node runs"),
     ?assertNot(filelib:is_file(Certificate)),
     ok = file:write_file(Key, Own),
     ?assertEqual({0, ""}, signaled("reload", A)),
@@ -9243,7 +9254,7 @@ remote_counter(Base) ->
                              Configuration#{<<"services">> => #{<<"counter">> => [<<"b">>]}}
                      end),
     {_, WaitB} = launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
-                                       " --main RemoteCounter.serve ", Program]),
+                                       " --main serve ", Program]),
     prints(ConfigDirB, "offered"),
     ?assertEqual(0, (start(ConfigDirA, Program, []))()),
     stop(ConfigDirB, WaitB),
@@ -9276,13 +9287,13 @@ lease_broker(Base) ->
     A = made(Base, "a", none),
     B = made(Base, "b", 0),
     lists(B, [{"a", A, none}]),
-    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main LeaseBroker.serve ",
+    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
                               Program]),
     PortB = bound_port(B),
     lists(A, [{"b", B, PortB}]),
     edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"leases">> => [<<"b">>]}} end),
     prints(B, "offered"),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --main LeaseBroker.visit ",
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --main visit ",
                               Program]),
     ?assertEqual(0, WaitA()),
     prints(B, "the broker took back 2 from bob: Restarted"),
@@ -9291,14 +9302,14 @@ lease_broker(Base) ->
     {OutA, ErrA} = said(A),
     {OutB, ErrB} = said(B),
     Shown = fun(Command) -> ern_integration_tests:shown("lease_broker.ern", Command) end,
-    ?assertEqual(Shown("ern run --config-dir a --main LeaseBroker.visit lease_broker.erc")
+    ?assertEqual(Shown("ern run --config-dir a --main visit lease_broker.erc")
                      -- [<<"listening on 0.0.0.0:8654">>],
                  ern_integration_tests:printed([OutA, ErrA])),
     %% the last line of b's standard error, `Terminated`, is the line the
     %% shell launched/2 runs the node under writes of its end by the signal
     ?assertEqual(lists:sort([<<"listening on 127.0.0.1:", (integer_to_binary(PortB))/binary>>,
                              <<"Terminated">>
-                             | Shown("ern run --config-dir b --main LeaseBroker.serve"
+                             | Shown("ern run --config-dir b --main serve"
                                      " lease_broker.erc")
                                -- [<<"listening on 127.0.0.1:8655">>]]),
                  ern_integration_tests:printed([OutB, ErrB])).
@@ -9531,7 +9542,9 @@ pair_program(Base) ->
     %% end; a find and a call in the first, a find in the second, and in the
     %% third two calls through the proxy and the wait for the proxy's end
     {Status, Output} = collected(Port, 28),
-    ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<"failed">>)}),
+    %% no case failed, and the job's count of its cases says so (report §11.2)
+    ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<": failed">>)}),
+    has(binary_to_list(Output), "3 cases, 0 failed\n"),
     has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"
                                 " passed"),
     has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
@@ -12793,7 +12806,7 @@ code_upgrade(Base) ->
     B = made(Base, "b", 0),
     C = made(Base, "c", 0),
     [lists(Dir, [{"a", A, none}]) || Dir <- [B, C]],
-    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main Counter.serve ",
+    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
                               CounterOne]),
     prints(B, "serving"),
     PortB = bound_port(B),
