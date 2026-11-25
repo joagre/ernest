@@ -224,7 +224,7 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is 0, and a wait given 0 has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise (E.27).
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
 10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages §0 gives the reader agree on a word or a shape, `map` and `filter`, Ernest takes it, and departs only where its section states the departure.
-11. A library's error that wraps `Io.Error` is the error of every operation of the library's protocol on the system module's resource, reading and writing alike, so that a program over the library meets `Io.Error` from that resource only where it opens it: `Http.writeResponse` stands beside `Http.readRequest` (Appendix G.11), and a program over `Http` writes its response with it and not with `Tcp.write`.
+11. A library's error that wraps `Io.Error` is the error of every operation of the library's protocol on the system module's resource, reading and writing alike: `Http.writeResponse` stands beside `Http.readRequest` (Appendix G.11), and a program over `Http` writes its response with it and not with `Tcp.write`.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
@@ -298,8 +298,8 @@ List.unique : (List(a=)) -> List(a=) // the first occurrence of each, in order
 List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
 List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
-List.sort : (List(a)) -> List(a) needs a.compare // stable
-List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // stable, by the key, which it calls once for each element, in order
+List.sort : (List(a)) -> List(a) needs a.compare
+List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // calls the key once for each element, in order
 List.minimum : (List(a)) -> Optional(a) needs a.compare // the first of those that are least; None for the empty list
 List.maximum : (List(a)) -> Optional(a) needs a.compare // the first of those that are greatest; None for the empty list
 List.minimumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is least; None for the empty list
@@ -379,8 +379,6 @@ The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `drop`, `toLow
 
 Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`; every other code point stays as written: `String.toAsciiLower("ÅB")` is `"Åb"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
-`splitOnce` splits at the separator's first occurrence alone, and answers `None` for an empty separator, at which `split` does not split.
-
 `fromUtf8Lossy` reads bytes that may not all be UTF-8, showing each byte that begins no character as one U+FFFD: `String.fromUtf8Lossy(<<104, 255, 105>>)` is `"h\u{FFFD}i"`. A character cut short, by the bytes' end or by a byte that cannot continue it, is one U+FFFD a byte: `String.fromUtf8Lossy(<<104, 226, 130>>)` is `"h\u{FFFD}\u{FFFD}"`.
 
 `fromUtf8Piece` reads a stream, whose pieces may cut a character. It answers the text of one piece, as `fromUtf8Lossy` shows it, and the bytes of a character the piece ends inside, which the reader puts before the next piece: `String.fromUtf8Piece(<<104, 226, 130>>)` is `#("h", <<226, 130>>)`. Those bytes are at most three. They wait wherever a byte's form asks for more than the piece holds, even where no character can follow: `String.fromUtf8Piece(<<245>>)` is `#("", <<245>>)`. Where the stream ends, `fromUtf8Lossy` shows what is left.
@@ -422,7 +420,7 @@ String.toList : (String) -> List(Char)
 String.fromList : (List(Char)) -> String
 String.toUtf8 : (String) -> Bytes
 String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF-8
-String.fromUtf8Lossy : (Bytes) -> String // each byte that begins no character, and each of a character cut short, as U+FFFD
+String.fromUtf8Lossy : (Bytes) -> String
 String.fromUtf8Piece : (Bytes) -> #(String, Bytes) // a piece's text, and the bytes of a character it ends inside
 ```
 
@@ -612,10 +610,10 @@ abstract type Alarm // an alarm set, until it fires, is canceled or its process 
 Clock.now : () -> Int
 Clock.monotonic : () -> Int
 Clock.monotonicMicros : () -> Int
-Clock.sleep : (Int) -> Unit // waits the milliseconds and takes no message
+Clock.sleep : (Int) -> Unit
 Clock.alarm : (Int, (Int) -> m) -> Alarm receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Alarm receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
-Clock.cancel : (Alarm) -> Bool // true where it ended the alarm, which had neither fired nor ended; false otherwise
+Clock.cancel : (Alarm) -> Bool
 Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond; faults outside the years -9999 to 9999
 ```
 
@@ -670,7 +668,7 @@ Fs.makeSymlink : (Path, Path, Int) -> Either(Io.Error, Unit) // a symbolic link 
 Fs.makeHardLink : (Path, Path, Int) -> Either(Io.Error, Unit) // a hard link at the first path to the regular file the second names, a second name for it
 Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) // the path a symbolic link holds, as it was written
 Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) // a new file, or none where the path names something
-Fs.makeTempDir : (Int) -> Either(Io.Error, Path) // a new directory under TMPDIR or /tmp, mode 0o700, which stays until the program removes it
+Fs.makeTempDir : (Int) -> Either(Io.Error, Path)
 Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) // the modification time, in milliseconds since the epoch, kept to the second; Left(Invalid) for one past the host's 64-bit seconds, and one past the file system's range kept as the file system keeps it
 Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777, or with the bit 0o1000, which the host does not write, is Left(Invalid)
 ```
@@ -685,11 +683,11 @@ A socket is a process: its address can be sent like any other, and its process k
 
 A socket `accept` answers on such a listener is accepted before its handshake, which runs in the socket's own process: the first `read` or `write` waits for it within its own milliseconds, a `Left(Timeout)` leaving the handshake under way, and a handshake that fails closes the connection, the read or write waiting answering `Left(Other(text))`, the host's reason, and later ones `Left(Closed)`; a handshake the far end closes before it is done answers `Left(Closed)`. A `readForever` waits for the handshake without a limit.
 
-`connectTls` answers once its handshake is done, within its milliseconds, or the `Left` the handshake failed with, `Other(text)`; a file of certificates it cannot read or refuses answers as `listenTls`'s files do, read before the dial, so that its answer comes whatever the far end does.
+`connectTls` answers once its handshake is done, within its milliseconds, or the `Left` the handshake failed with, `Other(text)`; a file of certificates it cannot read or refuses answers as `listenTls`'s files do, read before the dial.
 
 A run's first `listenTls` or `connectTls` starts the host's TLS, whose modules the host loads each at its first call (§12). Where the host cannot start it, the call answers `Left(Other(text))`, the host's reason, and a later call tries again.
 
-At the limit of open files (§12) `accept` answers `Left(Other("too many open files"))` at once, whether or not a connection waits, since the host takes the descriptor before it waits for a connection; a connection that comes meanwhile waits in the listener's backlog for a later `accept`.
+At the limit of open files (§12) `accept` answers `Left(Other("too many open files"))` at once, whether or not a connection waits; a connection that comes meanwhile waits in the listener's backlog for a later `accept`.
 
 At the limit of open files (§12) the host gives a file of its own that it could not read as one not found, `Other("{ssl,{\"no such file or directory\",\"ssl.app\"}}")`, and a handshake that needs code the host has not loaded fails: on a socket `accept` answered, as one the far end closes, the read or write waiting answering `Left(Closed)`, and in `connectTls` with the host's reason, `Left(Other("undef"))`. At a full table of processes (§12.5) the host's start may end the run, with status 1 where the host ends itself and 70 where it ends a process of its own that `ern` needs (§11.8), or never answer, its milliseconds notwithstanding, and hold every later request that reaches TCP's process.
 
@@ -836,9 +834,9 @@ type FaultReport = FaultReport(process : Process, site : String, cause : String,
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address and every check (§8.4)
 Process.fromReply : (Reply(a)) -> Process // the caller's process, with which the callee may monitor it; no address (§6.6)
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
-Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, waits for an answer, on whom and since when, or is held by the host, and the bytes it holds; None once it has ended, and for a process of another node
+Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, its activity and the bytes it holds
 Process.live : () -> List(Process) // in unspecified order
-Process.peer : (Process) -> Optional(String) // the name of the peer the process is on; None for a process of this node, and for one of a node the configuration does not list
+Process.peer : (Process) -> Optional(String)
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.subscribeFaults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
 Process.run : (() -> a receiving m) -> Either(Reason, a) // the value `f` returned in a process of its own, or the reason it ended with first; waits as a call of `f` would
@@ -915,7 +913,7 @@ Where the runtime's helper fails, as the program starts or later, the failure is
 
 `subscribeTermination(wrap)` subscribes the calling process to the program's end as `Process.subscribeFaults` subscribes to faults (E.21): at the end the runtime delivers `wrap(reply)` to the process, and the end waits as §8.6 says. A subscription is one per process, the latest, and ends when its process dies or restarts (§6.9), or at its own call of `exit` (§8.6); a process is told once in each run, a restarted run as a new one. The runtime keeps nothing for a process that is told; what it keeps it keeps itself.
 
-`run(command, ms)` starts the program, ends its input after `input`, and reads it to its end within `ms` milliseconds of the start: it answers the exit status and all the program wrote to its standard output and to its standard error, the `Left` that `start` or a read answered, or `Left(Timeout)` when the milliseconds pass, the program killed then; it kills the program's process once it has read `Exited`, so that `run` leaves no process behind.
+`run(command, ms)` starts the program, ends its input after `input`, and reads it to its end within `ms` milliseconds of the start: it answers the exit status and all the program wrote to its standard output and to its standard error, the `Left` that `start` or a read answered, or `Left(Timeout)` when the milliseconds pass, the program killed then; it kills the program's process once it has read `Exited`, and leaves no process behind.
 
 ```
 type Command = Command(program : String, arguments : List(String), input : Bytes, environment : List(#(String, String)), workingDirectory : Path)
@@ -948,7 +946,7 @@ A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a p
 
 `faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` as `Process.run` runs one, but marked, in a process of its own whose end it waits for without a limit and which is killed where the caller ends or restarts first (E.21), and reads the answer. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.subscribeFaults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
-`until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8), since the last `Failed` says what the test saw. It runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is how a test waits for an effect that has no order with what the test can wait on: a `Down` the runtime delivered and what its recipient did with it (§6.9).
+`until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8). It runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is how a test waits for an effect that has no order with what the test can wait on: a `Down` the runtime delivered and what its recipient did with it (§6.9).
 
 `capture(run)` runs `run` in the caller's process and answers its value with what was written to standard output and to standard error while it ran, `Captured(stdout, stderr)`, as `Os.run` answers a program's (E.23). It captures what the caller's chain writes: the process at the head of the caller's spawns, a test's own under `ern test`, the process of an input under a shell (§11.2) and the entry process under `ern run`, and every process that one started, directly or through one it started, which under `ern run` the initializers' spawns are (§8.5). What it captures reaches neither stream nor a shell's live region. A write by any other process, a system process's own or under `ern test` a service's, goes where it went.
 
@@ -968,7 +966,7 @@ Test.capture : (() -> a receiving m) -> #(a, Captured) receiving m // the value,
 
 A set in the order of its element type's `compare` (§3.10). `Set(a)` is an abstract type, `OrderedSet.Set(a)` outside the module, and within it hides the prelude's `Set` (§4.2); it holds its elements and nothing else, so a set is data: `==` is structural (§3.10), a set keys a `Map`, and a set is sent as any value is.
 
-A function that needs the order declares `needs a.compare` (§4.9), and a call writes nothing for it: `fromList`, `contains`, `put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need it, `map` and `filterMap` need their result's, `b.compare`, and the rest need none. Two elements the order calls `Equal` are one element, and `put` keeps the one already there. An order belongs to an element type: a set in another order is a set of another type, `type Descending = Descending(Int)` with its own `compare`, and two sets of different types cannot meet in `union`. The order of `toList`, `foldLeft`, `forEach`, `find`, `minimum` and `maximum`, and the order in which `map`, `filter`, `filterMap`, `any` and `all` meet the elements, is the set's; `minimum` and `maximum` are the set's own operations (E.0 rule 3).
+A function that needs the order declares `needs a.compare` (§4.9), and a call writes nothing for it: `fromList`, `contains`, `put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need it, `map` and `filterMap` need their result's, `b.compare`, and the rest need none. Two elements the order calls `Equal` are one element, and `put` keeps the one already there. A set has no `get`; membership is `contains`. An order belongs to an element type: a set in another order is a set of another type, `type Descending = Descending(Int)` with its own `compare`, and two sets of different types cannot meet in `union`. The order of `toList`, `foldLeft`, `forEach`, `find`, `minimum` and `maximum`, and the order in which `map`, `filter`, `filterMap`, `any` and `all` meet the elements, is the set's; `minimum` and `maximum` are the set's own operations (E.0 rule 3).
 
 The set is a sorted list, one shape per set: `put`, `contains` and `remove` are linear in the set's size, `fromList` is a stable sort and one pass, `n log n`, `map` and `filterMap` cost that beside the function's, and `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1).
 
@@ -1221,7 +1219,7 @@ Utilization.disk : () -> Optional(Float)
 
 ### Appendix G.6. `libs/json` (namespace `Json`)
 
-JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. `format` and `encode` are primitives written in the host's language, since the host answers terms no Ernest type describes (E.0 rule 1). `parse` is Ernest around a primitive that answers the host's value and the text after it, or what the host raised and at which byte, since the host raises on a text it cannot read; the white space after the value, a position, and an error this section names where the host names another are Ernest's.
+JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. `format` and `encode` are primitives written in the host's language (E.0 rule 1). `parse` is Ernest around a primitive that answers the host's value and the text after it, or what the host raised and at which byte; the white space after the value, a position, and an error this section names where the host names another are Ernest's.
 
 `parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and where a text names a member twice the last is kept, as `Map.fromList` keeps a later pair (E.3).
 
@@ -1246,7 +1244,7 @@ Json.encode : (Value) -> String
 
 A proxy for a service a peer offers (§8.7) gives one address for the service across its end and its return. `start(service, ms)` spawns the proxy's process and answers the proxy's address, an adapted address of the process (§6.5), of the service's message type. The process finds the service within `ms` milliseconds, monitors the service, and forwards to it each message it is sent.
 
-Where the find fails, and when the service ends or its node is lost, the process holds the service's last address or none, and finds the service again, within `ms`, when the next message comes; a message that comes while a find is under way waits for that find and shares its outcome, so that one find is under way at a time; it waits on no clock of its own.
+Where the find fails, and when the service ends or its node is lost, the process holds the service's last address or none, and finds the service again, within `ms`, when the next message comes; a message that comes while a find is under way waits for that find and shares its outcome, and one find is under way at a time; it waits on no clock of its own.
 
 A message that comes while the service is away and whose find fails goes to the last address held, where it is lost as a message to an ended process is (§6.2), or reaches the service where its node is back in reach; so a call through the proxy's address answers `None` at its own time (§6.6), which says nothing of whether the request ran (§8.7). A service `services` does not list is never found, and every message to the address is lost so.
 
@@ -1293,7 +1291,7 @@ Time.weekday : (Civil) -> Optional(Weekday) // the day of the week of the civil 
 
 ### Appendix G.11. `libs/http` (namespace `Http`)
 
-HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, a head and a body written to bytes or to a socket, a request's target read in its form, and RFC 6265's `Cookie` header read. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
+HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, a head and a body written to bytes or to a socket, a request's target read in its form, and RFC 6265's `Cookie` header read. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language (E.0 rule 1); the rest is Ernest.
 
 A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `renderResponse` and `renderRequest` take one, and a reader of a head answers the bytes after it. `http11` is HTTP/1.1, `Version(major = 1, minor = 1)`.
 
@@ -1327,7 +1325,7 @@ A line of the chunked coding ends as a head's does, in a line feed with or witho
 
 A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given. A response's status line carries the phrase `reason(status)` gives, RFC 9110's for a status it names and `""` for another.
 
-`chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds, since no other chunk is empty. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
+`chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
 `writeRequest(socket, request, body, ms)`, `writeResponse(socket, response, body, ms)` and `writeChunk(socket, bytes, ms)` write to a socket of `Tcp` what `renderRequest`, `renderResponse` and `chunk` render, within `ms` milliseconds (E.0 shape rule 11). A `Left` is `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass; what the rendering refuses faults the caller as it does there. A program over `Http` opens its connection with `Tcp` and speaks with these.
 
@@ -1369,13 +1367,13 @@ Http.chunk : (Bytes) -> Bytes // one chunk of the chunked coding; empty bytes th
 
 ### Appendix G.12. `libs/uri` (namespace `Uri`)
 
-RFC 3986's URI reference read into its components, and percent-decoding. `parse(text)` reads a URI reference, a URI or a relative reference, into its scheme, its authority, its path, its query and its fragment, each as written and still percent-encoded. It answers `None` where the text is not one: a character outside those the RFC writes a reference in, a space, a `|`, a control character and one outside ASCII among them; a second `#`; a `%` not followed by two hexadecimal digits; a port that is not digits alone; and a port of more than five digits, an IPvFuture literal or RFC 6874's zone id in an IP literal, which this library does not read. It is a primitive over the host's `uri_string:parse`, written in the host's language since the host answers a term no Ernest type describes (E.0 rule 1), the check of each `%` being Ernest around it.
+RFC 3986's URI reference read into its components, and percent-decoding. `parse(text)` reads a URI reference, a URI or a relative reference, into its scheme, its authority, its path, its query and its fragment, each as written and still percent-encoded. It answers `None` where the text is not one: a character outside those the RFC writes a reference in, a space, a `|`, a control character and one outside ASCII among them; a second `#`; a `%` not followed by two hexadecimal digits; a port that is not digits alone; and a port of more than five digits, an IPvFuture literal or RFC 6874's zone id in an IP literal, which this library does not read. It is a primitive over the host's `uri_string:parse`, written in the host's language (E.0 rule 1), the check of each `%` being Ernest around it.
 
-An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, the literal without its brackets, as `Tcp.connect` takes a host (E.18), and may be empty. `port` is its digits' number, and `None` where the port is absent or empty, `host:`, since RFC 3986 gives both the scheme's default, which is the program's. A component is read as written: a scheme's or a host's case is kept, and no `.` or `..` segment is removed, since normalization, RFC 3986 §6, and resolving a relative reference, §5, are not this library's.
+An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, the literal without its brackets, as `Tcp.connect` takes a host (E.18), and may be empty. `port` is its digits' number, and `None` where the port is absent or empty, `host:`; the library gives no scheme's default. A component is read as written: a scheme's or a host's case is kept, and no `.` or `..` segment is removed. Normalization, RFC 3986 §6, and resolving a relative reference, §5, are not this library's.
 
 `parseAuthority(text)` reads an authority alone, `host`, `host:port` or either with `userinfo@` before it, as RFC 9112's `CONNECT` target and RFC 9110's `Host` header write one, and answers `None` for another text. It is Ernest over `parse`, the relative reference `//` and the text, refused where it has a path, a query or a fragment.
 
-`decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone, since the host's `percent_decode` refuses octets that are not UTF-8 and lets a broken `%` stand. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5).
+`decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5).
 
 ```
 type Reference = Reference(scheme : Optional(String), authority : Optional(Authority), path : String,

@@ -47,9 +47,9 @@ domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a f
 what comes back to the user.
 
 The three applications were told the renames and the first build's answers 2026-11-25,
-with an archive of `0a0a14ea`. The leg goes on so: the `1` and `1r`
-lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines by
-agents, one brief to an owner holding all its lines. Each decided line holds its verdict
+with an archive of `0a0a14ea`. The `1r` lines of `docs/findings.md` are written (the log's
+*The Plain Lines of Leg 4*). The leg goes on so: the `1` lines by the session, and the
+`2a`, `2b` and decided lines by agents, one brief to an owner holding all its lines. Each decided line holds its verdict
 beneath it, and a verdict that says a reader reads first, or that a line comes back to the
 user, is done so.
 
@@ -124,12 +124,12 @@ says what is left once its readings are in, and no figure stands until then.
    keeps, the bench holds a row for a raise beneath 100,000 frames of one call, and what
    Ernest could build against the square a map meets is MVP 4.5's item 167.
 
-   Item 2 and item 123 rest on two things the reading showed. A trace's terms are built only
-   where a catch uses the stack trace or the error ends the process. An entry of the stack a
-   raise saves is a word, beside the arguments of a host function that raised, which the
-   trace keeps. And the bench's host twin ran its rows beneath forty frames on a shallow
-   stack until this item, so the ratios of those rows in the log before 2026-11-22 are too
-   high, a refused `String.toInt`'s by about a quarter and a fault's by about a tenth.
+   Item 2 and the known issue of a crowd of faults, MVP 4.16's item 123 once, rest on two
+   things the reading showed. A trace's terms are built only where a catch uses the stack
+   trace or the error ends the process. An entry of the stack a raise saves is a word,
+   beside the arguments of a host function that raised, which the trace keeps. And the
+   bench's host twin ran its rows beneath forty frames on a shallow stack until this item, so
+   the ratios of those rows in the log before 2026-11-22 are too high, a refused `String.toInt`'s by about a quarter and a fault's by about a tenth.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
@@ -193,8 +193,8 @@ says what is left once its readings are in, and no figure stands until then.
    Before its readers start:
 
    - **The three tools in Ernest**, done 2026-11-23 (the log's *The Three Tools in
-     Ernest*): `tools/words.ern` and `tools/unicode_width.ern`, the scripts and the escript
-     gone.
+     Ernest*): `tools/words.ern` and `tools/unicode_width.ern`, in place of
+     `tools/paragraphs.sh`, `tools/comments.sh` and `tools/unicode_width.escript`.
    - **The checks that cost cycles**, decided with the user 2026-11-10, so that the readers
      start from what a tool lists (the log's *The Listings Before a Review*).
 
@@ -259,9 +259,6 @@ says what is left once its readings are in, and no figure stands until then.
    The message names the review's three legs, each ended by a commit: the floor's rise, the
    readers and their lists in the findings file; the sort and the lines to decide, with the
    user; and the fixes and the close (the log's *Where a Session Is Cut*).
-
-   The three floors stand on 0.10 since 2026-11-10, and rise together from there (the log's
-   *The Release Review Before 0.10.0*, its last paragraph).
 5. **The release of 0.11.0**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
@@ -536,13 +533,6 @@ What the line left, in the order it is taken:
   in an hour, the item closes on a log line. `make cover` failed it in each of its three
   runs on 2026-11-23, a way to make it show (the log's *The Helper's Failure Under
   Recording*).
-- **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
-  Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
-  beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
-  texts that `String.toInt` refuses takes 2.7 seconds, against 5 milliseconds where each is
-  an integer. §10 states the cost. Where a release of OTP that Ernest requires bounds the
-  walk, the item closes on a log line. Report 28 is the user's to file, taken up on
-  2026-11-23, and the wait for OTP's answer begins with the filing.
 - **168. A row of the library's bench in a process of its own**, found 2026-11-22 by MVP
   4.4's item 2 (the log's *The Cost's Rows Read*). `Bytes.toList` at 10,000 bytes reads 5.4
   times the host's with nothing added: in the harness's process a compiled call of
@@ -552,14 +542,6 @@ What the line left, in the order it is taken:
   in a process of its own, so that no row rests on the rows before it, and
   `Os.closeInput`'s first timing is read again after it. `docs/development.md` names the
   two rows as the harness's until then.
-
-  To decide with the user otherwise, between two mechanisms and neither. The primitives
-  that answer a refusal the host raises check first, `String.toIntBase`, `Bytes.fromHex`
-  and `Float.div`: a refusal then takes no raise, each conversion that succeeds pays a
-  scan, and `Json.parse` and a foreign function's raise stay. Or `List`'s recursions
-  become loops, which covers every raise in a function `List` calls and leaves a program's
-  own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
-  against keeping no code only for speed.
 - **169. One list of generalized values**, from MVP 4.4's item 4, the findings' *W23*
   (the log's *The Language's Rules*). A top-level `let` is generalized where its
   initializer is a value (§4.6), and a `let` in a block only where it binds a lambda
@@ -589,6 +571,21 @@ What the line left, in the order it is taken:
   in the report, or in the design notes with the report keeping what a program sees, what
   a form holds and what makes two definitions one. `docs/soundness.md` cites the layout
   and follows.
+- **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
+  Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
+  beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
+  texts that `String.toInt` refuses takes 2.7 seconds, against 5 milliseconds where each is
+  an integer. §10 states the cost. Where a release of OTP that Ernest requires bounds the
+  walk, the item closes on a log line. Report 28 is the user's to file, taken up on
+  2026-11-23, and the wait for OTP's answer begins with the filing.
+
+  To decide with the user otherwise, between two mechanisms and neither. The primitives
+  that answer a refusal the host raises check first, `String.toIntBase`, `Bytes.fromHex`
+  and `Float.div`: a refusal then takes no raise, each conversion that succeeds pays a
+  scan, and `Json.parse` and a foreign function's raise stay. Or `List`'s recursions
+  become loops, which covers every raise in a function `List` calls and leaves a program's
+  own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
+  against keeping no code only for speed.
 
 ---
 
@@ -649,4 +646,4 @@ What the line left, in the order it is taken:
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided*, *A Digest in Lower Case* |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
 | MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, and the map's square from MVP 4.4's item 3 | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, and five decisions from its item 4 | | | above |

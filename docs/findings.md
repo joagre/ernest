@@ -261,6 +261,8 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 ### 1r
 
+**Done 2026-11-25** (the log's *The Plain Lines of Leg 4*), each line as its fix says: those whose site is in `report/language.md` by the report written from the copy, and the rest by the session, but where the log says otherwise. *P3 22* goes with *P3 12*'s build, and two clauses of *G 11* with *X 31*'s and *P2 4*'s, each line saying so.
+
 #### report
 
 - **G 11, P1 17 (its "since")** `1r` — 35 clauses give a reason, a `since` or a `so that` (listed in G 11, `language.md:401`'s among them). Fix: cut each; where one holds a fact a reader needs, as `toolchain.md:402`'s, state the fact as its own rule. `library.md:481`'s goes with P2 4. Owner: report.
@@ -839,6 +841,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
   - **Answered 2026-11-24** (the log's *Leg 4's Answers*): every text for a module that is not there begins `no module Util`, then who uses it, then where it was sought, and only the build gives advice. A build's and `ern doc`'s: `no module Util, which Main uses: build/util.erc: no such file or directory; compile Util first`. A source gone: `no module Util, which Main uses: build/util.erc was compiled from src/util.ern, which no longer exists`. `ern run`'s, `ern test`'s and `ern shell file.erc`'s: `no module Util, which Main uses, on the load path`, without `(util.erc)`, which §11.1 gives. `:load`'s stands. The relation is "uses" in each. The session ran the four as they stand. The builder searches for any other text for a missing module, a node's among them, and one that begins otherwise comes back to the user.
 - **X 31** `3` — §11.5 `toolchain.md:488` and seventeen helps: "(report §3.11)" kept as the one citation, while as long helps carry none. Fix: drop the suffix and §11.5's clause, or say what it gives. Owner: report+checker. Decide: is the §3.11 citation kept?
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): the citation goes, by principle 2. §11.5 reads "No message, label or help cites the report.", and seventeen helps lose `(report §3.11)`. It reverses the diagnostics round of 2026-10-24, whose one reason, a rule with no short name, holds of the `receive` guard's rules and the bitstring sizes, which cite nothing.
+  - **Added 2026-11-25** (the log's *The Plain Lines of Leg 4*): *G 11*'s clause "whose rule has no short name" goes with this sentence.
 - **PL5 2, PL5 L5 [the placement]** `3` — §11.5: `fn first() : List(Int) = ["one", 2, 3]` (`readers/PL5/p1/names.ern`) expects `String` of the right `2`. The decision weighed only literals without an annotation. Fix: where an annotation fixes the element type, the elements are compared with it first. Owner: report+checker. Decide: whether the annotation leads.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): dropped, with *X 19*. A known type does not lead into a literal's elements or a pattern's parts: they are compared with each other first, as *Three Corners of a Diagnostic* decided, by principle 5, one mechanism. The message is true and labels the element it compared with.
 - **T13** `3` — §11.9 (toolchain.md:643): `ern build`, `ern doc`, `ern unpack` take no `--package-dir`, and an unknown module from outside a package names no manifest. Fix: the help names the manifest beside the path, `--package-dir chart` or `cd chart`. Owner: report+cli. Decide: the help line.
@@ -1403,6 +1406,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 - **P2 4, K 23** `3` false — E.0 rule 2 `library.md:164`: "An operator that faults comes with its `Optional` form", while `Float`'s `+`, `-`, `*` fault and have none (P2 `t7`, K `t7`). Fix: the rule names division alone, or `Float` gains the three. Owner: report+stdlib. Decide: which.
   - **Decided 2026-11-23** (the log's *What a Library Function Answers*): E.0 rule 2 narrows to division: "A division that faults on a zero divisor comes with its `Optional` form." `Float`'s `+`, `-` and `*` fault where a result leaves the finite range (§3.1), and gain no forms.
+  - **Added 2026-11-25** (the log's *The Plain Lines of Leg 4*): *G 11*'s clause of E.8, "since only the division itself tells a quotient past the finite range", goes with this sentence.
 - **P2 33** `3` — E.0 shape rule 8: a file's milliseconds; 52 of 59 calls pass one constant, none vary it, and `Fs` has no `Forever` form. Owner: report+stdlib. Decide: does `Fs` keep its milliseconds.
   - **Decided 2026-11-23** (the log's *What a Library Function Answers*): `Fs` keeps its milliseconds, by shape rule 8 as decided today: a file is a device, outside the runtime. That 52 of 59 calls pass one constant is a count.
 - **P2 14, P2 45** `3` — E.15, E.17: a time, a duration and a monotonic reading are all `Int` and taken for one another (`t10`, `t8`). Fix: types of their own, or P2 45's sentence states the rule as it stands. Owner: report+stdlib. Decide: which.
@@ -1925,6 +1929,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
   - **Added 2026-11-23, from the reading against `report/library.md` and `report/toolchain.md`** (the log's *The Report Read Whole Against the Verdicts*): the entry is said in three wordings and ruled on in four places more, and all follow: `library.md:1033`, `:1051`, `:1053`, and `toolchain.md:906`, `:444`, `:836`, `:854` ("neither of its two") and `:876`.
   - **Read cold 2026-11-24** (the log's *The Changed Sentences Read Cold*): plain (*CB 12*): §8.7's **Its configuration** keeps "and how the node measures how busy it is (§12.5, §12.8)", which goes; and the session's change to E.27 dropped `setUtilization`, which the listing has "tells and answers": it reads "the peer answers the `Float` it tells, the run queue's measure (§12.8) or what `setUtilization` set".
   - **Read cold again 2026-11-24** (the log's *The Answers Read Cold*): plain (*CC 4*): §8.7's **A utilization** and E.27's telling read "the run queue's measure (§12.8) or what `setUtilization` set". Seven sentences of §11.3, §12.5, §12.6, §12.8 and Appendix C still state the `utilization` entry, which this line's verdict removes: they follow when the line is applied with its build, as the first copy left them.
+  - **Added 2026-11-25** (the log's *The Plain Lines of Leg 4*): *P3 22*, §12.8's sentence written twice, goes with this line's §12.8.
 
 #### Does each security hole, and a node's keys, get its mend and its sentence?
 
