@@ -52,11 +52,11 @@ export fn main() : Unit =
 fn listed() : List(String) = {
     let last = Repository.git("sizes", ["describe", "--tags", "--abbrev=0"]);
     let before = Repository.git("sizes", ["describe", "--tags", "--abbrev=0", last <> "^"]);
-    let files = Set.fromList(Repository.tracked("sizes", []));
+    let files = Set.fromList(String.lines(Repository.git("sizes", ["ls-files"])));
     let sinceLast = since(last, files);
     let sinceBefore = since(before, files);
-    let paths = Repository.withoutBorrowed("sizes", Repository.tracked("sizes", modules));
-    let found = List.map(paths, fn(path) = {
+    let paths = String.lines(Repository.git("sizes", ["ls-files", "--"] <> modules));
+    let found = List.map(Repository.withoutBorrowed("sizes", paths), fn(path) = {
         let lines = lineCount(Repository.bytes("sizes", path));
         Module(=path,
                =lines,

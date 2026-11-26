@@ -10,8 +10,9 @@
 // `ern run words.erc paragraphs [count]` lists the paragraphs, a line each
 // on standard output, its path, line, words and first characters, and
 // `ern run words.erc comments [count]` the comment blocks, with path, line
-// and words. Each reads the files git tracks that the working directory,
-// the repository's root, holds, in git's order (`Repository.tracked`).
+// and words. Each reads the files git tracks in the working directory, the
+// repository's root, in git's order, and one the working tree lacks ends
+// it, its line naming the file.
 //
 // A paragraph ends at a blank line, at a fence, at a list item, and where a
 // list item's lines stop being indented past the item; a heading, a table
@@ -81,17 +82,15 @@ let shownBytes : Int = 60
 export fn main() : Unit =
     match parsed(Os.arguments) {
         Right(#(Paragraphs, measure)) ->
-            List.forEach(Repository.tracked("words", documents), fn(file) = {
+            List.forEach(tracked(documents), fn(file) = {
                 let found = paragraphsOf(file, Repository.contents("words", file), measure);
                 List.forEach(found, fn(paragraph) = Io.println(shown(paragraph)))
             })
-      | Right(#(Comments, measure)) -> {
-            let files = Repository.withoutBorrowed("words", Repository.tracked("words", sources));
-            List.forEach(files, fn(file) = {
+      | Right(#(Comments, measure)) ->
+            List.forEach(Repository.withoutBorrowed("words", tracked(sources)), fn(file) = {
                 let found = blocksOf(file, Repository.contents("words", file), measure);
                 List.forEach(found, fn(block) = Io.println(shownBlock(block)))
             })
-        }
       | Left(message) ->
             Repository.quit("words", message)
     }
@@ -117,6 +116,14 @@ fn jobNamed(name : String) : Either(String, Job) =
       | "comments" -> Right(Comments)
       | _ -> Left(usage)
     }
+
+//
+// The repository
+//
+
+// The files git tracks that the pathspecs name.
+fn tracked(pathspecs : List(String)) : List(String) =
+    String.lines(Repository.git("words", ["ls-files", "--"] <> pathspecs))
 
 //
 // The paragraphs

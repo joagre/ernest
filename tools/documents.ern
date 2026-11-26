@@ -83,7 +83,7 @@ fn listed(job : Job) : List(String) =
 
 // The guide's documents, as git tracks them.
 fn guideFiles() : List(String) =
-    Repository.tracked("documents", ["guide/*.md"])
+    String.lines(Repository.git("documents", ["ls-files", "--", "guide/*.md"]))
 
 //
 // The reading

@@ -1,15 +1,11 @@
 //
 // What the tools read the repository with: the time each request of a file
-// or a run of git is given, git's output, the tracked files the working
-// tree holds, a file's bytes and its text, a list of paths without the
-// files THIRD_PARTY_LICENSES says were copied from upstream, and the end of
-// a tool that cannot go on, its line on standard error under the tool's
-// name. A path is a path from the repository's root, where make runs each
-// tool.
-//
-// A file deleted in the working tree and not yet committed is no input to
-// a tool; one the tree holds that cannot be read ends the tool, and the
-// line names it.
+// or a run of git is given, git's output, a file's bytes and its text, a
+// list of paths without the files THIRD_PARTY_LICENSES says were copied
+// from upstream, and the end of a tool that cannot go on, its line on
+// standard error under the tool's name. A path is a path from the
+// repository's root, where make runs each tool. A file git tracks that the
+// working tree lacks ends the tool that reads it, and the line names it.
 //
 
 /// The milliseconds each request of a file, and each run of git or rm, is
@@ -29,27 +25,9 @@ export fn gitBytes(tool : String, arguments : List(String)) : Bytes =
 export fn git(tool : String, arguments : List(String)) : String =
     String.trimEnd(text(tool, "git " <> String.join(arguments, " "), gitBytes(tool, arguments)))
 
-/// The files git tracks that the pathspecs name and the working tree
-/// holds, in git's order: one deleted there and not yet committed, which
-/// git tags `R`, is none of them, nor one git skips in the tree, tagged
-/// `S`.
-export fn tracked(tool : String, pathspecs : List(String)) : List(String) =
-    held(String.lines(git(tool, ["ls-files", "-t", "--cached", "--deleted", "--"] <> pathspecs)))
-
-// The paths of `git ls-files -t`'s lines, a tag and a path each, that the
-// working tree holds.
-fn held(lines : List(String)) : List(String) = {
-    let tagged = List.filterMap(lines, fn(line) = String.splitOnce(line, " "));
-    let deleted =
-        Set.fromList(List.filterMap(tagged,
-                                    fn(#(tag, path)) = if tag == "R" then Some(path) else None));
-    List.filterMap(tagged,
-                   fn(#(tag, path)) =
-                       if tag == "S" || Set.contains(deleted, path) then None else Some(path))
-}
-
 /// The bytes of the file at the path, the tool ended where it cannot read
-/// them, which the line names.
+/// them, a file git tracks that the working tree lacks among them, the
+/// line naming the path.
 export fn bytes(tool : String, path : String) : Bytes =
     match Fs.read(Path(path), fileMs) {
         Right(read) -> read
@@ -112,15 +90,3 @@ export fn quit(tool : String, message : String) : a = {
     Io.printlnError(tool <> ": " <> message);
     Os.exit(1)
 }
-
-//
-// Tests
-//
-
-/// A file deleted in the working tree, which git lists twice, and one git
-/// skips there are left out, and a path with a space is kept whole.
-let keepsTheHeld =
-    Test.Case(name = "keeps the tracked files the tree holds",
-              run = fn() =
-                  Test.equal(held(["H a.ern", "H b.ern", "R b.ern", "S c.ern", "H d e.md"]),
-                             ["a.ern", "d e.md"]))
