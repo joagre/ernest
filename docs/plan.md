@@ -29,8 +29,9 @@ ernest-epx and ernest-template, each told the verdict on every line of its feedb
 by a message.
 
 **MVP 4.4's item 5, the release of 0.11.0, is open.** Every entry of the feedback file is
-held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*), and
-the release's step is next, from its fresh clone.
+held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*). The
+release review's checks and readers ran that day over `6c6b8ef1`, and the sort of
+[`findings.md`](findings.md) is next, as the item's *Where the item stands* says.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -109,6 +110,38 @@ the release, is what is left.
    Feedback Held by an Item*). A line the release review files as `felt` joins MVP 4.5's
    item 176. It is tagged and published with no announcement, so that the applications
    have a published floor.
+
+   **Where the item stands**, since 2026-11-26 (the log's *The Release Review Before
+   0.11.0, Its Readers*). The review runs over `6c6b8ef1`. Its first step, its six checks,
+   the panel by hand, OTP's notes and its twenty readers are done, and
+   [`findings.md`](findings.md) holds the readers' lists whole with the session's own,
+   about 440 findings and none sorted. What the session kept, the briefs, the lists, the
+   checks' outputs, the bench's tables and the readers' programs, is in its probes
+   directory, `release_0110/`, whose `checklist.md` says what ran.
+
+   What is left, in order:
+   - **The sort**, as `docs/reviews/full.md`'s *The findings* has it, with
+     `release.md`'s one difference. The lists are sorted first into lines by sorters that
+     decide nothing, with the buckets of the log's *The Findings Pre-Sorted* and a line
+     for each finding that several readers met, and the session then reads every line
+     but a plain fix's. The lines stand in the findings file above the lists.
+   - **First among the lines**, each shown by a program: the boundary's check takes a
+     map that is no set for a `Set` (*C4 defects 1*, §8.4); `Uri.toString` writes
+     another reference than it was given, an off-site redirect with `Http.target`
+     (*S 1*, *E3 D2*); `Http.parseDate` faults on a header a client sends (*E3 D1*); a
+     line abandoned with `C-c` during a load is replaced in the transcript (*E2 1*);
+     and the sentences of the guides that kept a rule the report changed (*U1*, *U2*).
+   - **The `fix` lines**, made by agents, an owner a brief, and the `decide` lines with
+     the user by family, the argument before the verdict. A `felt` line joins item 176.
+   - **The round**, reader K over the review's own diff, and over the release's commit
+     `make sections`, `make bench`, then `make bench-release`, with `make load` and
+     `make sanitize` where the runtime or the helper changed.
+   - **The release's own steps**, `release.md`'s fifth.
+
+   **A decision for the user** before the tag: OTP 29.1.3 came out on 2026-11-24 and
+   nike runs 29.1.2. `make test-full` passes under both, 29.1.3 built into a scratch
+   prefix (the findings' *Z3*). Whether nike moves to 29.1.3 first, and whether the
+   release's note names the patch release it was checked on.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
