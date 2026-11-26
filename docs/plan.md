@@ -35,11 +35,16 @@ is and names the log entry that placed it.
 
 **A line stands before the launch**, drawn on 2026-11-19 (the log's *The Line Before the
 Launch*). A sentence of the report that a program shows false is mended before the launch,
-MVP 4.18's release since 2026-11-23, by a narrower sentence first. A reading not yet made, a cost, a question where the report is true
-and a report against OTP stand in MVP 4.5. Each item is judged against that test when it is
-written and before it starts. Since 2026-11-21 a find that only a built corner shows gets its
-line in [`known_issues.md`](known_issues.md), and becomes an item when the user takes it up
-(the log's *The Short Rules Stay*).
+MVP 4.18's release since 2026-11-23, by a narrower sentence first. A reading not yet made, a
+cost, a question where the report is true and a report against OTP stand in MVP 4.5. Each
+item is judged against that test when it is written and before it starts. Since 2026-11-21 a
+find that only a built corner shows gets its line in [`known_issues.md`](known_issues.md),
+and becomes an item when the user takes it up (the log's *The Short Rules Stay*).
+
+**A finding an item names** is a line of a findings file that is gone, by its reader's letter
+and number. One named as the findings' is `findings.md`'s as it stood at `ab68ef61`, the full
+review's and the applications'. One named as the release review's is the file's as it stood
+at `3051fbf5`, with the user's verdict beneath a decided line.
 
 ---
 
@@ -58,6 +63,10 @@ message on 2026-11-26 that names every line of the application's that the releas
 and asks each in turn when the one before it is out. Each application checks every verdict
 against the release before its own, and answers with any line it keeps, as
 `docs/clean_room.md`'s *The answer* says. ernest-httpd's release is item 3.
+
+The items are taken in this order, not by their numbers: the two releases above; items 6, 7
+and 8 while item 1 waits for ernest-httpd's lines; item 1 as they come; item 2, the release,
+with the last read before its tag; item 3; item 4; and item 5 last.
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
    What is Ernest's among it comes as lines of its feedback file, sorted when its session
@@ -129,7 +138,7 @@ against the release before its own, and answers with any line it keeps, as
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
    (the log's *A Node's Schedulers*).
 
-   Before the switch, a node of 0.11's form starts on the rehearsal, since leg 4 made two
+   Before the switch, a node of 0.11's form starts on the rehearsal, since 0.11.0 made two
    refusals that can stop a deployed node: an `ernest.conf` that holds `public-key` or
    `utilization`, and a directory or an `ernest.conf` that any but its owner may write
    (the log's *The Nodes' Build*).
@@ -162,8 +171,8 @@ against the release before its own, and answers with any line it keeps, as
    pages and ernest-httpd's manifest become. It also asks whether the draw of
    `Peer.computeAnywhere` follows them, as a policy a library holds. It is read against
    each of those owners before the user decides.
-7. **Three faults that vanish**, taken up by the user on 2026-11-23 from the known
-   issues' lines 15, 16 and 20 (the log's *Four Verdicts Changed After the Round*), and
+7. **Three faults that vanish**, taken up by the user on 2026-11-23 from three lines of
+   the known issues (the log's *Four Verdicts Changed After the Round*), and
    built while item 1 waits, for 0.11.1: a fault a listener or a socket never meets, after
    a fault in an adapted address's function over it or a bad message through its check
    (§6.5, §8.4; was item 135); a wrap's fault lost in the process kept for an adapted
@@ -197,8 +206,9 @@ Plan Sorted Against the Known Issues*). A find of that kind gets its line there 
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Item
 176 follows, since a need met in use is what drives a change, then items 1 to 4, then items
-68, 96, 113, 158, 174, 165, 166, 168 to 173 and 175, and item 167 last, so that OTP's answer
-to its report may come first.
+68, 96, 113, 158, 174, 165, 166, 168 to 173, 175, 177 and 178, and item 167 last, so that
+OTP's answer to its report may come first. The numbered items stand first below and the
+rest after them, in the order they are taken.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -282,9 +292,10 @@ What the line left, in the order it is taken:
   - processes and calls: 287, 296, 300, 303 and 318;
   - the library's functions: 275, 277, 279, 280, 288, 298, 306, 307 and 310;
   - the system's modules and the terminal: 271, 285, 290, 291, 293, 299, 311 and 319;
-  - the toolchain: 282, 284, 302, 315 and 316.
+  - the toolchain: 282, 284, 302, 315 and 316;
+  - the release review's, 321 to 341, each placed in one of the six as the item starts.
 
-  A line that a release review files as `felt` before this item starts joins its family.
+  A line that a later release review files as `felt` before this item starts joins them.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -332,13 +343,13 @@ What the line left, in the order it is taken:
   501 ms with 0, 10,000, 20,000, 40,000 and 80,000 messages waiting, and `Os.resize` and
   `Tcp.write` grow alike, where the host's own `gen:call` does not.
 
-  The host marks a wait
-  only where every clause carries the fresh reference, and Ernest's has two that do not,
-  a restart asked for and a fault delivered (`ern_rt.erl`'s `waited_answer/3` and
-  `forever_answer/2`). *The Rows That Grew* of 2026-10-20 holds the one design known, an
-  identity on every ask and a loop in every `receive`, and called none plain.
-  ernest-httpd's session met the cost in a flood of resizes, past its backpressure. To
-  decide: whether a plainer design exists, and whether the wait is marked.
+  The host marks a wait only where every clause carries the fresh reference, and Ernest's
+  has two that do not, a restart asked for and a fault delivered (`ern_rt.erl`'s
+  `waited_answer/3` and `forever_answer/2`). *The Rows That Grew* of 2026-10-20 holds the
+  one design known, an identity on every ask and a loop in every `receive`, and called
+  none plain. ernest-httpd's session met the cost in a flood of resizes, past its
+  backpressure. To decide: whether a plainer design exists, and whether the wait is
+  marked.
 
   Feedback 301 is decided with it. A system module's call with a limit is written two
   ways, and they are the two waits this design reads: `Fs` through `Address.call`, and
@@ -368,16 +379,16 @@ What the line left, in the order it is taken:
   in a process of its own, so that no row rests on the rows before it, and
   `Os.closeInput`'s first timing is read again after it. `docs/development.md` names the
   two rows as the harness's until then.
-- **169. One list of generalized values**, from MVP 4.4's item 4, the findings' *W23*
-  (the log's *The Language's Rules*). A top-level `let` is generalized where its
-  initializer is a value (§4.6), and a `let` in a block only where it binds a lambda
-  (§3.9), so `let one = List.take` serves two types at top level and one in a block. To
-  decide with the user: §4.6's values for a block's `let` too, with what §4.8 calls a
-  definition, a cold reading and the argument's paragraph. With it, the release review's *P1 10*: the
-  help `annotate the value where it is bound` names no value, where what is annotated is
-  the lambda's parameter. And the round's cold reader's sixth: a negated number
-  literal is a constant and no value (§4.6), so `let t = #(fn(x) = x, -1)` is refused
-  where `1` in its place is generalized.
+- **169. One list of generalized values**, from MVP 4.4's item 4, the findings' *W23* (the
+  log's *The Language's Rules*). A top-level `let` is generalized where its initializer is
+  a value (§4.6), and a `let` in a block only where it binds a lambda (§3.9), so `let one
+  = List.take` serves two types at top level and one in a block. To decide with the user:
+  §4.6's values for a block's `let` too, with what §4.8 calls a definition, a cold reading
+  and the argument's paragraph. With it, the release review's *P1 10*: the help `annotate
+  the value where it is bound` names no value, where what is annotated is the lambda's
+  parameter. And the round's cold reader's sixth: a negated number literal is a constant
+  and no value (§4.6), so `let t = #(fn(x) = x, -1)` is refused where `1` in its place is
+  generalized.
 - **170. A prelude type's members written with their prefix**, from the findings' *P1 18,
   K 27*. `int.ern` declares `fn Int.+` and, unprefixed, `fn compare` and `fn negate`,
   which costs an exception sentence in §4.2, in §4.8 and in Appendix F. The standard
@@ -531,5 +542,5 @@ What the line left, in the order it is taken:
 | MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
 | The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
 | Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
-| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
+| MVP 4.18 | the two releases that follow 0.11.0, ernest-template's and ernest-epx's; what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; and three lines of the release review before 0.11.0 that a first reader meets | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
