@@ -35,10 +35,14 @@ item's and 12 `dropped`, and seven of the session's own that the readers met on 
 The fixes are made: their sentences, a test for each, the pages of the declarations
 they touch and *Z15*'s mend of `ern doc --verbose` (the log's *The Plain Fixes' Tests*).
 
-**Next, the 20 `decide` lines, with the user one at a time**, in the findings' order, each
-after the log is searched and its program run. Five are answered, *H38*, *H39*, *H41*,
-*H43* and *H44*, and none of the five is built (the log's *The Applications' Lines
-Decided*). When all are answered and built, each
+**The `decide` lines are answered**, the 20 and feedback 281, which the user added: each
+under its line in the findings (the log's *The Applications' Lines Decided*).
+
+**Next, their builds.** The report's sentences first, by the session. Then the code by
+agents, one to an owner: the runtime, *H39*, *H53* and *H58*; the checker, *E4* and
+*T16*; the cli and the builder, *H43*, *T1* and *T2*; the libraries and the standard
+library, *H38*, *H41*, *H51*, *T3*, feedback 281 and *H59*'s page. The session writes
+*H44*'s row of the deployment guide and *T9*'s sentence. When they are built, each
 session is answered by a message as `docs/clean_room.md`'s *The answer* says, with an
 archive made on the user's word. Then `docs/findings.md` goes, the review's entry is
 written with its counts, and item 4 closes.
@@ -528,8 +532,8 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168 to 173, and item 167 last, so
-that OTP's answer to its report may come first.
+1 to 4 follow, then items 68, 96, 113, 158, 174, 165, 166, 168 to 173 and 175, and item 167
+last, so that OTP's answer to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -635,6 +639,20 @@ What the line left, in the order it is taken:
   MiB to 225, outside its caps. E.18 is true and a kill does what 0.10.0's close did, so
   it stands here. The shape: a function of `Tcp` that ends a socket at once, its far end
   reading a reset, weighed on E.0's admission rules and decided with the user.
+- **174. A call's wait under a backlog**, a decision, from the findings' *H54*, decided
+  2026-11-26 (the log's *The Applications' Lines Decided*). Its first step is a design
+  session with the user, and nothing is built before it. A call's wait reads its caller's
+  whole mailbox, which §10 states: 1,000 calls to an echo process took 2, 66, 130, 254 and
+  501 ms with 0, 10,000, 20,000, 40,000 and 80,000 messages waiting, and `Os.resize` and
+  `Tcp.write` grow alike, where the host's own `gen:call` does not.
+
+  The host marks a wait
+  only where every clause carries the fresh reference, and Ernest's has two that do not,
+  a restart asked for and a fault delivered (`ern_rt.erl`'s `waited_answer/3` and
+  `forever_answer/2`). *The Rows That Grew* of 2026-10-20 holds the one design known, an
+  identity on every ask and a loop in every `receive`, and called none plain.
+  ernest-httpd's session met the cost in a flood of resizes, past its backpressure. To
+  decide: whether a plainer design exists, and whether the wait is marked.
 - **165. A test of the node's file that fails where `TMPDIR` is long**, from MVP 4.17's
   item 163 (the log's *The Known Issues Sorted*). `ern_os_tests:unopened_node_file_test`
   binds a Unix socket at the `ernest.pid` of a directory under `TMPDIR`, and fails with
@@ -689,6 +707,12 @@ What the line left, in the order it is taken:
   in the report, or in the design notes with the report keeping what a program sees, what
   a form holds and what makes two definitions one. `docs/soundness.md` cites the layout
   and follows.
+- **175. What `Markdown` gives a tool that reports a line**, feedback 320, a design first,
+  from the findings' *T8*, decided 2026-11-26 (the log's *The Applications' Lines
+  Decided*). No block of `Markdown.parse` carries its line, so each reader that reports a
+  line reads Markdown itself, and they differ over a fence. The design is read from what
+  the five readers need, a paragraph's first line in one and each line's kind in another,
+  before a type that every `match` over a block pays for.
 - **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
   Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
   beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
