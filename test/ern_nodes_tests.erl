@@ -1,11 +1,11 @@
 %% Nodes on one machine (report §8.7): each node an `ern run --config-dir`
 %% of its own, started as a person starts one, its lines read from its
 %% standard error, through the harness of test/ern_harness.erl. The
-%% carrier's tests dial through a `foreign fn` of the
-%% host's, which reaches the carrier and nothing of a program's; the frame a
-%% gateway cannot read is sent by a host module on the program's load path;
-%% a host that holds a peer's key and names itself as it likes is a bare
-%% `erl` with the host's TLS distribution and the key's files.
+%% carrier's tests dial through a `foreign fn` of the host's, which reaches
+%% the carrier and nothing of a program's; the frame a gateway cannot read
+%% is sent by a host module on the program's load path; a host that holds a
+%% peer's key and names itself as it likes is a bare `erl` with the host's
+%% TLS distribution and the key's files.
 %%
 %% `Peer`'s tests run the programs of `test/fixtures/peers/`, one build
 %% whose store and desk are two nodes; the tests of two builds write a
@@ -33,31 +33,6 @@
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
-
-%% the log's *The Harness Counts a Test's Steps*: a step past a test's
-%% count fails the test at once, naming the step and the count, and a
-%% failed test leaves no count behind in its process. A regression test,
-%% written after the counter; it does not cover a step taken in another
-%% process, which counts nothing.
-steps_past_the_count_test() ->
-    {timeout, _, {_, Counted}} = ern_harness:counted_test({waits, 1}, fun two_steps/0),
-    ?assertError({steps_past_the_count, 1, second}, Counted()),
-    ?assertEqual(undefined, ern_harness:counting()).
-
-two_steps() ->
-    ern_harness:step(first),
-    ern_harness:step(second).
-
-%% the log's *The Harness Counts a Test's Steps*: a test that ends short
-%% of its count fails, naming the steps it took and its count. A regression
-%% test, written after the counter.
-fewer_steps_than_counted_test() ->
-    {timeout, _, {_, Counted}} = ern_harness:counted_test({waits, 2}, fun one_step/0),
-    ?assertError({fewer_steps_than_counted, 1, 2}, Counted()),
-    ?assertEqual(undefined, ern_harness:counting()).
-
-one_step() ->
-    ern_harness:step(first).
 
 %% report §12.5, §12.6: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
@@ -115,12 +90,12 @@ unlisted(Base) ->
     %% the dialer says only that it listens
     [Listening] = string:split(string:trim(ErrA, trailing, "\n"), "\n", all),
     ern_harness:has(Listening, "listening on 127.0.0.1:" ++ integer_to_list(PortA)),
-    ern_harness:has(ErrB, "a node with the key " ++ ern_harness:digest(A)
+    ern_harness:has(ErrB, "a node with the key " ++ digest(A)
                           ++ " was refused: no peer has its key"),
     ?assertEqual(nomatch, string:find(ErrB, "TLS")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "no peer has its key",
-                                   [{"b", ern_harness:digest(A)}]).
+                                   [{"b", digest(A)}]).
 
 %% report §8.7, §12.5: a node accepts a connection from a peer whose key it lists
 %% only under the name that key gives it: a host that holds the key of the
@@ -152,7 +127,7 @@ bound(Base) ->
     ern_harness:has(GhostOut, "connect: false"),
     ern_harness:says(A, "a node named ghost@node.ernest was refused: its key gives another name"),
     {_, Forged} = ern_harness:client(Root, ern_harness:name(C),
-                                     ern_harness:forged(B, ern_harness:host(C)), Cookie, PortA,
+                                     forged(B, host(C)), Cookie, PortA,
                                      Target, false),
     {0, ForgedOut} = Forged(),
     ern_harness:has(ForgedOut, "connect: false"),
@@ -175,6 +150,26 @@ bound(Base) ->
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "gives another name", []),
     ern_deployment_tests:cataloged(ErrA, "7", "certificate names another host", [{"b", "b"}]).
+
+%% A node's key's digest, as a refusal names an unlisted key.
+digest(Dir) ->
+    [{_, Der, _}] = public_key:pem_decode(ern_harness:public(Dir)),
+    binary_to_list(binary:encode_hex(crypto:hash(sha256, Der), lowercase)).
+
+%% A certificate signed with the key of a configuration directory that names
+%% the host given, written beside the directory: the key is one node's, the
+%% host another's.
+forged(Dir, Host) ->
+    File = Dir ++ ".forged.pem",
+    ok = file:write_file(File, public_key:pem_encode([{'Certificate',
+                                                        ern_helpers:forged_certificate(Dir, Host),
+                                                        not_encrypted}])),
+    {File, filename:join(Dir, "private-key.pem")}.
+
+%% A node's key's host on the carrier.
+host(Dir) ->
+    [{_, Der, _}] = public_key:pem_decode(ern_harness:public(Dir)),
+    ern_carrier:host(Der).
 
 %% report §12.5: a node it dials must answer under the name it dialed: the
 %% address a lists for the peer b is the port of c, another peer it lists,
@@ -259,7 +254,7 @@ told_after_its_end(Base) ->
 -module(ern_nodes_ender).
 -export([main/0]).
 main() ->
-    {ok, [[Target]]} = init:get_argument(ern_nodes_target),
+    {ok, [[Target]]} = init:get_argument(ern_harness_target),
     Node = list_to_atom(Target),
     true = net_kernel:connect_node(Node),
     erlang:send({ern_gateway, Node}, {ern_frame, self(), node_ends}),
@@ -267,7 +262,7 @@ main() ->
     erlang:send({ern_gateway, Node}, {ern_frame, self(), {telling, 0.5, 5000}}),
     %% a call over the connection, whose answer comes once the frames before
     %% it have arrived, given the harness's time for one wait
-    {ok, [[Ms]]} = init:get_argument(ern_nodes_ms),
+    {ok, [[Ms]]} = init:get_argument(ern_harness_ms),
     Node = erpc:call(Node, erlang, node, [], list_to_integer(Ms)),
     halt().
 ">>),
@@ -306,9 +301,9 @@ main() ->
     Digits = integer_to_list(Port),
     Arguments = ["-noshell", "-pa", Root, "-name", Name, "-proto_dist", "inet_tls",
                  "-ssl_dist_opt" | Tls]
-        ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-connect_all", "false",
+        ++ ["-epmd_module", "ern_harness_client", "-start_epmd", "false", "-connect_all", "false",
             "-setcookie", Cookie, "-kernel", "inet_dist_listen_min", Digits,
-            "-kernel", "inet_dist_listen_max", Digits, "-ern_nodes_port", Digits,
+            "-kernel", "inet_dist_listen_max", Digits, "-ern_harness_port", Digits,
             "-s", "ern_nodes_answering", "main"],
     Holder = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
@@ -515,10 +510,10 @@ unreadable_site_test_() ->
     ern_harness:nodes_test({waits, 7}, fun unreadable_site/1).
 
 unreadable_site(Base) ->
-    unread_by_b(Base, fun(Program, B) -> ["site", B, held(Program)] end).
+    unread_by_b(Base, fun(Program, B) -> ["site", B, held_hash(Program)] end).
 
 %% The hash of the program's Node.held, as a frame names it.
-held(Program) ->
+held_hash(Program) ->
     {ok, Beam} = file:read_file(Program),
     {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     [Held] = [binary_to_list(binary:encode_hex(Hash))
@@ -728,7 +723,7 @@ hiding_a_library(Base) ->
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
     ?assertEqual({0, "ran\n"}, Run(Main)),
     Refusal = "ern run: " ++ ern_build:shown(Time) ++ ": Time hides the library Time, which the"
-        " library Http uses\n",
+        " library Http uses; give time another name\n",
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
     Bare = ern_harness:made(Base, "bare", ern_harness:free_port()),
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Bare, " --load-path ", Build])),
@@ -2595,7 +2590,7 @@ peer_fault(Base) ->
     ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "spawned by the peer",
-                                   [{"Counter.serve:14", "Squares.main:20"}, {"a", "a"}]).
+                                   [{"Counter.moving:106", "Squares.main:20"}, {"a", "a"}]).
 
 %% The program of two nodes, a and b, each listing the other, a dialing b:
 %% a service on a whose answer is given on b, by a lambda it spawns there
@@ -7374,10 +7369,10 @@ lost_build(Root) ->
              "    }\n",
     ok = file:write_file(filename:join(Root, "lost.ern"),
                          unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
-    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), ern_harness:client()),
+    ok = file:write_file(filename:join(Root, "ern_harness_client.erl"), ern_harness:client()),
     ok = file:write_file(filename:join(Root, "ern_nodes_spawner.erl"), spawner()),
     [{ok, _} = compile:file(filename:join(Root, File), [{outdir, Root}])
-     || File <- ["ern_nodes_client.erl", "ern_nodes_spawner.erl"]],
+     || File <- ["ern_harness_client.erl", "ern_nodes_spawner.erl"]],
     0 = ern_harness:built([Root]),
     {filename:join(Root, "lost.erc"), Source}.
 
@@ -7395,7 +7390,7 @@ spawner() ->
 -module(ern_nodes_spawner).
 -export([main/0]).
 main() ->
-    Node = list_to_atom(argument(ern_nodes_target)),
+    Node = list_to_atom(argument(ern_harness_target)),
     Hash = binary:decode_hex(list_to_binary(argument(ern_nodes_hash))),
     {Other, Bytes, Sources} = binary_to_term(read(argument(ern_nodes_frame))),
     Frame = fun(Exchange, Of) -> {code_frame, Exchange, [Other], Of, Sources} end,
@@ -7450,7 +7445,7 @@ sent(Node, Body) ->
 spawned(Node, Hash) ->
     Ref = make_ref(),
     sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false,
-                list_to_integer(argument(ern_nodes_ms))}),
+                list_to_integer(argument(ern_harness_ms))}),
     Ref.
 requested() ->
     receive {ern_frame, _, {reach_request, Exchange, _}} -> Exchange end.
@@ -9136,14 +9131,14 @@ listened(Dir) ->
 %% silence test holds of a loss holds; the proxy healed, the address reaches
 %% its process again. A regression test, written after the code
 parted_one_way_test_() ->
-    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS},
+    ern_harness:nodes_test("ern_nodes_tests:parted_one_way_test_", {waits, 8, ?DETECTOR_MS},
                            fun(Base) -> parted(Base, true, false, "closed") end).
 
 %% report §8.7, §12.6: the same, the proxy
 %% dropping what passes both ways, so that each node gives the other up by
 %% its own detector. A regression test, written after the code
 parted_both_ways_test_() ->
-    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS},
+    ern_harness:nodes_test("ern_nodes_tests:parted_both_ways_test_", {waits, 8, ?DETECTOR_MS},
                            fun(Base) -> parted(Base, true, true, "fell silent") end).
 
 parted(Base, ToStore, FromStore, DeskSays) ->
@@ -9307,7 +9302,8 @@ wait_ended_by_a_loss(Base) ->
 %% does not cover a find, a compute or a utilization, which send the same
 %% way, nor a spawn whose wait the peer ends by running again.
 spawn_waits_in_its_send_test_() ->
-    ern_harness:nodes_test({waits, 7, ?DETECTOR_MS},
+    ern_harness:nodes_test("ern_nodes_tests:spawn_waits_in_its_send_test_",
+                           {waits, 7, ?DETECTOR_MS},
                            fun(Base) -> waited_in_its_send(Base, "spawn") end).
 
 %% report §6.6, §8.7: where more waits to be sent to the callee's node than
@@ -9327,7 +9323,7 @@ spawn_waits_in_its_send_test_() ->
 %% and so ends at the loss whether or not a send of its waited, nor a call
 %% whose wait the callee's node ends by running again.
 call_waits_in_its_send_test_() ->
-    ern_harness:nodes_test({waits, 7, ?DETECTOR_MS},
+    ern_harness:nodes_test("ern_nodes_tests:call_waits_in_its_send_test_", {waits, 7, ?DETECTOR_MS},
                            fun(Base) -> waited_in_its_send(Base, "call") end).
 
 %% The store stopped and the desk's sender waiting, the desk's ask of the
@@ -9468,13 +9464,15 @@ killer_waits_on_no_peer(Base) ->
 %% cover the reaper's second note of a call, which it sends for a caller
 %% the host ended, nor its answer to a compute's caller.
 reaper_waits_on_no_peer_in_a_monitor_test_() ->
-    ern_harness:nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "monitor") end).
+    ern_harness:nodes_test("ern_nodes_tests:reaper_waits_on_no_peer_in_a_monitor_test_",
+                           {waits, 7}, fun(Base) -> reaper_waited(Base, "monitor") end).
 
 %% report §6.9, §8.7: the same, the ask the end of a monitor of the store's
 %% sink that the process made while the connection ran. A regression test,
 %% with what the monitor's does not cover.
 reaper_waits_on_no_peer_in_a_demonitor_test_() ->
-    ern_harness:nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "demonitor") end).
+    ern_harness:nodes_test("ern_nodes_tests:reaper_waits_on_no_peer_in_a_demonitor_test_",
+                           {waits, 7}, fun(Base) -> reaper_waited(Base, "demonitor") end).
 
 %% The desk's ask of the reaper, Ask a monitor or a demonitor of the store's
 %% sink, and the Down of the process the desk spawns once the reaper has
@@ -9572,7 +9570,7 @@ sender_held_in_its_send(Base) ->
 %% which reads the same Down, nor a callee that faults or ends with its
 %% program while its answer waits.
 answer_behind_the_buffer_test_() ->
-    ern_harness:nodes_test({waits, 6},
+    ern_harness:nodes_test("ern_nodes_tests:answer_behind_the_buffer_test_", {waits, 6},
                            fun(Base) -> answered_and_killed(Base, "small",
                                                             "Some(8 bytes, whole: true)") end).
 
@@ -9580,7 +9578,7 @@ answer_behind_the_buffer_test_() ->
 %% buffer and placed in part when the callee is killed. A regression test,
 %% with what the first does not cover.
 answer_above_the_buffer_test_() ->
-    ern_harness:nodes_test({waits, 6},
+    ern_harness:nodes_test("ern_nodes_tests:answer_above_the_buffer_test_", {waits, 6},
                            fun(Base) ->
                                answered_and_killed(Base, "large",
                                                    "Some(16777216 bytes, whole: true)")
@@ -10001,7 +9999,7 @@ reload_waits_on_no_connection(Base) ->
     true = port_command(AskerInput, "find\n"),
     ern_harness:prints(Asker, "found again: "),
     true = port_command(MakerInput, "free\n"),
-    ern_harness:says(Maker, "the node " ++ ern_harness:digest(Third) ++ " was lost: it closed"),
+    ern_harness:says(Maker, "the node " ++ digest(Third) ++ " was lost: it closed"),
     ern_harness:says(Third, "the peer maker was lost: it closed"),
     [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
                                                    {Third, WaitThird}]],
@@ -10086,7 +10084,7 @@ reload_waits_on_no_stopped_peer(Base) ->
     after
         os:cmd("kill -CONT " ++ ThirdNumber)
     end,
-    Loss = "the node " ++ ern_harness:digest(Third) ++ " was lost",
+    Loss = "the node " ++ digest(Third) ++ " was lost",
     ern_harness:says(Maker, Loss),
     ern_harness:says(Third, "the peer maker was lost"),
     ern_harness:stop(Maker, WaitMaker),

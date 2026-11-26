@@ -1,21 +1,21 @@
-# The tests that span the applications, by area: the programs in six
-# parts (the example programs, the signals and the streams,
-# ern_integration_tests, with the measuring machine's reach over every
-# function, ern_measure_tests, and the bench's comparison of a run with
-# the last and the release's, ern_last_run_tests; nodes on one machine,
-# ern_nodes_tests and ern_machine_tests; the deployment guide run on them,
-# ern_deployment_tests; the tour run on them, ern_tour_tests; the manual
-# pages, ern_manual_tests; and the installation and the release,
-# ern_install_tests), the documents and the style, the calls xref reads,
-# the guide's examples, the site's generator over its fixture, the grammar with the programs
-# generated from it, the well-typed programs generated and run, and the
-# shell and the terminal, driven through the
-# pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
-# Os.startTerminal, which the pty target builds and ern_pty runs. Each area
-# runs in a directory and under a home of the run's own, run.mk's AREA_RUN.
-# Beside them, the loads, the service manager's checks and the bench, which
-# a release runs, and the targets that write the catalog, the contents
-# lists, the layout and the site's expected pages anew.
+# The tests that span the applications, by area: the programs in six parts
+# (the example programs, the signals and the streams, ern_integration_tests,
+# with the measuring machine's reach over every function, ern_measure_tests,
+# and the bench's comparison of a run with the last and the release's,
+# ern_last_run_tests; nodes on one machine, ern_nodes_tests and
+# ern_machine_tests; the deployment guide run on them, ern_deployment_tests;
+# the tour run on them, ern_tour_tests; the manual pages, ern_manual_tests;
+# and the installation and the release, ern_install_tests), the documents,
+# the style and the harness's own steps, the calls xref reads, the guide's
+# examples, the site's generator over its fixture, the grammar with the
+# programs generated from it, the well-typed programs generated and run, and
+# the shell and the terminal, driven through the pseudo-terminal harness,
+# the Ernest program fixtures/pty/pty.ern over Os.startTerminal, which the
+# pty target builds and ern_pty runs. Each area runs in a directory and
+# under a home of the run's own, run.mk's AREA_RUN. Beside them, the loads,
+# the service manager's checks and the bench, which a release runs, and the
+# targets that write the catalog, the contents lists, the layout and the
+# site's expected pages anew.
 
 EBIN = ebin
 # -I finds a header of the toolchain's or the runtime's by -include_lib, with
@@ -23,8 +23,8 @@ EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror -I ../src -I ../src/toolchain
 
 # The toolchain on a host's code path, as bin/ern gives it (tools/code_path.sh),
-# and the modules of the runtime's tests that the tests here call, ern_named
-# and ern_waits.
+# and the modules of the runtime's tests that the tests here call,
+# ern_helpers, ern_named and ern_waits.
 CODE_PATH := $(shell sh ../tools/code_path.sh ..) -pa ../build/runtime/test
 
 # The suites by area: each area has a target of its own, which the
@@ -41,7 +41,7 @@ DEPLOYMENT = ern_deployment_tests
 TOUR = ern_tour_tests
 MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
-DOCS = ern_docs_tests ern_style_tests
+DOCS = ern_docs_tests ern_style_tests ern_harness_tests
 XREF = ern_xref_tests
 GUIDE = ern_guide_tests
 SITE = ern_site_tests
@@ -54,16 +54,16 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(XREF) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
-	  $(SHELL_TESTS) ern_harness ern_pty ern_repository ern_measure) $(ALONE) $(RECORDER)
+	  $(SHELL_TESTS) ern_harness ern_pty ern_repository ern_measure) $(ALONE) $(HELPERS)
 
 # ern_eunit, by which EUNIT_ALONE runs each test alone and EUNIT_SIDE_BY_SIDE
-# its tests side by side, and ern_helpers, by which a test records the
-# documents' blocks it checks (tools/documents.ern), modules of the
-# runtime's tests, each compiled by the repository's one rule where its
-# source is newer.
+# its tests side by side, and ern_helpers, the tests' shared helpers, by
+# which a test records the documents' blocks it checks (tools/documents.ern)
+# among them, modules of the runtime's tests, each compiled by the
+# repository's one rule where its source is newer.
 ALONE = ../build/runtime/test/ern_eunit.beam
-RECORDER = ../build/runtime/test/ern_helpers.beam
-$(ALONE) $(RECORDER): ../build/runtime/test/%.beam: ../src/runtime/test/%.erl ../VERSION
+HELPERS = ../build/runtime/test/ern_helpers.beam
+$(ALONE) $(HELPERS): ../build/runtime/test/%.beam: ../src/runtime/test/%.erl ../VERSION
 	@$(MAKE) -s -C .. build/runtime/test/$*.beam
 
 # A host with the toolchain and the modules here on its code path, which

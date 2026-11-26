@@ -25,7 +25,7 @@
          names/0,
          session_names/0, session_texts/0, segment/1, component/1, forget/2,
          browse/2, browsable/0, doc/2,
-         documentation/1, fields/1, signature/1, declared_type/2, load/2, reload/1,
+         documentation/1, fields/1, signature/1, declared_type/2, load/3, reload/2,
          changed_at_start/1, version/0, write/1, node_screen/1, to_screen/1, flush_screen/0,
          leaves_it_unchanged/1, collect/1, collect/3, own/1, detach/0, input_site/2,
          is_expression/1, declared/2]).
@@ -59,9 +59,7 @@
 -define(REST, '$rest').
 
 %% How long a session waits for its file system, as the shell does
-%% (`Ernest.Shell.History.fileMs`); asked/2 waits for its local half to
-%% answer for a file of the source root that long and a dial beside it, the
-%% carrier's longest wait to reach the shell's own node (§8.7).
+%% (`Ernest.Shell.fileMs`), which asked/2 adds a dial to.
 -define(FILE_MS, 5000).
 
 %% The session so far: its number on the node, the load path, the source
@@ -75,7 +73,7 @@
                   scope = #{}, beams = #{}, source_hashes = #{}, source_expected = #{},
                   units = #{}, versions = #{}, previous = [],
                   local, working_directory = ".", attached = false, synced = none,
-                  env = none, input_names = #{}}).
+                  env = none, input_names = #{}, interrupt = none}).
 %% number: the session's number on its node, given once in the node's life,
 %% which its namespace and every host name its inputs make carry (report
 %% §11.2, Appendix H); namespace: the session's namespace in the forms,
@@ -124,7 +122,9 @@
 %% where they change, with the interfaces and the previous versions' it was
 %% made over, `{Interfaces, Previous, Env}`, or none, the session's row
 %% holding none (session_env/1, keep_session/1); input_names: the name each
-%% declaring input prints with, by its namespace (input_names/1)
+%% declaring input prints with, by its namespace (input_names/1);
+%% interrupt: the message the shell gives `:load` and `:reload`, which in
+%% the session's mailbox kills the evaluator that runs (initialize/2)
 %%
 %% Report §11.2: the node's modules, which every session has in scope beside
 %% its own and which a load or a reload by any session changes: of the
@@ -377,8 +377,9 @@ printed_namespace(#session{number = Number}) ->
 %% Its screen's row is written for the root of its processes, so that a
 %% process it starts, directly or through one it started, writes there, and
 %% its load path and modules are the node's.
--spec start(term(), pid(), binary(), binary(), boolean(), ern_rt:address()) -> #session{}.
-start(Local, Screen, SourceRoot, WorkingDirectory, Attached, Shell) ->
+-spec start(term(), pid(), {'Path', binary()}, {'Path', binary()}, boolean(),
+            ern_rt:address()) -> #session{}.
+start(Local, Screen, {'Path', SourceRoot}, {'Path', WorkingDirectory}, Attached, Shell) ->
     table(),
     collect_detached(),
     Number = ets:update_counter(?MODULE, next_session, 1, {next_session, 0}),
@@ -391,7 +392,9 @@ start(Local, Screen, SourceRoot, WorkingDirectory, Attached, Shell) ->
                    none -> ern_build:load_path()
                end,
     %% built as the host's first session starts, so that its first input
-    %% does not wait for it
+    %% does not wait for it, and so that every name of the standard
+    %% library's a completion offers has been met (docs/design/shell.md
+    %% *Text read and not run*)
     prelude(),
     keep_session(synced(#session{number = Number, namespace = form_namespace(Number),
                                  load_path = LoadPath,
@@ -580,22 +583,27 @@ reader_session() ->
     Session.
 
 %% Report §11.2: whether Process is the entry process of the run in
-%% progress, the shell's own or a node's program's, whose fault's line names
-%% its site alone, as `ern run`'s does.
+%% progress, the shell's own or a node's program's, or the process of the
+%% file's entry point a plain shell spawned (spawn_program/0), whose fault's
+%% line names its site alone, as `ern run`'s does.
 -spec is_entry(pid()) -> boolean().
 is_entry(Process) ->
-    Process =:= ern_rt:entry_process().
+    Process =:= ern_rt:entry_process()
+        orelse Process =:= kept(program, none).
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. A
 %% fault in it reaches the session through its subscription to faults,
-%% which it made with Process.subscribeFaults before (E.21).
+%% which it made with Process.subscribeFaults before (E.21). Its process is
+%% a row of the session's for is_entry/1, kept before the session reads a
+%% report, since the session spawns it.
 -spec spawn_program() -> 'Unit'.
 spawn_program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of
         #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
                                      site = Site}} ->
-            _ = ern_rt:spawn_root(fun() -> ErlangModule:Function() end, Site),
+            Program = ern_rt:spawn_root(fun() -> ErlangModule:Function() end, Site),
+            keep(program, Program),
             'Unit';
         _ ->
             'Unit'
@@ -1182,15 +1190,13 @@ address_help(Name, Operator, Typed) ->
     end.
 
 %% Report §6.2, Appendix E.27: a call of a name that starts a process of
-%% the function it is given.
-is_spawn(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}})
-  when Spawn =:= spawn; Spawn =:= spawnMonitored ->
-    true;
-is_spawn(#e_call{callee = #e_var{referent = #remote_declaration{namespace = ['Peer'],
-                                                                 member_of = undefined,
-                                                                 name = Spawn}}})
-  when Spawn =:= spawn; Spawn =:= spawnMonitored ->
-    true;
+%% the function it is given, as the checker names them
+%% (ern_typecheck:spawned_position/1).
+is_spawn(#e_call{callee = #e_var{referent = Referent}}) ->
+    case ern_typecheck:spawned_position(Referent) of
+        {_, "a spawned function"} -> true;
+        _ -> false
+    end;
 is_spawn(_) ->
     false.
 
@@ -2014,11 +2020,11 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 %% The state a session name's type is printed under: the session's types
 %% print unqualified, as they do in an input (report §11.2), and a prelude
 %% type one of them hides as `Prelude.x` (§11.5).
-session_type_state(#session{scope = Scope} = Session) ->
+session_type_state(Session) ->
     TypeState = ern_typecheck:scope_state(checked_interfaces(Session), prelude()),
-    session_printing(Scope, Session, TypeState).
+    session_printing(Session, TypeState).
 
-session_printing(Scope, Session, TypeState) ->
+session_printing(#session{scope = Scope} = Session, TypeState) ->
     SessionTypes = maps:values(maps:get(types, Scope, #{})),
     Hidden = ern_typecheck:hidden_prelude_types([lists:last(Type) || Type <- SessionTypes],
                                                 prelude()),
@@ -2067,6 +2073,7 @@ constructors(QualifiedName, ScopeConstructors, #session{interfaces = Interfaces}
 %% its values, each with its type as §11.5 prints it; the prelude's, and
 %% the prelude's functions under a namespace that is no module's, `Address`
 %% (§9).
+%%
 %% `:browse` alone lists what it takes (browsable/1).
 -spec browse(#session{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
 browse(Given, <<>>) ->
@@ -2218,7 +2225,7 @@ module_parameters(Session, Namespace) ->
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
-browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope} = Session) ->
+browse(Text, Namespace, #session{interfaces = Interfaces} = Session) ->
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
     case [Interface || #interface{namespace = Found} = Interface <- InScope, Found =:= Namespace] of
         [] ->
@@ -2233,7 +2240,7 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope} = Sessi
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(checked_interfaces(Session) ++ [Last],
                                                    prelude()),
-            TypeState = session_printing(Scope, Session, ScopeState),
+            TypeState = session_printing(Session, ScopeState),
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
@@ -2978,6 +2985,7 @@ module_signature(Session, QualifiedName) ->
 %% again or taken away; or the standard library's `.erc`. `beam_lib` takes
 %% either as a binary. A module the session cannot name, the shell's own
 %% and its libraries among them, has none (report §11.2).
+%%
 %% Report §4.2: a namespace is a module's only where each of its segments
 %% is words beginning with a capital letter, as module_name/2 tests a name
 %% `:browse` or `:load` is given, so that `list` names no module `List`.
@@ -3044,7 +3052,7 @@ load_hinted(_Session, Diagnostic) ->
 %% at its path or in its directory, the source root's read through the
 %% session's local half (source_access/1).
 is_found(#session{interfaces = Interfaces, source_root = SourceRoot} = Session, Segment) ->
-    [Loaded || #interface{namespace = [First | _]} = Loaded <- Interfaces, First =:= Segment] =/= []
+    lists:any(fun(#interface{namespace = [First | _]}) -> First =:= Segment end, Interfaces)
         orelse ern_build:read_through(source_access(Session),
                                       fun() ->
                                           ern_build:at_root(Segment, SourceRoot, load_path(Session))
@@ -3115,10 +3123,13 @@ moved_column(_, Column, _) -> Column.
 %% form, on the load path. Afterwards it is in scope by its qualified
 %% name, as every loaded module is (§4.2). A module the session has loaded
 %% is refused: `:reload` alone brings another version of it. Report §4.7:
-%% it receives from the session's mailbox, the interrupt (initialize/1).
--spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
-load(Session, Text) ->
-    without_line_feed(load_on_nodes(Session, fun(Synced) -> load_named(Synced, Text) end)).
+%% it receives from the session's mailbox the interrupt, Interrupt
+%% (initialize/2).
+-spec load(#session{}, binary(), term()) ->
+          {'Left', binary()} | {'Right', {#session{}, binary()}}.
+load(Session, Text, Interrupt) ->
+    without_line_feed(load_on_nodes(Session#session{interrupt = Interrupt},
+                                    fun(Synced) -> load_named(Synced, Text) end)).
 
 %% Report §11.2: a load or a reload is the node's: made one at a time on
 %% the node, over the node's modules as they stand, its sources the
@@ -3175,7 +3186,7 @@ load_named(#session{source_hashes = SourceHashes} = Session, Text) ->
                     {'Left', <<Name/binary, " is loaded already; :reload compiles it again"
                                " when its source has changed\n">>};
                 false ->
-                    refusal_kept(Name, load(Session, Name, Namespace))
+                    refusal_kept(Name, module_loaded(Session, Name, Namespace))
             end;
         {error, Refusal} ->
             {'Left', <<Refusal/binary, "\n">>}
@@ -3198,25 +3209,40 @@ refusal_kept(Name, Loaded) ->
 %% A refusal ends in a line feed, as a diagnostic the compiler gives does,
 %% since the shell prints both alike. What is loaded is kept, since
 %% completion and `Shift-Tab` read the session from where it is kept.
-load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
+module_loaded(Session, Name, Namespace) ->
     case package_form(Session, Namespace) of
-        none -> source_loaded(Session, Name, Namespace, SourceRoot);
-        Taken -> form_loaded(Session, Name, Namespace, Taken)
+        Form when Form =:= not_package; Form =:= none ->
+            source_loaded(Session, Name, Namespace, Form);
+        Taken ->
+            form_loaded(Session, Name, Namespace, Taken)
     end.
 
 %% Report §11.9: the compiled form of a named package's module, its build's
 %% alone, which `:load` takes and compiles no file under the source root at
-%% its namespace; none for a module of no named package, and for one the
-%% package's build does not hold, whose source there is refused as the
-%% build refuses it (source_refusal/3).
-package_form(#session{source_root = SourceRoot} = Session, Namespace) ->
-    case ern_build:looked_in(ern_namespace:module_path(Namespace), SourceRoot,
-                             load_path(Session)) of
-        {none, _} -> taken_form(Session, Namespace);
-        _ -> none
+%% its namespace, none for one the package's build does not hold, whose
+%% source there is refused as the build refuses it (source_refusal/3), and
+%% not_package for a module of no named package.
+package_form(Session, Namespace) ->
+    case is_package_module(Session, Namespace) of
+        true -> taken_form(Session, Namespace);
+        false -> not_package
     end.
 
-source_loaded(Session, Name, Namespace, SourceRoot) ->
+%% Report §11.9: whether the module at Namespace is a named package's,
+%% looked for under its package's build alone and never under the source
+%% root (ern_build:looked_in/3).
+is_package_module(#session{source_root = SourceRoot} = Session, Namespace) ->
+    case ern_build:looked_in(ern_namespace:module_path(Namespace), SourceRoot,
+                             load_path(Session)) of
+        {none, _} -> true;
+        _ -> false
+    end.
+
+%% Report §11.2: a module `:load` names, compiled from its source under the
+%% source root, or else loaded from the compiled form Form, which
+%% package_form/2 found, or which is looked for here where the module is
+%% not_package.
+source_loaded(#session{source_root = SourceRoot} = Session, Name, Namespace, Form) ->
     case source_of(Session, Namespace) of
         {ok, File} ->
             try ern_build:module_of(ern_build:absolute(File), SourceRoot) of
@@ -3234,8 +3260,10 @@ source_loaded(Session, Name, Namespace, SourceRoot) ->
                 throw:{cli_error, Refusal} ->
                     {'Left', unicode:characters_to_binary([Refusal, "\n"])}
             end;
+        none when Form =:= not_package ->
+            form_loaded(Session, Name, Namespace, taken_form(Session, Namespace));
         none ->
-            form_loaded(Session, Name, Namespace, taken_form(Session, Namespace))
+            form_loaded(Session, Name, Namespace, Form)
     end.
 
 %% Report §11.2: a module loaded from its compiled form, as taken_form/2
@@ -3326,11 +3354,10 @@ form_uses(Beam) ->
 %% would compile, one a module to compile uses or one it loaded, where the
 %% module is looked for there: a named package's module has none there,
 %% and is its build's.
-dependency_source(#session{source_root = SourceRoot} = Session, Dependency) ->
-    case ern_build:looked_in(ern_namespace:module_path(Dependency), SourceRoot,
-                             load_path(Session)) of
-        {none, _} -> none;
-        _ -> source_of(Session, Dependency)
+dependency_source(Session, Dependency) ->
+    case is_package_module(Session, Dependency) of
+        true -> none;
+        false -> source_of(Session, Dependency)
     end.
 
 %% Report §11.2: a compiled form, Compiled, refused as `ern run` refuses
@@ -3410,9 +3437,9 @@ held_interfaces(Namespace, Interfaces) ->
 %% `:load`'s answer; a binding that faults leaves nothing loaded, and its
 %% trace stands beneath the refusal's line, as `ern run` writes a fault's
 %% (Appendix E.21).
-installed(Session, All, Answer) ->
+installed(#session{interrupt = Interrupt} = Session, All, Answer) ->
     Session1 = install(Session, All),
-    case initialize(in_order(All)) of
+    case initialize(Interrupt, in_order(All)) of
         {ok, _} ->
             initialized(All),
             {'Right', {keep_session(Session1), Answer}};
@@ -3484,29 +3511,30 @@ unit_bindings(Unit) ->
 %% (detach/0). No deadlock is found in the wait, since a session holds the
 %% terminal, waits on its next line or is a node (ern_rt's look).
 %%
-%% Report §11.2: the interrupt, which the reader sends the session as
-%% `Interrupted`, kills the evaluator that runs, taken from the session's
-%% mailbox once the evaluator has begun its first binding, so that one
-%% that came while the load compiled kills the first evaluator at its first
-%% binding, and is put back, for the session to drop with every other that
-%% came (ern_rt:evaluate/3); a load that evaluates no binding takes none.
+%% Report §11.2: the interrupt, Interrupt, which the reader sends the
+%% session as `Interrupted`, kills the evaluator that runs, taken from the
+%% session's mailbox once the evaluator has begun its first binding, so
+%% that one that came while the load compiled kills the first evaluator at
+%% its first binding, and is put back, for the session to drop with every
+%% other that came (ern_rt:evaluate/3); a load that evaluates no binding
+%% takes none.
 %% The killed evaluator's end is this answer's, and no evaluator starts
 %% after it.
-initialize(CompiledModules) ->
-    initialize(CompiledModules, []).
+initialize(Interrupt, CompiledModules) ->
+    initialize(Interrupt, CompiledModules, []).
 
-initialize([], Evaluators) ->
+initialize(_Interrupt, [], Evaluators) ->
     {ok, lists:reverse(Evaluators)};
-initialize([#compiled{unit = Unit} = Compiled | Rest], Evaluators) ->
+initialize(Interrupt, [#compiled{unit = Unit} = Compiled | Rest], Evaluators) ->
     case erlang:function_exported(Unit, '$init', 0) of
-        true -> evaluate(Compiled, Rest, Evaluators);
-        false -> initialize(Rest, Evaluators)
+        true -> evaluate(Interrupt, Compiled, Rest, Evaluators);
+        false -> initialize(Interrupt, Rest, Evaluators)
     end.
 
-evaluate(#compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
-    case ern_rt:evaluate([Unit], <<"Ernest.Shell.load">>, 'Interrupted') of
+evaluate(Interrupt, #compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
+    case ern_rt:evaluate([Unit], <<"Ernest.Shell.load">>, Interrupt) of
         {evaluated, Evaluator} ->
-            initialize(Rest, [Evaluator | Evaluators]);
+            initialize(Interrupt, Rest, [Evaluator | Evaluators]);
         {ended, Evaluator, Site, End} ->
             {fault, Compiled, Site, End, Rest, lists:reverse([Evaluator | Evaluators])}
     end.
@@ -3594,7 +3622,7 @@ compiled_placed(Session, Namespace, File, Beam, Hash, #placing{waiting = Waiting
                 Refusal -> failed(Namespace, Refusal, Placeable)
             end;
         {nowhere, Dependency, Placeable} ->
-            failed(Namespace, found_nowhere(Dependency), Placeable);
+            failed(Namespace, found_nowhere(Session, Namespace, Dependency), Placeable);
         {failed, Unplaced} ->
             Unplaced
     end.
@@ -3625,11 +3653,14 @@ used_placed(Namespace, Dependencies, #placing{failed = Failed, forms = Forms} = 
             end
     end.
 
-%% Report §11.2: why a module that uses one found nowhere, Dependency, is
-%% not loaded.
-found_nowhere(Dependency) ->
-    unicode:characters_to_binary(["no module ", ern_namespace:text(Dependency),
-                                  " on the load path\n"]).
+%% Report §11.2, §11.5: why a module, Namespace, that uses one found
+%% nowhere, Dependency, is not loaded: who uses it, and then where it was
+%% looked for, the source root written as §11.5 writes a path, as the
+%% refusal of a module `:load` names (found_nowhere_text/2).
+found_nowhere(#session{source_root = SourceRoot}, Namespace, Dependency) ->
+    unicode:characters_to_binary(["no module ", ern_namespace:text(Dependency), ", which ",
+                                  ern_namespace:text(Namespace), " uses, under the source root ",
+                                  ern_build:path_text(SourceRoot), " or on the load path\n"]).
 
 %% A compiled form the load takes, made its unit, or failed where the host
 %% cannot place it (compiled_unit/5).
@@ -3825,22 +3856,23 @@ unit_of(#session{units = Units}, Namespace) ->
 %% function of it keep. Every changed module is compiled before any is
 %% loaded, and where one does not compile none is, so the session goes on
 %% with every module as it was. Report §4.7: it receives from the session's
-%% mailbox, the interrupt (initialize/1).
--spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
-reload(Session) ->
-    without_line_feed(load_on_nodes(Session, fun reload_changed/1)).
+%% mailbox the interrupt, Interrupt (initialize/2).
+-spec reload(#session{}, term()) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
+reload(Session, Interrupt) ->
+    without_line_feed(load_on_nodes(Session#session{interrupt = Interrupt},
+                                    fun reload_changed/1)).
 
 %% Report §11.2, §11.9: a file at a named package's namespace, or under it,
-%% is no module's source, the module being its package's build's
-%% (dependency_source/2), and the reload passes it over.
+%% is no module's source, the module being its package's build's: the
+%% reload neither compiles it nor names the module as one without a source
+%% (loaded_source/3).
 reload_changed(#session{source_hashes = SourceHashes, source_expected = Expected} = Session) ->
-    Sources = [{Namespace, LoadedHash, dependency_source(Session, Namespace)}
+    Sources = [{Namespace, loaded_source(Session, Namespace, LoadedHash)}
                || {Namespace, LoadedHash} <- lists:sort(maps:to_list(SourceHashes))],
     ChangedSources = [{Namespace, File}
-                      || {Namespace, LoadedHash, {ok, File}} <- Sources,
-                         {ok, Hash} <- [source_hash(Session, File)],
-                         Hash =/= LoadedHash orelse is_resolved_otherwise(Session, Namespace)],
-    SourcelessLines = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources,
+                      || {Namespace, {Change, File}} <- Sources,
+                         Change =:= changed orelse is_resolved_otherwise(Session, Namespace)],
+    SourcelessLines = sourceless(Session, [Namespace || {Namespace, none} <- Sources,
                                                         is_map_key(Namespace, Expected)]),
     case ChangedSources of
         [] ->
@@ -3881,12 +3913,32 @@ changed_at_start(#session{source_hashes = SourceHashes, source_expected = Expect
              ern_build:control_free(ern_build:changed_cause(Erc, File)
                                     ++ "; :reload compiles it again"))
            || Namespace <- lists:sort(maps:keys(Expected)),
-              {ok, File} <- [dependency_source(Session, Namespace)],
-              {ok, Hash} <- [source_hash(Session, File)],
-              Hash =/= maps:get(Namespace, SourceHashes, none),
+              {changed, File} <- [loaded_source(Session, Namespace,
+                                                maps:get(Namespace, SourceHashes, none))],
               Erc <- [held_form(Session, Namespace, [])],
               Erc =/= none]
       end).
+
+%% Report §11.2, §11.9: the source under the source root of a module the
+%% session loaded, LoadedHash the hash of the source it was loaded of, as
+%% `:reload` and the start line both find it: `{changed, File}` where its
+%% hash differs, `{unchanged, File}` where it does not, unread where it
+%% cannot be read, package for a named package's module, which has none
+%% there, and none where the source root holds none.
+loaded_source(Session, Namespace, LoadedHash) ->
+    case is_package_module(Session, Namespace) of
+        true -> package;
+        false -> source_change(Session, source_of(Session, Namespace), LoadedHash)
+    end.
+
+source_change(Session, {ok, File}, LoadedHash) ->
+    case source_hash(Session, File) of
+        {ok, LoadedHash} -> {unchanged, File};
+        {ok, _} -> {changed, File};
+        none -> unread
+    end;
+source_change(_Session, none, _LoadedHash) ->
+    none.
 
 %% Report §11.2: the modules loaded, what the changed ones have come to
 %% use that the session had not loaded among them, and their bindings
@@ -3896,11 +3948,12 @@ changed_at_start(#session{source_hashes = SourceHashes, source_expected = Expect
 %% bindings after it keep the previous version's values, each where the
 %% previous version has it of one hash. Either way the binding's trace
 %% stands beneath its line, as `:load` writes it.
-reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, SourcelessLines) ->
+reloaded(#session{source_hashes = Loaded, interrupt = Interrupt} = Session, Needed, Compiled,
+         SourcelessLines) ->
     All = Needed ++ Compiled,
     Session1 = install(Session, All),
     IsFirst = fun(#compiled{namespace = Namespace}) -> not is_map_key(Namespace, Loaded) end,
-    case initialize(in_order(All)) of
+    case initialize(Interrupt, in_order(All)) of
         {ok, _} ->
             reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
         {fault, Faulted, Site, End, Rest, Evaluators} ->
@@ -4110,7 +4163,8 @@ compiled_in_order(Session, #build_module{namespace = Namespace,
         {nowhere, Dependency, Placeable} ->
             case taken_or_compiled(Session, Module, Placeable) of
                 {error, Diagnostic} -> failed(Namespace, Diagnostic, Placeable);
-                {ok, _} -> failed(Namespace, found_nowhere(Dependency), Placeable)
+                {ok, _} -> failed(Namespace, found_nowhere(Session, Namespace, Dependency),
+                                  Placeable)
             end;
         {failed, Unplaced} ->
             Unplaced
@@ -4898,19 +4952,14 @@ compiled_of(Session, Namespace) ->
                                source_hash := Hash}} ->
                             case ern_chunk:is_loadable(ern_namespace:erlang_module(Namespace),
                                                        Beam) of
-                                true ->
-                                    {ok, File, Beam, Hash};
-                                false ->
-                                    {error, unicode:characters_to_binary(
-                                              [ern_build:path_text(File),
-                                               ": not a compiled module"])}
+                                true -> {ok, File, Beam, Hash};
+                                false -> not_compiled(File)
                             end;
                         {ok, #{interface := #interface{namespace = Held}}} ->
                             {error, unicode:characters_to_binary(ern_build:control_free(
                                       ern_build:held_another(File, Held, Namespace, rebuild)))};
                         {error, _} ->
-                            {error, unicode:characters_to_binary(
-                                      [ern_build:path_text(File), ": not a compiled module"])}
+                            not_compiled(File)
                     end;
                 {error, Error} ->
                     {error, unicode:characters_to_binary([ern_build:bytes_text(File), ": ",
@@ -4919,6 +4968,9 @@ compiled_of(Session, Namespace) ->
         [] ->
             none
     end.
+
+not_compiled(File) ->
+    {error, unicode:characters_to_binary([ern_build:path_text(File), ": not a compiled module"])}.
 
 %% Report §11.2, §11.1: the compiled form `:load` takes of a module, as
 %% compiled_of/2 finds it, refused where it hides a library's module
@@ -4970,12 +5022,13 @@ refusal_text(Refusal) -> unicode:characters_to_binary(ern_build:control_free(Ref
 %% refuses one, at a taken namespace or at the namespace of a library's
 %% module, the file named from the session's working directory; none. The
 %% module is found as `:load` finds it, a named package's in its build
-%% (load/3).
+%% (module_loaded/3).
 hidden(Session, Segments) ->
     Namespace = ern_namespace:namespace(Segments),
     ern_build:read_through(source_access(Session),
                            fun() ->
                                case package_form(Session, Namespace) of
+                                   not_package -> found_refusal(Session, Namespace);
                                    none -> found_refusal(Session, Namespace);
                                    {hiding, Refusal} -> Refusal;
                                    _ -> none

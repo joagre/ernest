@@ -7,11 +7,11 @@
 %%
 %% The build resolves a module's names here, once it is parsed and before
 %% its dependencies are found and it is checked, so that every later stage
-%% reads each name whole. The pass
-%% asks the build which namespaces below the root hold a module,
-%% IsNamespace, since only the build reads the roots; the root holds every
-%% first segment no nearer namespace does, and is asked of only for the help
-%% of a name unknown where a nearer namespace hid it (out_of_reach/4).
+%% reads each name whole. The pass asks the build which namespaces below
+%% the root hold a module, IsNamespace, since only the build reads the
+%% roots; the root holds every first segment no nearer namespace does, and
+%% is asked of only for the help of a name unknown where a nearer namespace
+%% hid it (out_of_reach/4).
 %%
 %% A type or a constructor of the module's own namespace written qualified
 %% is refused here, since no binding hides one (§4.2). `Prelude.` and a

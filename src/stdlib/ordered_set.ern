@@ -1,9 +1,9 @@
 /// Sets whose elements are kept in order, the order of their type's `compare`.
 ///
 /// Use an ordered set where the elements must come out in order, or where the
-/// smallest or the largest is wanted. Where the order does not matter, the
-/// prelude's `Set` serves. An ordered set is a value: `put` and `remove` answer
-/// a new set and leave the one given as it was.
+/// smallest is wanted. Where the order does not matter, the prelude's `Set`
+/// serves. An ordered set is a value: `put` and `remove` answer a new set and
+/// leave the one given as it was.
 ///
 /// **The order.** A function that needs the order says so, `needs a.compare`
 /// (report §4.9). A call writes nothing for it: the compiler supplies the
@@ -22,9 +22,9 @@
 /// two cannot meet.
 ///
 /// **What it costs.** The set is a sorted list, written over `List` with no
-/// primitive. `put`, `contains` and `remove` take time linear in the size,
-/// `fromList` is a sort, `n log n`, and `union`, `intersection`, `difference`
-/// and `isSubset` are linear in the two sizes.
+/// primitive. `put`, `contains`, `remove` and `maximum` take time linear in the
+/// size, `fromList` is a sort, `n log n`, and `union`, `intersection`,
+/// `difference` and `isSubset` are linear in the two sizes.
 ///
 /// A set is data: `==` is structural, a set keys a `Map`, and a set can be sent
 /// to another node (report §3.10).
@@ -258,7 +258,8 @@ export fn find(Set(list) : Set(a), test : (a) -> Bool receiving e) : Optional(a)
 export fn toList(Set(list) : Set(a)) : List(a) =
     list
 
-/// The first element in order, or `None` for the set with no elements.
+/// The first element in order, or `None` for the set with no elements. It is
+/// never `None` for a set that is not empty.
 ///
 /// ### Examples
 ///
@@ -272,7 +273,8 @@ export fn toList(Set(list) : Set(a)) : List(a) =
 export fn minimum(Set(list) : Set(a)) : Optional(a) =
     List.get(list, 0)
 
-/// The last element in order, or `None` for the set with no elements.
+/// The last element in order, or `None` for the set with no elements. It is
+/// never `None` for a set that is not empty. It takes time linear in the size.
 ///
 /// since 0.11.0
 export fn maximum(Set(list) : Set(a)) : Optional(a) =

@@ -26,7 +26,7 @@
 // - `moved` is exported, so that it runs at the prompt of a shell attached
 //   to a node of the first build, once `:reload` there has compiled this
 //   build on the node from its source (report §11.2; the deployment guide's
-//   §5.3).
+//   §6.3).
 //
 // Alone it is no node: it moves a counter of its own, and has no peer. As
 // nodes, a counter of the first build runs on b, and the tool runs on a.

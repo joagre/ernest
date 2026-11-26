@@ -47,12 +47,12 @@
 
 %% docs/code_style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; a
-%% borrowed file keeps its upstream form (borrowed/0). A line a command wrote, quoted under
-%% the command in a block of an Ernest comment, is the tool's and no line
-%% of code, so it may be as long as the command wrote it (quoted/2); the
-%% command's own line is held. A regression test for the Makefiles, scripts
-%% and headers, the fixtures' Erlang and the machines' script it once left
-%% unread; written with the rule for a quoted line
+%% borrowed file keeps its upstream form (borrowed/0). A line a command
+%% wrote, quoted under the command in a block of an Ernest comment, is the
+%% tool's and no line of code, so it may be as long as the command wrote it
+%% (quoted/2); the command's own line is held. A regression test for the
+%% Makefiles, scripts and headers, the fixtures' Erlang and the machines'
+%% script it once left unread; written with the rule for a quoted line
 line_length_test() ->
     Patterns = ["src/**/*.erl", "src/runtime/c_src/*.c", "test/*.erl", "test/bench/*.erl",
                 "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
@@ -297,13 +297,13 @@ holds(Line, Pattern) ->
     re:run(Line, Pattern, [{capture, none}]) =:= match.
 
 %% docs/code_style.md's *Every language*: a comment cites no step or item
-%% of the plan and no finding of a review, no release and no date, in every
-%% tracked file of code but a borrowed one and a fixture, which is data. A
-%% comment is what follows the marker its language writes. A log entry's
-%% title is a citation the rule asks for, and a date with a time after it is
-%% a value, as in a doc block's example. Written with the sweep that made it hold (the log's
-%% *The Release Cleanup Built*); a comment that names the plan in other
-%% words escapes it
+%% of the plan and no finding of a review or probe of a reading, no
+%% release and no date, in every tracked file of code but a borrowed one
+%% and a fixture, which is data. A comment is what follows the marker its
+%% language writes. A log entry's title is a citation the rule asks for, and
+%% a date with a time after it is a value, as in a doc block's example.
+%% Written with the sweep that made it hold (the log's *The Release Cleanup
+%% Built*); a comment that names the plan in other words escapes it
 timeline_comment_test() ->
     Kinds = [{[".erl", ".hrl", ".escript"], "%+"},
              {[".ern", ".c", ".h", ".js"], "//+|/\\*|^\\s*\\*"},
@@ -323,7 +323,8 @@ timeline_comment_test() ->
                "|\\(([A-Z]{1,2}[0-9]+(, | and |\\)))+|findings\\.md|\\bfeedback (line )?[0-9]"
                "|\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b(?!T)|\\(finding\\b"
                "|\\([A-Z]{1,2}[0-9]+(-[0-9]+\\)|;)|\\breview before\\b"
-               "|\\bbefore [0-9]+\\.[0-9]+\\.[0-9]+",
+               "|\\bbefore [0-9]+\\.[0-9]+\\.[0-9]+|\\bcold read|\\bcold[0-9]+\\b|\\bfinding \\("
+               "|\\bfix of the (full|release) review\\b|\\breading(s'|'s) programs?\\b",
     ?assertEqual([], [{File, Number}
                       || {File, Marker} <- Files,
                          {Number, Line} <- text_lines(File),
@@ -422,13 +423,13 @@ words(Line, HostNames, Word) ->
 %% docs/code_style.md: one `-export` list, in the order the functions appear,
 %% in the toolchain's modules and in the tests' and their harnesses', under
 %% test/ and in each root's test/ under src/; a borrowed file keeps its
-%% upstream form (borrowed/0). A `-spec` on every exported function is held here in the
-%% tests' modules, since EUnit exports each of a test module's tests; erlc's
-%% +warn_missing_spec holds it in the rest (the Makefile). Written after the
-%% rule, when six modules had fallen out of order and one had lost its
-%% specs; the tests' modules under test/ were read once the nodes harness's
-%% exports were found to have none, and the roots' once five of theirs were
-%% found out of order and two without specs
+%% upstream form (borrowed/0). A `-spec` on every exported function is
+%% held here in the tests' modules, since EUnit exports each of a test
+%% module's tests; erlc's +warn_missing_spec holds it in the rest (the
+%% Makefile). Written after the rule, when six modules had fallen out of
+%% order and one had lost its specs; the tests' modules under test/ were
+%% read once the nodes harness's exports were found to have none, and the
+%% roots' once five of theirs were found out of order and two without specs
 exports_test() ->
     Files = (ern_repository:modules()
              ++ ern_repository:files(["src/**/test/*.erl", "test/*.erl", "test/bench/*.erl",

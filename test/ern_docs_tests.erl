@@ -137,10 +137,12 @@ appendix_section(Section) -> Section.
 %% The citations of Text where it stands as the guide, its bare `§` the
 %% guide's own.
 cited_as_the_guide(Text) ->
-    Dir = ern_helpers:tmp("ern_docs_cited_"),
-    ok = filelib:ensure_path(filename:join(Dir, "guide")),
-    ok = file:write_file(filename:join(Dir, "guide/language.md"), Text),
-    try cited(Dir, ["guide/language.md"]) after file:del_dir_r(Dir) end.
+    ern_helpers:tmp("ern_docs_cited_",
+                    fun(Dir) ->
+                        ok = filelib:ensure_path(filename:join(Dir, "guide")),
+                        ok = file:write_file(filename:join(Dir, "guide/language.md"), Text),
+                        cited(Dir, ["guide/language.md"])
+                    end).
 
 %% The document without its fenced console blocks.
 without_consoles(Document) ->
@@ -170,7 +172,7 @@ recorded(Document, Lines) ->
 %% ern_tour_tests runs, nor which file the prose says a block shows.
 tour_blocks_shown_test() ->
     Lines = binary:split(ern_repository:read("tour/README.md"), <<"\n">>, [global]),
-    Blocks = tour_blocks(lists:enumerate(Lines), none),
+    Blocks = tour_blocks(lists:enumerate(Lines)),
     ?assertNotEqual([], Blocks),
     recorded("tour/README.md", [Number || {Number, _, _} <- Blocks]),
     ?assertEqual([], [{Chapter, unicode:characters_to_list(hd(binary:split(Text, <<"\n">>)))}
@@ -178,30 +180,16 @@ tour_blocks_shown_test() ->
 
 %% The tour's `ernest` blocks, each with the line its fence opens on, the
 %% number of the chapter whose heading it stands under, or none, and its
-%% text.
-tour_blocks([], _) ->
-    [];
-tour_blocks([{_, <<"## ", Heading/binary>>} | Rest], _) ->
-    tour_blocks(Rest, chapter(Heading));
-tour_blocks([{Number, <<"```", Info/binary>>} | Rest], Chapter) ->
-    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
-    Blocks = tour_blocks(After, Chapter),
-    case Info of
-        <<"ernest">> ->
-            Text = iolist_to_binary(lists:join(<<"\n">>, [Line || {_, Line} <- Code])),
-            [{Number, Chapter, Text} | Blocks];
-        _ ->
-            Blocks
-    end;
-tour_blocks([_ | Rest], Chapter) ->
-    tour_blocks(Rest, Chapter).
-
-fence(<<"```", _/binary>>) -> true;
-fence(_) -> false.
+%% text (ern_helpers:blocks/1).
+tour_blocks(Numbered) ->
+    [{Number, chapter(Heading), iolist_to_binary(lists:join(<<"\n">>, Code))}
+     || {Number, Heading, <<"ernest">>, Code} <- ern_helpers:blocks(Numbered)].
 
 %% "5" for `## 5. Per key`, and none for a heading that is no chapter's.
+chapter(none) ->
+    none;
 chapter(Heading) ->
-    case re:run(Heading, "^([0-9]+)\\. ", [{capture, all_but_first, list}]) of
+    case re:run(Heading, "^## ([0-9]+)\\. ", [{capture, all_but_first, list}]) of
         {match, [Number]} -> Number;
         nomatch -> none
     end.
@@ -231,12 +219,11 @@ among(Shown, [_ | Rest]) -> among(Shown, Rest).
 %% README's console, the transcript of the spawn, which ern_tour_tests runs.
 readme_counter_is_the_tours_test() ->
     Lines = lists:enumerate(binary:split(ern_repository:read("README.md"), <<"\n">>, [global])),
-    {_, [{Number, _} | Rest]} =
-        lists:splitwith(fun({_, Line}) -> Line =/= <<"```ernest">> end, Lines),
+    [{Number, Code} | _] = [{Number, Code}
+                            || {Number, _, <<"ernest">>, Code} <- ern_helpers:blocks(Lines)],
     recorded("README.md", [Number]),
-    {Code, _} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
     ?assertEqual(string:chomp(ern_repository:read("tour/2/counter.ern")),
-                 iolist_to_binary(lists:join(<<"\n">>, [Line || {_, Line} <- Code]))).
+                 iolist_to_binary(lists:join(<<"\n">>, Code))).
 
 %% docs/development.md *Building*, `make unchecked`: a test records a block
 %% it checks, its document's path from the repository's root and its

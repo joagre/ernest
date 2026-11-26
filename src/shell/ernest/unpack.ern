@@ -81,9 +81,10 @@ export fn main() : Unit = {
 // package with no `lib` has nothing to unpack, and takes no lock.
 fn locked() : Either(String, Unit) =
     match Fs.stat(Path(lib), fileMs) {
-        Right(entry) when entry.kind == Fs.Directory ->
-            Either.mapLeft(hold(Path(lib) <> Path(".unpack")),
-                           fn(reason) = lib <> "/.unpack: " <> reason)
+        Right(entry) when entry.kind == Fs.Directory -> {
+            let lock = Path(lib) <> Path(".unpack");
+            Either.mapLeft(hold(lock), fn(reason) = Path.toString(lock) <> ": " <> reason)
+        }
       | _ ->
             Right(Unit)
     }
@@ -107,33 +108,35 @@ fn passes(entries : List(Entry)) : List(String) = {
 // otherwise; anything else there is refused and left as it is.
 fn standing(entry : Entry) : Standing = {
     let path = packagePath(entry);
-    match Fs.readLink(Path(path), fileMs) {
+    match Fs.readLink(path, fileMs) {
         Left(Io.NotFound) ->
             Absent
       | Right(Some(_)) or Left(Io.NotUtf8(_)) ->
-            if heldVersion(Path(path)) == Version(entry.version) then Stands else Linked
+            if heldVersion(path) == Version(entry.version) then Stands else Linked
       | Right(None) ->
-            match Fs.stat(Path(path), fileMs) {
+            match Fs.stat(path, fileMs) {
                 Right(found) when found.kind == Fs.Directory -> directoryStanding(entry, path)
-              | Right(_) -> Refused(heldOtherwise(entry, path <> " is no directory"))
-              | Left(error) -> Refused(path <> ": " <> Shell.Refusal.trouble(error))
+              | Right(_) -> Refused(heldOtherwise(entry, Path.toString(path) <> " is no directory"))
+              | Left(error) -> Refused(Path.toString(path) <> ": " <> Shell.Refusal.trouble(error))
             }
       | Left(error) ->
-            Refused(path <> ": " <> Shell.Refusal.trouble(error))
+            Refused(Path.toString(path) <> ": " <> Shell.Refusal.trouble(error))
     }
 }
 
-fn directoryStanding(entry : Entry, path : String) : Standing =
-    match heldVersion(Path(path)) {
+fn directoryStanding(entry : Entry, path : Path) : Standing = {
+    let named = Path.toString(path);
+    match heldVersion(path) {
         Version(version) when version == entry.version ->
             Stands
       | Version(version) ->
-            Refused(heldOtherwise(entry, path <> " holds " <> version))
+            Refused(heldOtherwise(entry, named <> " holds " <> version))
       | NoVersion ->
-            Refused(heldOtherwise(entry, path <> " holds no VERSION"))
+            Refused(heldOtherwise(entry, named <> " holds no VERSION"))
       | NotOfForm ->
-            Refused(heldOtherwise(entry, path <> "/VERSION is not one line that holds a version"))
+            Refused(heldOtherwise(entry, named <> "/VERSION is not one line that holds a version"))
     }
+}
 
 fn heldOtherwise(entry : Entry, held : String) : String =
     manifest
@@ -229,8 +232,8 @@ fn archivePath(entry : Entry) : String =
     lib <> "/" <> archiveName(entry) <> ".tar.gz"
 
 // The path of the entry's package under `lib`.
-fn packagePath(entry : Entry) : String =
-    lib <> "/" <> entry.name
+fn packagePath(entry : Entry) : Path =
+    Path(lib) <> Path(entry.name)
 
 // Report §11.9: the archive's members as the host lists them, each held to
 // its kind and its name, a line for each that breaks a rule, in the
@@ -383,7 +386,7 @@ fn packageRefusals(entry : Entry, unpacked : List(Unpacked), directory : String)
 fn ownBeamRefusals(beam : String) : List(String) =
     if String.startsWith(beam, "ern@") then
         [beam <> " is named as a unit is"]
-    else if isFoundFirst(Path(beam)) then
+    else if isFoundFirst(beam) then
         [beam <> " is the host's own module, which is found first"]
     else
         []
@@ -419,7 +422,7 @@ fn sharedBeam(entry : Entry, beam : String, other : String) : String =
 fn ebinHeld(judged : Judged) : List(String) =
     match #(judged.standing, judged.archive) {
         #(Stands, _) ->
-            match Fs.list(Path(packagePath(judged.entry) <> "/ebin"), fileMs) {
+            match Fs.list(packagePath(judged.entry) <> Path("ebin"), fileMs) {
                 Right(entries) ->
                     List.filter(List.filterMap(entries, fn(entry) = Path.name(entry.path)),
                                 fn(name) = String.endsWith(name, ".beam"))
@@ -448,17 +451,17 @@ fn unpackedOne(judged : Judged) : List(String) =
         #(Absent, Some(archive), []) or #(Linked, Some(archive), []) ->
             match unpacking(judged.entry, judged.standing == Linked, archive.unpacked) {
                 Right(_) -> {
-                    said("unpacked "
-                             <> archivePath(judged.entry)
-                             <> " as "
-                             <> packagePath(judged.entry));
+                    say("unpacked "
+                            <> archivePath(judged.entry)
+                            <> " as "
+                            <> Path.toString(packagePath(judged.entry)));
                     []
                 }
               | Left(refusals) ->
                     refusals
             }
       | #(Stands, _, []) -> {
-            said(packagePath(judged.entry) <> " stands at " <> judged.entry.version);
+            say(Path.toString(packagePath(judged.entry)) <> " stands at " <> judged.entry.version);
             []
         }
       | _ ->
@@ -466,14 +469,14 @@ fn unpackedOne(judged : Judged) : List(String) =
     }
 
 // A line `--verbose` writes on standard error, and nothing without it.
-fn said(line : String) : Unit =
+fn say(line : String) : Unit =
     if isVerbose() then Io.printlnError(Shell.Refusal.controlFree(line)) else Unit
 
 fn unpacking(entry : Entry,
              linked : Bool,
              unpacked : List(Unpacked)) : Either(List(String), Unit) = {
-    let staging = Path(lib <> "/." <> archiveName(entry));
-    let target = Path(packagePath(entry));
+    let staging = Path(lib) <> Path("." <> archiveName(entry));
+    let target = packagePath(entry);
     let _ <- Either.mapLeft(leftoversRemoved(entry), fn(refusal) = [refusal]);
     let _ <-
         Either.mapLeft(refusedAt(staging, Fs.makeDir(staging, fileMs)), fn(refusal) = [refusal]);
@@ -589,7 +592,7 @@ foreign fn hold(path : Path) : Either(String, Unit) =
 
 // Report §11.9, §11.2: whether a `.beam` is named as a module of the host's
 // own or of the toolchain's, which the host finds first.
-foreign fn isFoundFirst(beam : Path) : Bool =
+foreign fn isFoundFirst(beam : String) : Bool =
     "ern_unpack:is_found_first/1"
 
 // Report §11.9: what a package's directory holds of its `VERSION`, by the

@@ -132,7 +132,7 @@ The standard library is on the load path by default; every program can call `Io.
 
 ### Appendix E.0. Rules
 
-Four *admission rules* decide whether a function is in: rules 1 to 3 each admit a function, and rule 4 refuses one they would admit. A module is the standard library's where its functions are the runtime's or the host's to do and every program may call them. It is a library's where it is over a published specification or a policy, where it needs what §10 refuses the standard library, or where it reads what runs only where a configuration names it. A type enters Appendix E where rule 1 makes it the runtime's, or where a rule of §3 to §11 names it; any other type, with its structure's vocabulary, is a library's. `OrderedSet`, `OrderedMap` and `Random` enter by name.
+Four *admission rules* decide whether a function is in: rules 1 to 3 each admit a function, and rule 4 refuses one they would admit. A module is the standard library's where its functions are the runtime's or the host's to do and every program may call them. It is a library's where it is over a published specification or a policy, where it shares memory between processes, which §10 lets a foreign function alone do, or where it reads what runs only where a configuration names it. A type enters Appendix E where rule 1 makes it the runtime's, or where a rule of §3 to §11 names it; any other type, with its structure's vocabulary, is a library's. `OrderedSet`, `OrderedMap` and `Random` enter by name.
 
 1. Its value is the host's: the operation reads or writes what the host owns, or is work a host function does exactly. What the host owns is a representation the runtime owns, a table of the host's, its path syntax, Unicode's tables or the floating-point library's, or a process of the runtime's (§8.2, E.21). A type the language's syntax builds and takes apart, a list, a tuple, a bitstring or a declared type's value, is the language's, and a type only a module's functions take apart, a `String`, a `Map` or a `Set`, is the runtime's.
 
@@ -157,7 +157,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A sequence adds order and position: `reverse`, `sort`, `minimum`, `maximum`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `splitWhile`, `partition`, `unique`, `indexed`, `findIndex`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail. Where a sequence's vocabulary has `sort`, it has `minimum` and `maximum`.
 
-   Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, `toAsciiLower`, `toAsciiUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`, `toAsciiLower`, `toAsciiUpper`. Text has, over the whole, each case mapping its `Char` has.
+   Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `splitOnce`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, `toAsciiLower`, `toAsciiUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`, `toAsciiLower`, `toAsciiUpper`. Text has, over the whole, each case mapping its `Char` has.
 
    A set adds `union`, `intersection`, `difference`, and `isSubset`. A map adds `keys`, `values`, `update`, `merge` and `mergeWith`.
 
@@ -167,7 +167,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none.
 
-   Two pairs are two ways to one value: `toString` of a number or a `Bool` and `Io.show` (E.1), and `Process.current()` and `Process.fromAddress(self())` (E.21).
+   A pair is two ways to write one value for every argument, and there are two: `toString` of a number or a `Bool` and `Io.show` (E.1), and `Process.current()` and `Process.fromAddress(self())` (E.21). A function that is a more general one at one argument, as `Int.toString` is `Int.toStringBase` at 10, is no pair.
 
    A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote. A published specification, a date, a pattern language, a format, a protocol, is a library's and no module's vocabulary, but for the one text form of a time the toolchain's own lines write (§11.2), which E.15 states as E.9 states `Float.toString`'s.
 3. It is a general operation of the type, and its definition is the obvious one: `List.foldRight`, `Float.sqrt`.
@@ -225,9 +225,9 @@ Eleven *shape rules* give a function its shape. The shape rules hold in every li
 
    `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)` or a library's error that wraps it (shape rule 11). A call, whose one failure is no answer, answers `None` (§6.6).
 
-   `Address.callForever`, `Tcp.acceptForever`, `Tcp.readForever`, `Os.readForever`, `Process.run` and `Test.faults` are the waits on another party without a limit: a function named `Forever` says so in its name, `Process.run` waits as a direct call of its `f` would (E.21), and `Test.faults` waits as `Process.run` does (E.24). A write, a connect and a request of a file have no such form.
+   `Address.callForever`, `Tcp.acceptForever`, `Tcp.readForever`, `Os.readForever`, `Process.run`, `Test.faults` and `Code.load` are the waits on another party without a limit: a function named `Forever` says so in its name, `Process.run` waits as a direct call of its `f` would (E.21), `Test.faults` waits as `Process.run` does (E.24), and `Code.load` waits for the bindings it evaluates (E.28). A write, a connect and a request of a file have no such form.
 
-   One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is 0, and a wait given 0 has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise (E.27).
+   One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is 0, and a wait given 0 has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise.
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
 10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages §0 gives the reader agree on a word or a shape, `map` and `filter`, Ernest takes it, and departs only where its section states the departure.
 11. A library's error that wraps `Io.Error` is the error of every operation of the library's protocol on the system module's resource, reading and writing alike: `Http.writeResponse` stands beside `Http.readRequest` (Appendix G.11), and a program over `Http` writes its response with it and not with `Tcp.write`.
@@ -571,7 +571,9 @@ Foreign.atom : (String) -> Term // the Erlang atom of the text
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
 
-The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `Seed` is an abstract type made by `seed`: a seed is a value like any other and crosses nodes, and the same seed gives the same sequence everywhere.
+The generator is SplitMix64, written in Ernest over `Int`'s bit operations, and `seed` keeps the low 64 bits of its argument as its state. `Seed` is an abstract type made by `seed`: a seed is a value like any other and crosses nodes, and the same seed gives the same sequence everywhere.
+
+A draw is the generator's next 64 bits, read as a number from 0. `nextInt` takes `k` draws, the least `k` of 1 or more for which 2^(64k) is the bound or above, and reads them as one number, the first draw its highest 64 bits. Where that number is below the largest multiple of the bound that is at most 2^(64k), `nextInt` answers its remainder by the bound; otherwise it drops those draws and takes `k` more the same way. `nextFloat` takes one draw and answers the sum of the number its highest 52 bits write and 0.5, divided by 2^52.
 
 ```
 abstract type Seed
@@ -591,8 +593,8 @@ The primitives are `isAbsolute` and the text between each occurrence of a separa
 ```
 Path.join : (List(String)) -> Path // the segments as a path, a root first staying a root and one separator between the others; the inverse of split for segments that are neither empty nor hold a separator
 Path.split : (Path) -> List(String) // the segments, none empty; an absolute path's first is the root
-Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
-Path.name : (Path) -> Optional(String) // the last segment, None for the root, which has none
+Path.parent : (Path) -> Optional(Path) // None for a bare name, the root or `Path("")`
+Path.name : (Path) -> Optional(String) // the last segment, None for the root, which has none, and for `Path("")`
 Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it; the dots that begin the name begin none
 Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty one leaves the dot; the root, "." and ".." are left as they are; an extension that holds a separator is written as it is, and the path reads as the segments its text holds
 Path.withoutExtension : (Path) -> Path // removed, the rest as written; the root, "." and ".." are left as they are
@@ -614,7 +616,7 @@ A time, a duration and a monotonic reading are each an `Int`, of milliseconds bu
 
 An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once.
 
-`alarm` and `alarmAt` answer the alarm as an `Alarm`, an abstract type bound to its node (§3.11), on which `==` is the runtime's (§3.10). `cancel(alarm)` ends an alarm that has neither fired nor ended and answers `true`, and the alarm's message never comes; it answers `false` and leaves the alarm where its message has come or is on its way, or the alarm had ended, a fired alarm's message being delivered as any alarm's is (§6.9). Any process of the node that holds the alarm may cancel it. A restart of the process that set an alarm cancels it, and one that fires after its process has ended delivers nothing (§6.9).
+`alarm` and `alarmAt` answer the alarm as an `Alarm`, an abstract type whose representation is a foreign type, bound to its node (§3.11), on which `==` is the runtime's (§3.10). `cancel(alarm)` ends an alarm that has neither fired nor ended and answers `true`, and the alarm's message never comes; it answers `false` and leaves the alarm where its message has come or is on its way, or the alarm had ended, a fired alarm's message being delivered as any alarm's is (§6.9). Any process of the node that holds the alarm may cancel it. A restart of the process that set an alarm cancels it, and one that fires after its process has ended delivers nothing (§6.9).
 
 ```
 abstract type Alarm // an alarm set, until it fires, is canceled or its process ends
@@ -660,7 +662,7 @@ A function follows the symbolic links of the paths it is given, but for a path's
 
 `makeSymlink`, `makeHardLink` and `makeFile` answer `Left(Exists)` where the path they make names something, and `readLink` answers `Right(None)` for a path that names anything but a link and `Left(NotUtf8(target))` for a link whose target is not. `makeHardLink` makes a second name for a regular file: a second path that names anything else, a link among them, answers `Left(NotAFile)`. `makeDir` alone of the functions that make an entry answers `Right(Unit)` where its path names a directory: a directory that stands is what was asked for, and a file that stands holds what the caller did not write.
 
-`makeTempDir` makes a directory in the host's directory for temporary files, the one `TMPDIR` names where `Os.environment` reads it set and not empty (Appendix E.23), and `/tmp` where it does not. `makeTempDir` faults its caller where `TMPDIR` is not UTF-8, as `Os.environment` does (Appendix E.23). The directory's name is `ern-` and sixteen lowercase hexadecimal digits drawn at random, drawn again where an entry has that name. It is made as `makeDir` makes a directory, and its path, the temporary directory's path joined with its name, is answered once its mode is set to `0o700`, and it holds nothing then. It stays until the program removes it.
+`makeTempDir` makes a directory in the host's directory for temporary files, the one `TMPDIR` names where `Os.environment` reads it set and not empty (Appendix E.23), and `/tmp` where it does not. `makeTempDir` faults its caller where `TMPDIR` is not UTF-8, as `Os.environment` does (Appendix E.23). The directory's name is `ern-` and sixteen lowercase hexadecimal digits drawn at random, drawn again where an entry has that name. It is made as `makeDir` makes a directory, and its path, the temporary directory's path joined with its name, is answered once its mode is set to `0o700`, and it holds nothing then. It stays until the program removes it. A directory that another wrote into as it was made is left with its entry, and a new name is drawn.
 
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
@@ -686,7 +688,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, and `accept`, `read`, `write`, `port`, `remote`, `local`, `close` and `closeListener`, which reach the process of the listener or the socket they are given, each through a call private to the module, and one beneath `address` (E.0 rule 1). A call of `connect`, `connectTls`, `accept`, `read` or `write` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21); one of `port`, `remote` or `local` takes no time, and its wait is not limited. `close` and `closeListener` answer `Unit` once their callee has ended, however it ends, and at once where it has ended already, and on a socket as `close` says (below). `acceptForever`, `readForever` and `give` are Ernest over the prelude's sends and calls.
+Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, and `accept`, `read`, `write`, `port`, `remote`, `local`, `close` and `closeListener`, which reach the process of the listener or the socket they are given, each through a call private to the module, and one beneath `ipAddress` (E.0 rule 1). A call of `connect`, `connectTls`, `accept`, `read` or `write` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21); one of `port`, `remote` or `local` takes no time, and its wait is not limited. `close` and `closeListener` answer `Unit` once their callee has ended, however it ends, and at once where it has ended already, and on a socket as `close` says (below). `acceptForever`, `readForever` and `give` are Ernest over the prelude's sends and calls.
 
 A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.subscribeFaults` include them.
 
@@ -706,7 +708,7 @@ With `Verified(caFile)` the far end's certificate is checked against the certifi
 
 A renegotiation that a client asks for over TLS 1.2 is refused, and the connection goes on unless the client ends it, so a connection's parameters are its handshake's over both versions.
 
-`address(text)` is the bytes of the address a text writes, as the host reads one: 4 for an IPv4 address written as four decimal numbers, and 16 for an IPv6 address in any of its forms and either case of its letters. It answers `None` for another text, a host's name, a number with a sign and an address with a zone among them. It reads what `remote` and `local` write.
+`ipAddress(text)` is the bytes of the address a text writes, as the host reads one: 4 for an IPv4 address written as four decimal numbers, and 16 for an IPv6 address in any of its forms and either case of its letters. It answers `None` for another text, a host's name, a number with a sign and an address with a zone among them. It reads what `remote` and `local` write.
 
 The host's process of a connection over TLS hibernates after a millisecond's wait, by the host's own `hibernate_after`.
 
@@ -766,7 +768,7 @@ Tcp.give : (Address(SocketMsg), Process) -> Unit // makes the process the socket
 Tcp.closeListener : (Address(ListenerMsg)) -> Unit // stops listening
 Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's far end, its host the address as the host writes one: an IPv6 address in lower case with its longest run of zero groups as `::`, an IPv4-mapped one's last 32 bits dotted, and no zone
 Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's near end
-Tcp.address : (String) -> Optional(Bytes) // the bytes of the address the text writes, 4 or 16; None for another text
+Tcp.ipAddress : (String) -> Optional(Bytes) // the bytes of the address the text writes, 4 or 16; None for another text
 ```
 
 ### Appendix E.19. Unused
@@ -1122,7 +1124,7 @@ Peer.setUtilization : (Float) -> Unit // the utilization this node tells and ans
 
 A node's code after its start (§8.7, §11.2): a compiled module loaded by the program, a module's definitions by their hashes, and the processes running a function.
 
-`load(path)` loads the compiled module at `path` and its reach, found under the module's root and then on the node's load path (§11.2), a named package's namespace as §11.9 says, as `ern run` loads a program (§11.2), each definition verified against its hash and made a unit of the node's, counted as every unit is (§10), and answers `Right(Unit)`. A module loaded again, unchanged, makes no unit (§11.2).
+`load(path)` loads the compiled module at `path` and each module it depends on, found under the module's root and then on the node's load path (§11.2), a named package's namespace as §11.9 says, as `ern run` loads a program (§11.2), each definition verified against its hash and made a unit of the node's, counted as every unit is (§10), and answers `Right(Unit)`. A module loaded again, unchanged, makes no unit (§11.2).
 
 `load` answers `Left(Invalid)` for a file:
 
@@ -1130,14 +1132,14 @@ A node's code after its start (§8.7, §11.2): a compiled module loaded by the p
 - that was compiled against another interface than the node holds;
 - that is a module of a cycle through the load path (§4.1);
 - that holds a module at a named package's namespace or under it, outside that package's build, or at any other namespace in a named package's build (§11.9);
-- that holds a module at the namespace of a library's module on which a module of a library or of a named package in the run's reach, a job's, a session's or a node's as §4.2 gives it, depends, its source outside that library's source root (§11.1);
+- that holds a module at the namespace of a library's module on which a module of a library or of a named package that the run takes, a job, a session or a node as §4.2 says, depends, its source outside that library's source root (§11.1);
 - that is a directory or a file at a module's path that holds another module (§11.2).
 
 `load` and `hashes` answer `Left(NotAFile)` for a path that names a named pipe, a device or a socket, as `Fs.read` does (Appendix E.1), and do not open it. `load` answers `Left(NotFound)` for a path with no file or a module of the reach the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
 
 A module of the reach whose file is such a file answers `Left(Invalid)` as the file given does.
 
-`load` evaluates the bindings of the module and of its reach that have no value on the node, in §8.5's order, each as a body of mailbox type `Never`, as `ern run` evaluates a program's before `main`, in a process of the runtime's own, its *evaluator*, while the calling process waits. The evaluator ends once every binding has its value, unless a binding opened what it owns, a listener, a socket, a running program, a table or a process started to end with it (Appendix D, E.18, E.21, E.23): it then lives on until each process it owns has ended, a program's once it has exited and a socket's once its connection has closed counting as ended, one it gave away counted until its end, until the program's end where it owns a table, or until it is killed, as the entry process lives through a program (§8.5).
+`load` evaluates the bindings of the module and of those it depends on that have no value on the node, in §8.5's order, each as a body of mailbox type `Never`, as `ern run` evaluates a program's before `main`, in a process of the runtime's own, its *evaluator*, while the calling process waits. The evaluator ends once every binding has its value, unless a binding opened what it owns, a listener, a socket, a running program, a table or a process started to end with it (Appendix D, E.18, E.21, E.23): it then lives on until each process it owns has ended, a program's once it has exited and a socket's once its connection has closed counting as ended, one it gave away counted until its end, until the program's end where it owns a table, or until it is killed, as the entry process lives through a program (§8.5).
 
 `Process.current()` in a binding the evaluator evaluates is the evaluator, as it is the entry process in a binding `ern run` evaluates (Appendix E.21), and the evaluator's site is the binding it evaluates, as the entry process's is (§8.5). A shell's load evaluates in an evaluator the same way (§11.2), and `live` leaves every evaluator out (Appendix E.21).
 
@@ -1156,9 +1158,9 @@ A fix in `f`'s body or in a function it calls leaves the processes of its earlie
 All three are primitives: `load` and `hashes` read the toolchain's files through the runtime, and `running` reads the host's stacks through the node's code table (E.0 rule 1).
 
 ```
-Code.load : (Path) -> Either(Io.Error, Unit) // the compiled module and its reach loaded, their bindings without a value evaluated
+Code.load : (Path) -> Either(Io.Error, Unit) // the compiled module and each module it depends on loaded, their bindings without a value evaluated
 Code.hashes : (Path) -> Either(Io.Error, List(#(String, String))) // each definition's qualified name and hash, in the module's order
-Code.running : (a) -> List(Address(m)) // a primitive, called where it is named (§3.11): the addresses of the processes on the definition f reaches or on one of f's name and mailbox type, its argument the name of a top-level fn of any arity whose result is Unit, receiving m, or without, m its mailbox type, Never where it receives nothing or is process-only
+Code.running : (a) -> List(Address(m)) // a primitive, called where it is named (§3.11): the addresses of the processes on the definition f reaches or on one of f's name and mailbox type, its argument the name of a top-level `fn` of any arity whose result is Unit, receiving m, or without, m its mailbox type, Never where it receives nothing or is process-only
 ```
 
 ## Appendix G. Libraries
@@ -1200,6 +1202,8 @@ A table's rows are its lines to a blank line or one that begins another block; a
 `render` lays the blocks out as rows at most `width` columns wide where a word allows, an empty row between two blocks, with the terminal's styles (Appendix E.16) when the output is `Styled`, emphasis within emphasis and strong emphasis within a heading as the text around them, and when it is `Plain` a code span between single backticks, emphasis between `*`s and strong emphasis between `**`s, whether the source wrote `*` or `_`. It lays a table out in columns, each as wide as its widest cell, a row's cells separated by `│`, the headings bold with styles and a row of `─`s under them, each cell to the side its column aligns it to, a hard break in a cell a space, and no row wrapped.
 
 `roff` writes the blocks as a manual page in the roff of man(7), which groff and mandoc render: its header and its NAME line from the `Manual`, the blocks before its first heading of level 1 under DESCRIPTION, a heading of level 1 as a section, one of level 2 as a subsection, and a deeper one as a paragraph in bold, its lines filled to the left margin alone and never hyphenated. It lays out and styles the rest as §11.4 says of a manual page, with a thematic break as a row of asterisks, a table laid out as `render` lays it out, its headings bold and its lines not filled, and a `Raw` block as written. It writes every character roff would change as roff's escape for it, and the rest in UTF-8, which man-db and mandoc read.
+
+`render` and `roff` write the text's characters as they stand, a control character among them, but those `roff` writes an escape for.
 
 `roff` writes the header and the NAME line whatever the blocks, so it answers one line at least.
 
@@ -1244,7 +1248,7 @@ Ansi.clearScreen : String // erases the screen and puts the cursor at its top le
 
 How busy this node is, by the host's measures, each a function of Ernest over the host's (§12.8). `runQueue` answers the processes ready to run and waiting for a scheduler, the running ones left out, where the node's own measure counts the running ones too, the one measuring left out (§12.8), and `schedulers(window)` the fraction of the schedulers' time spent running processes over a window of the next `window` milliseconds, which it waits for, a window below 1 being 1 (§7.4); both read the runtime and answer in any program.
 
-`cpu`, `memory` and `disk` read the host's services `cpu_sup`, `memsup` and `disksup`, which a node starts where its `measures` name `cpu`, `memory` and `disk` (§12.5), and answer `None` where the service does not run, as in a program that is no node: `cpu` the fraction of the processor's time busy since the calling process's previous call, and at a process's first call, or its first since the service started again, a value the host does not promise, on most systems the fraction since the machine started; `memory` the fraction of the machine's memory not available, and `disk` the fraction used of the fullest of the machine's disks. `cpu` answers `None` too where the service does not answer in time. Each fraction is from 0.0 to 1.0.
+`cpu`, `memory` and `disk` read the host's services `cpu_sup`, `memsup` and `disksup`, which a node starts where its `measures` name `cpu`, `memory` and `disk` (§12.5), and answer `None` where the service does not run, as in a program that is no node: `cpu` the fraction of the processor's time busy since the calling process's previous call, and at a process's first call, or its first since the service started again, a value the host does not promise, on most systems the fraction since the machine started; `memory` the fraction of the machine's memory not available, and `disk` the fraction used of the fullest of the machine's disks. `cpu` answers `None` too where the service does not answer within the host's 5 seconds. Each fraction is from 0.0 to 1.0.
 
 ```
 Utilization.runQueue : () -> Int
@@ -1343,7 +1347,7 @@ A `Request` is its method, its target as the client wrote it, its version and it
 
 A request line is three words parted at runs of spaces and tabs, the third `HTTP/`, a digit, `.` and a digit and nothing more; one of more than three words, one whose third word is no version, a target with a byte outside U+0021 to U+007E, the visible ASCII characters, within which RFC 3986 writes a target, or two empty lines before it is `Malformed`, one being skipped as RFC 9112 has a server skip it, within `limits.line`, and so is a header line with no name, one the host cannot read, or a value holding bytes that are not UTF-8.
 
-`target(request)` reads the request's target as a URI reference (G.12) in the form RFC 9112 has a server read it, by the method: a `CONNECT` request's target is an authority alone, read as a reference with that authority and an empty path; an `OPTIONS` request's `*` is the path `*`; a target beginning with `/` is origin form, with no scheme and no authority; any other is absolute form, which carries a scheme. It is `None` for a target of no form, one with a fragment among them. Whether the scheme and the `Host` header fit the server is the server's.
+`target(request)` reads the request's target as a URI reference (G.12) in the form RFC 9112 has a server read it, by the method: a `CONNECT` request's target is an authority alone, read as a reference with that authority and an empty path; an `OPTIONS` request's `*` is the path `*`; a target beginning with `/` is origin form, with no scheme and no authority; any other is absolute form, which carries a scheme. An origin form's path may begin `//`, a reference for which `Uri.toString` faults (G.12). It is `None` for a target of no form, one with a fragment among them. Whether the scheme and the `Host` header fit the server is the server's.
 
 `target` percent-encodes a path and a query before it reads them. They are the whole of an origin form, and what follows an absolute form's scheme and authority. It encodes each visible ASCII character RFC 3986 writes in neither but `#`, which begins a fragment: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and `}`. A `%` before two hexadecimal digits begins an encoding and is kept; any other `%` is encoded as `%25`. An encoding `target` writes has upper-case digits. A scheme and an authority are read as written, an IP literal's brackets among them. So `/?a[]=1` is read as the path `/` and the query `a%5B%5D=1`, which `Uri.decode` (G.12) reads as `a[]=1`. The `Request` keeps its target as written. RFC 9112 §3.2 has a server answer such a target with a 400 or a redirect to the target encoded; `target` reads it encoded instead.
 
@@ -1424,7 +1428,7 @@ An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, 
 
 `encode(bytes)` is the text that percent-encodes the octets: the octet of an unreserved character, a letter, a digit, `-`, `.`, `_` or `~`, as the character, and every other as `%` and two upper-case hexadecimal digits, a form every component takes. `decode` reads it back as the octets. A component is encoded before it is joined to its delimiters, as it is decoded after it is parted. It is Ernest alone.
 
-`toString(reference)` is the reference recomposed as RFC 3986 §5.3 has it: each component that is there, as it stands, with its delimiter, and a host that holds a `:` between `[` and `]`. A reference `parse` answered is written as a text `parse` reads as that reference. It is Ernest alone.
+`toString(reference)` is the reference recomposed as RFC 3986 §5.3 has it: each component that is there, as it stands, with its delimiter, and a host that holds a `:` between `[` and `]`. A reference `parse` answered is written as a text `parse` reads as that reference. Where `parse` does not read the text back as the reference given, `toString` faults with `Fault("the reference has no text")`, the three references RFC 3986 §3.3 rules out among them: one with no authority whose path begins `//`, one with no scheme whose path does not begin `/` and holds a `:` in its first segment, and one with an authority whose path is not empty and does not begin `/`. It is Ernest alone.
 
 ```
 type Reference = Reference(scheme : Optional(String), authority : Optional(Authority), path : String,
@@ -1434,5 +1438,5 @@ Uri.parse : (String) -> Optional(Reference) // the components as written; None f
 Uri.parseAuthority : (String) -> Optional(Authority) // host, host:port, or either after userinfo@; None for another text
 Uri.decode : (String) -> Optional(Bytes) // the percent-encoded octets; None for a % without two hexadecimal digits
 Uri.encode : (Bytes) -> String // each octet but an unreserved character's as % and two upper-case hexadecimal digits
-Uri.toString : (Reference) -> String // the reference recomposed, each component as it stands
+Uri.toString : (Reference) -> String // the reference recomposed, each component as it stands; a reference whose text `parse` does not read back as it faults with Fault("the reference has no text") (§7.4)
 ```

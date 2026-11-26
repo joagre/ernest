@@ -63,7 +63,7 @@ Five principles. Principles 2 to 5 are constructive. Principle 1 overrides where
 
    A type carries what keeps values and messages safe, the type of what a function receives among it, and nothing of what a function does.
 
-   A feature costs a program that does not use it nothing: no argument, no word, and no name of it is written there. Every function the prelude or a library names is a value, taken, passed and stored as any function is, but a member, which is reached through its operator or `compare` and is no value (§4.5). A function that is no value is a primitive, named where the report states it.
+   A feature costs a program that does not use it nothing: no argument, no word, and no name of it is written there, but a constructor of a prelude type in a `match` that covers the type whole (§9.3). Every function the prelude or a library names is a value, taken, passed and stored as any function is, but a member, which is reached through its operator or `compare` and is no value (§4.5). A function that is no value is a primitive, named where the report states it.
 
    No rule of the language exists for the runtime's or a library's convenience: a cost the runtime cannot bear is a limit the report states, never a form the compiler refuses; what the runtime must give, and what each operation costs, is §10's.
 
@@ -310,7 +310,7 @@ Inference asks for an annotation at:
 
 Inference asks for one too at `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), the mailbox type of a process spawned on a peer and the result type of a compute's function, where either still holds a type variable (§3.11), and an input at the prompt that binds a name its type does not settle (§11.2).
 
-A function whose own body, outside its lambdas and local `fn`s, holds a `receive` that fixes no type for the message it takes, one whose patterns are wildcards or variables that nothing fixes, is *process-only* where nothing else fixes its mailbox type: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is, but for one that calls a process-only function (below): one that sends, spawns, answers, sleeps, prints, reads a file or calls only functions that receive nothing names no mailbox, and a call of it adds nothing to the caller's type.
+The effect variable of a function whose own body, outside its lambdas and local `fn`s, holds a `receive` that fixes no type for the message it takes, one whose patterns are wildcards or variables that nothing fixes, is *process-only* where nothing else fixes it: it is treated as if it occurred in a value position, and is never none. So is the variable of its own that a `foreign fn`'s `receiving` names. A function whose effect variable is process-only is process-only. No other effect variable is, but for one unified with a process-only variable (below): a function that sends, spawns, answers, sleeps, prints, reads a file or calls only functions that receive nothing names no mailbox, and a call of it adds nothing to the caller's type.
 
 A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
 
@@ -320,7 +320,7 @@ A function has one mailbox type or none. A function may take a callback that rec
 
 **Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox type. Two restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one restriction a program writes (§4.7); given to a foreign function by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
 
-The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn skip() = receive { _ -> Unit }` cannot be taken for one that receives nothing, and neither can `fn h() : Unit receiving e = skip()`.
+The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is the effect variable's, and passes to each variable unified with it: `fn skip() = receive { _ -> Unit }` cannot be taken for one that receives nothing, and neither can `fn h() : Unit receiving e = skip()`, which calls it, nor `fn f() = { let me = self(); let _ = spawn(fn() = receive { x -> send(me, x) }); Unit }`, whose spawned lambda receives at `f`'s own mailbox type.
 
 Each restriction is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
 
@@ -343,7 +343,7 @@ An *order* on a type `T` is a function `f : (T, T) -> Ordering` for which, for a
 
 Each `compare` of the prelude is an order, and says `Equal` only where `==` holds. A derived `compare` (§3.5) is an order where the `compare` of each other type its fields name is one, and says `Equal` only where `==` holds where each of those does. Where any other `compare` is the one a sort, or an ordered set or map, requires, the laws are the program's promise, and nothing checks them. What the standard library says of a sorted list, and of an ordered set or map, holds only where the `compare` it requires is an order (Appendix E.2, E.25, E.26).
 
-A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function, an address or a reply is a type error at that call site. A foreign type's parameter and a foreign function's type variable may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter.
+A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type whose values hold a function, an address or a reply is a type error at that call site. A foreign type's parameter and a foreign function's type variable may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter.
 
 `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint travels and is checked as §3.9 says: `let f = equal` carries it, and applying `f` to addresses is an error at that application; `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints.
 
@@ -409,9 +409,9 @@ No segment of a module namespace, at any depth, is a taken one, `Ernest` among t
 
 The namespace of a library of the toolchain's own (Appendix G) is not taken. A program's module whose namespace is that of a library's module hides that module, the library standing last on the load path (**Qualified lookup**, §11.2). A qualified name unknown under the namespace of a module that hides a library's module has a help line naming the two, the module by the file the job took for it, a source or a compiled form, its path written as §11.5 writes one: `help: Json here is json.ern, which hides the library Json; give it another name to reach the library's`. At the prompt the `:load` that would put the name in scope is the answer where §11.2 gives one. A program's module under a library's namespace hides nothing where no module of the library has its namespace: `time/zone.ern` provides `Time.Zone` beside the library's `Time`.
 
-A program's module whose namespace is that of a library's module on which a module in the job's reach depends, a library's or a named package's, is refused where a job takes it (§11.1) and where `Code.load` loads it (Appendix E.28), and a run that finds it for a library's module compiled against the library's is refused (§11.2).
+A program's module whose namespace is that of a library's module on which a module the job takes depends, a library's or a named package's, is refused where a job takes it (§11.1) and where `Code.load` loads it (Appendix E.28), and a run that finds it for a library's module compiled against the library's is refused (§11.2).
 
-A job's reach is the modules it is given and each module they depend on, for `ern build` and `ern doc` as for a run; a session's is every library and every named package on its load path, and a node's its whole load path, every module of which it loads at its start (§8.7): a program's `time.ern` that `ern build` and `ern run` take is refused at a node's start, since `Http` uses `Time`.
+The modules a job takes are those it is given and each module they depend on, for `ern build` and `ern doc` as for a run; a session takes every library and every named package on its load path, and a node its whole load path, every module of which it loads at its start (§8.7): a program's `time.ern` that `ern build` and `ern run` take is refused at a node's start, since `Http` uses `Time`. A shell given a file takes a run's modules until its first `:load` or `:reload`.
 
 ```ernest-fragment
 // net/http.ern
@@ -502,11 +502,11 @@ A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.em
 
 At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. A binding's initializer may not depend on its own name, which is a cycle (§8.5), so a function that calls itself is declared with `fn` (§4.5). The initializer is a body receiving `Never` (§6.8): it may spawn, send, call and sleep, and a `receive` in its own body, outside its lambdas and local `fn`s, is a type error.
 
-The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, a tuple or a list of values, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A top-level binding whose initializer is a *constant*, a literal, a negated number literal, a constructor of no fields, or a constructor, a tuple or a list of constants, is not evaluated: it has its value from the program's start (§8.5), and no fault leaves it without one (§11.2).
+The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, a tuple or a list of values, a list built with `::` from values, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A top-level binding whose initializer is a *constant*, a literal, a negated number literal, a constructor of no fields, or a constructor, a tuple or a list of constants, is not evaluated: it has its value from the program's start (§8.5), and no fault leaves it without one (§11.2).
 
-A binding whose initializer is a call, or holds one, has the type the call gives. It is generalized where that type, read through the fields of the declared types it names, holds no function type, no foreign type, no address and no reply: `let empty : Map(k, v) = emptyMap()`, `emptyMap` a foreign function that answers the host's empty map.
+A binding whose initializer is no value has the type the initializer gives. It is generalized where that type, read through the fields of the declared types it names, holds no function type, no foreign type, no address and no reply: `let empty : Map(k, v) = emptyMap()`, `emptyMap` a foreign function that answers the host's empty map.
 
-Any other binding is not generalized. Of the variables left in its type:
+Where that type holds one of them, the binding is not generalized. Of the variables left in its type:
 
 - An effect variable that stands in no value position and is not process-only is none (§3.9) where it stands as a function type's effect, a parameter's among them: `let p = twice(fn(x : Int) = x)` with `fn twice(f) = #(f, f)` is `#((Int) -> Int, (Int) -> Int)`. It is `Never` where it stands as a type argument, which is a type, and a variable that stands as both is `Never` throughout (§6.2, §11.2).
 - A spawned function's unfixed mailbox type is `Never` (§6.2).
@@ -564,7 +564,7 @@ The requirement in force in a body is the enclosing `fn` declaration's, for the 
 
 The line names the type that holds the variable, `at the a of T`, `a` the variable the requirement's is instantiated to: for an operator its operand's type, and for a call the first of the callee's parameter types that holds it, as the call instantiates them, or the callee's result type where no parameter does. Where that type is the variable alone, or the name is taken as a value and not called, the line has `at a type variable no requirement can name` and no type. The help is `annotate the value where it is bound`, and where the line names a type it writes the form, the type that needs the member with its open parts written `...`, `` annotate the value where it is bound, `let value : Pair(..., Int) = ...` ``.
 
-A `fn` in a block declares a requirement for its own variables and shares the enclosing declaration's for the shared ones (§3.9). A top-level `let` declares no requirement: `let f = OrderedSet.fromList` is refused, `OrderedSet.fromList needs a.compare, which a top-level let cannot declare`, with the help line ``declare a `fn` with `needs a.compare` ``.
+A `fn` in a block declares a requirement for its own variables and shares the enclosing declaration's for the shared ones (§3.9). A top-level `let` declares no requirement: `let f = OrderedSet.fromList` is refused, ``OrderedSet.fromList needs a.compare, which a top-level `let` cannot declare``, with the help line ``declare a `fn` with `needs a.compare` ``.
 
 A requirement is never inferred from a body: a declaration has the one it writes, and a derived `compare` the one §3.5 gives it. It is no part of a type scheme (§3.9); a declaration's requirement is recorded in the module's compiled interface (§11.1) and shown after its type (§11.5).
 
@@ -832,7 +832,7 @@ A fault in `f` is the target's, on one node and across nodes alike: it takes the
 
 The fault goes straight to the target. Where `f`'s results go on through an adapted address made on another node than the one that applies `f`, they take the one step more on the node that made it (above), and the fault can pass a message sent through that address before it.
 
-Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry of a node's own processes. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
+Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry of a node's own processes. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, through `Code.running` of the function the other runs (§6.10), or, from another node, through the name the service is offered under (§8.7):
 
 ```ernest-fragment
 export type LogMsg = Line(String)
@@ -841,7 +841,7 @@ export let log : Address(LogMsg) =
     spawn(restarting(RestartLimit(restarts = 3, within = 5000), logger))
 ```
 
-`restarting` keeps the service's address across its faults (§6.9). A service binding grants the permission its address is to the modules that see the binding (§4.2), and an offer of the service to every peer of the node (§8.7).
+`restarting` keeps the service's address across its faults (§6.9). A service binding grants the permission its address is to the modules that see the binding (§4.2), and an offer of the service to every peer of the node (§8.7). An exported function that receives grants it to its users, for every process running the function (§6.10).
 
 ### 6.6 Request-reply
 
@@ -955,7 +955,7 @@ A fault carries a trace, the host's stack where the fault was met, at the moment
 
 ### 7.4 Causes of faults
 
-A function answers a failure as a value: `Optional` where the failure has no cause the program can act on, `Either` where it has one (§7.1). A function faults only where it cannot return, where its result is a `Float` the finite range cannot hold (§3.1), where its result has no room for the failure, where a rule of this report refuses the request (below), or where the failure is the runtime's own, a boundary crossed, a limit of the host met by the process's own work, a spawn's or an `Int`'s. An operator and a construction the grammar gives fault.
+A function answers a failure as a value: `Optional` where the failure has no cause the program can act on, `Either` where it has one (§7.1). A function faults only where it cannot return, where its result is a `Float` the finite range cannot hold (§3.1), where its result has no room for the failure, where a rule of this report refuses the request (below), where it reads a variable of the program's environment that is not UTF-8 (Appendix E.23), or where the failure is the runtime's own, a boundary crossed, a limit of the host met by the process's own work, a spawn's or an `Int`'s. An operator and a construction the grammar gives fault.
 
 A request a rule of this report refuses, which the program alone could have kept, faults the process that made it: a second process running a group, a claim of the terminal the other way, a `Forever` form's call on a socket, a listener or a program that has ended (Appendix E.18, E.23). An argument the host cannot take whole is `Left(Invalid)`; one outside the function's own domain is answered as the function's section says, and where the section says nothing, by `None` or a `Left` where the result has room for one and by a fault where it has none; it is corrected only where this section or the function's says. What the world refuses, a port in use, a file that exists, or a full table of the host's that a request of `Fs`, `Tcp`, `Os` or `Terminal` needs room in, is a value with its cause (§12.5).
 
@@ -1150,7 +1150,7 @@ The value crosses back at the type the compiler checked at the compute, `f`'s re
 
 ## 9. Prelude
 
-The prelude is what §9 lists, and a function enters it where no declaration, a `foreign fn` among them, could give it its meaning. A rule elsewhere that names a library function or type names it as the library's, by its namespace, as §3.11 and §8.7 name `Peer.spawn` and `Peer.Service(m)` (Appendix E.27). A prelude function has the shape Appendix E.0 gives a library function of its kind, and differs from one by nothing but its place. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. An operation of §9.6 in a type's namespace, `Int.compare`, is provided by that type's standard library module, and `Io.show` of §9.4 by `io.ern` (Appendix E.1). `Address.call` and `Address.callForever` are the runtime's, as the process functions of §9.4 and §9.5 are.
+The prelude is what §9 lists, and a function enters it where its meaning is the runtime's own act, which no function over the prelude and no declaration over a host's documented function could give. A rule elsewhere that names a library function or type names it as the library's, by its namespace, as §3.11 and §8.7 name `Peer.spawn` and `Peer.Service(m)` (Appendix E.27). A prelude function has the shape Appendix E.0 gives a library function of its kind, and differs from one by nothing but its place. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. An operation of §9.6 in a type's namespace, `Int.compare`, is provided by that type's standard library module, and `Io.show` of §9.4 by `io.ern` (Appendix E.1).
 
 The prelude's names are documented as a standard library module's declarations are (E.0 shape rule 6), on a page of their own, and an operation a type's module provides is documented there.
 
@@ -1198,7 +1198,7 @@ type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited // wi
 type Path = Path(String) // in the runtime's syntax
 ```
 
-`Unreachable` is given by a monitor on a process of another node alone (§6.9, §8.7); a `match` on a `Reason` covers it as any constructor (§5.9).
+`Unreachable` is given by a monitor on a process of another node alone (§6.9, §8.7), and `Restarted` by a service monitor alone (§6.9); a `match` on a `Reason` covers each as any constructor (§5.9).
 
 ### 9.4 Built-in functions (§6, Appendix E.1)
 
@@ -1556,12 +1556,12 @@ Every technical term this report introduces, with a gloss and the section that d
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
 - **process a session started** — a process the session started on its node, directly or through a process it started there, until the session ends: the chains of its file's entry point, of an input and of a load. §11.2, §12.1.
 - **process of the shell's own** — a session's own process on the shell's own node, an input's aside, from which `Os.exit` ends the shell. §11.2, Appendix E.23.
-- **process-only** — a function whose effect variable is never none. §3.9.
+- **process-only** — an effect variable that is never none, or a function whose effect variable is one. §3.9.
 - **pseudo-terminal** — a terminal the runtime opens for a program `Os.startTerminal` starts, its standard input, standard output and standard error together. Appendix E.23.
 - **pun** — `=f` for `f = f`: in a construction the field `f` given what `f` names in scope, in a pattern the field `f` binding a variable `f`. §5.6, §5.10.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`, resolved from the writer's namespace outward and written in its shortest resolving form. §2.3, §4.2.
 - **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
-- **reach** — a definition with everything it references, transitively; of a job, the modules it is given and each module they depend on; a session's and a node's are wider (§4.2). §8.7.
+- **reach** — a definition with everything it references, transitively. §8.7.
 - **`receive`** — a match over the mailbox. §6.3.
 - **receiving** — the one mark on a function type, `(A) -> B receiving M`: the function's own process's mailbox, of type `M`, is involved. §6.1.
 - **record update** — `C(..p, f = v)`, a construction whose unlisted fields are `p`'s; `f.g = v` reaches a field of a field through a *path*. §5.6.

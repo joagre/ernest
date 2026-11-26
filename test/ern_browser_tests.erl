@@ -108,7 +108,7 @@ session(#{page := Page, url := Url}) ->
     until(Page, rows() ++ ".includes('session 1')"),
     ?assertEqual(<<>>, eval(Page, stubbed(Session) ++ ".keys")),
     ?assert(eval(Page, "document.activeElement.classList.contains('xterm-helper-textarea')")),
-    ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
+    ?assertEqual([0, 0], eval(Page, overflow(".panel-screen"))),
     stop(Page, Session).
 
 %% docs/design/site.md *The live shell*: a block's Paste
@@ -528,12 +528,12 @@ styled(#{page := Page, url := Url}) ->
                " { Element.prototype.append.call(this, element); } }"),
     eval(Page, "panel.start.click()"),
     until(Page, "window.heldStyle !== undefined && typeof FitAddon === 'object'"),
-    ?assert(eval(Page, "document.querySelector('.panel-terminal .xterm') === null && "
+    ?assert(eval(Page, "document.querySelector('.panel-screen .xterm') === null && "
                        ++ state() ++ " === ''")),
     eval(Page, "delete document.head.append; document.head.append(heldStyle)"),
     Session = connected(Page, 0),
     until(Page, rows() ++ ".includes('session 1')"),
-    ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
+    ?assertEqual([0, 0], eval(Page, overflow(".panel-screen"))),
     stop(Page, Session).
 
 %% docs/design/site.md *The live shell* and *The other pages*:
@@ -556,7 +556,7 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
     ?assertEqual([0, 0], eval(Page, overflow("document.scrollingElement"))),
     Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
-    ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
+    ?assertEqual([0, 0], eval(Page, overflow(".panel-screen"))),
     ?assertEqual([0, 0], eval(Page, overflow("document.scrollingElement"))),
     ?assert(eval(Page, "document.querySelector('.panel-toggle').hidden")),
     stop(Page, Session),
@@ -802,9 +802,7 @@ click(Page, X, Y) ->
 %% page that has just committed then loses its requests, its script among
 %% them, so that none is started: version 157 needs both flags for that.
 chrome_started() ->
-    Profile = filename:join(ern_helpers:run_dir(),
-                            "ern_chrome_" ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_dir(Profile ++ "/"),
+    Profile = ern_helpers:tmp("ern_chrome_"),
     Port = open_port({spawn_executable, chrome()},
                      [{args, ["--headless=new", "--no-first-run", "--no-default-browser-check",
                               "--disable-gpu", "--remote-debugging-port=0",

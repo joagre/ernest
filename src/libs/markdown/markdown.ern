@@ -417,9 +417,10 @@ fn closed(text : String) : String = {
     }
 }
 
-// Three or more of one of `-`, `*`, `_`, spaces between them allowed.
+// Report Appendix G.2: three or more of one of `-`, `*`, `_`, spaces and
+// tabs among and after them allowed, as CommonMark 0.31 has a thematic break.
 fn isRule(line : String) : Bool =
-    match List.filter(String.toList(line), fn(char) = char != ' ') {
+    match List.filter(String.toList(line), fn(char) = !isSpaceOrTab(char)) {
         first :: rest ->
             (first == '-' || first == '*' || first == '_')
                 && List.size(rest) >= 2
@@ -1828,6 +1829,14 @@ let tabbedHeading =
     Test.Case(name = "an ATX heading's marks may be followed by a tab",
               run = fn() =
                   Test.equal(parse("#\tTitle"), [Heading(level = 1, text = [Text("Title")])]))
+
+// report Appendix G.2: a regression test: a tab among or after a thematic
+// break's marks made the line a paragraph
+let tabbedRules =
+    Test.Case(name = "a thematic break's marks may have tabs among and after them",
+              run = fn() =
+                  Test.equal(List.map(["---\t", "***\t ", "_\t_\t_", "a\n\n___\t"], parse),
+                             [[Rule], [Rule], [Rule], [Paragraph([Text("a")]), Rule]]))
 
 // report Appendix G.2: a regression test: the inner emphasis turned the
 // italics off for the rest of the outer

@@ -143,7 +143,7 @@ brief_module_version_test_() ->
     ern_harness:counted_test({waits, 6}, fun brief_module_version/0).
 
 brief_module_version() ->
-    Dir = scratch("ern_brief_version_"),
+    Dir = ern_helpers:tmp("ern_brief_version_"),
     ok = file:write_file(filename:join(Dir, "shape.ern"),
                          ["/// Shapes.\n///\n/// since 0.4.0\n\n",
                           "/// A point.\n",
@@ -273,8 +273,12 @@ program() ->
     %% what the program printed reached the screen
     ?assertMatch({_, _}, binary:match(Screen, <<"worker here">>)),
     %% the program's entry point and a process spawned at the prompt, each
-    %% reported once as it faults and once by `:faults`
+    %% reported once as it faults and once by `:faults`; the entry point's
+    %% line names its site alone, as `ern run`'s does (report §11.2), from
+    %% its first column at the prompt and after its moment in `:faults`
     ?assertEqual(2, ern_pty:count(Screen, <<"Counter.main faulted: division by zero">>)),
+    ?assertEqual(1, ern_pty:count(Screen, <<"\nCounter.main faulted: division by zero">>)),
+    ?assertEqual(1, ern_pty:count(Screen, <<"Z Counter.main faulted: division by zero">>)),
     %% (report §11.2: a site in an input's own expression is the input,
     %% named by its count, `$Session1.input 5:1`, the fifth thing entered)
     ?assertEqual(2, ern_pty:count(Screen, <<"the process of $Session1.input 5:1 faulted:"
@@ -291,8 +295,8 @@ startup_test_() ->
     ern_harness:counted_test({waits, 1}, fun startup/0).
 
 startup() ->
-    Home = scratch("ern_home_"),
-    Node = scratch("ern_node_"),
+    Home = ern_helpers:tmp("ern_home_"),
+    Node = ern_helpers:tmp("ern_node_"),
     ok = filelib:ensure_path(filename:join(Home, ".ernest")),
     %% report §8.3, §11.2: `--config-dir` makes the shell a node, so it
     %% names a configuration directory `ern config` made
@@ -367,7 +371,7 @@ interrupted_startup_test_() ->
 
 interrupted_startup() ->
     Home = fresh_home(),
-    Dir = scratch("ern_stuck_"),
+    Dir = ern_helpers:tmp("ern_stuck_"),
     stuck_module(Dir),
     startup_file(filename:join([Home, ".ernest", "startup"]), ":load Stuck\nStuck.wait()\n"),
     Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell --source-root " ++ Dir,
@@ -702,7 +706,7 @@ browse_alone_test_() ->
     ern_harness:counted_test({waits, 1}, fun browse_alone/0).
 
 browse_alone() ->
-    Dir = scratch("ern_browse_alone_"),
+    Dir = ern_helpers:tmp("ern_browse_alone_"),
     ok = filelib:ensure_path(filename:join(Dir, "net")),
     ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
     ok = file:write_file(filename:join([Dir, "net", "near.ern"]), "export let one : Int = 1\n"),
@@ -727,7 +731,7 @@ changed_at_start_test_() ->
     ern_harness:counted_test({waits, 2}, fun changed_at_start/0).
 
 changed_at_start() ->
-    Dir = scratch("ern_changed_at_start_"),
+    Dir = ern_helpers:tmp("ern_changed_at_start_"),
     Write = fun(File, Text) -> ok = file:write_file(filename:join(Dir, File), Text) end,
     Write("main.ern", "export fn main() : Unit = Io.println(Cs.word() <> Gone.word())\n"),
     Write("cs.ern", "export fn word() : String = \"old\"\n"),
@@ -972,7 +976,7 @@ shared_namespace_test_() ->
     ern_harness:counted_test({waits, 5}, fun shared_namespace/0).
 
 shared_namespace() ->
-    SourceRoot = scratch("ern_root_"),
+    SourceRoot = ern_helpers:tmp("ern_root_"),
     ok = filelib:ensure_path(filename:join(SourceRoot, "main")),
     ok = file:write_file(filename:join(SourceRoot, "main.ern"),
                          "export type Stack = Stack(items : List(Int))\n"
@@ -2466,7 +2470,7 @@ load_completion_of_two_words_test_() ->
     ern_harness:counted_test({waits, 3}, fun load_completion_of_two_words/0).
 
 load_completion_of_two_words() ->
-    SourceRoot = scratch("ern_root_"),
+    SourceRoot = ern_helpers:tmp("ern_root_"),
     ok = filelib:ensure_path(filename:join(SourceRoot, "kv_parser")),
     ok = file:write_file(filename:join([SourceRoot, "kv_parser", "lexer.ern"]),
                          "export let one = 1\n"),
@@ -2504,7 +2508,7 @@ command_argument_test_() ->
     ern_harness:counted_test({waits, 17}, fun command_argument/0).
 
 command_argument() ->
-    SourceRoot = scratch("ern_root_"),
+    SourceRoot = ern_helpers:tmp("ern_root_"),
     ok = filelib:ensure_path(filename:join(SourceRoot, "http")),
     ok = file:write_file(filename:join([SourceRoot, "http", "parser.ern"]), "export let one = 1\n"),
     ok = file:write_file(filename:join(SourceRoot, "demo.ern"), "export let two = 2\n"),
@@ -2830,7 +2834,7 @@ load_unreadable_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_unreadable/0).
 
 load_unreadable() ->
-    Dir = scratch("ern_bad_"),
+    Dir = ern_helpers:tmp("ern_bad_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() : Int = 1 \\ 2\n"),
     ok = file:write_file(filename:join(Dir, "garbled.ern"), <<"export let x : Int = ", 16#FF>>),
     Closed = filename:join(Dir, "closed.ern"),
@@ -3034,7 +3038,7 @@ load_unreadable_dependency_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_unreadable_dependency/0).
 
 load_unreadable_dependency() ->
-    Dir = scratch("ern_dep_"),
+    Dir = ern_helpers:tmp("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
     {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
@@ -3054,7 +3058,7 @@ load_empty_atoms_dependency_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_empty_atoms_dependency/0).
 
 load_empty_atoms_dependency() ->
-    Dir = scratch("ern_dep_"),
+    Dir = ern_helpers:tmp("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Empty.f()\n"),
     ok = file:write_file(filename:join(Dir, "empty.erc"), <<"FOR1", 12:32, "BEAM", "AtU8", 0:32>>),
     {0, Output} = source_root_session(Dir, "Empty.f()\n:load Top\n1\n"),
@@ -3077,7 +3081,7 @@ load_code_not_loadable_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_code_not_loadable/0).
 
 load_code_not_loadable() ->
-    Dir = scratch("ern_gone_"),
+    Dir = ern_helpers:tmp("ern_gone_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn f() : Int = 41\n"),
     ok = file:write_file(filename:join(Dir, "gone.ern"), "export fn g() : Int = 42\n"),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir
@@ -3108,7 +3112,7 @@ load_failed_dependency_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_failed_dependency/0).
 
 load_failed_dependency() ->
-    Dir = scratch("ern_dep_"),
+    Dir = ern_helpers:tmp("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() : Int = \"x\"\n"),
     {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
@@ -3138,7 +3142,7 @@ private_mailbox_type_test_() ->
     ern_harness:counted_test({waits, 1}, fun private_mailbox_type/0).
 
 private_mailbox_type() ->
-    Dir = scratch("ern_private_mailbox_"),
+    Dir = ern_helpers:tmp("ern_private_mailbox_"),
     ok = file:write_file(filename:join(Dir, "plain.ern"),
                          ["type Msg = Add(Int)\n",
                           "export fn count(total : Int) : Unit receiving Msg =\n",
@@ -3167,7 +3171,7 @@ private_value_at_the_prompt_test_() ->
     ern_harness:counted_test({waits, 3}, fun private_value_at_the_prompt/0).
 
 private_value_at_the_prompt() ->
-    Dir = scratch("ern_private_value_"),
+    Dir = ern_helpers:tmp("ern_private_value_"),
     ok = file:write_file(filename:join(Dir, "plain.ern"),
                          ["fn start() : Int = 1\n", "let house = 5\n",
                           "export fn used() : Int = start() + house\n"]),
@@ -3456,7 +3460,7 @@ shadowed_type_by_input_test_() ->
     ern_harness:counted_test({waits, 1}, fun shadowed_type_by_input/0).
 
 shadowed_type_by_input() ->
-    Home = scratch("ern_home_"),
+    Home = ern_helpers:tmp("ern_home_"),
     ok = filelib:ensure_path(filename:join(Home, ".ernest")),
     startup_file(filename:join([Home, ".ernest", "startup"]),
                  "1 + 1\ntype S = P\nlet s = P\n"),
@@ -3942,7 +3946,7 @@ library_file_test_() ->
     ern_harness:counted_test({waits, 2}, fun library_file/0).
 
 library_file() ->
-    Dir = scratch("ern_lib_"),
+    Dir = ern_helpers:tmp("ern_lib_"),
     ok = file:write_file(filename:join(Dir, "twice.ern"), "export fn of(n : Int) : Int = 2 * n\n"),
     {0, _} = ern_pty:sh(
         "../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir ++ " "
@@ -3962,7 +3966,7 @@ shell_os_test_() ->
     ern_harness:counted_test({waits, 1}, fun shell_os/0).
 
 shell_os() ->
-    Dir = scratch("ern_os_"),
+    Dir = ern_helpers:tmp("ern_os_"),
     ok = file:write_file(filename:join(Dir, "in"),
                          "Os.arguments\nOs.exit(2)\n"
                          "let _ = spawn(fn() = { let _ = spawn(fn() = Os.exit(4)); Unit })\n"
@@ -3984,7 +3988,7 @@ non_entry_main_test_() ->
     ern_harness:counted_test({waits, 3}, fun non_entry_main/0).
 
 non_entry_main() ->
-    Dir = scratch("ern_main_"),
+    Dir = ern_helpers:tmp("ern_main_"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn main() : Int = { Io.println(\"spawned\"); 3 }\n"),
     {0, _} = ern_pty:sh(
@@ -4024,7 +4028,7 @@ reload_keeps_previous_versions_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_keeps_previous_versions/0).
 
 reload_keeps_previous_versions() ->
-    Dir = scratch("ern_reload_versions_"),
+    Dir = ern_helpers:tmp("ern_reload_versions_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int))\n",
                    "fn serve(n : Int) : Unit receiving Msg =\n",
@@ -4058,7 +4062,7 @@ reload_running_by_name_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_running_by_name/0).
 
 reload_running_by_name() ->
-    Dir = scratch("ern_reload_running_"),
+    Dir = ern_helpers:tmp("ern_reload_running_"),
     Counter = fun(Type, Step, Reset) ->
                   ["export type Msg = Get(Reply(Int))", Type, "\n\n"
                    "fn step(n : Int) : Int = n + ", Step, "\n\n"
@@ -4098,7 +4102,7 @@ reload_reaches_session_declarations_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_reaches_session_declarations/0).
 
 reload_reaches_session_declarations() ->
-    Dir = scratch("ern_reload_declarations_"),
+    Dir = ern_helpers:tmp("ern_reload_declarations_"),
     ok = filelib:ensure_path(filename:join(Dir, "net")),
     Shape = fun(Answer, Gone) ->
                 ["export fn answer() : Int = ", integer_to_list(Answer), "\n",
@@ -4148,7 +4152,7 @@ reload_version_sites_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_version_sites/0).
 
 reload_version_sites() ->
-    Dir = scratch("ern_reload_sites_"),
+    Dir = ern_helpers:tmp("ern_reload_sites_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int)) | Terminating(Reply(Unit))\n",
                    "fn serve(n : Int) : Unit receiving Msg =\n",
@@ -4228,7 +4232,7 @@ reload_keeps_the_type_checked_under_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_keeps_the_type_checked_under/0).
 
 reload_keeps_the_type_checked_under() ->
-    Dir = scratch("ern_reload_types_"),
+    Dir = ern_helpers:tmp("ern_reload_types_"),
     Counter = fun(Reset, Start) ->
                   ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
                    [" | Reset" || Reset], "\n",
@@ -4291,7 +4295,7 @@ previous_type_named_whole_test_() ->
     ern_harness:counted_test({waits, 1}, fun previous_type_named_whole/0).
 
 previous_type_named_whole() ->
-    Dir = scratch("ern_previous_whole_"),
+    Dir = ern_helpers:tmp("ern_previous_whole_"),
     Types = fun(MoreM, MoreMsg) ->
                     ["export type M = M(Int)", MoreM, "\n\nexport type Msg = Msg(Int)", MoreMsg,
                      "\n"]
@@ -4313,7 +4317,7 @@ previous_type_went_test_() ->
     ern_harness:counted_test({waits, 1}, fun previous_type_went/0).
 
 previous_type_went() ->
-    Dir = scratch("ern_previous_went_"),
+    Dir = ern_helpers:tmp("ern_previous_went_"),
     ok = file:write_file(filename:join(Dir, "shape.ern"),
                          "export type Vec = Vec(x : Int)\n\nexport type Gone = Gone(Int)\n"),
     {0, Output} =
@@ -4343,7 +4347,7 @@ reload_brings_a_type_back_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_brings_a_type_back/0).
 
 reload_brings_a_type_back() ->
-    Dir = scratch("ern_reload_back_"),
+    Dir = ern_helpers:tmp("ern_reload_back_"),
     Counter = fun(Reset) ->
                   ["export type Msg = Inc(Int) | Get(reply : Reply(Int))",
                    [" | Reset" || Reset], "\n",
@@ -4421,7 +4425,7 @@ reload_names_no_library_test_() ->
     ern_harness:counted_test({waits, 2}, fun reload_names_no_library/0).
 
 reload_names_no_library() ->
-    Dir = scratch("ern_reload_library_"),
+    Dir = ern_helpers:tmp("ern_reload_library_"),
     Library = filename:join(Dir, "lib"),
     Source = filename:join(Dir, "src"),
     ok = filelib:ensure_path(Library),
@@ -4453,7 +4457,7 @@ reload_takes_a_source_that_appears_test_() ->
     ern_harness:counted_test({waits, 2}, fun reload_takes_a_source_that_appears/0).
 
 reload_takes_a_source_that_appears() ->
-    Dir = scratch("ern_reload_appears_"),
+    Dir = ern_helpers:tmp("ern_reload_appears_"),
     [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
     [ok = filelib:ensure_path(Root) || Root <- [Source, Library]],
     Greet = filename:join(Library, "greet.ern"),
@@ -4481,7 +4485,7 @@ reload_refused_for_a_sourceless_user_test_() ->
     ern_harness:counted_test({waits, 3}, fun reload_refused_for_a_sourceless_user/0).
 
 reload_refused_for_a_sourceless_user() ->
-    Dir = scratch("ern_reload_sourceless_"),
+    Dir = ern_helpers:tmp("ern_reload_sourceless_"),
     [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
     [ok = filelib:ensure_path(Root) || Root <- [Source, Library]],
     ok = file:write_file(filename:join(Source, "dep.ern"), answer(5)),
@@ -4510,7 +4514,7 @@ reload_passes_over_a_taken_namespace_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_passes_over_a_taken_namespace/0).
 
 reload_passes_over_a_taken_namespace() ->
-    Dir = scratch("ern_reload_taken_"),
+    Dir = ern_helpers:tmp("ern_reload_taken_"),
     ok = file:write_file(filename:join(Dir, "greet.ern"),
                          "export fn count() : Int = List.size([1, 2, 3])\n"),
     {0, Output} =
@@ -4531,7 +4535,7 @@ load_passes_over_a_pipe_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_passes_over_a_pipe/0).
 
 load_passes_over_a_pipe() ->
-    Dir = scratch("ern_load_pipe_"),
+    Dir = ern_helpers:tmp("ern_load_pipe_"),
     ok = filelib:ensure_path(filename:join(Dir, "src")),
     [] = os:cmd("mkfifo " ++ filename:join(Dir, "src/fifo.ern")),
     {0, Output} = line_session_in(Dir, " --source-root src", ":load Fifo\n1 + 1\n"),
@@ -4548,7 +4552,7 @@ load_compiled_beside_a_pipe_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_compiled_beside_a_pipe/0).
 
 load_compiled_beside_a_pipe() ->
-    Dir = scratch("ern_load_beside_pipe_"),
+    Dir = ern_helpers:tmp("ern_load_beside_pipe_"),
     Source = filename:join(Dir, "src/has.ern"),
     ok = filelib:ensure_dir(Source),
     ok = file:write_file(Source, "export fn one() : Int = 1\n"),
@@ -4568,7 +4572,7 @@ reload_passes_over_a_pipe_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_passes_over_a_pipe/0).
 
 reload_passes_over_a_pipe() ->
-    Dir = scratch("ern_reload_pipe_"),
+    Dir = ern_helpers:tmp("ern_reload_pipe_"),
     Source = filename:join(Dir, "src/good.ern"),
     ok = filelib:ensure_dir(Source),
     ok = file:write_file(Source, "export fn one() : Int = 1\n"),
@@ -4597,7 +4601,7 @@ package_load_test_() ->
     ern_harness:counted_test({waits, 4}, fun package_load/0).
 
 package_load() ->
-    Dir = scratch("ern_package_load_"),
+    Dir = ern_helpers:tmp("ern_package_load_"),
     [Pkg, Decoy, Elsewhere] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "decoy", "elsewhere"]],
     Package = filename:join(Pkg, "lib/sl_leaf"),
     [Src, Build] = [filename:join(Package, Sub) || Sub <- ["src", "build"]],
@@ -4637,6 +4641,33 @@ package_load() ->
                                                 (shown(Pkg, "package.conf"))/binary,
                                                 " names\n">>)).
 
+%% report §11.2, §11.9: a shell given a file compiled in a root package,
+%% whose named package's build lies under the file's root, does not name
+%% the package's module, loaded from its compiled form, as a module whose
+%% source the source root no longer holds. A regression test: every
+%% `:reload` said that the source root held no source of it
+package_reload_test_() ->
+    ern_harness:counted_test({waits, 2}, fun package_reload/0).
+
+package_reload() ->
+    Dir = ern_helpers:tmp("ern_package_reload_"),
+    Write = fun(File, Text) ->
+                Path = filename:join(Dir, File),
+                ok = filelib:ensure_dir(Path),
+                ok = file:write_file(Path, Text)
+            end,
+    Write("package.conf", "{\"ernest\": \"0.11.0\",\n"
+                          " \"packages\": [{\"name\": \"sl_leaf\", \"version\": \"1.0.0\"}]}\n"),
+    Write("lib/sl_leaf/package.conf", "{\"ernest\": \"0.11.0\", \"packages\": []}\n"),
+    Write("lib/sl_leaf/VERSION", "1.0.0\n"),
+    Write("lib/sl_leaf/src/sl_leaf.ern", "export fn hello() : String = \"package\"\n"),
+    Write("sl_main.ern", "export fn main() : Unit = Io.println(SlLeaf.hello())\n"),
+    {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
+                        ++ " build sl_main.ern"),
+    {0, Output} = line_session_in(Dir, " sl_main.erc", ":reload\n:reload\n"),
+    ?assertEqual(2, ern_pty:count(Output, <<"no source has changed\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"holds no source">>)).
+
 %% report §11.2, §11.9: the shell started in a root package with no
 %% `--source-root` takes the package's `src` as its source root, whether the
 %% package is the working directory or named by `--package-dir`, and the
@@ -4645,7 +4676,7 @@ package_source_root_test_() ->
     ern_harness:counted_test({waits, 3}, fun package_source_root/0).
 
 package_source_root() ->
-    Dir = scratch("ern_package_source_root_"),
+    Dir = ern_helpers:tmp("ern_package_source_root_"),
     [Pkg, Bare] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "bare"]],
     Manifest = "{\"ernest\": \"0.11.0\", \"packages\": []}\n",
     Write = fun(Root, File, Text) ->
@@ -4681,7 +4712,7 @@ file_source_root_test_() ->
     ern_harness:counted_test({waits, 5}, fun file_source_root/0).
 
 file_source_root() ->
-    Dir = scratch("ern_file_source_root_"),
+    Dir = ern_helpers:tmp("ern_file_source_root_"),
     [Pkg, Bare] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "bare"]],
     Write = fun(Root, File, Text) ->
                 Path = filename:join(Root, File),
@@ -4715,7 +4746,8 @@ file_source_root() ->
 %% source or its compiled form File under Dir, which the library Http uses
 %% (Appendix G.11), the file named as the shell names it.
 hides_time(Dir, File) ->
-    <<(shown(Dir, File))/binary, ": Time hides the library Time, which the library Http uses">>.
+    <<(shown(Dir, File))/binary, ": Time hides the library Time, which the library Http uses;"
+      " give time another name">>.
 
 %% A program's compiled form of Time under Dir, written as a build of the
 %% toolchain that held no module to the refusal of one that hides a
@@ -4750,7 +4782,7 @@ load_hiding_a_library_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_hiding_a_library/0).
 
 load_hiding_a_library() ->
-    Dir = scratch("ern_load_hiding_"),
+    Dir = ern_helpers:tmp("ern_load_hiding_"),
     ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine( = 1\n"),
     ok = file:write_file(filename:join(Dir, "json.ern"),
                          "export fn parse(text : String) : Int = String.size(text)\n"),
@@ -4782,7 +4814,7 @@ load_form_hiding_a_library_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_form_hiding_a_library/0).
 
 load_form_hiding_a_library() ->
-    Dir = scratch("ern_load_form_hiding_"),
+    Dir = ern_helpers:tmp("ern_load_form_hiding_"),
     time_form(Dir),
     {0, Output} = source_root_session(Dir, "Time.mine()\n:load Time\n1\n:load Http\n"),
     Refusal = hides_time(Dir, "time.erc"),
@@ -4800,7 +4832,7 @@ reload_hiding_a_library_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_hiding_a_library/0).
 
 reload_hiding_a_library() ->
-    Dir = scratch("ern_reload_hiding_"),
+    Dir = ern_helpers:tmp("ern_reload_hiding_"),
     {0, Output} =
         source_root_session(Dir,
                             [":load Time\nTime.toCivil(0).year\n",
@@ -4836,7 +4868,7 @@ base64_package(Dir) ->
 %% named as the shell names it.
 hides_base64(Pkg) ->
     <<(shown(Pkg, "src/base64.ern"))/binary, ": Base64 hides the library Base64, which the"
-      " package hs_server uses">>.
+      " package hs_server uses; give base64 another name">>.
 
 %% The shell started in the root package Pkg, its source root the package's
 %% `src`, given the inputs Inputs: its status and what it wrote.
@@ -4852,7 +4884,7 @@ package_load_hiding_test_() ->
     ern_harness:counted_test({waits, 2}, fun package_load_hiding/0).
 
 package_load_hiding() ->
-    Pkg = base64_package(scratch("ern_package_load_hiding_")),
+    Pkg = base64_package(ern_helpers:tmp("ern_package_load_hiding_")),
     ok = file:write_file(filename:join(Pkg, "src/base64.ern"),
                          "export fn mine() : String = \"mine\"\n"),
     {0, Output} = package_session(Pkg, ":load Base64\n1\n"),
@@ -4868,7 +4900,7 @@ package_reload_hiding_test_() ->
     ern_harness:counted_test({waits, 2}, fun package_reload_hiding/0).
 
 package_reload_hiding() ->
-    Pkg = base64_package(scratch("ern_package_reload_hiding_")),
+    Pkg = base64_package(ern_helpers:tmp("ern_package_reload_hiding_")),
     Encoded = "Base64.encode(String.toUtf8(\"hi\"))\n",
     {0, Output} = package_session(Pkg, [":load Base64\n", Encoded,
                                         write_source(Pkg, "src/base64.ern",
@@ -4890,7 +4922,7 @@ shell_finding_a_module_hiding_a_library_test_() ->
     ern_harness:counted_test({waits, 2}, fun shell_finding_a_module_hiding_a_library/0).
 
 shell_finding_a_module_hiding_a_library() ->
-    Dir = scratch("ern_shell_hiding_"),
+    Dir = ern_helpers:tmp("ern_shell_hiding_"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn main() : Unit = Io.println(Http.date(0))\n"),
     {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
@@ -4915,7 +4947,7 @@ load_beside_a_module_hiding_a_library_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_beside_a_module_hiding_a_library/0).
 
 load_beside_a_module_hiding_a_library() ->
-    Dir = scratch("ern_load_beside_hiding_"),
+    Dir = ern_helpers:tmp("ern_load_beside_hiding_"),
     ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine() : String = \"mine\"\n"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn mine() : String = Time.mine()\n"),
@@ -4948,7 +4980,7 @@ load_a_forms_source_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_a_forms_source/0).
 
 load_a_forms_source() ->
-    Dir = scratch("ern_load_forms_source_"),
+    Dir = ern_helpers:tmp("ern_load_forms_source_"),
     Util = "export fn name() : String = \"util\"\n",
     forms_and_sources(Dir, [{"util.ern", Util},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
@@ -4978,12 +5010,12 @@ load_hiding_through_a_form_test_() ->
 
 load_hiding_through_a_form() ->
     Mine = "export fn mine() : String = \"mine\"\n",
-    Http = scratch("ern_load_hiding_http_"),
+    Http = ern_helpers:tmp("ern_load_hiding_http_"),
     ok = file:write_file(filename:join(Http, "time.ern"), Mine),
     {0, HttpOutput} = source_root_session(Http, ":load Http\nHttp.date(0)\n"),
     ?assertMatch({_, _}, binary:match(HttpOutput, <<"> ", (hides_time(Http, "time.ern"))/binary,
                                                     "\n> input 2:1:1: unknown name Http.date\n">>)),
-    Markdown = scratch("ern_load_hiding_markdown_"),
+    Markdown = ern_helpers:tmp("ern_load_hiding_markdown_"),
     ok = file:write_file(filename:join(Markdown, "ansi.ern"), Mine),
     ok = file:write_file(filename:join(Markdown, "main.ern"),
                          "export fn count(text : String) : Int =\n"
@@ -4992,7 +5024,8 @@ load_hiding_through_a_form() ->
     ?assertMatch({_, _}, binary:match(MarkdownOutput,
                                       <<"> ", (shown(Markdown, "ansi.ern"))/binary,
                                         ": Ansi hides the library Ansi, which the library Markdown"
-                                        " uses\n> input 2:1:1: unknown name Main.count\n">>)).
+                                        " uses; give ansi another name\n"
+                                        "> input 2:1:1: unknown name Main.count\n">>)).
 
 %% report §11.2, §11.5: a source that `:load` finds through a compiled form
 %% and that does not compile fails the load with the texts it fails its
@@ -5005,7 +5038,7 @@ load_a_forms_source_that_fails_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_a_forms_source_that_fails/0).
 
 load_a_forms_source_that_fails() ->
-    Dir = scratch("ern_load_forms_failing_"),
+    Dir = ern_helpers:tmp("ern_load_forms_failing_"),
     forms_and_sources(Dir, [{"util.ern", "export fn name() : String = \"util\"\n"},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
                       ["util.ern"]),
@@ -5036,7 +5069,7 @@ load_forms_sources_to_any_depth_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_forms_sources_to_any_depth/0).
 
 load_forms_sources_to_any_depth() ->
-    Dir = scratch("ern_load_forms_depth_"),
+    Dir = ern_helpers:tmp("ern_load_forms_depth_"),
     forms_and_sources(Dir, [{"deeper.ern", "export fn word() : String = \"deeper\"\n"},
                             {"deep.ern", "export fn word() : String = Deeper.word()\n"},
                             {"util.ern", "export fn name() : String = Deep.word()\n"},
@@ -5049,7 +5082,7 @@ load_forms_sources_to_any_depth() ->
                                                 (shown(Dir, "util.ern"))/binary,
                                                 "\nMain, from ", (shown(Dir, "main.erc"))/binary,
                                                 "\n> \"deeper\" : String\n">>)),
-    Cycle = scratch("ern_load_forms_cycle_"),
+    Cycle = ern_helpers:tmp("ern_load_forms_cycle_"),
     Util = "export fn name() : String = \"util\"\n",
     forms_and_sources(Cycle, [{"util.ern", Util},
                               {"main.ern", "export fn greet() : String = Util.name()\n"}],
@@ -5073,7 +5106,7 @@ reload_a_forms_source_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_a_forms_source/0).
 
 reload_a_forms_source() ->
-    Dir = scratch("ern_reload_forms_source_"),
+    Dir = ern_helpers:tmp("ern_reload_forms_source_"),
     forms_and_sources(Dir, [{"c.ern", "export fn c() : String = \"c\"\n"},
                             {"b.ern", "export fn b() : String = C.c()\n"}],
                       ["c.ern"]),
@@ -5099,7 +5132,7 @@ reload_hiding_through_a_form_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_hiding_through_a_form/0).
 
 reload_hiding_through_a_form() ->
-    Dir = scratch("ern_reload_hiding_form_"),
+    Dir = ern_helpers:tmp("ern_reload_hiding_form_"),
     ok = file:write_file(filename:join(Dir, "ansi.ern"), "export fn mine() : String = \"mine\"\n"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn count(text : String) : Int = 0\n"),
@@ -5110,7 +5143,8 @@ reload_hiding_through_a_form() ->
                                             ":reload\nMain.count(\"x\")\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "ansi.ern"))/binary,
                                                 ": Ansi hides the library Ansi, which the library"
-                                                " Markdown uses\nnothing was reloaded\n"
+                                                " Markdown uses; give ansi another name\n"
+                                                "nothing was reloaded\n"
                                                 "> 0 : Int\n">>)).
 
 %% report §11.2, §11.1: a module that fails does not stop the others, and
@@ -5124,7 +5158,7 @@ load_names_each_user_of_a_failed_module_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_names_each_user_of_a_failed_module/0).
 
 load_names_each_user_of_a_failed_module() ->
-    Dir = scratch("ern_load_users_failed_"),
+    Dir = ern_helpers:tmp("ern_load_users_failed_"),
     [ok = file:write_file(filename:join(Dir, File), Text)
      || {File, Text} <- [{"a.ern", "export fn a() : Int = B.b() + D.d() + E.e()\n"},
                          {"b.ern", "export fn b() : Int = C.c()\n"},
@@ -5154,7 +5188,7 @@ load_names_users_through_a_form_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_names_users_through_a_form/0).
 
 load_names_users_through_a_form() ->
-    Dir = scratch("ern_load_users_form_"),
+    Dir = ern_helpers:tmp("ern_load_users_form_"),
     forms_and_sources(Dir, [{"util.ern", "export fn name() : String = \"util\"\n"},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
                       ["util.ern"]),
@@ -5179,16 +5213,18 @@ load_answers_the_cause_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_answers_the_cause/0).
 
 load_answers_the_cause() ->
-    Dir = scratch("ern_load_cause_"),
+    Dir = ern_helpers:tmp("ern_load_cause_"),
     ok = file:write_file(filename:join(Dir, "c.ern"), "export fn c() : String = \"c\"\n"),
     ok = file:write_file(filename:join(Dir, "b.ern"), "export fn b() : String = C.c()\n"),
     forms(Dir, ["c.ern", "b.ern"]),
     ok = file:delete(filename:join(Dir, "c.erc")),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = B.b()\n"),
     {0, Output} = source_root_session(Dir, ":load A\n:load B\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"> no module C on the load path\n"
+    Nowhere = <<"no module C, which B uses, under the source root ", (shown(Dir, ""))/binary,
+                " or on the load path\n">>,
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", Nowhere/binary,
                                                 "A is not loaded, since it uses B, which failed\n"
-                                                "> no module C on the load path\n> ">>)),
+                                                "> ", Nowhere/binary, "> ">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no longer exists">>)).
 
 %% report §11.2, §11.5: where a source itself names a module found
@@ -5200,13 +5236,13 @@ load_a_source_naming_a_module_found_nowhere_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_a_source_naming_a_module_found_nowhere/0).
 
 load_a_source_naming_a_module_found_nowhere() ->
-    Dir = scratch("ern_load_nowhere_"),
+    Dir = ern_helpers:tmp("ern_load_nowhere_"),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = Zed.z()\n"),
     {0, Output} = source_root_session(Dir, ":load A\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "a.ern"))/binary,
                                                 ":1:26: no module Zed under the source root or"
                                                 " on the load path\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"no module Zed on the load path">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"no module Zed, which A uses">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"is not loaded">>)).
 
 %% report §11.2, §11.1: a compiled form at the namespace of a library's
@@ -5224,7 +5260,7 @@ load_refuses_a_hiding_form_first_test_() ->
 
 load_refuses_a_hiding_form_first() ->
     Uses = "export fn mine() : String = Time.mine()\nexport fn bad() : Int = \"x\"\n",
-    Dir = scratch("ern_load_hiding_form_"),
+    Dir = ern_helpers:tmp("ern_load_hiding_form_"),
     [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
     [ok = filelib:ensure_path(Path) || Path <- [Source, Library]],
     time_form(Library),
@@ -5232,7 +5268,7 @@ load_refuses_a_hiding_form_first() ->
     {0, Output} = source_root_session(Source, [Library], ":load Main\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_time(Library, "time.erc"))/binary,
                                                 "\n> 1 : Int\n">>)),
-    Beside = scratch("ern_load_hiding_form_beside_"),
+    Beside = ern_helpers:tmp("ern_load_hiding_form_beside_"),
     time_form(Beside),
     ok = file:write_file(filename:join(Beside, "main.ern"), Uses),
     {0, BesideOutput} = source_root_session(Beside, ":load Main\n1\n"),
@@ -5248,7 +5284,8 @@ load_refuses_a_hiding_form_first() ->
     ?assertMatch({_, _}, binary:match(BothOutput,
                                       <<"> ", (shown(Both, "ansi.ern"))/binary,
                                         ": Ansi hides the library Ansi, which the library Markdown"
-                                        " uses\n", (hides_time(Library, "time.erc"))/binary,
+                                        " uses; give ansi another name\n",
+                                        (hides_time(Library, "time.erc"))/binary,
                                         "\n> 1 : Int\n">>)).
 
 %% report §11.2: a compiled form refused as one compiled against another
@@ -5261,7 +5298,7 @@ load_names_users_of_a_refused_form_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_names_users_of_a_refused_form/0).
 
 load_names_users_of_a_refused_form() ->
-    Dir = scratch("ern_load_users_refused_"),
+    Dir = ern_helpers:tmp("ern_load_users_refused_"),
     Util = "export fn name() : String = \"util\"\n",
     forms_and_sources(Dir, [{"util.ern", Util},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
@@ -5289,7 +5326,7 @@ reload_names_users_of_a_refused_form_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_names_users_of_a_refused_form/0).
 
 reload_names_users_of_a_refused_form() ->
-    Dir = scratch("ern_reload_users_refused_"),
+    Dir = ern_helpers:tmp("ern_reload_users_refused_"),
     Util = "export fn name() : String = \"util\"\n",
     forms_and_sources(Dir, [{"util.ern", Util},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
@@ -5316,7 +5353,7 @@ load_names_users_of_a_cycle_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_names_users_of_a_cycle/0).
 
 load_names_users_of_a_cycle() ->
-    Dir = scratch("ern_load_users_cycle_"),
+    Dir = ern_helpers:tmp("ern_load_users_cycle_"),
     Util = "export fn name() : String = \"util\"\n",
     forms_and_sources(Dir, [{"util.ern", Util},
                             {"main.ern", "export fn greet() : String = Util.name()\n"}],
@@ -5339,7 +5376,7 @@ reload_names_users_of_a_failed_module_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_names_users_of_a_failed_module/0).
 
 reload_names_users_of_a_failed_module() ->
-    Dir = scratch("ern_reload_users_failed_"),
+    Dir = ern_helpers:tmp("ern_reload_users_failed_"),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : Int = 1\n"),
     ok = file:write_file(filename:join(Dir, "b.ern"), "export fn b() : Int = C.c()\n"),
     ok = file:write_file(filename:join(Dir, "c.ern"), "export fn c() : Int = \"c\"\n"),
@@ -5364,7 +5401,7 @@ load_and_reload_answer_lines_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_and_reload_answer_lines/0).
 
 load_and_reload_answer_lines() ->
-    Dir = scratch("ern_answer_lines_"),
+    Dir = ern_helpers:tmp("ern_answer_lines_"),
     [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
     [ok = filelib:ensure_path(Path) || Path <- [Source, Library]],
     ok = file:write_file(filename:join(Library, "lib.ern"), "export fn lib() : Int = 1\n"),
@@ -5397,7 +5434,7 @@ load_path_cycle_test_() ->
     ern_harness:counted_test({waits, 5}, fun load_path_cycle/0).
 
 load_path_cycle() ->
-    Dir = scratch("ern_load_path_cycle_"),
+    Dir = ern_helpers:tmp("ern_load_path_cycle_"),
     [Library, Source, Build, Earlier] =
         [filename:join(Dir, Leaf) || Leaf <- ["lib", "src", "build", "earlier"]],
     [ok = filelib:ensure_path(Path) || Path <- [Library, Source, Build, Earlier]],
@@ -5429,7 +5466,7 @@ libs_dir_in_the_shell_test_() ->
     ern_harness:counted_test({waits, 1}, fun libs_dir_in_the_shell/0).
 
 libs_dir_in_the_shell() ->
-    Dir = scratch("ern_libs_dir_"),
+    Dir = ern_helpers:tmp("ern_libs_dir_"),
     Erlang = filename:join(Dir, "ern_shell_libs_helper.erl"),
     ok = file:write_file(Erlang, "-module(ern_shell_libs_helper).\n-export([twice/1]).\n"
                                  "twice(N) -> 2 * N.\n"),
@@ -5449,7 +5486,7 @@ libraries_in_the_shell_test_() ->
     ern_harness:counted_test({waits, 1}, fun libraries_in_the_shell/0).
 
 libraries_in_the_shell() ->
-    Dir = scratch("ern_libraries_"),
+    Dir = ern_helpers:tmp("ern_libraries_"),
     {0, Output} = line_session_in(Dir, "",
                                   ":load Json\nJson.format(Json.Array([Json.Integer(1)]))\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> Json, from ">>)),
@@ -5468,7 +5505,7 @@ mailbox_types_documented() ->
     [?assertMatch({_, _}, binary:match(Page, <<"## Ernest.Shell.", Name/binary, "\n\n```ernest\n"
                                                "abstract type ", Name/binary, "\n```\n\n",
                                                About/binary>>))
-     || {Name, About} <- [{<<"ShellMsg">>, <<"What the session is told.">>},
+     || {Name, About} <- [{<<"ShellMsg">>, <<"What the session is told (report ">>},
                           {<<"LocalMsg">>, <<"What the local half is told,">>}]],
     ?assertEqual(nomatch, binary:match(Page, [<<"Typed(">>, <<"Attached(">>])).
 
@@ -5505,7 +5542,7 @@ fault_subscriber_test_() ->
     ern_harness:counted_test({waits, 1}, fun fault_subscriber/0).
 
 fault_subscriber() ->
-    Dir = scratch("ern_fault_subscriber_"),
+    Dir = ern_helpers:tmp("ern_fault_subscriber_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
     {0, Output} = source_root_session(Dir, ["{ send(adapted(self(), fn(x) = x / List.size([])), 1);"
@@ -5596,7 +5633,7 @@ library_hidden_help_test_() ->
     ern_harness:counted_test({waits, 4}, fun library_hidden_help/0).
 
 library_hidden_help() ->
-    Dir = scratch("ern_library_hidden_"),
+    Dir = ern_helpers:tmp("ern_library_hidden_"),
     Lib = filename:join(Dir, "lib"),
     ok = filelib:ensure_path(Lib),
     ok = file:write_file(filename:join(Lib, "json.ern"), "export fn mine() : Int = 1\n"),
@@ -5625,7 +5662,7 @@ held_another_test_() ->
     ern_harness:counted_test({waits, 2}, fun held_another/0).
 
 held_another() ->
-    Dir = scratch("ern_held_another_"),
+    Dir = ern_helpers:tmp("ern_held_another_"),
     Misplaced = held_another_on(Dir),
     {0, Output} = line_session(" --load-path " ++ Dir ++ "/lp",
                                ":load Geo.Shape\n:browse Geo.Shape\n"),
@@ -5657,7 +5694,7 @@ held_another_help_test_() ->
     ern_harness:counted_test({waits, 2}, fun held_another_help/0).
 
 held_another_help() ->
-    Dir = scratch("ern_held_another_help_"),
+    Dir = ern_helpers:tmp("ern_held_another_help_"),
     _ = held_another_on(Dir),
     {0, Output} = line_session(" --load-path " ++ Dir ++ "/lp",
                                "Geo.Shape.double(1)\n:doc Geo.Shape.double\n"),
@@ -5675,7 +5712,7 @@ member_doc_test_() ->
     ern_harness:counted_test({waits, 1}, fun member_doc/0).
 
 member_doc() ->
-    Dir = scratch("ern_member_doc_"),
+    Dir = ern_helpers:tmp("ern_member_doc_"),
     ok = file:write_file(filename:join(Dir, "shape.ern"),
                          ["export type Point = Point(x : Int, y : Int)\n\n",
                           "/// Orders two points by x.\n",
@@ -5709,7 +5746,7 @@ refused_load_help_test_() ->
     ern_harness:counted_test({waits, 1}, fun refused_load_help/0).
 
 refused_load_help() ->
-    Dir = scratch("ern_refused_load_help_"),
+    Dir = ern_helpers:tmp("ern_refused_load_help_"),
     ok = file:write_file(filename:join(Dir, "settings.ern"),
                          "export let limit : Int = 1 / List.size([])\n"),
     {0, Output} = source_root_session(Dir, [":load Settings\nSettings.limit\n",
@@ -5778,8 +5815,7 @@ one_name_type() ->
 
 %% report §11.5, §11.2: a prelude type a session's type hides prints as
 %% `Prelude.x`, in a diagnostic and in `:type`, and the session's plain. A
-%% regression test of the cold reading's finding (cold3/CA/t10b): the two
-%% printed alike
+%% regression test: the two printed alike
 session_hides_a_prelude_type_test_() ->
     ern_harness:counted_test({waits, 1}, fun session_hides_a_prelude_type/0).
 
@@ -5808,7 +5844,7 @@ primitive_type() ->
     ?assertMatch({_, _},
                  binary:match(Output, <<"Code.running : (a) -> List(Address(m))\n"
                                         "a primitive: called where it is named; a is the name"
-                                        " of a top-level fn and m its mailbox type\n">>)),
+                                        " of a top-level `fn` and m its mailbox type\n">>)),
     ?assertMatch({_, _},
                  binary:match(Output, <<"spawn : (() -> Unit receiving n) -> Address(n)\n> ">>)),
     ?assertMatch({_, _},
@@ -5829,7 +5865,7 @@ doc_every_name_test_() ->
     ern_harness:counted_test({waits, 1}, fun doc_every_name/0).
 
 doc_every_name() ->
-    SourceRoot = scratch("ern_root_"),
+    SourceRoot = ern_helpers:tmp("ern_root_"),
     ok = file:write_file(filename:join(SourceRoot, "m.ern"),
                          "/// A little module.\n///\n/// since 0.1.0\n\n"
                          "/// A color.\nexport type Color = Red | Green\n"),
@@ -5959,7 +5995,7 @@ load_help_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_help/0).
 
 load_help() ->
-    Dir = scratch("ern_load_help_"),
+    Dir = ern_helpers:tmp("ern_load_help_"),
     ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
     {0, Output} =
         source_root_session(Dir, "Greet.hello()\n:browse Greet\n:doc Greet.hello\n"
@@ -5985,7 +6021,7 @@ load_taken_segment_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_taken_segment/0).
 
 load_taken_segment() ->
-    Dir = scratch("ern_load_taken_"),
+    Dir = ern_helpers:tmp("ern_load_taken_"),
     ok = filelib:ensure_path(filename:join(Dir, "app")),
     ok = file:write_file(filename:join([Dir, "app", "io.ern"]), "export fn mine() : Int = 1\n"),
     {0, Output} = source_root_session(Dir, "App.Io.mine()\n:load App.Io\n:doc App.Io.mine\n"
@@ -6007,7 +6043,7 @@ load_no_compiled_module_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_no_compiled_module/0).
 
 load_no_compiled_module() ->
-    Dir = scratch("ern_load_garbage_"),
+    Dir = ern_helpers:tmp("ern_load_garbage_"),
     ok = file:write_file(filename:join(Dir, "foo.erc"), "garbage\n"),
     {0, Output} = source_root_session(Dir, ":load Foo\n1 + 1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "foo.erc"))/binary,
@@ -6042,7 +6078,7 @@ node_shell_test_() ->
     ern_harness:counted_test({waits, 1}, fun node_shell/0).
 
 node_shell() ->
-    Dir = scratch("ern_node_shell_"),
+    Dir = ern_helpers:tmp("ern_node_shell_"),
     node_dir(filename:join(Dir, ".ernest")),
     ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
     ok = file:write_file(filename:join(Dir, "other.ern"), "export let x : Int = 1\n"),
@@ -6195,7 +6231,7 @@ reload_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload/0).
 
 reload() ->
-    Dir = scratch("ern_reload_"),
+    Dir = ern_helpers:tmp("ern_reload_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
     {0, Output} =
         source_root_session(Dir, [Dir],
@@ -6231,7 +6267,7 @@ reload_new_dependency_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_new_dependency/0).
 
 reload_new_dependency() ->
-    Dir = scratch("ern_reload_dependency_"),
+    Dir = ern_helpers:tmp("ern_reload_dependency_"),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export let y : Int = 1\n"),
     ok = file:write_file(filename:join(Dir, "helper.ern"), "export let x : Int = 40\n"),
     {0, Output} = source_root_session(Dir, [":load A\n",
@@ -6256,7 +6292,7 @@ stored_values_go_test_() ->
     ern_harness:counted_test({waits, 1}, fun stored_values_go/0).
 
 stored_values_go() ->
-    Dir = scratch("ern_stored_values_"),
+    Dir = ern_helpers:tmp("ern_stored_values_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let a : Int = 1\nexport let b : Int = 1 / List.size([])\n"),
     ok = file:write_file(filename:join(Dir, "demo.ern"),
@@ -6293,7 +6329,7 @@ refused_load_keeps_its_unit_test_() ->
     ern_harness:counted_test({waits, 1}, fun refused_load_keeps_its_unit/0).
 
 refused_load_keeps_its_unit() ->
-    Dir = scratch("ern_refused_unit_"),
+    Dir = ern_helpers:tmp("ern_refused_unit_"),
     ok = file:write_file(filename:join(Dir, "hold.ern"),
                          "export type Msg = Keep(() -> Int) | Run(Reply(Int))\n\n"
                          "fn hold(kept : () -> Int) : Unit receiving Msg =\n"
@@ -6348,7 +6384,7 @@ refused_load_links_a_replaced_library_test_() ->
     ern_harness:counted_test({waits, 3}, fun refused_load_links_a_replaced_library/0).
 
 refused_load_links_a_replaced_library() ->
-    Dir = scratch("ern_replaced_library_"),
+    Dir = ern_helpers:tmp("ern_replaced_library_"),
     [First, Second, LoadPath, Source] = [filename:join(Dir, Name)
                                          || Name <- ["first", "second", "path", "app"]],
     Value = fun(Root, Divisor) ->
@@ -6388,7 +6424,7 @@ reload_bindings_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_bindings/0).
 
 reload_bindings() ->
-    Dir = scratch("ern_reload_bindings_"),
+    Dir = ern_helpers:tmp("ern_reload_bindings_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
     {0, Output} =
         source_root_session(Dir, [Dir],
@@ -6427,7 +6463,7 @@ reload_keeps_unchanged_values_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_keeps_unchanged_values/0).
 
 reload_keeps_unchanged_values() ->
-    Dir = scratch("ern_reload_values_"),
+    Dir = ern_helpers:tmp("ern_reload_values_"),
     Values = fun(Step, Base) ->
                  ["export fn step(n : Int, k : Int) : Int = ", Step, "\n\n",
                   "export let base : Int = ", Base, "\n\n",
@@ -6463,7 +6499,7 @@ reload_keeps_ground_values_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_keeps_ground_values/0).
 
 reload_keeps_ground_values() ->
-    Dir = scratch("ern_reload_ground_"),
+    Dir = ern_helpers:tmp("ern_reload_ground_"),
     Counter = fun(Base, Limit, Fresh) ->
                   ["export let base : Int = ", Base, "\n\n",
                    "export let limit = ", Limit, "\n\n", Fresh,
@@ -6498,7 +6534,7 @@ reload_writes_the_trace_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_writes_the_trace/0).
 
 reload_writes_the_trace() ->
-    Dir = scratch("ern_reload_trace_"),
+    Dir = ern_helpers:tmp("ern_reload_trace_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"),
                          "export let a : Int = 1\nexport let b : Int = 2\n"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export let y : Int = 1\n"),
@@ -6533,7 +6569,7 @@ killed_binding_test_() ->
     ern_harness:counted_test({waits, 1}, fun killed_binding/0).
 
 killed_binding() ->
-    Dir = scratch("ern_killed_binding_"),
+    Dir = ern_helpers:tmp("ern_killed_binding_"),
     ok = file:write_file(filename:join(Dir, "k.ern"),
                          "export let w : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { _ -> Unit })\n"
@@ -6555,7 +6591,7 @@ load_keeps_what_bindings_open_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_keeps_what_bindings_open/0).
 
 load_keeps_what_bindings_open() ->
-    Dir = scratch("ern_load_open_"),
+    Dir = ern_helpers:tmp("ern_load_open_"),
     ok = file:write_file(filename:join(Dir, "greeter.ern"),
                          ["export let listener : Address(Tcp.ListenerMsg) =\n",
                           "    match Tcp.listen(\"127.0.0.1\", 0) {\n",
@@ -6600,7 +6636,7 @@ refused_load_kills_test_() ->
     ern_harness:counted_test({waits, 1}, fun refused_load_kills/0).
 
 refused_load_kills() ->
-    Dir = scratch("ern_refused_load_"),
+    Dir = ern_helpers:tmp("ern_refused_load_"),
     Server = fun(Broken) ->
                  ["let worker : Address(Int) =\n",
                   "    spawn(fn() : Unit receiving Int =\n",
@@ -6636,7 +6672,7 @@ refused_load_kills_holder_test_() ->
     ern_harness:counted_test({waits, 1}, fun refused_load_kills_holder/0).
 
 refused_load_kills_holder() ->
-    Dir = scratch("ern_refused_holder_"),
+    Dir = ern_helpers:tmp("ern_refused_holder_"),
     ok = file:write_file(filename:join(Dir, "runner.ern"),
                          ["// A hub that steps every runner started with it.\n\n",
                           "export type Msg = Tick\n\n",
@@ -6686,7 +6722,7 @@ held_function_keeps_its_version_test_() ->
     ern_harness:counted_test({waits, 1}, fun held_function_keeps_its_version/0).
 
 held_function_keeps_its_version() ->
-    Dir = scratch("ern_held_function_"),
+    Dir = ern_helpers:tmp("ern_held_function_"),
     ok = file:write_file(filename:join(Dir, "runner.ern"),
                          ["export type Msg = Step(Int) | Total(reply : Reply(Int))\n\n",
                           "export fn start(step : (Int, Int) -> Int) : Address(Msg) =\n",
@@ -6721,7 +6757,7 @@ reload_refused_by_a_new_module_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_refused_by_a_new_module/0).
 
 reload_refused_by_a_new_module() ->
-    Dir = scratch("ern_reload_new_fault_"),
+    Dir = ern_helpers:tmp("ern_reload_new_fault_"),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export let y : Int = 1\n"),
     ok = file:write_file(filename:join(Dir, "helper.ern"),
                          "export let x : Int = 40 / List.size([])\n"),
@@ -6745,7 +6781,7 @@ compiled_beside_another_test_() ->
     ern_harness:counted_test({waits, 3}, fun compiled_beside_another/0).
 
 compiled_beside_another() ->
-    Dir = scratch("ern_compiled_beside_"),
+    Dir = ern_helpers:tmp("ern_compiled_beside_"),
     node_dir(filename:join(Dir, ".ernest")),
     [begin
          Build = filename:join(Dir, Name),
@@ -6796,7 +6832,7 @@ compiled_beside_the_shells_own_test_() ->
     ern_harness:counted_test({waits, 2}, fun compiled_beside_the_shells_own/0).
 
 compiled_beside_the_shells_own() ->
-    Dir = scratch("ern_beside_own_"),
+    Dir = ern_helpers:tmp("ern_beside_own_"),
     Library = filename:join(Dir, "lib"),
     ok = filelib:ensure_path(Library),
     ok = file:write_file(filename:join(Library, "markdown.ern"),
@@ -6821,7 +6857,7 @@ node_takes_its_build_unit_test_() ->
     ern_harness:counted_test({waits, 2}, fun node_takes_its_build_unit/0).
 
 node_takes_its_build_unit() ->
-    Dir = scratch("ern_build_unit_"),
+    Dir = ern_helpers:tmp("ern_build_unit_"),
     node_dir(filename:join(Dir, ".ernest")),
     Build = filename:join(Dir, "b"),
     ok = filelib:ensure_path(Build),
@@ -6858,7 +6894,7 @@ load_takes_no_form_of_another_source_test_() ->
     ern_harness:counted_test({waits, 3}, fun load_takes_no_form_of_another_source/0).
 
 load_takes_no_form_of_another_source() ->
-    Dir = scratch("ern_load_other_source_"),
+    Dir = ern_helpers:tmp("ern_load_other_source_"),
     Source = filename:join(Dir, "src"),
     Build = filename:join(Dir, "build"),
     [ok = filelib:ensure_path(Root) || Root <- [Source, Build]],
@@ -6891,7 +6927,7 @@ load_takes_the_source_roots_form_first_test_() ->
     ern_harness:counted_test({waits, 3}, fun load_takes_the_source_roots_form_first/0).
 
 load_takes_the_source_roots_form_first() ->
-    Dir = scratch("ern_load_source_root_first_"),
+    Dir = ern_helpers:tmp("ern_load_source_root_first_"),
     [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
     [begin
          ok = filelib:ensure_path(Root),
@@ -6915,7 +6951,7 @@ load_takes_no_form_calling_a_reloaded_module_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_takes_no_form_calling_a_reloaded_module/0).
 
 load_takes_no_form_calling_a_reloaded_module() ->
-    Dir = scratch("ern_load_reloaded_"),
+    Dir = ern_helpers:tmp("ern_load_reloaded_"),
     Stamp = "export let stamp : Int = Clock.monotonicMicros()\n",
     ok = file:write_file(filename:join(Dir, "d.ern"), ["// D's stamp.\n", Stamp]),
     ok = file:write_file(filename:join(Dir, "m.ern"), "export fn stamp() : Int = D.stamp\n"),
@@ -6944,7 +6980,7 @@ load_judges_by_digest_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_judges_by_digest/0).
 
 load_judges_by_digest() ->
-    Dir = scratch("ern_load_digest_"),
+    Dir = ern_helpers:tmp("ern_load_digest_"),
     Same = filename:join(Dir, "same.ern"),
     Changed = filename:join(Dir, "changed.ern"),
     ok = file:write_file(Same, "export let same : Int = 1\n"),
@@ -6975,7 +7011,7 @@ load_takes_no_form_of_another_build_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_takes_no_form_of_another_build/0).
 
 load_takes_no_form_of_another_build() ->
-    Dir = scratch("ern_load_other_build_"),
+    Dir = ern_helpers:tmp("ern_load_other_build_"),
     ok = file:write_file(filename:join(Dir, "greet.ern"),
                          "export let greeting : String = \"hi\"\n"),
     ok = file:write_file(filename:join(Dir, "other.ern"), "export let other : Int = 1\n"),
@@ -7204,7 +7240,7 @@ reload_all_or_nothing_test_() ->
     ern_harness:counted_test({waits, 1}, fun reload_all_or_nothing/0).
 
 reload_all_or_nothing() ->
-    Dir = scratch("ern_reload_all_"),
+    Dir = ern_helpers:tmp("ern_reload_all_"),
     ok = file:write_file(filename:join(Dir, "alpha.ern"), answer(1)),
     ok = file:write_file(filename:join(Dir, "beta.ern"), answer(1)),
     {0, Output} = source_root_session(Dir, [":load Alpha\n", ":load Beta\n",
@@ -7241,7 +7277,7 @@ load_evaluates_bindings_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_evaluates_bindings/0).
 
 load_evaluates_bindings() ->
-    Dir = scratch("ern_load_bindings_"),
+    Dir = ern_helpers:tmp("ern_load_bindings_"),
     Counter = fun(Start) ->
                   ["export type Msg = Get(reply : Reply(Int))\n",
                    "fn serve(n : Int) : Unit receiving Msg =\n",
@@ -7286,14 +7322,6 @@ load_evaluates_bindings() ->
     ?assertMatch({_, _}, binary:match(Output, <<"the binding has no value, since its load did"
                                                 " not finish">>)).
 
-%% A directory of its own under the run's (ern_helpers:tmp/1), for a
-%% test's sources or a home. The operating system's pid as well as the
-%% counter: the counter starts again in every run, so a name made by it
-%% alone could be one an earlier run left, and a session would read what
-%% it holds, a history, as its own.
-scratch(Prefix) ->
-    ern_helpers:tmp(Prefix).
-
 %% The integers a session answered with, `> n : Int`, each of at least
 %% Digits digits, in the order it answered them.
 answers(Output, Digits) ->
@@ -7325,7 +7353,7 @@ load_loaded_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_loaded/0).
 
 load_loaded() ->
-    Dir = scratch("ern_load_twice_"),
+    Dir = ern_helpers:tmp("ern_load_twice_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
     {0, Output} = source_root_session(Dir, [":load Demo\n", "spawn(fn() = Demo.tick())\n",
                                             ":load Demo\n", ":load Demo\n", ":processes\n"]),
@@ -7340,7 +7368,7 @@ reload_in_dependency_order_test_() ->
     ern_harness:counted_test({waits, 2}, fun reload_in_dependency_order/0).
 
 reload_in_dependency_order() ->
-    Dir = scratch("ern_reload_order_"),
+    Dir = ern_helpers:tmp("ern_reload_order_"),
     ModuleA = fun(Value) -> ["export let y : Int = B.x + ", integer_to_list(Value), "\n"] end,
     ModuleB = fun(Value) -> ["export let x : Int = ", integer_to_list(Value), "\n"] end,
     ok = file:write_file(filename:join(Dir, "a.ern"), ModuleA(100)),
@@ -7363,7 +7391,7 @@ load_compiled_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_compiled/0).
 
 load_compiled() ->
-    Dir = scratch("ern_load_compiled_"),
+    Dir = ern_helpers:tmp("ern_load_compiled_"),
     Build = filename:join(Dir, "łódź"),
     Sources = filename:join(Dir, "src"),
     Empty = filename:join(Dir, "empty"),
@@ -7387,7 +7415,7 @@ failed_load_leaves_nothing_test_() ->
     ern_harness:counted_test({waits, 1}, fun failed_load_leaves_nothing/0).
 
 failed_load_leaves_nothing() ->
-    Dir = scratch("ern_failed_load_"),
+    Dir = ern_helpers:tmp("ern_failed_load_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          ["let worker : Address(Unit) = spawn(fn() = loop())\n",
                           "fn loop() : Unit receiving Unit = receive { _ -> loop() }\n",
@@ -7406,7 +7434,7 @@ input_namespace_test_() ->
     ern_harness:counted_test({waits, 1}, fun input_namespace/0).
 
 input_namespace() ->
-    Dir = scratch("ern_inputs_"),
+    Dir = ern_helpers:tmp("ern_inputs_"),
     ok = file:write_file(filename:join(Dir, "input1.ern"), answer(7)),
     ok = file:write_file(filename:join(Dir, "bindings2.ern"), answer(8)),
     {0, Output} = source_root_session(Dir, ["fn f() : Int = 1\n", "let x = 2\n", ":load Input1\n",
@@ -7424,7 +7452,7 @@ load_path_dependency_test_() ->
     ern_harness:counted_test({waits, 2}, fun load_path_dependency/0).
 
 load_path_dependency() ->
-    Dir = scratch("ern_load_deps_"),
+    Dir = ern_helpers:tmp("ern_load_deps_"),
     Library = filename:join(Dir, "lib"),
     SourceRoot = filename:join(Dir, "src"),
     First = filename:join(Dir, "first"),
@@ -7450,7 +7478,7 @@ load_refuses_stale_compiled_test_() ->
     ern_harness:counted_test({waits, 3}, fun load_refuses_stale_compiled/0).
 
 load_refuses_stale_compiled() ->
-    Dir = scratch("ern_load_stale_"),
+    Dir = ern_helpers:tmp("ern_load_stale_"),
     Library = filename:join(Dir, "lib"),
     Build = filename:join(Dir, "build"),
     Empty = filename:join(Dir, "empty"),
@@ -7480,7 +7508,7 @@ load_refuses_stale_compiled() ->
 %% name, so a constructor another module also declares offered the fields
 %% of whichever module came first
 fields_by_module() ->
-    Dir = scratch("ern_fields_"),
+    Dir = ern_helpers:tmp("ern_fields_"),
     ok = file:write_file(filename:join(Dir, "circles.ern"),
                          "export type Shape = Round(radius : Int)\n"),
     ok = file:write_file(filename:join(Dir, "discs.ern"),
@@ -7518,7 +7546,7 @@ fields_by_module() ->
 %% prelude's state alone, which knows no module's types, and the printer
 %% named a variable `e` only after `receiving`, so it was `a`
 browse_effect_parameter() ->
-    Dir = scratch("ern_hooks_"),
+    Dir = ern_helpers:tmp("ern_hooks_"),
     ok = file:write_file(filename:join(Dir, "hooks.ern"),
                          "export type H(e) = H(f : (Int) -> Unit receiving e)\n"
                          "export fn drop(h) = { let H(f = _) = h; Unit }\n"),
@@ -7537,13 +7565,14 @@ browse_effect_parameter() ->
 %% raised the host's limit on a name out of the front end
 not_a_name() ->
     Long = list_to_binary(lists:duplicate(300, $a)),
-    with_loaded(scratch("ern_not_a_name_"), [],
+    with_loaded(ern_helpers:tmp("ern_not_a_name_"), [],
                 fun(Session) ->
                     ?assertMatch({'Left', <<". is not a module name", _/binary>>},
-                                 ern_shell:load(Session, <<".">>)),
+                                 ern_shell:load(Session, <<".">>, 'Interrupted')),
                     ?assertMatch({'Left', <<". is not a module name", _/binary>>},
                                  ern_shell:browse(Session, <<".">>)),
-                    ?assertMatch({'Left', _}, ern_shell:load(Session, <<"A", Long/binary>>)),
+                    ?assertMatch({'Left', _},
+                                 ern_shell:load(Session, <<"A", Long/binary>>, 'Interrupted')),
                     ?assertMatch({'Left', _}, ern_shell:browse(Session, <<"A", Long/binary>>)),
                     ?assertMatch({'Left', _}, ern_shell:forget(Session, Long)),
                     ?assertMatch({'Left', _}, ern_shell:doc(Session, Long)),
@@ -7557,14 +7586,14 @@ not_a_name() ->
 %% source root, a name that is not words beginning with a capital is
 %% refused, and completion names the segment from the file
 load_words_segment() ->
-    Dir = scratch("ern_words_"),
+    Dir = ern_helpers:tmp("ern_words_"),
     ok = file:write_file(filename:join(Dir, "word_count.ern"), "export fn size() : Int = 2\n"),
     with_loaded(Dir, [<<"WordCount">>],
                 fun(Session) ->
                     ?assertMatch({'Left', <<"Word_Count is not a module name", _/binary>>},
-                                 ern_shell:load(Session, <<"Word_Count">>)),
+                                 ern_shell:load(Session, <<"Word_Count">>, 'Interrupted')),
                     ?assertMatch({'Left', <<"wordCount is not a module name", _/binary>>},
-                                 ern_shell:load(Session, <<"wordCount">>)),
+                                 ern_shell:load(Session, <<"wordCount">>, 'Interrupted')),
                     ?assertEqual({'Some', <<"WordCount">>}, ern_shell:segment(<<"word_count">>))
                 end).
 
@@ -7580,10 +7609,11 @@ with_loaded(Dir, Modules, Work) ->
     Main = fun() ->
                Local = ern_rt:spawn(fun local_files/0, <<"local half">>),
                {ok, Cwd} = file:get_cwd(),
-               Started = ern_shell:start(Local, Local, ern_shell:given_source_root(),
-                                         list_to_binary(Cwd), false, erlang:self()),
+               Started = ern_shell:start(Local, Local, {'Path', ern_shell:given_source_root()},
+                                         {'Path', list_to_binary(Cwd)}, false, erlang:self()),
                Session = lists:foldl(fun(Module, Session) ->
-                                         {'Right', {Session1, _}} = ern_shell:load(Session, Module),
+                                         {'Right', {Session1, _}} =
+                                             ern_shell:load(Session, Module, 'Interrupted'),
                                          Session1
                                      end, Started, Modules),
                Worked = try Work(Session) of
@@ -7674,7 +7704,7 @@ interrupt_names_the_wait_test_() ->
     ern_harness:counted_test({waits, 9}, fun interrupt_names_the_wait/0).
 
 interrupt_names_the_wait() ->
-    Dir = scratch("ern_stuck_"),
+    Dir = ern_helpers:tmp("ern_stuck_"),
     stuck_module(Dir),
     Screen = pty(alone("../bin/ern shell --source-root " ++ Dir),
                  [{expect, "> "},
@@ -7746,7 +7776,8 @@ end_of_input_waits() ->
     Pipe = scratch_name("ern_ending_"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Input = "{ Io.println(\"run\" <> \"ning\"); let _ = Os.run(Os.command(\"cat\", [\""
-            ++ Pipe ++ "\"]), 60000); Io.println(\"fin\" <> \"ished\") }\r",
+            ++ Pipe ++ "\"]), " ++ ern_harness:wait_ms_text()
+            ++ "); Io.println(\"fin\" <> \"ished\") }\r",
     Screen = pty(alone("../bin/ern shell"),
                  [{expect, "> "},
                   {send, hex(Input)},
@@ -7791,7 +7822,7 @@ load_interrupted_test_() ->
     ern_harness:counted_test({waits, 5}, fun load_interrupted/0).
 
 load_interrupted() ->
-    Dir = scratch("ern_load_interrupted_"),
+    Dir = ern_helpers:tmp("ern_load_interrupted_"),
     hang_module(Dir, "hang.ern"),
     Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
                     [{expect, "> "},
@@ -7818,7 +7849,7 @@ load_interrupted_in_its_second_module_test_() ->
     ern_harness:counted_test({waits, 5}, fun load_interrupted_in_its_second_module/0).
 
 load_interrupted_in_its_second_module() ->
-    Dir = scratch("ern_load_second_"),
+    Dir = ern_helpers:tmp("ern_load_second_"),
     ok = file:write_file(filename:join(Dir, "base.ern"),
                          "export let worker : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { _ -> Unit })\n"),
@@ -7856,7 +7887,7 @@ load_interrupted_while_it_compiles_test_() ->
     ern_harness:counted_test({waits, 5}, fun load_interrupted_while_it_compiles/0).
 
 load_interrupted_while_it_compiles() ->
-    Dir = scratch("ern_load_compiling_"),
+    Dir = ern_helpers:tmp("ern_load_compiling_"),
     ok = file:write_file(filename:join(Dir, "late.ern"),
                          "export let limit : Int = 3\n"
                          "\n"
@@ -7889,7 +7920,7 @@ load_without_a_binding_test_() ->
     ern_harness:counted_test({waits, 4}, fun load_without_a_binding/0).
 
 load_without_a_binding() ->
-    Dir = scratch("ern_load_unevaluated_"),
+    Dir = ern_helpers:tmp("ern_load_unevaluated_"),
     ok = file:write_file(filename:join(Dir, "consts.ern"), "export let limit : Int = 5\n"),
     ok = file:write_file(filename:join(Dir, "plain.ern"),
                          "export fn twice() : Int =\n    Consts.limit * 2\n"),
@@ -7922,7 +7953,7 @@ reload_interrupted_test_() ->
     ern_harness:counted_test({waits, 10}, fun reload_interrupted/0).
 
 reload_interrupted() ->
-    Dir = scratch("ern_reload_interrupted_"),
+    Dir = ern_helpers:tmp("ern_reload_interrupted_"),
     ok = file:write_file(filename:join(Dir, "r.ern"), "export let ready : Int = 1\n"),
     Second = "export let ready : Int = 2\n"
              "export let worker : Address(Int) = spawn(fn() : Unit receiving Int =\n"
@@ -7968,7 +7999,7 @@ reload_interrupted_in_a_new_module_test_() ->
     ern_harness:counted_test({waits, 7}, fun reload_interrupted_in_a_new_module/0).
 
 reload_interrupted_in_a_new_module() ->
-    Dir = scratch("ern_reload_fresh_"),
+    Dir = ern_helpers:tmp("ern_reload_fresh_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export let y : Int = 1\n"),
     hang_module(Dir, "fresh.ern"),
     Write = lists:flatten(string:replace(
@@ -7999,7 +8030,7 @@ startup_load_interrupted_test_() ->
 
 startup_load_interrupted() ->
     Home = fresh_home(),
-    Dir = scratch("ern_startup_load_"),
+    Dir = ern_helpers:tmp("ern_startup_load_"),
     hang_module(Dir, "hang.ern"),
     startup_file(filename:join([Home, ".ernest", "startup"]),
                  ":load Hang\nIo.println(\"after \" <> \"the load\")\n"),
@@ -8024,12 +8055,12 @@ input_typed_while_a_load_runs_test_() ->
     ern_harness:counted_test({waits, 6}, fun input_typed_while_a_load_runs/0).
 
 input_typed_while_a_load_runs() ->
-    Dir = scratch("ern_load_typed_"),
+    Dir = ern_helpers:tmp("ern_load_typed_"),
     hang_module(Dir, "hang.ern"),
     Pipe = scratch_name("ern_typed_"),
     [] = os:cmd("mkfifo " ++ Pipe),
-    Input = "{ let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), 60000);"
-            " Io.println(\"fin\" <> \"ished\") }",
+    Input = "{ let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), "
+            ++ ern_harness:wait_ms_text() ++ "); Io.println(\"fin\" <> \"ished\") }",
     Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
                     [{expect, "> "},
                      {send, hex(":load Hang\r")},
@@ -8058,7 +8089,7 @@ two_interrupts_while_a_load_runs_test_() ->
     ern_harness:counted_test({waits, 5}, fun two_interrupts_while_a_load_runs/0).
 
 two_interrupts_while_a_load_runs() ->
-    Dir = scratch("ern_load_twice_"),
+    Dir = ern_helpers:tmp("ern_load_twice_"),
     hang_module(Dir, "hang.ern"),
     Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
                     [{expect, "> "},
@@ -8140,7 +8171,7 @@ alone(Command) ->
 
 %% A home of its own, which holds no history but the session's.
 fresh_home() ->
-    scratch("ern_home_").
+    ern_helpers:tmp("ern_home_").
 
 %% The shell in line mode (report §11.2), started with the options Options
 %% and the home Home, given the inputs Inputs: its status and what it

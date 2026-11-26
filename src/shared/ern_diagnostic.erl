@@ -1,8 +1,8 @@
 %% Diagnostics, report §11.5: one record for every stage, rendered as the
 %% first line `file:line:column: message`, then the source with a gutter,
 %% the spans underlined and labeled, and at most one help line. A source's
-%% lines are counted here once, for the lexer, the excerpt and the
-%% formatter alike.
+%% lines are cut here, for the excerpt and the formatter, and the lexer
+%% reads each line's end as they do.
 -module(ern_diagnostic).
 
 -export([span/1, short/2, format/3, source_lines/1, without_bom/1, without_return/1]).
@@ -93,8 +93,8 @@ width(Line, Column, _, Lines) when Line =< length(Lines) ->
 width(_, _, _, _) ->
     1.
 
-%% Report §11.5: a line of an excerpt, each character shown as one
-%% column (shown/1).
+%% Report §11.5: the source's lines as an excerpt shows them, each
+%% character one column (shown/1).
 lines(Source) ->
     [[shown(Char) || Char <- Line] || Line <- source_lines(Source)].
 

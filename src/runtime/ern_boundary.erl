@@ -118,7 +118,7 @@ raise_text(Class, Error) ->
 %% to the call. A throw met there is the runtime's, a fault or a restart
 %% passing, and passes as raised/6 passes it. A foreign function of the
 %% program's reads no stack: every function it gives the host is wrapped
-%% (called/1), so a raise it catches is the foreign function's.
+%% (ern_emitter:called/1), so a raise it catches is the foreign function's.
 -spec shim_raised(module(), atom(), arity(), error | exit | throw, term(), list()) ->
           no_return().
 shim_raised(HostModule, HostFunction, Arity, throw, Error, Stack) ->
@@ -439,7 +439,7 @@ zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) when is_map(Value) ->
     maps:from_list([{zero(KeyDescriptor, Key, Bound), zero(ValueDescriptor, Item, Bound)}
                     || {Key, Item} <- maps:to_list(Value)]);
 zero({set, ElementDescriptor}, Value, Bound) when is_map(Value) ->
-    maps:from_list([{zero(ElementDescriptor, Item, Bound), []} || Item <- maps:keys(Value)]);
+    maps:from_list([{zero(ElementDescriptor, Item, Bound), Mark} || Item := Mark <- Value]);
 zero({con, _, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of

@@ -46,7 +46,7 @@ format(Text) ->
             %% report §11.6, §2.2: the module is parsed as `ern build` parses
             %% it, its doc blocks in place, so that one that documents
             %% nothing is refused; the layout is made without them
-            case {ern_parser:parse([Token || Token <- Tokens, element(1, Token) =/= comment]),
+            case {ern_parser:parse([Token || Token <- Tokens, ern_lexer:symbol(Token) =/= comment]),
                   ern_parser:parse(CodeTokens)} of
                 {{error, _} = Error, _} -> Error;
                 {_, {error, _} = Error} -> Error;
@@ -140,7 +140,7 @@ continued_lines(Text) ->
     {ok, Tokens} = ern_lexer:tokenize(Text, [comments]),
     lists:append([lists:seq(Line + 1, EndLine)
                   || Token <- Tokens,
-                     {Line, _, {EndLine, _}, _} <- [element(2, Token)],
+                     {Line, _, {EndLine, _}, _} <- [ern_lexer:position(Token)],
                      EndLine > Line]).
 
 lines(Formatted) ->
@@ -431,6 +431,10 @@ constructor(#constructor{fields = none}, _) ->
     token();
 constructor(#constructor{fields = {positional, Type}}, Code) ->
     [token(), bracket(token('('), [type(Type, Code)], ')')];
+%% report §3.5: several positional fields, which the checker refuses, are
+%% laid out as written
+constructor(#constructor{fields = {positionals, Types, _}}, Code) ->
+    [token(), bracket(token('('), [type(Type, Code) || Type <- Types], ')')];
 constructor(#constructor{fields = {named, Fields}}, Code) ->
     [token(),
      bracket(token('('), [[token(), space(), token(':'), space(), type(Annotation, Code)]
@@ -849,9 +853,15 @@ items(Open, [], Close, _Hug, Code, Cursor) ->
 items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
     {Before, Cursor1} = lead_trivia(Cursor, Code),
     {OpenLayout, Cursor2} = resolve(Open, Code, Cursor1),
-    %% a line comment the bracket's line ends in, after the bracket, is the
-    %% bracket's trailing comment and ends its line
-    EndsInComment = Cursor2#cursor.previous =:= line,
+    %% a comment the bracket's line ends in, after the bracket, is the
+    %% bracket's trailing comment and ends its line, a block comment as a
+    %% line comment does
+    {NextLine, _, _, _} = ern_lexer:position(next_token(Cursor2, Code)),
+    EndsInComment = case Cursor2#cursor.previous of
+                        line -> true;
+                        block -> NextLine > Cursor2#cursor.last_line;
+                        _ -> false
+                    end,
     {Above, Cursor3} = lead_trivia(Cursor2, Code),
     {FirstItem, Cursor4} = resolve(First, Code, Cursor3),
     FirstLayout = [Above, FirstItem],
@@ -865,7 +875,7 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
                %% a comment or a doc block before the first item puts it on a
                %% line of its own, and the items a step in
                _ when Above =/= []; EndsInComment ->
-                   {bracket, [OpenLayout, {nest, 4, Items}, CloseLayout]};
+                   {bracket, [OpenLayout, {nest, 4, [hardline | Items]}, CloseLayout]};
                {[], true} -> [OpenLayout, FirstLayout, Lead, CloseLayout];
                {[], false} -> [OpenLayout, {align, [FirstLayout, Lead]}, CloseLayout];
                {_, false} -> Broken;

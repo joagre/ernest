@@ -28,7 +28,7 @@
 %% What a link reads a reference by (link/5): the module's namespace, the
 %% namespace its forms write its names under, the checker's environment and
 %% the unit of each namespace whose unit is not its module's Erlang name.
--record(scope, {namespace, form_namespace, env, units}).
+-record(scope, {namespace = [], form_namespace = [], env, units = #{}}).
 
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env) ->
@@ -405,21 +405,16 @@ exported(#let_declaration{export = Export}) -> Export;
 exported(_) -> false.
 
 qualified(Namespace, #fn_declaration{member_of = MemberOf, name = Name}) ->
-    [qualified_name(Namespace, MemberOf, Name)];
+    [ern_canonical:qualified(Namespace, MemberOf, Name)];
 qualified(Namespace, #let_declaration{name = Name}) ->
-    [qualified_name(Namespace, undefined, Name)].
-
-%% Report §4.2, §4.5: a declaration's qualified name, a member's under its
-%% type's name.
-qualified_name(Namespace, undefined, Name) -> Namespace ++ [Name];
-qualified_name(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
+    [ern_canonical:qualified(Namespace, undefined, Name)].
 
 %% Report §4.7, §8.4: the module's foreign functions, in the order it
 %% declares them, each with its scheme as a form writes it and what its
 %% implementation names.
 foreign_functions(Namespace, Declarations, ForeignSchemes) ->
     [begin
-         QualifiedName = qualified_name(Namespace, MemberOf, Name),
+         QualifiedName = ern_canonical:qualified(Namespace, MemberOf, Name),
          {ok, {HostModule, HostFunction, _}} =
              ern_typecheck:foreign_implementation(Implementation),
          {Line, Column, _} = ern_diagnostic:span(Span),
@@ -440,7 +435,7 @@ foreign_functions(Namespace, Declarations, ForeignSchemes) ->
 %% modules it is compiled against, knows it: a function's, a binding's or
 %% a foreign function's unit, function, arity, kind and identity, and a
 %% type's name and constructors, those of every type a linked type names
-%% among them; and the state a type prints under from the module (§11.5).
+%% among them; and the state a check's cause prints its types under (§12.3).
 %% Links names the qualified name of each reference whose form does not,
 %% a function's or a type's by its hash among them. The shell links so a
 %% compiled module it loads beside another unit of its name, from its
@@ -502,7 +497,7 @@ references(Forms) ->
 %% links so what its forms name by name (ern_arrival).
 -spec named({named, [atom()]}, ern_typecheck:env()) -> [#linked{}].
 named(Reference, Env) ->
-    linked(Reference, #{}, #scope{namespace = [], form_namespace = [], env = Env, units = #{}}).
+    linked(Reference, #{}, #scope{env = Env}).
 
 %% Every reference to a declaration a term makes (Appendix H).
 references_in({hash, Hash} = Reference) when is_binary(Hash), byte_size(Hash) =:= 32 ->

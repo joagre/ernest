@@ -193,7 +193,7 @@ let outsideAlphabet =
                   Test.equal(read(["Zm-v", "Zm_v", "Zm9\u{e9}", "Zm9v\u{b}\u{b}\u{b}\u{b}"]), []))
 
 // report Appendix G.8
-let countsNoMultipleOfFour =
+let countNotMultipleOfFour =
     Test.Case(name = "a count of characters that is no multiple of four is refused",
               run = fn() = Test.equal(read(["Z", "Zg", "Zg=", "Zm9vY"]), []))
 

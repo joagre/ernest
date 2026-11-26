@@ -611,7 +611,7 @@ function addPanel() {
     warning.append(warningText, extend);
 
     const screen = document.createElement("div");
-    screen.className = "panel-terminal";
+    screen.className = "panel-screen";
     screen.tabIndex = -1;
     const note = document.createElement("p");
     note.className = "panel-note";
@@ -687,7 +687,9 @@ function placePanel() {
 // The server's limits, which the client answers, each written into the
 // shell page's span that names it, in place of the words the page reads
 // without the script (site.md *The other pages*): a time spoken, a count
-// in digits. A client that does not load leaves the words.
+// in digits. A client that does not load leaves the words; a throw of
+// the writing is the console's. The site's test holds every span's name
+// to these keys (test/ern_site_tests.erl).
 const limitsSaid = {
     "lifetime": (limits) => spoken(limits.lifetime),
     "warning": (limits) => spoken(limits.warning),
@@ -708,7 +710,7 @@ function showLimits() {
                 span.textContent = said(limits);
             }
         }
-    }).catch(() => {});
+    }, () => {});
 }
 
 // A time in milliseconds as a page says it, in the largest unit it is a

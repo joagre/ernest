@@ -1821,7 +1821,7 @@ tcp_ends_with_program_test() ->
     ?assertEqual(ok, ern_rt:run_main(Second, <<"second">>, #{})),
     ?assertEqual(['Right'], ern_helpers:taken(listened)).
 
-%% report Appendix E.18: `address` is the bytes of the address a text
+%% report Appendix E.18: `ipAddress` is the bytes of the address a text
 %% writes: 4 for an IPv4 address, 16 for an IPv6 address compressed, whole
 %% or ending in IPv4's numbers, in either case; `None` for another text, a
 %% short or an octal IPv4 form, brackets, a name, a space and U+0000 among
@@ -1831,17 +1831,17 @@ tcp_ends_with_program_test() ->
 %% rule 1: the refusals are Ernest's, the host's reading beneath them
 %% exact. It reads what `remote` and `local` write, inet:ntoa/1. Written
 %% before the code, its zones and signs with the code that refuses them
-tcp_address_test() ->
-    Address = ern_named:function('ern@tcp', address),
+tcp_ip_address_test() ->
+    IpAddressOf = ern_named:function('ern@tcp', ipAddress),
     ?assertEqual([{'Some', <<1, 2, 3, 4>>},
                   {'Some', <<0:120, 1>>},
                   {'Some', <<0:128>>},
                   {'Some', <<1:16, 2:16, 3:16, 4:16, 5:16, 6:16, 7:16, 8:16>>},
                   {'Some', <<0:80, 16#ffff:16, 1, 2, 3, 4>>},
                   {'Some', <<16#fe80:16, 0:96, 16#ab:16>>}],
-                 [Address(Text) || Text <- [<<"1.2.3.4">>, <<"::1">>, <<"::">>,
-                                            <<"1:2:3:4:5:6:7:8">>, <<"::FFFF:1.2.3.4">>,
-                                            <<"FE80::aB">>]]),
+                 [IpAddressOf(Text) || Text <- [<<"1.2.3.4">>, <<"::1">>, <<"::">>,
+                                                <<"1:2:3:4:5:6:7:8">>, <<"::FFFF:1.2.3.4">>,
+                                                <<"FE80::aB">>]]),
     Refused = [<<"127.1">>, <<"010.1.1.1">>, <<"1.2.3.256">>, <<"[::1]">>, <<"localhost">>,
                <<"1.2.3.4 ">>, <<>>, <<"1::2::3">>, <<"1.2.3.4", 0>>],
     Zoned = [<<"fe80::1%eth0">>, <<"ff02::1%eth0">>, <<"::1%eth0">>, <<"2001:db8::1%eth0">>,
@@ -1851,14 +1851,14 @@ tcp_address_test() ->
              <<"fe80::1%", 16#cc, 16#81, "eth0">>],
     Signed = [<<"+1.2.3.4">>, <<"1.+2.3.4">>, <<"-0.1.1.1">>, <<"1.2.3.-0">>, <<"::1.2.3.+4">>],
     ?assertEqual([{Text, 'None'} || Text <- Refused ++ Zoned ++ Signed],
-                 [{Text, Address(Text)} || Text <- Refused ++ Zoned ++ Signed]),
+                 [{Text, IpAddressOf(Text)} || Text <- Refused ++ Zoned ++ Signed]),
     ?assertEqual([{'Some', <<16#fe80:16, 0:96, 1:16>>}, {'Some', <<1, 2, 3, 4>>}],
                  [ern_tcp:strict_address(Text) || Text <- [<<"fe80::1%eth0">>, <<"+1.2.3.4">>]]),
     Written = [{127, 0, 0, 1}, {0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 1},
                {0, 0, 0, 0, 0, 16#ffff, 16#c000, 16#0201}, {16#2001, 16#db8, 0, 0, 1, 0, 0, 1},
                {16#fe80, 0, 0, 0, 16#a, 0, 0, 0}],
     ?assertEqual([{'Some', address_bytes(IpAddress)} || IpAddress <- Written],
-                 [Address(unicode:characters_to_binary(inet:ntoa(IpAddress)))
+                 [IpAddressOf(unicode:characters_to_binary(inet:ntoa(IpAddress)))
                   || IpAddress <- Written]).
 
 %% The bytes of an IP address as the host holds one: IPv4's four numbers a
@@ -1950,6 +1950,26 @@ random_splitmix64_test() ->
     %% a bound beyond 64 bits draws from as many words as it needs
     {_, Big} = Random(nextInt)(Random(seed)(1), 1 bsl 100),
     ?assert(Big >= 0 andalso Big < 1 bsl 100).
+
+%% report Appendix E.13: the two mappings, by known answers from seed 1,
+%% whose first draw is 16#910A2DEC89025CC1. `nextInt` answers the draw's
+%% remainder by the bound, at 10, 3, 7 and 100; at 2^64 the draw itself;
+%% at 2^63 + 1, above whose largest multiple below 2^64 the first three
+%% draws lie, the fourth; and at 2^64 + 1 two draws read as one number, the
+%% first its highest 64 bits. `nextFloat` answers the draw's highest 52
+%% bits and 0.5, divided by 2^52. Written after the code, with the
+%% mappings' sentences
+random_mappings_test() ->
+    Random = ern_named:functions('ern@random'),
+    Drawn = fun(Bound) ->
+                {_, Number} = Random(nextInt)(Random(seed)(1), Bound),
+                Number
+            end,
+    ?assertEqual([5, 2, 2, 65], [Drawn(Bound) || Bound <- [10, 3, 7, 100]]),
+    ?assertEqual([16#910A2DEC89025CC1, 8196980753821780235, 3306028831865606054],
+                 [Drawn(Bound) || Bound <- [1 bsl 64, (1 bsl 63) + 1, (1 bsl 64) + 1]]),
+    {_, Fraction} = Random(nextFloat)(Random(seed)(1)),
+    ?assertEqual(0.5665615751722809, Fraction).
 
 %% report Appendix E.14: the edge cases of Path, Ernest over String and its
 %% primitives: a trailing separator, an absolute second operand, the root

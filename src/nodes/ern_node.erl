@@ -216,11 +216,18 @@ signed_certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
 %% machine, listed last among the peers of the directory ConfigDir: its
 %% name its directory's, its public key the one its certificate certifies,
 %% and its address its `listen`, the loopback address in place of one for
-%% every interface. Both directories are read as a node reads its own, and
-%% no certificate is made for either, the peer's private key excepted,
-%% which is not read, and the entry as a node reads a peer's; `ernest.conf`
-%% is written again with every other field as it was, its links followed
-%% (report §11), or not at all.
+%% every interface; `ernest.conf` is written again with every other field
+%% as it was, its links followed (report §11), or not at all.
+%%
+%% It refuses a ConfigDir a node would refuse as its own; a PeerDir whose
+%% directory, `ernest.conf` or certificate a node would refuse as its own,
+%% or whose certificate names another host than its key gives
+%% (peer_read/1); the entry where a node would refuse it as a peer's; a
+%% peer with this node's own key; and one whose name or key ConfigDir lists
+%% already. Neither read makes a certificate, and the peer's private key is
+%% not read. Report §11.7: for a peer directory that names nothing, or that
+%% holds no `ernest.conf` or no `certificate.pem`, the command line's own
+%% check answers first (ern_cli:named_directories/3).
 -spec add_peer(file:filename(), file:filename()) -> ok.
 add_peer(ConfigDir, PeerDir) ->
     #configuration{listen = Listen, public_key = Own, peers = Peers} = read(ConfigDir, left),

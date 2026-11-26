@@ -45,16 +45,15 @@ effect_rules_test() ->
     ?assertMatch({ok, _}, ern_types:unify(E, none, TypeState1)),
     %% a process-only one may not
     TypeState2 = ern_types:add_restriction(E, process_only, TypeState1),
-    %% the reason says which side, the expected (first) or the actual, is none
-    ?assertEqual({error, none_where_mailbox_needed}, ern_types:unify(E, none, TypeState2)),
-    ?assertEqual({error, mailbox_where_none_needed}, ern_types:unify(none, E, TypeState2)),
+    ?assertEqual({error, {none_vs_mailbox, E}}, ern_types:unify(E, none, TypeState2)),
+    ?assertEqual({error, {none_vs_mailbox, E}}, ern_types:unify(none, E, TypeState2)),
     %% none against a mailbox type is an error; two mailbox types must match
     ?assertMatch({error, {none_vs_mailbox, _}}, ern_types:unify(none, int(), TypeState)),
     ?assertMatch({error, {mismatch, _, _}}, ern_types:unify(int(), bool(), TypeState)),
     %% restrictions merge when two variables are unified
     {F, TypeState3} = ern_types:fresh(TypeState2),
     TypeState4 = unify_ok(F, E, TypeState3),
-    ?assertEqual({error, none_where_mailbox_needed}, ern_types:unify(F, none, TypeState4)).
+    ?assertEqual({error, {none_vs_mailbox, E}}, ern_types:unify(F, none, TypeState4)).
 
 %% report §3.9
 generalize_by_level_test() ->

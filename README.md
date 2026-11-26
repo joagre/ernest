@@ -64,7 +64,7 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
   |     ^^^^^^^^
 ```
 
-[The tour](tour/README.md) ends by moving this running counter to new code on the remote node, its state intact. The counter runs under no `restarting`: a process under one is back on its old loop at its next fault, and [the deployment guide](guide/deployment.md) says how such a service is moved.
+[The tour](tour/README.md) ends by moving this running counter to new code on the remote node, its state intact. The counter is not one that restarts at a fault: a process that does is back on its old loop at its next fault, and [the deployment guide](guide/deployment.md) says how such a service is moved.
 
 What Ernest adds, which [Why Ernest](guide/why.md) argues:
 
@@ -108,7 +108,15 @@ man ern                     # the toolchain
 man Ernest.List             # a module
 ```
 
-OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release. `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'` prints the release of the OTP on `PATH`. To try Ernest before installing anything, the front page of [ernest-lang.org](https://ernest-lang.org) runs a shell in the browser.
+Where a distribution's own packages hold an older release, OTP 29 is built from its source: download the source archive from [erlang.org/downloads](https://www.erlang.org/downloads), unpack it, and in the directory it unpacks to run:
+
+```
+./configure
+make
+sudo make install           # into /usr/local
+```
+
+Its `configure` wants the headers of ncurses and of OpenSSL, on Debian and Ubuntu the packages `libncurses-dev` and `libssl-dev`; without OpenSSL's it builds no `crypto` and no `ssl`, which Ernest needs. A version manager such as kerl is the other way. `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'` prints the release of the OTP on `PATH`. To try Ernest before installing anything, the front page of [ernest-lang.org](https://ernest-lang.org) runs a shell in the browser.
 
 Or from a release: download `ern-<version>.tar.gz` and its checksum, `ern-<version>.tar.gz.sha256`, from the [releases page](https://github.com/joagre/ernest/releases), check the archive with `sha256sum -c ern-<version>.tar.gz.sha256`, and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 

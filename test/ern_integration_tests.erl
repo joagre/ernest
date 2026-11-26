@@ -228,15 +228,23 @@ upgrade_example() ->
 %% seconds, and the next expression still works. An application's argument
 %% that does not parse is the line's error, `f (1 +` an end of input: a
 %% regression test, written after the fix, which read it as no argument and
-%% said `unexpected (`.
-%% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
+%% said `unexpected (`. A number the host cannot hold, which `String.toInt`
+%% answers `None` for, is the line's error too: a regression test, where the
+%% lexer faulted; the test writes that line, past a million digits.
+%% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine),
+%% Appendix E.5 (String.toInt)
 interpreter_test_() ->
-    ern_harness:counted_test({waits, 2}, fun interpreter/0).
+    ern_harness:counted_test({waits, 3}, fun interpreter/0).
 
 interpreter() ->
     0 = build(?BUILD ++ "../examples/interpreter.ern"),
     {0, Output} = sh("../bin/ern run build/interpreter.erc < fixtures/input/interpreter.in"),
-    ?assertEqual(expected("interpreter"), lines(Output)).
+    ?assertEqual(expected("interpreter"), lines(Output)),
+    Long = "build/interpreter_long.in",
+    ok = file:write_file(Long, ["1 + 2\n1 + ", lists:duplicate(1300000, $9), "\n3 * 4\n"]),
+    {0, LongOutput} = sh("../bin/ern run build/interpreter.erc < " ++ Long),
+    ?assertEqual([<<"3">>, <<"number too large at 4">>, <<"12">>],
+                 binary:split(LongOutput, <<"\n">>, [global, trim])).
 
 %% examples/file_sync.ern: the syncer runs until it is stopped, so the harness
 %% gives it two prepared directories, lets it run, stops it, and reads the
@@ -736,7 +744,7 @@ interrupt() ->
     {os_pid, OsPid} = erlang:port_info(Program, os_pid),
     ok = said_line(Program, <<"running\n">>),
     _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
-    ?assertEqual({130, <<>>}, finished(Program)).
+    ?assertEqual({130, <<>>}, ern_harness:collected(Program, 1)).
 
 %% examples/web_server.ern: the server serves until it is stopped, so the harness
 %% starts it, makes three requests over one session, and stops it. The
@@ -1808,7 +1816,7 @@ close_sends_before_the_run_ends() ->
         FarEnd = ern_harness:accepted(Listen),
         ?assertEqual(ok, said_line(Program, <<"closing\n">>)),
         ?assertEqual({Megabytes * 1048576, closed}, ern_harness:read_to_its_end(FarEnd)),
-        ?assertEqual({0, <<>>}, finished(Program)),
+        ?assertEqual({0, <<>>}, ern_harness:collected(Program, 1)),
         ok = gen_tcp:close(FarEnd)
     after
         gen_tcp:close(Listen),
@@ -1849,7 +1857,7 @@ close_sends_its_record_before_the_run_ends() ->
         ?assertEqual({Megabytes * 1048576, {error, closed}}, ern_tcp_tests:tls_taken(FarEnd, 0)),
         ?assertEqual({shutdown, peer_close},
                      receive {'DOWN', ConnectionRef, process, Connection, Why} -> Why end),
-        ?assertEqual({0, <<>>}, finished(Program))
+        ?assertEqual({0, <<>>}, ern_harness:collected(Program, 1))
     after
         ssl:close(Listen),
         killed(Program)
@@ -2795,27 +2803,26 @@ diagnostic_as_cataloged_test_() ->
     ern_harness:counted_test({waits, 1}, fun diagnostic_as_cataloged/0).
 
 diagnostic_as_cataloged() ->
+    ern_helpers:tmp("ern_cataloged_", fun diagnostic_as_cataloged/1).
+
+diagnostic_as_cataloged(Dir) ->
     {Code, Console} = catalog_example(<<"### A character outside the language (">>),
-    Dir = ern_helpers:tmp("ern_cataloged_"),
     File = filename:join(Dir, "example.ern"),
     ok = file:write_file(File, Code),
     {1, Output} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ File),
     Printed = binary:replace(Output, list_to_binary(Dir ++ "/"), <<>>, [global]),
     ?assertEqual(Console, iolist_to_binary(["$ ern build example.ern\n",
-                                            string:trim(Printed, trailing)])),
-    ok = file:del_dir_r(Dir).
+                                            string:trim(Printed, trailing)])).
 
 %% The program of the catalog's example under the heading that begins with
-%% Heading, each line ended, and its console, the lines between its fences.
+%% Heading, each line ended, and its console, the lines between its fences:
+%% the heading's first two blocks (ern_helpers:blocks/1).
 catalog_example(Heading) ->
     {ok, Text} = file:read_file("../docs/diagnostics.md"),
-    Lines = binary:split(Text, <<"\n">>, [global]),
-    [_ | Section] = lists:dropwhile(fun(Line) -> string:prefix(Line, Heading) =:= nomatch end,
-                                    Lines),
-    [_ | Rest] = lists:dropwhile(fun(Line) -> Line =/= <<"```ernest-rejected">> end, Section),
-    {Code, [_ | After]} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest),
-    [_ | Shown] = lists:dropwhile(fun(Line) -> Line =/= <<"```console">> end, After),
-    {Console, _} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Shown),
+    Blocks = ern_helpers:blocks(lists:enumerate(binary:split(Text, <<"\n">>, [global]))),
+    [{<<"ernest-rejected">>, Code}, {<<"console">>, Console} | _] =
+        [{Info, Lines} || {_, <<Under:(byte_size(Heading))/binary, _/binary>>, Info, Lines}
+                              <- Blocks, Under =:= Heading],
     {iolist_to_binary([[Line, <<"\n">>] || Line <- Code]),
      iolist_to_binary(lists:join(<<"\n">>, Console))}.
 
@@ -2921,8 +2928,3 @@ succeed(Command, Options) ->
             io:format(user, "~n~ts ended with status ~B:~n~ts~n", [Command, Status, Output]),
             ?assertEqual(0, Status)
     end.
-
-%% What the program the port Program runs wrote, to its end, and its
-%% status: one step of the harness's.
-finished(Program) ->
-    ern_harness:collected(Program, 1).

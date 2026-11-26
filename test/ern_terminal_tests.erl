@@ -265,8 +265,7 @@ full_port_table_test_() ->
 
 full_port_table() ->
     Program = on_node("fixtures/terminal/limited.ern"),
-    Base = filename:join(ern_helpers:run_dir(), "terminal_limited_" ++ os:getpid()),
-    ok = filelib:ensure_path(Base),
+    Base = ern_helpers:tmp("terminal_limited_"),
     Node = ern_harness:made(Base, "node", none),
     ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
     {0, Screen} = pty("../bin/ern run --config-dir " ++ Node
@@ -314,7 +313,7 @@ shell_terminal_gone_test_() ->
     ern_harness:counted_test({waits, 2}, fun shell_terminal_gone/0).
 
 shell_terminal_gone() ->
-    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_gone_" ++ os:getpid()),
+    Base = ern_helpers:tmp("terminal_shell_gone_"),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Node = ern_harness:made(Base, "node", none),
@@ -340,8 +339,7 @@ write_terminal_gone_test_() ->
 
 write_terminal_gone() ->
     Program = on_node("fixtures/terminal/writes.ern"),
-    Base = filename:join(ern_helpers:run_dir(), "terminal_write_gone_" ++ os:getpid()),
-    ok = filelib:ensure_path(Base),
+    Base = ern_helpers:tmp("terminal_write_gone_"),
     Node = ern_harness:made(Base, "node", none),
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
@@ -373,8 +371,7 @@ log_terminal_gone_test_() ->
 
 log_terminal_gone() ->
     ok = build("fixtures/terminal/warns.ern", "fixtures/terminal"),
-    Base = filename:join(ern_helpers:run_dir(), "terminal_log_gone_" ++ os:getpid()),
-    ok = filelib:ensure_path(Base),
+    Base = ern_helpers:tmp("terminal_log_gone_"),
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Out = filename:join(Base, "written.out"),
@@ -402,7 +399,7 @@ shell_write_terminal_gone_test_() ->
     ern_harness:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
 
 shell_write_terminal_gone() ->
-    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_write_gone_" ++ os:getpid()),
+    Base = ern_helpers:tmp("terminal_shell_write_gone_"),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Pipe = filename:join(Base, "written.pipe"),
@@ -432,7 +429,7 @@ shell_reload_terminal_gone_test_() ->
     ern_harness:counted_test({waits, 2}, fun shell_reload_terminal_gone/0).
 
 shell_reload_terminal_gone() ->
-    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_reload_gone_" ++ os:getpid()),
+    Base = ern_helpers:tmp("terminal_shell_reload_gone_"),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Node = ern_harness:made(Base, "node", none),

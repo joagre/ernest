@@ -644,13 +644,17 @@ from its own line."
 (defun ernest--first-item-column (open)
   "The column of the first item after the bracket at OPEN, or nil.
 A parenthesis, a square bracket or a bitstring's `<<' whose first item
-follows it on its line aligns its items under that one.  A brace, and a
-bracket that ends its line, align nothing."
+follows it on its line, after a block comment or not, aligns its items
+under that one.  A brace, and a bracket whose line ends after it or
+after a comment, align nothing, as `ern format' lays them out (report
+§11.6)."
   (save-excursion
     (goto-char open)
     (when (or (memq (char-after) '(?\( ?\[)) (looking-at-p "<<"))
       (forward-char (if (looking-at-p "<<") 2 1))
       (skip-chars-forward " \t")
+      (while (and (looking-at-p "/\\*") (forward-comment 1))
+        (skip-chars-forward " \t"))
       (unless (or (eolp) (looking-at-p "/[/*]"))
         (current-column)))))
 

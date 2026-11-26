@@ -80,16 +80,9 @@ blocks(From, To) ->
     Numbered = lists:enumerate(string:split(language(), "\n", all)),
     [_ | Rest] = lists:dropwhile(fun({_, Line}) -> not lists:prefix(From, Line) end, Numbered),
     {Section, _} = lists:splitwith(fun({_, Line}) -> not lists:prefix(To, Line) end, Rest),
-    fenced(Section).
-
-fenced([]) ->
-    [];
-fenced([{Number, "```" ++ _} | Rest]) ->
-    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not lists:prefix("```", Line) end,
-                                          Rest),
-    [{Number, lists:append([Line ++ "\n" || {_, Line} <- Code])} | fenced(After)];
-fenced([_ | Rest]) ->
-    fenced(Rest).
+    Lines = [{Number, unicode:characters_to_binary(Line)} || {Number, Line} <- Section],
+    [{Number, unicode:characters_to_list([[Line, "\n"] || Line <- Code])}
+     || {Number, _, _, Code} <- ern_helpers:blocks(Lines)].
 
 appendix() ->
     [_, FromAppendix] = string:split(language(), "## Appendix A. Grammar"),

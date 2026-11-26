@@ -9,8 +9,9 @@
 %% their assets' digests aside, so that the look and the generation never
 %% drift; the assets, the gathered icons, the qualified names' and the log's
 %% links, the descriptions of the site's own pages, the refusals, the
-%% build's check of its links and the templates' tokens are held each by a
-%% test of its own, and the generator is run over the repository's own
+%% build's check of its links, the templates' tokens and their limits'
+%% spans are held each by a test of its own, and the generator is run over
+%% the repository's own
 %% documents, an export of HEAD. `make site-expected` writes the expected
 %% pages again after a change to the look that is meant (write_expected/0).
 %% Run from this directory by its Makefile, after `make`, which builds the
@@ -490,6 +491,20 @@ templates_test() ->
     ?assertEqual([], [{File, Listed, Held} || {File, Listed} <- Rows,
                                               Held <- [tokens(read("../site/templates", File))],
                                               Held =/= Listed]).
+
+%% docs/design/site.md *The other pages*, site/templates/README.md: every
+%% span a template holds for a limit names one the script writes, a key of
+%% its limitsSaid, since a span the script does not know keeps its word.
+limits_test() ->
+    Script = read("../site/root/assets/js", "site.js"),
+    [[Said]] = matches(Script, "(?s)\\nconst limitsSaid = \\{\\n(.*?)\\n\\};"),
+    Keys = [Key || [Key] <- matches(Said, "(?m)^    \"([^\"]+)\": ")],
+    Named = lists:usort([Name || File <- files("../site/templates"),
+                                 [Name] <- matches(read("../site/templates", File),
+                                                   "data-limit=\"([^\"]*)\"")]),
+    ?assertEqual(5, length(Keys)),
+    ?assertNotEqual([], Named),
+    ?assertEqual([], Named -- Keys).
 
 %% The site generated from the fixture's tree, the tree made afresh: the
 %% fixture's documents at their paths, the site's tracked files as the

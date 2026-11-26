@@ -12,7 +12,7 @@
 
 ## Installing
 
-From the archive. Ernest is tested on Linux, where a node needs a kernel of 5.3 or later; on macOS the same steps are expected to work. It needs Erlang/OTP 29 on your `PATH`, GNU make, and a C compiler, on Debian and Ubuntu the packages `make` and `gcc`, for the one part of Ernest in C, the helper that runs another program for `Os.run`; their own `erlang` package is older than 29, so OTP comes from [erlang.org/downloads](https://www.erlang.org/downloads) or a version manager such as kerl:
+From the archive. Ernest is tested on Linux, where a node needs a kernel of 5.3 or later; on macOS the same steps are expected to work. It needs Erlang/OTP 29 on your `PATH`, GNU make, and a C compiler, on Debian and Ubuntu the packages `make` and `gcc`, for the one part of Ernest in C, the helper that runs another program for `Os.run`; their own `erlang` package is older than 29, so OTP comes from a version manager such as kerl or from its source at [erlang.org/downloads](https://www.erlang.org/downloads), built with `./configure`, `make` and `sudo make install`, with the packages `libncurses-dev` and `libssl-dev` there for the headers its `configure` wants:
 
 ```
 make

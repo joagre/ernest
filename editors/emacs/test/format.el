@@ -14,7 +14,7 @@
 
 (setq ernest-format-command (expand-file-name "../../bin/ern"))
 
-(defun ernest-test-diagnostic ()
+(defun ernest-format-diagnostic ()
   "The first line of the buffer that shows the formatter's diagnostic, or nil."
   (let ((errors (get-buffer ernest--format-errors-buffer)))
     (and errors
@@ -81,7 +81,7 @@
   (insert "fn h( = 1\n")
   (ernest-format-buffer)
   (ernest-test-want "a broken buffer, after laying out" (buffer-string) "fn h( = 1\n")
-  (ernest-test-want "the diagnostic" (ernest-test-diagnostic)
+  (ernest-test-want "the diagnostic" (ernest-format-diagnostic)
                     (concat (buffer-name) ":1:7: expected a pattern instead of `=`"))
   (ernest-test-want "the diagnostic's mode"
                     (buffer-local-value 'major-mode (get-buffer ernest--format-errors-buffer))
@@ -92,7 +92,7 @@
   (ernest-mode)
   (insert "fn g(y) = y\n")
   (ernest-format-buffer)
-  (ernest-test-want "the diagnostic, after a buffer laid out" (ernest-test-diagnostic) nil))
+  (ernest-test-want "the diagnostic, after a buffer laid out" (ernest-format-diagnostic) nil))
 
 ;; the init file's line lays out a buffer as it is saved; a buffer that
 ;; does not parse, or a formatter that is not there, is saved as it was
@@ -117,14 +117,14 @@
                                 (buffer-string))
                               (nth 2 case))
             (when (equal (nth 0 case) "broken.ern")
-              (ernest-test-want "the diagnostic on save" (ernest-test-diagnostic)
+              (ernest-test-want "the diagnostic on save" (ernest-format-diagnostic)
                                 "broken.ern:1:7: expected a pattern instead of `=`"))
             ;; a formatter that cannot run is shown where a diagnostic is,
             ;; since the save's own message would hide a message at once
             (when (equal (nth 0 case) "missing.ern")
               (ernest-test-want "why a save was not laid out"
                                 (string-prefix-p "Not laid out: Searching for program"
-                                                 (ernest-test-diagnostic))
+                                                 (ernest-format-diagnostic))
                                 t)))
           (kill-buffer buffer)))
     (delete-directory directory t)))

@@ -113,44 +113,22 @@ the release, is what is left.
    have a published floor.
 
    **Where the item stands**, since 2026-11-26 (the log's *The Release Review Before
-   0.11.0, Sorted*). The review runs over `6c6b8ef1`. Its first step, its six checks,
-   the panel by hand, OTP's notes, its twenty readers and the sort are done.
-   [`findings.md`](findings.md) holds 382 lines above the readers' lists: 198 `fix`,
-   123 `decide` in 16 families, 39 filed and 22 dropped as matters of clarity. What the
-   session kept, the briefs, the lists, the sorters' lines, the checks' outputs, the
-   bench's tables and the readers' programs, is in its probes directory,
-   `release_0110/`, whose `checklist.md` says what ran.
+   0.11.0, Decided*). The review runs over `6c6b8ef1`. Its checks, its readers, the sort
+   and the `decide` round are done: [`findings.md`](findings.md) holds 382 lines, and each
+   of its 123 `decide` lines has the user's verdict beneath it, 47 made for 0.11.0, 54 for
+   MVP 4.5's item 177, 3 for MVP 4.18's item 8, 7 lines of the known issues, 10 dropped,
+   one for item 169 and one done. nike runs OTP 29.1.3. What the session kept is in its
+   probes directory, `release_0110/`, the readers' facts for the verdicts among it.
 
-   nike moves to OTP 29.1.3 before the fixes' round, decided with the user on
-   2026-11-26, so that the round's checks and the release's run on the OTP a first user
-   installs. The release's note names no patch release.
+   The `fix` lines of the code and the decided lines' code are built (the log's *The
+   Release Review's Lines Built*), and `make test-full` passes on them.
 
    What is left, in order:
-   - **The `fix` lines**, made by agents, an owner a brief, the code's once nike runs
-     OTP 29.1.3. The session writes a document's and the report's, or reads a writer's
-     diff. First among them, each shown by a program: the boundary's check takes a map
-     that is no set for a `Set` (*C4 1*, §8.4); `Http.parseDate` faults on a header a
-     client sends (*E3 D1*); a plain shell names a program's entry point as another
-     process (*E2 2*); and the sentences of the guides that kept a rule the report
-     changed (*U1*, *U2*).
-   - **The `decide` lines**, with the user by family, the argument before the verdict,
-     the lines marked `false` or `user` and those of soundness or security first in
-     each. First among them: `Uri.toString` writes another reference than it was given,
-     an off-site redirect with `Http.target` (*S 1*, *E3 D2*); a program's `time.ern`
-     refused only once it is a node or a session loads `Http` (*P1 1* and five more);
-     and a line abandoned with `C-c` during a load, replaced in the transcript (*E2 1*).
-     A decided line is built as a `fix` line is.
-   - **The filed lines**: a `felt` line joins item 176, 20 of them as new entries of
-     the feedback file, and a `known` line its line of `known_issues.md`.
-   - **The round**, reader K over the review's own diff, and over the release's commit
-     `make sections`, `make bench`, then `make bench-release`, with `make load` and
-     `make sanitize` where the runtime or the helper changed.
+   - **The round**, reader K over the review's own diff, which is the cold reading of
+     §4.6's and §3.9's new sentences too, and over the release's commit `make sections`,
+     `make bench`, then `make bench-release`, with `make load` and `make sanitize` where
+     the runtime or the helper changed.
    - **The release's own steps**, `release.md`'s fifth.
-
-   **A decision for the user** before the tag: OTP 29.1.3 came out on 2026-11-24 and
-   nike runs 29.1.2. `make test-full` passes under both, 29.1.3 built into a scratch
-   prefix (the findings' *Z3*). Whether nike moves to 29.1.3 first, and whether the
-   release's note names the patch release it was checked on.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
@@ -296,6 +274,15 @@ the site, since it sends a reader there. Its release is the launch.
    process calls on a node, not read once the end's wait is over (§8.6; was item 140).
    Each ends a run with status 0 or writes no fault's line. Each line of the known issues
    goes with its fix.
+8. **Three lines of the release review before 0.11.0**, each met by a first reader, placed
+   2026-11-26 (the log's *The Release Review Before 0.11.0, Decided*). A help where a
+   token means one thing, the test of 2026-11-11's `++`: an assignment `total = total +
+   1`, `import` at a declaration's place, `after` outside its `receive`, a named argument,
+   `fn(x) -> e`, and the mailbox help naming `Process.run` (*U2 25, N 27, M26, L31*, *N
+   8*, *M22*), each text decided with the user. The tour's *Work anywhere*, which shows
+   one node taking every compute where a reader who types at once sees the work spread
+   (*L7*): which run the page shows. And the shell page's sentence that it runs in a
+   container with no network, true of ernest-lang.org's server alone (*Z7*).
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about three weeks, after the launch
 
@@ -383,7 +370,7 @@ What the line left, in the order it is taken:
 - **176. The full review's feedback, decided**, from MVP 4.4's item 5, placed 2026-11-26
   (the log's *The Feedback Held by an Item*): the 42 entries of
   [`language_feedback.md`](language_feedback.md) that the full review and the builds
-  around it left, and the 20 the release review before 0.11.0 added, entries 321 to 340,
+  around it left, and the 21 the release review before 0.11.0 added, entries 321 to 341,
   each a question where the report is true. Nothing is built before its verdict.
 
   They are decided by family, as the review's `decide` round was. The session searches the
@@ -489,7 +476,9 @@ What the line left, in the order it is taken:
   initializer is a value (§4.6), and a `let` in a block only where it binds a lambda
   (§3.9), so `let one = List.take` serves two types at top level and one in a block. To
   decide with the user: §4.6's values for a block's `let` too, with what §4.8 calls a
-  definition, a cold reading and the argument's paragraph.
+  definition, a cold reading and the argument's paragraph. With it, the release review's *P1 10*: the
+  help `annotate the value where it is bound` names no value, where what is annotated is
+  the lambda's parameter.
 - **170. A prelude type's members written with their prefix**, from the findings' *P1 18,
   K 27*. `int.ern` declares `fn Int.+` and, unprefixed, `fn compare` and `fn negate`,
   which costs an exception sentence in §4.2, in §4.8 and in Appendix F. The standard
@@ -522,6 +511,50 @@ What the line left, in the order it is taken:
   line reads Markdown itself, and they differ over a fence. The design is read from what
   the five readers need, a paragraph's first line in one and each line's kind in another,
   before a type that every `match` over a block pays for.
+- **177. The release review's questions, decided**, from MVP 4.4's item 5, placed
+  2026-11-26 (the log's *The Release Review Before 0.11.0, Decided*): the 54 `decide`
+  lines of the review before 0.11.0 that are questions where the report is true, a recut,
+  a name, a second way, a help's text or a rule a program does not show false. A line is
+  `findings.md`'s as it stood at the commit that removed the file, with the user's verdict
+  beneath it.
+
+  They are decided by family as item 176's entries are, after the launch, the names each
+  after its word is searched across the report, the code and the shell
+  (`docs/reviews/release.md`):
+  - a job's says and refusals, *P3 5*, *P3 8*, *P3 9*, *P3 15*, *P3 10*, *E2 3*, *P3 16*,
+    *C5 clarity 12*;
+  - an error's help, *C1 3*, *P1 21*, *P1 3*, *K 2*;
+  - the report's recuts, *P1 20*, *P1 14*, *P1 18*, *P3 14*, *P2 21*, *P2 22*, *P2 23*,
+    *P2 35*, *P3 Rules that buy little*, *P1 16, K 9, K Kept*;
+  - which page owns a fact, *U1 12*, *N 18*, *U1 20, N Leftovers*, *N 23, M27, M28, M29,
+    L26, U2 18, N Leftovers*, *U2 17*, *U2 15*, *M12*;
+  - the library's names, *P2 31*, *P2 33*, *P2 32*, *U1 15*, *N Names*, *N Names*, *N
+    Names, E3 L1*, *N 29*;
+  - the type rules, *P1 11*, *P1 12*;
+  - what the guides show, *N 17*, *L27*, *L6*;
+  - processes, monitors and waits, *P1 8*, *P1 9*, *P2 30*, *P2 34*;
+  - the library's promises, *P2 27*, *E1 C3*;
+  - Appendix H, *P3 12*;
+  - a second way, *P1 4*, *U1 17*, *P3 11*;
+  - alone, *E3 C7*, *N 7*.
+
+  With them, the parts that ten lines made for 0.11.0 left open: the text of `ern test`'s
+  refusal of a copy (*P3 1*) and of the advice to compile a module first (*N 6*); whether
+  the guide's §10 grows (*L3*); the rule for a field named as a member (*K 5*) and for a
+  member declared at one instance (*K 3*); the message that names `Foreign.Term` for an
+  alarm (*K 6*); whether `Markdown.render` escapes a control character (*S 2*); whether
+  `Fs.makeTempDir` removes a directory another wrote into (*S 4*) and the two checks
+  become one (*S 5*); and whether an interface's values are checked as it is read (*C2
+  D4*).
+- **178. An abandoned line's end drawn in its order**, from the review's *E2 1*, a line of
+  [`known_issues.md`](known_issues.md) until then. Since the shell's build of 2026-11-26
+  the session draws the end of a line `C-c` abandons, and the reader goes on drawing the
+  keys typed after it, so during a `:load` or a `:reload` the transcript shows those keys
+  as the abandoned line and the prompt stands empty over an editor that holds them. No
+  input is lost. A diagnosis first, by one agent with `abandon.sh`: the reader draws the
+  end again and the session's prompt waits on it, or the reader holds its keys until the
+  end is drawn, with a test that types after `C-c` and `interrupts_in_one_read` still
+  passing.
 - **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
   Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
   beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
@@ -598,4 +631,4 @@ What the line left, in the order it is taken:
 | The full review's findings before 0.11.0 | the 929 lines of the review run over `93a13b13`, the principles review inside it: 446 made as plain fixes or as defects a report sentence states, 431 decided with the user, 52 filed; and the 51 lines the three applications' reviews found of Ernest's, 9 fixed, 20 decided, 4 felt, 6 an item's and 12 dropped | 2026-11-26 | | `findings.md` as it stood at `ab68ef61`; the log's entries from 2026-11-23 to 2026-11-26 |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
 | MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, and the 42 entries of the feedback file that the full review left, decided by family | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |

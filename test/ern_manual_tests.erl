@@ -13,14 +13,13 @@
 %% writes the prelude's page and each standard library module's beside its
 %% .erc; tools/manual.ern writes ern(1), whose NAME line and DESCRIPTION
 %% are §11's, its subsections §11.1 to §11.6 and those after §11.8, with
-%% the parts of each, in the report's order, whose SYNOPSIS is every job's usage as its `--help`
-%% prints it, in `ern --help`'s order, then `ern --help` and `ern
-%% --version`, whose
-%% OPTIONS and EXIT STATUS are §11.7 and §11.8, and whose SEE ALSO names
-%% those pages, the prelude's first. Every page renders without a warning:
-%% groff checks it where it is installed, with UTF-8 read as man-db reads
-%% it, mandoc where groff is not, and a machine with neither says so.
-%% Written after the code, a regression test.
+%% the parts of each, in the report's order, whose SYNOPSIS is every job's
+%% usage as its `--help` prints it, in `ern --help`'s order, then `ern
+%% --help` and `ern --version`, whose OPTIONS and EXIT STATUS are §11.7 and
+%% §11.8, and whose SEE ALSO names those pages, the prelude's first. Every
+%% page renders without a warning: groff checks it where it is installed,
+%% with UTF-8 read as man-db reads it, mandoc where groff is not, and a
+%% machine with neither says so. Written after the code, a regression test.
 manual_pages_test_() ->
     {timeout, 120, fun manual_pages/0}.
 

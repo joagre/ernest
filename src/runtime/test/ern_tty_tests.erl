@@ -243,7 +243,7 @@ no_stty_test() ->
 %% after the code, under which the subscription was granted with no mode
 %% set
 unreadable_settings_test() ->
-    Stty = fake_stty(scratch("ern_tty_unreadable_"),
+    Stty = fake_stty(ern_helpers:tmp("ern_tty_unreadable_"),
                      "echo \"stty: 'standard input': Inappropriate ioctl for device\" >&2\n"
                      "exit 1\n"),
     {ok, Holder} = ern_tty:holder(true, Stty),
@@ -257,7 +257,7 @@ unreadable_settings_test() ->
 %% given back first; the test's stty writes down each call. A regression
 %% test, written after the code, under which the subscription was granted
 unset_mode_given_back_test() ->
-    Dir = scratch("ern_tty_unset_"),
+    Dir = ern_helpers:tmp("ern_tty_unset_"),
     Calls = filename:join(Dir, "calls"),
     Stty = fake_stty(Dir,
                      ["echo \"$*\" >> '", Calls, "'\n"
@@ -288,7 +288,7 @@ holder_gives_back_test_() ->
 %% The calls a holder made of the test's stty, told to hold and then Word,
 %% the stty refusing what Refused says.
 given_back(Word, Refused) ->
-    Dir = scratch("ern_tty_given_back_"),
+    Dir = ern_helpers:tmp("ern_tty_given_back_"),
     Calls = filename:join(Dir, "calls"),
     Stty = fake_stty(Dir, ["echo \"$*\" >> '", Calls, "'\n"
                            "case \"$1\" in\n"
@@ -315,9 +315,6 @@ fake_stty(Dir, Body) ->
     ok = file:write_file(Path, ["#!/bin/sh\n", Body]),
     ok = file:change_mode(Path, 8#755),
     Path.
-
-scratch(Prefix) ->
-    ern_helpers:tmp(Prefix).
 
 %% report §12.1: the terminal applies each subscriber's wrap itself, in
 %% order, so a wrap that does not finish delays that subscriber's keys and

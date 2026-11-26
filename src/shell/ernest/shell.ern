@@ -33,18 +33,19 @@ type Outcome =
             peer : Optional(String),
             serial : Int)
 
-/// What the session is told. In a plain shell its local half sends `Begun`
-/// with what it read; the reader sends `Typed` for an input entered,
-/// `Interrupted` for `C-c`, and `InputEnded` for `C-d` on an empty input; in
-/// line mode the local half's reader of lines, `nextRead`, sends `Line` for
-/// each line it reads, `None` at the end of input; the input's process sends
-/// `Done` as it ends, its outcome carrying the input's serial, so that the
-/// outcome of one `Interrupted` killed is known wherever it arrives;
-/// `Process.subscribeFaults` sends `Reported` for every fault, and the front
-/// end `Reloaded` for a reload by another session of the node, the modules
-/// it compiled again and the session's number; and the monitors on the
-/// reader, the screen and the local half `ReaderDied`, `ScreenDied` and
-/// `LocalEnded` for their ends (report §11.2).
+// In a plain shell its local half sends `Begun` with what it read; the
+// reader sends `Typed` for an input entered, `Interrupted` for `C-c`, and
+// `InputEnded` for `C-d` on an empty input; in line mode the local half's
+// reader of lines, `nextRead`, sends `Line` for each line it reads, `None`
+// at the end of input; the input's process sends `Done` as it ends, its
+// outcome carrying the input's serial, so that the outcome of one
+// `Interrupted` killed is known wherever it arrives;
+// `Process.subscribeFaults` sends `Reported` for every fault, and the front
+// end `Reloaded` for a reload by another session of the node, the modules
+// it compiled again and the session's number; and the monitors on the
+// reader, the screen and the local half `ReaderDied`, `ScreenDied` and
+// `LocalEnded` for their ends (report §11.2).
+/// What the session is told (report §11.2).
 export abstract type ShellMsg =
     Typed(String)
   | InputEnded
@@ -183,24 +184,24 @@ type StartupInput = StartupInput(file : String, line : Int, input : String)
 type HistoryRead =
     HistoryRead(earlier : List(String), historyFile : Optional(String), notes : List(String))
 
-/// What the local half is told, on the shell's own node (report §11.2). Its
-/// session sends `Attached` once it has its screen, a call, with the
-/// session's process, the address the terminal's events go to at a
-/// terminal, and its screen's process, which what the shell's own node
-/// writes goes to; the screen sends `Write` for the bytes it writes, with
-/// the bytes that end what it drew where they leave it, and `Drain`,
-/// answered once they are written.
-///
-/// The reader sends `Remember` for an input the history appends; the
-/// session sends `Output` for the path `:output` names, which the local half
-/// tries and appends to from then on, the screen `Append` for what `:output`
-/// appends there, and the session in line mode `ReadLine`, answered with
-/// the next line at the address it gives; the front end asks `Read` and
-/// `Stat` of a file of the source root, or of a startup file it ran, and
-/// the reader's completion `ListEntries` of a directory of the source root.
-/// The terminal sends `Pressed` for each event, and the monitors on the
-/// session, on the root of an attached session's chain and on the reader of
-/// lines `SessionEnded`, `EntryEnded` and `LinesEnded`.
+// Its session sends `Attached` once it has its screen, a call, with the
+// session's process, the address the terminal's events go to at a
+// terminal, and its screen's process, which what the shell's own node
+// writes goes to; the screen sends `Write` for the bytes it writes, with
+// the bytes that end what it drew where they leave it, and `Drain`,
+// answered once they are written.
+//
+// The reader sends `Remember` for an input the history appends; the
+// session sends `Output` for the path `:output` names, which the local half
+// tries and appends to from then on, the screen `Append` for what `:output`
+// appends there, and the session in line mode `ReadLine`, answered with
+// the next line at the address it gives; the front end asks `Read` and
+// `Stat` of a file of the source root, or of a startup file it ran, and
+// the reader's completion `ListEntries` of a directory of the source root.
+// The terminal sends `Pressed` for each event, and the monitors on the
+// session, on the root of an attached session's chain and on the reader of
+// lines `SessionEnded`, `EntryEnded` and `LinesEnded`.
+/// What the local half is told, on the shell's own node (report §11.2).
 export abstract type LocalMsg =
     Attached(session : Process,
              keys : Optional(Address(Terminal.Event)),
@@ -336,8 +337,8 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     let state =
         State(session = start(local,
                               screenProcess,
-                              Path.toString(desk.sourceRoot),
-                              Path.toString(desk.workingDirectory),
+                              desk.sourceRoot,
+                              desk.workingDirectory,
                               attached,
                               shell),
               settings = defaults(),
@@ -393,7 +394,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                     // is not kept; once the reader has answered, every one
                     // it passed on is in the mailbox, ahead of its answer
                     let _ = Address.call(given, Prompted, screenMs);
-                    unkeptInterrupts();
+                    dropUnkeptInterrupts();
                     keyLoop(state, screen)
                 }
               | Leave ->
@@ -445,11 +446,11 @@ fn firstPrompt(shell : Address(ShellMsg),
         }
     }
 
-// Report §11.2: the interrupts the reader passed on before the first
-// prompt that ended no startup input, taken from the session's mailbox.
-fn unkeptInterrupts() : Unit receiving ShellMsg =
+// Report §11.2: takes from the session's mailbox the interrupts the
+// reader passed on before the first prompt that ended no startup input.
+fn dropUnkeptInterrupts() : Unit receiving ShellMsg =
     receive {
-        Interrupted -> unkeptInterrupts()
+        Interrupted -> dropUnkeptInterrupts()
       | after 0 -> Unit
     }
 
@@ -487,17 +488,17 @@ fn readHistory() : HistoryRead =
             };
             HistoryRead(earlier = [], historyFile = None, notes = [unkept(why)])
         }
-      | Some(path) ->
+      | Some(path) -> {
+            let file = Refusal.textFromWorkingDirectory(path);
             match History.read() {
                 Right(inputs) ->
-                    HistoryRead(earlier = inputs,
-                                historyFile = Some(Refusal.pathNamed(path)),
-                                notes = [])
+                    HistoryRead(earlier = inputs, historyFile = Some(file), notes = [])
               | Left(reason) ->
                     HistoryRead(earlier = [],
                                 historyFile = None,
-                                notes = [unkept(unkeptReason(reason, Refusal.pathNamed(path)))])
+                                notes = [unkept(unkeptReason(reason, file))])
             }
+        }
     }
 
 // Report §11.2: each case of no history is said in one form.
@@ -510,9 +511,9 @@ fn unkept(why : String) : String =
 fn unkeptReason(reason : History.Unkept, file : String) : String =
     match reason {
         History.Unmade(=directory, error = Io.Exists) ->
-            Refusal.pathNamed(directory) <> " is no directory"
+            Refusal.textFromWorkingDirectory(directory) <> " is no directory"
       | History.Unmade(=directory, =error) ->
-            Refusal.pathNamed(directory)
+            Refusal.textFromWorkingDirectory(directory)
                 <> " could not be made its owner's alone: "
                 <> Refusal.trouble(error)
       | History.Unreadable(error) ->
@@ -536,9 +537,12 @@ fn historyTrouble(file : String, verb : String, error : Io.Error) : String =
       | _ -> file <> " could not be " <> verb <> ": " <> Refusal.trouble(error)
     }
 
-// Report §11.2: a startup file, its user's own or the configuration
-// directory's, by its path.
-type StartupFile = Own(String) | Configured(String)
+// Report §11.2: a startup file, by its path, and whose it is.
+type StartupFile = StartupFile(path : String, kind : StartupKind)
+
+// Whose a startup file is: its user's own or the configuration
+// directory's.
+type StartupKind = Own | Configured
 
 // Report §11.2: where the startup files are, its user's first and then
 // the configuration directory's, which runs only where `--config-dir`
@@ -549,22 +553,16 @@ fn startupFiles() : List(StartupFile) =
     match #(Optional.map(History.startup, Refusal.fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) ->
             if isSameFile(own, configured) then
-                [Configured(own)]
+                [StartupFile(path = own, kind = Configured)]
             else
-                [Own(own), Configured(configured)]
+                [StartupFile(path = own, kind = Own),
+                 StartupFile(path = configured, kind = Configured)]
       | #(Some(own), None) ->
-            [Own(own)]
+            [StartupFile(path = own, kind = Own)]
       | #(None, Some(configured)) ->
-            [Configured(configured)]
+            [StartupFile(path = configured, kind = Configured)]
       | #(None, None) ->
             []
-    }
-
-// A startup file's path.
-fn startupPath(file : StartupFile) : String =
-    match file {
-        Own(path) -> path
-      | Configured(path) -> path
     }
 
 // Report §11.2: the inputs of a startup file, as readFileInputs reads
@@ -572,25 +570,25 @@ fn startupPath(file : StartupFile) : String =
 // where its mode lets any but its owner write it, as a node refuses such
 // an `ernest.conf` (§12.5).
 fn readStartup(file : StartupFile) : #(List(StartupInput), List(String)) =
-    match file {
-        Own(path) ->
-            readFileInputs(path)
-      | Configured(path) ->
-            if isWrittenByOthers(path) then {
-                let shown = Refusal.controlFree(path);
+    match file.kind {
+        Own ->
+            readFileInputs(file.path)
+      | Configured ->
+            if isWrittenByOthers(file.path) then {
+                let shown = Refusal.textFromWorkingDirectory(Path(file.path));
                 #([],
                   [shown
                        <> " may be written by others than its owner, and is not run; chmod go-w "
                        <> shown])
             } else
-                readFileInputs(path)
+                readFileInputs(file.path)
     }
 
 // Whether the file's mode lets any but its owner write it, a link
 // followed; a file that is not there, or cannot be asked, readFileInputs
 // reads as any other.
 fn isWrittenByOthers(path : String) : Bool =
-    match Fs.stat(Path(path), History.fileMs) {
+    match Fs.stat(Path(path), fileMs) {
         Right(entry) -> Int.bitAnd(entry.mode, 0o022) != 0
       | Left(_) -> false
     }
@@ -600,20 +598,23 @@ fn isWrittenByOthers(path : String) : Bool =
 // (readStartup). A file that is not there is no error; one that cannot be
 // read, is no regular file or is not UTF-8 is said, and the session goes
 // on. Each input carries the line it is on.
-fn readFileInputs(file : String) : #(List(StartupInput), List(String)) =
-    match Fs.read(Path(file), History.fileMs) {
+fn readFileInputs(file : String) : #(List(StartupInput), List(String)) = {
+    let path = Path(file);
+    let shown = Refusal.textFromWorkingDirectory(path);
+    match Fs.read(path, fileMs) {
         Left(Io.NotFound) ->
             #([], [])
       | Left(Io.NotAFile) ->
-            #([], [Refusal.controlFree(file) <> " is no regular file"])
+            #([], [shown <> " is no regular file"])
       | Left(error) ->
-            #([], [Refusal.controlFree(file) <> " could not be read: " <> Refusal.trouble(error)])
+            #([], [shown <> " could not be read: " <> Refusal.trouble(error)])
       | Right(bytes) ->
             match String.fromUtf8(bytes) {
                 Some(text) -> #(startupInputs(file, List.indexed(String.lines(text))), [])
-              | None -> #([], [Refusal.controlFree(file) <> " is not UTF-8, and is not run"])
+              | None -> #([], [shown <> " is not UTF-8, and is not run"])
             }
     }
+}
 
 // Report §11.2: the inputs of a startup file, each with the line it
 // begins on, taken as lines typed in line mode are: an input the parser
@@ -647,6 +648,10 @@ fn gathered(input : String, lines : List(#(Int, String))) : #(String, List(#(Int
 // How long to wait for the screen to answer, which has every write sent
 // before the call to make first; past it the shell goes on without.
 let screenMs = 5000
+
+// How long the shell waits for the file system, which is a local file,
+// for every file it reads but the history, which its module times.
+let fileMs = 5000
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
 // and a `:quit` there ends the session; a diagnostic names its file and
@@ -1140,7 +1145,11 @@ fn origin(state : State, column : Int) : Origin =
 fn placed(state : State, text : String) : String =
     match state.startupLine {
         Some(#(file, line)) ->
-            Refusal.controlFree(file) <> ":" <> Int.toString(line) <> ": " <> text
+            Refusal.textFromWorkingDirectory(Path(file))
+                <> ":"
+                <> Int.toString(line)
+                <> ": "
+                <> text
       | None ->
             text
     }
@@ -1248,7 +1257,7 @@ fn obey(state : State,
                                   List.map(reports, fn(report) = stampedLine(report, color)))
             }
       | Command.Load -> {
-            let loaded = load(session, argument);
+            let loaded = load(session, argument, Interrupted);
             dropInterrupts(screen);
             match loaded {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
@@ -1256,7 +1265,7 @@ fn obey(state : State,
             }
         }
       | Command.Reload -> {
-            let reloaded = reload(session);
+            let reloaded = reload(session, Interrupted);
             dropInterrupts(screen);
             match reloaded {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
@@ -2164,7 +2173,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
                 peer = None,
                 ending = "",
                 sourceRoot = desk.sourceRoot,
-                startup = List.map(startup, fn(file) = Path(startupPath(file))),
+                startup = List.map(startup, fn(file) = Path(file.path)),
                 output = None);
     match attachment {
         Beside(session) -> {
@@ -2313,7 +2322,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
       // which creates a file that is not there, and appended to from then
       // on, and no other
       | Output(=path, =reply) -> {
-            let tried = Fs.append(path, <<>>, History.fileMs);
+            let tried = Fs.append(path, <<>>, fileMs);
             answer(reply, tried);
             match tried {
                 Right(_) -> served(Serving(..serving, output = Some(path)))
@@ -2323,7 +2332,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
       | Append(=path, =bytes, =reply) -> {
             answer(reply,
                    if serving.output == Some(path) then
-                       Fs.append(path, bytes, History.fileMs)
+                       Fs.append(path, bytes, fileMs)
                    else
                        Left(Io.Denied));
             served(serving)
@@ -2336,25 +2345,17 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             served(serving)
         }
       | Read(=path, =reply) -> {
-            answer(reply,
-                   if isRead(serving, path) then
-                       Fs.read(path, History.fileMs)
-                   else
-                       Left(Io.Denied));
+            answer(reply, if isRead(serving, path) then Fs.read(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
       | Stat(=path, =reply) -> {
-            answer(reply,
-                   if isRead(serving, path) then
-                       Fs.stat(path, History.fileMs)
-                   else
-                       Left(Io.Denied));
+            answer(reply, if isRead(serving, path) then Fs.stat(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
       | ListEntries(=path, =reply) -> {
             answer(reply,
                    if isUnder(serving.sourceRoot, path) then
-                       Fs.list(path, History.fileMs)
+                       Fs.list(path, fileMs)
                    else
                        Left(Io.Denied));
             served(serving)
@@ -2467,7 +2468,7 @@ fn askLocal(local : Address(LocalMsg),
 // wait to reach the shell's own node (§8.7). A function of no parameters,
 // as `src/shell/README.md`'s *Idioms to notice* says.
 fn localMs() : Int =
-    History.fileMs + dialMs()
+    fileMs + dialMs()
 
 // Report §11.2: a path that names no terminal, other device or file, a
 // named pipe among them, is refused, as the file system refuses it (Appendix E.17);
@@ -2493,8 +2494,8 @@ fn cannotWrite(path : Path, error : Io.Error) : String = {
 // is said at (`Reloaded`).
 foreign fn start(local : Address(LocalMsg),
                  screen : Process,
-                 sourceRoot : String,
-                 workingDirectory : String,
+                 sourceRoot : Path,
+                 workingDirectory : Path,
                  attached : Bool,
                  shell : Address(ShellMsg)) : Session =
     "ern_shell:start/6"
@@ -2543,20 +2544,24 @@ foreign fn changedAtStart(session : Session) : List(String) =
     "ern_shell:changed_at_start/1"
 
 // Report §11.2: whether the process is the entry process of the run in
-// progress, whose fault's line names its site alone, as `ern run`'s does.
+// progress or the one `spawnProgram` started, whose fault's line names its
+// site alone, as `ern run`'s does.
 foreign fn isEntry(process : Process) : Bool =
     "ern_shell:is_entry/1"
 
 // Report §11.2, §4.7: `:load` and `:reload`, which receive from the
-// session's mailbox the interrupt that kills the evaluator that runs, put
-// back once taken, so that the session drops it with every other that came
-// (`dropInterrupts`).
+// session's mailbox the interrupt that kills the evaluator that runs, the
+// message they are given, put back once taken, so that the session drops
+// it with every other that came (`dropInterrupts`).
 foreign fn load(session : Session,
-                name : String) : Either(String, #(Session, String)) receiving ShellMsg =
-    "ern_shell:load/2"
+                name : String,
+                interrupt : ShellMsg) : Either(String, #(Session, String)) receiving ShellMsg =
+    "ern_shell:load/3"
 
-foreign fn reload(session : Session) : Either(String, #(Session, List(String))) receiving ShellMsg =
-    "ern_shell:reload/1"
+foreign fn reload(session : Session,
+                  interrupt : ShellMsg) : Either(String,
+                                                 #(Session, List(String))) receiving ShellMsg =
+    "ern_shell:reload/2"
 
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.

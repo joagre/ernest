@@ -179,7 +179,7 @@ fn numbered(texts : List(String)) : Map(String, String) = {
 fn numberKey(found : String) : String = {
     let digits = String.replace(found, ".", "");
     match String.toList(found) {
-        first :: _ when first >= 'A' && first <= 'Z' -> "appendix-" <> String.toLower(digits)
+        first :: _ when Citations.isCapital(first) -> "appendix-" <> String.toLower(digits)
       | _ -> digits
     }
 }

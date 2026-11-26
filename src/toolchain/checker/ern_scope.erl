@@ -158,7 +158,7 @@ free_references(Body, Params, Names) ->
     lists:usort([Name || Name <- ern_ast:free_names(Body, names(param_variables(Params))),
                          lists:member(Name, Names)]).
 
-%% The names of variables each with where it is bound.
+%% The names of Variables, each held with where it is bound.
 names(Variables) -> [Name || {Name, _} <- Variables].
 
 -spec fail(ern_diagnostic:position() | ern_diagnostic:span(), io_lib:chars(),

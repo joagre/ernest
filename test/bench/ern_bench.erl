@@ -112,6 +112,7 @@ operations(Server) ->
     Right = binary:copy(<<"cd">>),
     Bytes = binary:copy(<<"abcd">>),
     Tail = lists:seq(1, 10),
+    Scale = float(length(Numbers)),
     Path = <<"srv/site">>,
     Ended = ended(),
     #{"loop" => {"the loop alone", fun(Iteration) -> Iteration end},
@@ -215,7 +216,8 @@ operations(Server) ->
                                    _ -> 0
                                end
                            end},
-      "float_times" => {"Float.*, *", fun(Iteration) -> trunc(float(Iteration) * 1.5) end},
+      "float_times" => {"Float.*, *", fun(Iteration) -> trunc(Scale * 1.5) + Iteration end},
+      "int_to_float" => {"Int.toFloat, float/1", fun(Iteration) -> trunc(float(Iteration)) end},
       "int_divide" => {"Int./ and Int.%, div and rem",
                        fun(Iteration) -> Iteration div 3 + Iteration rem 7 end},
       "restarting" => {"restarting entered and returning, a try",

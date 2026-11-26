@@ -144,7 +144,8 @@ export type FaultReport =
 
 /// The callee a fault's report names, by its spawn site (report §6.9): the one
 /// whose fault a call carried to the caller (report §6.6), or the one whose end
-/// the cause says, `callee was killed` (Appendix E.21).
+/// the cause says how, `callee was killed` (Appendix E.21); a `FaultReport`'s
+/// `callee` is `None` for `callee had ended`.
 ///
 /// ### Examples
 ///

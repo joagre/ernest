@@ -221,8 +221,8 @@ export fn stat(path : Path, ms : Int) : Either(Io.Error, Entry) =
     asked(fn(reply) = Stat(=path, =reply), ms)
 
 /// Makes the directory, and any directory above it that is not there. A
-/// directory that is already there is not an error, and a file there answers
-/// `Left(Exists)`.
+/// directory that is already there is not an error, and an entry there that is
+/// not a directory, nor a link to one, answers `Left(Exists)`.
 export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) =
     asked(fn(reply) = MakeDir(=path, =reply), ms)
 

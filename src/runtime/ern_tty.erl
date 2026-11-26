@@ -24,9 +24,10 @@
 %% ern_tty_signal, installed with the first subscription; the size is
 %% then asked for once.
 %%
-%% Decoding is decode/1 over the characters read, and flush/1 for what is left
-%% when nothing follows; both are functions and are what the unit tests
-%% exercise, with holder/2 and raw_mode/1 over a stty of a test's own. The
+%% Decoding is decode/1 over the characters read, more/2 over what arrives
+%% after what was pending, and flush/1 for what is left when nothing
+%% follows; the three are functions and are what the unit tests exercise,
+%% with holder/2 and raw_mode/1 over a stty of a test's own. The
 %% reading itself is driven through a pseudo-terminal by
 %% test/ern_terminal_tests.erl; loop/2 takes the input
 %% as ern_rt's stdin does, the host's standard input but in a test, and

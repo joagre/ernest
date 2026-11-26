@@ -652,16 +652,21 @@ let enteredTakesItAway =
         Test.equal(#(rowsOf(region), String.indexOf(bytes, "List.map")), #([""], None))
     })
 
+// docs/design/shell.md *Width*: a row shown under the input wraps at the
+// edge as a line of the tail does, and one it wraps onto after a reset
+// begins with no style.
 let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge", run = fn() = {
     let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
-    let #(region, _) = edited(region, "", 0, ["abcdefgh"]);
-    Test.equal(rowsOf(region), ["> ", "abcdef", "gh"])
+    let #(plain, _) = edited(region, "", 0, ["abcdefgh"]);
+    let #(reset, _) = edited(region, "", 0, ["\u{1b}[1mab\u{1b}[0mcdefgh"]);
+    Test.equal(#(rowsOf(plain), rowsOf(reset)),
+               #(["> ", "abcdef", "gh"], ["> ", "\u{1b}[1mab\u{1b}[0mcdef", "gh"]))
 })
 
-// Report §11.2: a row the input or what is shown under it wraps onto
-// begins with the escape sequences since the last reset, as a row of the
-// tail does: the style in force for a row cut inside a styled run, and
-// nothing for one cut after a reset.
+// docs/design/shell.md *Width*: a row the input or what is shown under it
+// wraps onto begins with the escape sequences since the last reset, as a
+// row of the tail does: the style in force for a row cut inside a styled
+// run, and nothing for one cut after a reset.
 let wrapKeepsColor = Test.Case(name = "a wrapped row begins with the style in force", run = fn() = {
     let styled = wrapped("\u{1b}[1mab\u{1b}[32mcdefgh\u{1b}[0m", 6);
     let reset = wrapped("\u{1b}[1mab\u{1b}[0mcdefgh", 6);
@@ -669,14 +674,6 @@ let wrapKeepsColor = Test.Case(name = "a wrapped row begins with the style in fo
                #(["\u{1b}[1mab\u{1b}[32mcdef", "\u{1b}[1m\u{1b}[32mgh\u{1b}[0m"],
                  ["\u{1b}[1mab\u{1b}[0mcdef", "gh"]))
 })
-
-// Report §11.2: the rows under the input wrap as a line of the tail does.
-let offerWrapsAfterReset =
-    Test.Case(name = "a row shown under the input wraps after a reset unstyled", run = fn() = {
-        let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
-        let #(region, _) = edited(region, "", 0, ["\u{1b}[1mab\u{1b}[0mcdefgh"]);
-        Test.equal(rowsOf(region), ["> ", "\u{1b}[1mab\u{1b}[0mcdef", "gh"])
-    })
 
 let offerCounted = Test.Case(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count

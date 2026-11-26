@@ -120,10 +120,7 @@ type WatcherMsg =
   | SupervisorDied
 
 // A child as the watcher holds it: its process, where it stands in the
-// order of spawns, and `stop`, which kills it. `stop` is a function that
-// `Join` carries, which binds `GroupMsg` and a supervisor's address to
-// their node (report §3.11): a capture of one in `Peer.spawn` is refused
-// when the program is compiled.
+// order of spawns, and `stop`, `Join`'s, which kills it.
 type Member = Member(process : Process, spawned : Int, stop : () -> Unit receiving WatcherMsg)
 
 // A run of the supervisor as the watcher begins it: the children that wait

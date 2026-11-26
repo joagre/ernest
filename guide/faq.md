@@ -40,7 +40,7 @@ When a sibling restarts, and what a call to the child that faulted answers meanw
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6); it keeps its mailbox type for life, so a change of its messages is a new process. A module reloaded or brought by a peer runs beside its earlier versions (report §11.2). A restart runs the function the process was started with, so a process under `restarting` or a `Supervisor` that such a message moved is back on its old loop at its next fault (the deployment guide's §6.3).
 
-The guide's §10 says, item by item, what an Erlang programmer finds in place of each part of OTP.
+The guide's §10 and these questions say what an Erlang programmer finds in place of OTP's parts.
 
 ### Where are ETS, tracing, `observer`, `global`, `pg`, back pressure and releases?
 

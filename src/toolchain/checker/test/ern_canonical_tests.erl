@@ -266,8 +266,8 @@ same_definition_same_hash_test() ->
 %% Written with the change: the form held each annotation as written, so
 %% `fn f(x : Int) : Int` and `fn f(x) : Int` were two hashes. The lambdas no
 %% call fixes, whose effect variable an annotation fixes to none or nothing
-%% fixes, a regression test written after the fix of the full review: the
-%% form wrote that variable where the scheme held none; it does not cover a
+%% fixes, a regression test written after the fix: the form wrote that
+%% variable where the scheme held none; it does not cover a
 %% lambda a block `let` binds that receives what its parameter's function
 %% receives
 annotation_left_out_test() ->
@@ -792,9 +792,10 @@ malformed_recorded_test() ->
                      not_a_record]].
 
 %% report §11, §11.1: an interface chunk of this build's format whose
-%% interface's fields are not those this build writes reads as another
-%% build's, `compiled by another build of ern`, and raises nothing. A
-%% regression test: a field that was no list of pairs raised `badarg`
+%% interface is of another shape, a field of it no list of pairs, reads as
+%% another build's, `compiled by another build of ern`, and raises
+%% nothing; the values a field holds are not checked. A regression test: a
+%% field that was no list of pairs raised `badarg`
 malformed_interface_test() ->
     {ok, _, Written, _} = ern_typecheck:check_string(['M'], "fn f() : Int = 1\n"),
     #{format := Format} = binary_to_term(ern_interface:encode(#{}, Written)),

@@ -5,13 +5,13 @@
 %% one tag a process's mailbox holds; the side of an Either; the options of
 %% a run whose standard output is let go; what EUnit has captured; an I/O
 %% server that keeps what it is given; a process of another node; a node's
-%% certificate forged; and the record of the documents' blocks a test
-%% checks.
+%% certificate forged; and a document's fenced blocks, with the record of
+%% those a test checks.
 -module(ern_helpers).
 
 -export([run_dir/0, tmp/1, tmp/2, write/3, loaded/2, unloaded/1, forge/2, taken/1, side/1,
          quiet/0, quiet/1, silent/0, captured_output/0, device/0, device_bytes/1, far_process/0,
-         forged_certificate/2, record_checked/3, record_of/1]).
+         forged_certificate/2, record_checked/3, blocks/1, record_of/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -207,17 +207,39 @@ record_checked(Test, Document, Lines) ->
                         fun() -> recorded(record_of(Test), Run, Facts) end, [node()]),
     ok.
 
-%% The numbers of the lines that open a fenced block, a line that begins
-%% with three backticks opening one or closing the one open, as the
-%% listing reads a fence.
+%% The numbers of the lines that open a fenced block, a fence (is_fence/1)
+%% opening one or closing the one open, as the listing reads a fence.
 opening([], _, _) ->
     [];
-opening([<<"```", _/binary>> | Lines], Number, false) ->
-    [Number | opening(Lines, Number + 1, true)];
-opening([<<"```", _/binary>> | Lines], Number, true) ->
-    opening(Lines, Number + 1, false);
-opening([_ | Lines], Number, Fenced) ->
-    opening(Lines, Number + 1, Fenced).
+opening([Line | Lines], Number, Fenced) ->
+    case {is_fence(Line), Fenced} of
+        {true, false} -> [Number | opening(Lines, Number + 1, true)];
+        {true, true} -> opening(Lines, Number + 1, false);
+        {false, _} -> opening(Lines, Number + 1, Fenced)
+    end.
+
+%% The fenced blocks of a document's numbered lines, as record_checked/3
+%% reads its fences: each the line its fence opens on, the heading it
+%% stands under, the last line outside a block that begins with `#`, or
+%% none, the word after its fence, and its lines. A block left open fails.
+-spec blocks([{pos_integer(), binary()}]) ->
+          [{pos_integer(), binary() | none, binary(), [binary()]}].
+blocks(Numbered) ->
+    blocks(Numbered, none).
+
+blocks([], _) ->
+    [];
+blocks([{Number, <<"```", Info/binary>>} | Rest], Heading) ->
+    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not is_fence(Line) end, Rest),
+    [{Number, Heading, Info, [Line || {_, Line} <- Code]} | blocks(After, Heading)];
+blocks([{_, <<"#", _/binary>> = Heading} | Rest], _) ->
+    blocks(Rest, Heading);
+blocks([_ | Rest], Heading) ->
+    blocks(Rest, Heading).
+
+%% Whether a line is a fence, one that begins with three backticks.
+is_fence(<<"```", _/binary>>) -> true;
+is_fence(_) -> false.
 
 %% The record of the blocks Test checks, build/checked/Test.txt.
 -spec record_of(module()) -> file:filename().

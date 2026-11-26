@@ -39,8 +39,9 @@ read(Beam) ->
     case ern_chunk:read(Beam, ?CHUNK) of
         {ok, Chunk} ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk),
-            %% and an interface whose fields are not what this build writes
-            %% is another build's
+            %% and a chunk of another format, or an interface of another
+            %% shape, a field of it no list of pairs, is another build's;
+            %% the values the fields hold are not checked
             try
                 {ok, #{format := ?FORMAT,
                        interface := {interface, _, _, _, _, _, _, _} = Written}

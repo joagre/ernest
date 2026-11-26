@@ -34,6 +34,21 @@ block_comment_apart_test() ->
     fixed(["fn k(x) =", "    h(x /* last */)"]),
     fixed(["fn m(x) =", "    x /* a */ + 1"]).
 
+%% report §11.6: a comment before the first item puts that item on a line
+%% of its own, and the items a step in, a block comment that ends the
+%% bracket's line as a line comment does; a first item after the comment
+%% on its line stays there, and the items align under it. A regression
+%% test: the first item was glued to a block comment that ended the line,
+%% `f(/* a */x, y)`, which a second layout moved
+block_comment_ending_bracket_line_test() ->
+    ?assertEqual([<<"fn c(x, y) =">>, <<"    f(/* a */">>, <<"        x,">>, <<"        y)">>],
+                 laid(["fn c(x, y) =", "    f( /* a */", "        x, y)"])),
+    fixed(["fn d(x) =", "    [/* a */", "        x]"]),
+    fixed(["fn h() =",
+           "    someFunction(/* the first */ aVeryLongArgumentName,",
+           "                                 anotherVeryLongArgumentName,",
+           "                                 yetAnotherOneThatIsLong)"]).
+
 %% report §11.6: only line breaks and the spaces between tokens change; a
 %% literal's spelling, a parenthesis and the form a pipe took stay
 keeps_what_was_written_test() ->
@@ -43,6 +58,20 @@ keeps_what_was_written_test() ->
                   <<"fn h(x) =">>,
                   <<"    x |> f() |> `raw`">>],
                  laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
+
+%% report §11.6, §3.5: a constructor's several positional fields, which
+%% the checker refuses, are laid out as written, one a line where they do
+%% not fit. A regression test: the formatter crashed on them
+several_positional_fields_test() ->
+    ?assertEqual([<<"type Alias = Either(String, Int)">>],
+                 laid(["type Alias = Either(String,Int)"])),
+    fixed(["type Long =",
+           "    Long(Map(String, List(Int)),",
+           "         Map(String, List(String)),",
+           "         Optional(Map(String, Int)),",
+           "         Int,",
+           "         Int,",
+           "         Int)"]).
 
 %% report §11.6: only the spaces between tokens change, and a bitstring's
 %% segment is written with its specifiers together. A regression test,

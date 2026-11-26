@@ -52,7 +52,7 @@ type ProxyMsg(m) = Message(m) | Went(Down)
 // Where the next message goes (report Appendix G.7): to the service, found
 // and monitored; to the address where it was last, which may have ended;
 // or nowhere, where no find has given an address.
-type Target(m) = Found(Address(m)) | Away(Address(m)) | Never
+type Target(m) = Found(Address(m)) | Away(Address(m)) | Nowhere
 
 /// Spawns the process of a proxy for `service`, and answers the proxy's
 /// address. The process finds the service within `ms` milliseconds, and again
@@ -79,7 +79,7 @@ export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
     let caller = Process.current();
     let proxy = spawn(fn() : Unit receiving ProxyMsg(m) = {
         monitor(caller, Went);
-        held(service, ms, caller, shared(found(service, ms, Never)))
+        held(service, ms, caller, shared(found(service, ms, Nowhere)))
     });
     endsWithCaller(Process.fromAddress(proxy));
     adapted(proxy, Message)
@@ -111,9 +111,8 @@ fn found(service : Peer.Service(m), ms : Int, away : Target(m)) : Target(m) rece
 // as a message to an ended process is (report §6.2).
 fn sent(target : Target(m), message : m) : Unit =
     match target {
-        Found(address) -> send(address, message)
-      | Away(address) -> send(address, message)
-      | Never -> Unit
+        Found(address) or Away(address) -> send(address, message)
+      | Nowhere -> Unit
     }
 
 // The target a find gave, each message that came while the find was under

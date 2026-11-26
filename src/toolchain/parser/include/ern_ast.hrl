@@ -28,7 +28,9 @@
 %% the order of params, for the error of one written twice (§4.3, §11.5);
 %% name_span: where the type's name stands, for an error in the name alone
 -record(constructor, {span, doc, name, fields = none}).
-%% fields: none | {positional, Type} | {named, [#field{}]}
+%% fields: none | {positional, Type} | {named, [#field{}]}, or {positionals,
+%% [Type], Comma}, several positional fields and where the first `,` stands,
+%% which the checker refuses (report §3.1, §3.5)
 -record(field, {span, doc, name, annotation}).
 
 -record(abstract_declaration, {span, doc, export = false, declaration}).

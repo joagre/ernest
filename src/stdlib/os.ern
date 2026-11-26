@@ -498,11 +498,12 @@ export fn startTerminal(command : Command,
 /// and tells the program's foreground, as a terminal window resized tells its
 /// shell: the host sends it `SIGWINCH`.
 ///
-/// It answers the first of these that holds: `Left(NotATerminal)` for a program
-/// `start` started, whatever the size; `Left(Invalid)` for rows or columns below
-/// 0 or above 65535; and `Left(Closed)` once the terminal has been hung up or
-/// its program has exited, as `write` does. On a program whose process has
-/// ended, killed or with its owner, it answers `Left(Closed)` alone.
+/// On a program whose process has ended, killed or with its owner, it answers
+/// `Left(Closed)`, before the others. On any other it answers the first of
+/// these that holds: `Left(NotATerminal)` for a program `start` started,
+/// whatever the size; `Left(Invalid)` for rows or columns below 0 or above
+/// 65535; and `Left(Closed)` once the terminal has been hung up or its program
+/// has exited, as `write` does.
 ///
 /// ### Errors
 ///
@@ -744,7 +745,8 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit =
 /// It answers `Left` where the program did not run to its end, as `start` and
 /// `read` answer it: `Left(NotFound)`, `Left(Denied)`, `Left(Invalid)` or
 /// `Left(Other(text))` where it could not start, and `Left(Timeout)` where the
-/// milliseconds passed first, the program killed then.
+/// milliseconds passed first, the program killed then. Given 0 milliseconds or
+/// fewer, it answers `Left(Timeout)` before any other answer and starts nothing.
 ///
 /// ### Errors
 ///
@@ -757,7 +759,12 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit =
 ///            fn(finished) = String.fromUtf8(finished.stdout))
 /// // => Right(Some("hi"))
 /// ```
-export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) = {
+export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) =
+    // Report Appendix E.23: a wait given 0 has run out as it begins, the
+    // host given nothing (E.0 shape rule 8)
+    if ms <= 0 then Left(Io.Timeout) else runWithin(command, ms)
+
+fn runWithin(command : Command, ms : Int) : Either(Io.Error, Finished) = {
     let deadline = Clock.monotonic() + ms;
     let program <- start(command);
     closeInput(program);

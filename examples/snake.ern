@@ -242,10 +242,17 @@ fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
     let cells =
         List.flatMap(List.range(0, world.height - 1),
                      fn(y) = List.map(List.range(0, world.width - 1), fn(x) = Point(=x, =y)));
-    let free = List.filter(cells, fn(point) = !taken(world, point));
-    // a bound of 1 where no cell is free, whose draw finds none
-    let #(seed, index) = Random.nextInt(world.seed, Int.max(1, List.size(free)));
-    Optional.map(List.get(free, index), fn(point) = #(point, seed))
+    match List.filter(cells, fn(point) = !taken(world, point)) {
+        [] ->
+            None
+      | free -> {
+            let #(seed, index) = Random.nextInt(world.seed, List.size(free));
+            match List.get(free, index) {
+                Some(point) -> Some(#(point, seed))
+              | None -> fault("a draw below the count of the free cells is the index of one")
+            }
+        }
+    }
 }
 
 fn taken(world : World, point : Point) : Bool =

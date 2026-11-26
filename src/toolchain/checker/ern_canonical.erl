@@ -41,7 +41,8 @@
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, type_hash/1,
          mailbox_hash/1, module/4, module/5,
-         interface/2, declared_type/4, stripped/1, session_source/2, recorded_source/1, lambdas/2,
+         interface/2, qualified/3, declared_type/4, stripped/1, session_source/2,
+         recorded_source/1, lambdas/2,
          unit_reaches/2, scheme_arity/1, references/1, verified/2, is_verified/1, encode/1,
          read/1]).
 
@@ -310,6 +311,9 @@ declared(Namespace, #foreign_type_declaration{name = Name}) ->
 declared(_, _) ->
     [].
 
+%% Report §4.2, §4.5: a declaration's qualified name, a member's under its
+%% type's name, by which the forms and the build key it.
+-spec qualified([atom()], atom(), atom()) -> [atom()].
 qualified(Namespace, undefined, Name) -> Namespace ++ [Name];
 qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 
@@ -1382,7 +1386,7 @@ read(Beam) ->
         {ok, Chunk} ->
             case ern_chunk:term(Chunk) of
                 {ok, {?FORM_VERSION, Recorded}} -> read_recorded(Recorded);
-                _ -> read_recorded(other)
+                _ -> other_version()
             end;
         error ->
             {error, "not a compiled module"}
@@ -1395,7 +1399,11 @@ read_recorded(#recorded{definitions = Definitions, foreign = Foreign, binding_or
               = Recorded) when is_list(Definitions), is_list(Foreign), is_list(Order) ->
     case lists:all(fun(Definition) -> is_record(Definition, definition) end, Definitions) of
         true -> {ok, Recorded};
-        false -> read_recorded(other)
+        false -> other_version()
     end;
 read_recorded(_) ->
+    other_version().
+
+%% The error of a chunk of another version of the form.
+other_version() ->
     {error, "the canonical forms are of another version of the form"}.

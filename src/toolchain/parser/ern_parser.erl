@@ -438,18 +438,19 @@ constructor(Tokens, Doc) ->
         [{'(', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
             case Rest2 of
-                [{',', CommaPosition} | _] ->
-                    %% report §3.5: one positional field, or named fields
-                    Text = atom_to_list(Name),
-                    fail(CommaPosition, "a constructor has exactly one positional field",
-                         "name the fields, `" ++ Text ++ "(x : ..., y : ...)`, or hold a tuple, `"
-                         ++ Text ++ "(#(..., ...))`");
+                [{',', Comma} | Rest3] ->
+                    %% report §3.1, §3.5: several positional fields, which
+                    %% the checker refuses, as an alias where they read as
+                    %% a type applied, `type Alias = Either(String, Int)`
+                    {More, Rest4} = separated(Rest3, ',', fun type/1),
+                    spanned({#constructor{span = Position, doc = Doc, name = Name,
+                                          fields = {positionals, [Type | More], Comma}},
+                             expect_after_items(Rest4)});
                 _ ->
-                    ok
-            end,
-            spanned({#constructor{span = Position, doc = Doc, name = Name,
-                                  fields = {positional, Type}},
-                     expect(Rest2, ')')});
+                    spanned({#constructor{span = Position, doc = Doc, name = Name,
+                                          fields = {positional, Type}},
+                             expect(Rest2, ')')})
+            end;
         _ ->
             spanned({#constructor{span = Position, doc = Doc, name = Name}, Rest})
     end.
@@ -506,14 +507,15 @@ member([{ident, Position, Variable}, {'.', _}, Token | Rest]) ->
     is_userop(Token)
         orelse fail(ern_lexer:position(Token), "expected " ++ members_text(requirement)
                                                ++ " after `.` instead of " ++ describe(Token)),
-    spanned({#member{span = Position, member_of = Variable, name = element(1, Token)}, Rest});
+    spanned({#member{span = Position, member_of = Variable,
+                     name = ern_lexer:symbol(Token)}, Rest});
 member([{ident, _, Variable}, Token | _]) ->
     fail(ern_lexer:position(Token),
          "expected `.` after " ++ atom_to_list(Variable) ++ " instead of " ++ describe(Token),
-         "a requirement names a member of a type variable, as needs a.compare");
+         "a requirement names a member of a type variable, as `needs a.compare`");
 member([Token | _]) ->
     fail(ern_lexer:position(Token), instead("expected a type variable", Token),
-         "a requirement names a member of a type variable, as needs a.compare").
+         "a requirement names a member of a type variable, as `needs a.compare`").
 
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
 %% operator, `compare` or `negate`, what the language resolves by the
@@ -533,7 +535,7 @@ declaration_name([{typename, _, MemberOf}, {'.', _}, Token | Rest]) ->
     is_userop(Token)
         orelse fail(ern_lexer:position(Token), "expected " ++ members_text(declaration)
                                                ++ " after `.` instead of " ++ describe(Token)),
-    {MemberOf, element(1, Token), Rest};
+    {MemberOf, ern_lexer:symbol(Token), Rest};
 declaration_name([{typename, _, _} = Token | _]) ->
     fail(ern_lexer:position(Token), "expected a name instead of " ++ describe(Token),
          "a function's name begins with a lowercase letter");
@@ -823,13 +825,14 @@ parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, foreign
     fail(Span, "a type in parentheses takes no equality mark",
          "the mark stands in a list of types, as `List(" ++ Text ++ "=)` or `(" ++ Text
          ++ "=) -> Bool`");
-parenthesized(Position, [#t_var{name = Name, equality = true} = Variable], Rest, Marks) ->
+parenthesized(Position, [#t_var{name = Name, equality = true}], [Next | _], Marks) ->
     %% report §3, §4.7, Appendix A's ParenType: parentheses hold a type, and
     %% no type is a marked variable, so the mark is refused over the
     %% parentheses in the words of where it stands, a foreign function's
     %% result or any other annotation
-    {#t_var{span = Span}, _} = spanned({Variable#t_var{span = Position}, Rest}),
-    refuse_mark(Span, Marks, Name);
+    {Line, Column, _} = ern_diagnostic:span(Position),
+    {_, _, _, End} = ern_lexer:position(Next),
+    refuse_mark({Line, Column, End}, Marks, Name);
 parenthesized(Position, [Type], Rest, _Marks) ->
     %% report §11.5: a type in parentheses spans its parentheses, as a
     %% parenthesized expression does, so a diagnostic underlines it whole;
@@ -859,7 +862,7 @@ qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current) ->
 qualified([{'.', _}, Token | Rest], Namespace, Current) ->
     is_userop(Token)
         orelse fail(ern_lexer:position(Token), instead("expected a name after `.`", Token)),
-    {{member, Namespace ++ [Current], element(1, Token)}, Rest};
+    {{member, Namespace ++ [Current], ern_lexer:symbol(Token)}, Rest};
 qualified(Rest, Namespace, Current) ->
     {{con, Namespace, Current}, Rest}.
 
@@ -1217,7 +1220,7 @@ bracketed([{'[', Position} | Rest], Element, Make) ->
                             [{']', _} | _] -> {[], Rest};
                             _ -> separated(Rest, ',', Element)
                         end,
-    spanned({Make(list, Position, Elements), expect(Rest1, ']')});
+    spanned({Make(list, Position, Elements), expect_after_items(Rest1, ']')});
 bracketed([{'<<', Position} | Rest], Element, Make) ->
     {Segments, Rest1} = bit_segments(Rest, Element),
     spanned({Make(bitstring, Position, Segments), Rest1}).
@@ -1700,7 +1703,7 @@ bit_segments([{'>>', _} | Rest], _Parse) ->
 bit_segments(Tokens, Parse) ->
     {Segments, Rest} = separated(Tokens, ',',
                                  fun(SegmentTokens) -> bit_segment(SegmentTokens, Parse) end),
-    {Segments, expect(Rest, '>>')}.
+    {Segments, expect_after_items(Rest, '>>')}.
 
 bit_segment(Tokens, Parse) ->
     {Value, Rest} = Parse(Tokens),
@@ -1783,12 +1786,16 @@ expect([{Symbol, _} | Rest], Symbol) ->
 expect([Token | _], Symbol) ->
     expected_instead("`" ++ atom_to_list(Symbol) ++ "`", Token).
 
-%% Report §11.5: the `)` that closes a list of items, where a `,` and a
-%% further item may stand instead, and the message names both.
-expect_after_items([{')', _} | Rest]) ->
+%% Report §11.5: the bracket that closes a list of items, `)`, a list's
+%% `]` or a bitstring's `>>`, where a `,` and a further item may stand
+%% instead, and the message names both.
+expect_after_items(Tokens) ->
+    expect_after_items(Tokens, ')').
+
+expect_after_items([{Close, _} | Rest], Close) ->
     Rest;
-expect_after_items([Token | _]) ->
-    expected_instead("`,` or `)`", Token).
+expect_after_items([Token | _], Close) ->
+    expected_instead("`,` or `" ++ atom_to_list(Close) ++ "`", Token).
 
 %% What the parser expected instead of Token. Report §2.6, §11.5:
 %% max-munch makes `a<-1` a binding arrow, which a comparison with a

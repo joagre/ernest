@@ -198,7 +198,7 @@ let schedulersTakeBack =
 // report Appendix G.4: `cpu` answers `None` where `cpu_sup` does not answer
 // in time, which its `{error, timeout}` says, and the fraction of the
 // number it answers otherwise, an integer among them. Written with the
-// code; the host's timeout itself is not met
+// code; the host's timeout itself is not met.
 let cpuTimeout =
     Test.Case(name = "the processor's measure is None where the host's service does not answer",
               run = fn() = {

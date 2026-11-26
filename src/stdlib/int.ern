@@ -218,8 +218,8 @@ foreign fn inBase(int : Int, base : Int) : String =
 ///
 /// ### Errors
 ///
-/// Faults where `int` is beyond the largest finite `Float`, with the cause `Int
-/// out of Float range`.
+/// Faults where `int` rounds to no finite `Float`, with the cause `Int out of
+/// Float range`.
 ///
 /// ### Examples
 ///

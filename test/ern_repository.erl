@@ -8,16 +8,21 @@
 
 -define(ROOT, "..").
 
-%% The tracked files the wildcards match, from the repository's root, in
+%% The tracked files the patterns match, from the repository's root, in
 %% the order of the patterns and in each the order git lists them, a file
-%% the working tree has lost left out. A wildcard is filelib:wildcard/1's:
-%% `*` matches within a segment and `**/` any run of directories.
+%% the working tree has lost left out. A pattern is git's `:(glob)`
+%% pathspec, which has no braces: `*` matches within a segment and `**/`
+%% any run of directories. A pattern that matches no tracked file fails
+%% the test, which would otherwise read nothing of it and pass.
 -spec files([string()]) -> [file:filename()].
 files(Patterns) ->
-    [File || Pattern <- Patterns,
-             File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- ':(glob)"
-                                           ++ Pattern ++ "'"), "\n"),
-             filelib:is_regular(filename:join(?ROOT, File))].
+    lists:append([tracked(Pattern) || Pattern <- Patterns]).
+
+tracked(Pattern) ->
+    Listed = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- ':(glob)"
+                                   ++ Pattern ++ "'"), "\n"),
+    Listed =/= [] orelse erlang:error({no_tracked_file, Pattern}),
+    [File || File <- Listed, filelib:is_regular(filename:join(?ROOT, File))].
 
 %% Whether File is an editor's: a lock file, `.#main.ern`, a link to
 %% nothing while the file is open, or an auto-save file, `#main.ern#`.

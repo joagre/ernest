@@ -11,9 +11,8 @@
 /// the file.
 export let kept = 1000
 
-/// How long the shell waits for the file system, which is a local file:
-/// for the history file, and for every other file the shell reads.
-export let fileMs = 5000
+// How long the shell waits for the history file, which is a local file.
+let fileMs = 5000
 
 /// Its user's directory, `.ernest` in the home directory, which holds
 /// the history and its user's startup file, and none where the

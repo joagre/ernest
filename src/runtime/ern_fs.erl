@@ -364,10 +364,10 @@ utf8_target(Bytes) ->
     end.
 
 %% Report Appendix E.17: `ern-` and sixteen hexadecimal digits drawn at
-%% random, drawn again where an entry has the name, and drawn again where
-%% the directory made holds something once its mode is set (private/1); a
-%% directory whose mode cannot be set, or that cannot be read, is removed,
-%% so that none is left.
+%% random, drawn again where an entry has the name. A directory whose mode
+%% or listing fails is removed; one found `held` (private/1), written into
+%% by another as it was made, is left in its parent with that entry, and a
+%% new name is drawn.
 temp_dir(Parent) ->
     Name = <<"ern-", (binary:encode_hex(rand:bytes(8), lowercase))/binary>>,
     Directory = filename:join(Parent, Name),

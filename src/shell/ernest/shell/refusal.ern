@@ -6,13 +6,24 @@
 
 /// Report §11.5: a file is named from the working directory where it lies
 /// under it, and as it was given where it does not, the working directory
-/// itself and a path with a `.` or `..` segment after it among them.
+/// itself and a path with a `.` or `..` segment after it among them, or
+/// where the working directory is the root.
 export fn fromWorkingDirectory(path : Path) : String =
-    Path.toString(Optional.withDefault(Path.from(path, Os.workingDirectory), path))
+    fromDirectory(path, Os.workingDirectory)
 
-/// Report §11.2: a startup file, the history file and `$HOME/.ernest` are
-/// named as §11.5 names a source's file, through `controlFree`.
-export fn pathNamed(path : Path) : String =
+// Report §11.5: a file named from the directory `directory`, which is the
+// working directory but in the tests; from the root, a path without its
+// leading `/` would read as relative.
+fn fromDirectory(path : Path, directory : Path) : String =
+    if directory == Path("/") then
+        Path.toString(path)
+    else
+        Path.toString(Optional.withDefault(Path.from(path, directory), path))
+
+/// Report §11.5: a path's text as `fromWorkingDirectory` names it, written
+/// through `controlFree`, as the shell names the history file,
+/// `$HOME/.ernest` and a startup file (§11.2).
+export fn textFromWorkingDirectory(path : Path) : String =
     controlFree(fromWorkingDirectory(path))
 
 /// Report §11.2: the host's reason for a file a job could not read, write
@@ -81,10 +92,18 @@ let path =
 let fromHere =
     Test.Case(name = "a path under the working directory is named from it",
               run = fn() =
-                  Test.equal(#(pathNamed(Os.workingDirectory <> Path("a\u{1B}/b")),
+                  Test.equal(#(textFromWorkingDirectory(Os.workingDirectory <> Path("a\u{1B}/b")),
                                fromWorkingDirectory(Path("/elsewhere/x")),
                                fromWorkingDirectory(Path("rel/x"))),
                              #("a\\x1B/b", "/elsewhere/x", "rel/x")))
+
+// Report §11.5: from the root, a file is named by its absolute path.
+let fromRoot =
+    Test.Case(name = "a path is named by its absolute path from the root",
+              run = fn() =
+                  Test.equal(#(fromDirectory(Path("/home/a/.ernest/startup"), Path("/")),
+                               fromDirectory(Path("/home/a/x"), Path("/home"))),
+                             #("/home/a/.ernest/startup", "a/x")))
 
 let reasons =
     Test.Case(name = "a file's trouble is said in §11's words, or the host's",

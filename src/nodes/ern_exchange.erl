@@ -791,11 +791,7 @@ members(Hash, Read) ->
 member_of([], _Hash, _Read) ->
     none;
 member_of([Unit | Units], Hash, Read) ->
-    {Recorded, Read1} = ern_code:recorded(Unit, Read),
-    Definitions = case Recorded of
-                      #recorded{definitions = Held} -> Held;
-                      none -> []
-                  end,
+    {Definitions, Read1} = ern_code:definitions(Unit, Read),
     case [Definition || #definition{hash = Defined} = Definition <- Definitions,
                         Defined =:= Hash] of
         [#definition{group = none} = Definition | _] ->

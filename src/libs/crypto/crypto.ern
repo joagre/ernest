@@ -188,7 +188,7 @@ let ofOneSize =
                              #(<<0xF0, 0x0F, 0xFF, 0x00>>, <<0x7F, 0x9F, 0x4D, 0x51, 0x58>>, <<>>)))
 
 // Report Appendix G.9, §7.4: two byte strings of different sizes fault
-// the caller, either the shorter.
+// the caller, whichever of the two is the shorter.
 let differentSizes =
     Test.Case(name = "two byte strings of different sizes fault the caller", run = fn() = {
         let cause = "the byte strings are of different sizes, ";

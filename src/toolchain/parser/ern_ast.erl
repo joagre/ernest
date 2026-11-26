@@ -1,15 +1,15 @@
 %% What more than one stage reads of the AST the parser builds, typed or
 %% not: a node's span; every node in pre-order; what a pattern binds; the
 %% type variables a declaration's signature names; the unqualified names
-%% free in an expression; an expression and a type as a help writes
-%% them; and the words that refuse a mark where none is written. The
-%% parser, the formatter, the checker, the reply check, the exhaustiveness
-%% check and the emitter each use them rather than a copy of their own,
-%% since copies of one rule drift.
+%% free in an expression; an expression as a help writes it, and a type
+%% as a help or a module's page writes it; and the words that refuse a
+%% mark where none is written. The parser, the formatter, the checker, the
+%% reply check, the exhaustiveness check and the emitter each use them
+%% rather than a copy of their own, since copies of one rule drift.
 -module(ern_ast).
 
 -export([span/1, walk/3, pattern_binders/1, pattern_bindings/1, free_names/2,
-         free_uses/2, help_text/1, type_text/1, mark_refusal/2]).
+         free_uses/2, help_text/1, type_text/2, mark_refusal/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -145,34 +145,45 @@ help_text(#e_literal{kind = int, value = Value}) ->
 help_text(_) ->
     "...".
 
-%% Report §11.5: a type as a help writes it, each name as the source writes
-%% it, which is its shortest form (§4.2), and a function-typed result under
-%% an outer `receiving` in parentheses, so that the `receiving` is the outer
-%% arrow's (§3.4).
--spec type_text(tuple()) -> string().
-type_text(#t_named{written = Written, name = Name, args = []}) ->
-    ern_namespace:text(Written ++ [Name]);
-type_text(#t_named{written = Written, name = Name, args = Args}) ->
-    ern_namespace:text(Written ++ [Name]) ++ "(" ++ types_text(Args) ++ ")";
-type_text(#t_var{name = Name, equality = false}) ->
+%% Report §11.5, §11.4: a type as the source writes it, each name under the
+%% namespace Shown says: `written`, as a help writes it, which is its
+%% shortest form (§4.2), or `resolved`, the one it resolves to, as a
+%% module's page writes a constructor's field; and a function-typed result
+%% under an outer `receiving` in parentheses, so that the `receiving` is
+%% the outer arrow's (§3.4).
+-spec type_text(tuple(), written | resolved) -> string().
+type_text(#t_named{name = Name, args = Args} = Type, Shown) ->
+    Text = ern_namespace:text(shown_namespace(Type, Shown) ++ [Name]),
+    case Args of
+        [] -> Text;
+        _ -> Text ++ "(" ++ types_text(Args, Shown) ++ ")"
+    end;
+type_text(#t_var{name = Name, equality = false}, _) ->
     atom_to_list(Name);
-type_text(#t_var{name = Name, equality = true}) ->
+type_text(#t_var{name = Name, equality = true}, _) ->
     atom_to_list(Name) ++ "=";
-type_text(#t_tuple{elements = Elements}) ->
-    "#(" ++ types_text(Elements) ++ ")";
-type_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
+type_text(#t_tuple{elements = Elements}, Shown) ->
+    "#(" ++ types_text(Elements, Shown) ++ ")";
+type_text(#t_fn{params = Params, result_type = Result, effect = Effect}, Shown) ->
     ResultText = case {Result, Effect} of
-                     {#t_fn{}, Outer} when Outer =/= undefined -> "(" ++ type_text(Result) ++ ")";
-                     _ -> type_text(Result)
+                     {#t_fn{}, Outer} when Outer =/= undefined ->
+                         "(" ++ type_text(Result, Shown) ++ ")";
+                     _ ->
+                         type_text(Result, Shown)
                  end,
-    "(" ++ types_text(Params) ++ ") -> " ++ ResultText
+    "(" ++ types_text(Params, Shown) ++ ") -> " ++ ResultText
         ++ case Effect of
                undefined -> "";
-               _ -> " receiving " ++ type_text(Effect)
+               _ -> " receiving " ++ type_text(Effect, Shown)
            end.
 
-types_text(Types) ->
-    lists:append(lists:join(", ", [type_text(Type) || Type <- Types])).
+types_text(Types, Shown) ->
+    lists:append(lists:join(", ", [type_text(Type, Shown) || Type <- Types])).
+
+%% The namespace a named type is written under: as the source writes it,
+%% or the one it resolves to (report §4.2).
+shown_namespace(#t_named{written = Written}, written) -> Written;
+shown_namespace(#t_named{namespace = Namespace}, resolved) -> Namespace.
 
 %% Report §4.7: the message and the help that refuse a mark of the variable
 %% Name where none is written, by where it stands: an `=` in a foreign

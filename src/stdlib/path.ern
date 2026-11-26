@@ -82,19 +82,18 @@ fn written(segments : List(String)) : String =
             ""
       | first :: rest ->
             if endsInSeparator(first) then
-                first <> String.join(rest, separator())
+                first <> String.join(rest, separator)
             else
-                String.join(segments, separator())
+                String.join(segments, separator)
     }
 
 // Whether the text's last code point is the separator, found by its bytes,
 // as `parts` finds it.
 fn endsInSeparator(text : String) : Bool =
-    Bytes.endsWith(String.toUtf8(text), String.toUtf8(separator()))
+    Bytes.endsWith(String.toUtf8(text), String.toUtf8(separator))
 
 // Report Appendix E.14: a path's separator.
-fn separator() : String =
-    "/"
+let separator = "/"
 
 // The host's option that finds every occurrence, from the first.
 let global : List(Foreign.Term) = [Foreign.atom("global")]
@@ -117,8 +116,8 @@ foreign fn parts(text : String, mark : String, options : List(Foreign.Term)) : L
 /// // => ["/", "etc", "hosts"]
 /// ```
 export fn split(path : Path) : List(String) =
-    match parts(toString(path), separator(), global) {
-        first :: rest when isAbsolute(path) -> (first <> separator()) :: withoutEmpty(rest)
+    match parts(toString(path), separator, global) {
+        first :: rest when isAbsolute(path) -> (first <> separator) :: withoutEmpty(rest)
       | all -> withoutEmpty(all)
     }
 
@@ -223,13 +222,13 @@ fn hasStem(path : Path) : Bool =
 // was written: the name is the last part between separators that is not
 // empty, and the parts are joined again as they were.
 fn extended(path : Path, suffix : String) : Path = {
-    let reversed = List.reverse(parts(toString(path), separator(), global));
+    let reversed = List.reverse(parts(toString(path), separator, global));
     let #(trailing, before) = List.splitWhile(reversed, String.isEmpty);
     match before {
         named :: earlier -> {
             let #(stem, _) = atLastDot(named);
             let rebuilt = List.reverse(earlier) <> [stem <> suffix] <> trailing;
-            Path(String.join(rebuilt, separator()))
+            Path(String.join(rebuilt, separator))
         }
       | [] ->
             fault("a path that has a name has a part that is not empty")

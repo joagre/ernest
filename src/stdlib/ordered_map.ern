@@ -17,8 +17,9 @@
 /// `filterMap`, `any`, `all` and `mergeWith` meet the entries in it.
 ///
 /// **What it costs.** The map is a sorted list of pairs, written over `List`
-/// with no primitive. `get`, `put` and `remove` take time linear in the size,
-/// `fromList` is a sort, `n log n`, and `merge` is linear in the two sizes.
+/// with no primitive. `get`, `put`, `remove` and `maximum` take time linear in
+/// the size, `fromList` is a sort, `n log n`, and `merge` is linear in the two
+/// sizes.
 ///
 /// A map is data: `==` is structural, a map keys a `Map`, and a map can be sent
 /// to another node (report §3.10).
@@ -326,7 +327,7 @@ export fn toList(Map(pairs) : Map(k, v)) : List(#(k, v)) =
     pairs
 
 /// The entry of the least key, the first in order, or `None` for the map
-/// with no entries.
+/// with no entries. It is never `None` for a map that is not empty.
 ///
 /// ### Examples
 ///
@@ -341,7 +342,8 @@ export fn minimum(Map(pairs) : Map(k, v)) : Optional(#(k, v)) =
     List.get(pairs, 0)
 
 /// The entry of the greatest key, the last in order, or `None` for the map
-/// with no entries.
+/// with no entries. It is never `None` for a map that is not empty. It takes
+/// time linear in the size.
 ///
 /// since 0.11.0
 export fn maximum(Map(pairs) : Map(k, v)) : Optional(#(k, v)) =

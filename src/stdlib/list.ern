@@ -611,19 +611,9 @@ export fn minimum(list : List(a)) : Optional(a) needs a.compare =
 export fn maximum(list : List(a)) : Optional(a) needs a.compare =
     extreme(list, Greater)
 
-// Report Appendix E.2: the first element, kept until a later one is
-// `beyond` it by the order, so that the first of equals stays.
+// Report Appendix E.2: each element its own key.
 fn extreme(list : List(a), beyond : Ordering) : Optional(a) needs a.compare =
-    match list {
-        [] -> None
-      | head :: rest -> Some(kept(rest, head, beyond))
-    }
-
-fn kept(list : List(a), chosen : a, beyond : Ordering) : a needs a.compare =
-    match list {
-        [] -> chosen
-      | head :: rest -> kept(rest, if compare(head, chosen) == beyond then head else chosen, beyond)
-    }
+    extremeBy(list, fn(x) = x, beyond)
 
 /// The element whose `key` is the least by the key type's `compare`, or `None`
 /// for the empty list. It is never `None` for a list that is not empty. Of

@@ -1308,7 +1308,9 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// with that authority and an empty path. An `OPTIONS` request's `*` is the
 /// path `*`. A target that begins with `/` is origin form, a path and a
 /// query with no scheme and no authority, and one that begins with `//` is
-/// such a path too. Any other target is absolute form, which has a scheme.
+/// such a path too. A target's path may begin `//`, and `Uri.toString`
+/// faults for such a reference. Any other target is absolute form, which
+/// has a scheme.
 /// A target with a fragment is of no form.
 ///
 /// A path and a query, the whole of an origin form and what follows an
@@ -1685,7 +1687,7 @@ fn checkTarget(target : String) : Unit =
 fn checkHeader(header : Header) : Unit =
     if !isToken(String.toUtf8(header.name)) then
         fault("the header name " <> Io.show(header.name) <> " is no token")
-    else if !isWritable(header) then
+    else if !isPlainValue(header) then
         fault("the value of the header "
                   <> header.name
                   <> ", "
@@ -1697,7 +1699,7 @@ fn checkHeader(header : Header) : Unit =
 // Report Appendix G.11: whether the header's value holds no carriage
 // return, line feed or U+0000, which `parseRequest` and `parseResponse`
 // would refuse, and which a writer answers as `Protocol(Malformed)`.
-fn isWritable(header : Header) : Bool =
+fn isPlainValue(header : Header) : Bool =
     isPlain(String.toUtf8(header.value))
 
 // RFC 9110, section 5.6.2: whether the bytes are a token, one or more of
@@ -1776,7 +1778,7 @@ export fn writeRequest(socket : Address(Tcp.SocketMsg),
                        request : Request,
                        body : Bytes,
                        ms : Int) : Either(SocketError, Unit) =
-    if List.all(request.headers, isWritable) then
+    if List.all(request.headers, isPlainValue) then
         sent(socket, renderRequest(request, body), ms)
     else
         Left(Protocol(Malformed))
@@ -1816,7 +1818,7 @@ export fn writeResponse(socket : Address(Tcp.SocketMsg),
                         response : Response,
                         body : Bytes,
                         ms : Int) : Either(SocketError, Unit) =
-    if List.all(response.headers, isWritable) then
+    if List.all(response.headers, isPlainValue) then
         sent(socket, renderResponse(response, body), ms)
     else
         Left(Protocol(Malformed))
@@ -2049,9 +2051,14 @@ fn civilOf(year : Optional(Int),
     Some(Time.Civil(=year, =month, =day, =hour, =minute, =second))
 }
 
-// A year of four digits, as IMF-fixdate and asctime write it.
+// Report Appendix G.11: a year of four ASCII digits, as IMF-fixdate and
+// asctime write it; a sign, which `String.toInt` reads, is no digit, so a
+// year before 0 never reaches `date`, which faults on one.
 fn fourDigits(year : String) : Optional(Int) =
-    if String.size(year) == 4 then String.toInt(year) else None
+    if String.size(year) == 4 && List.all(String.toList(year), Char.isAsciiDigit) then
+        String.toInt(year)
+    else
+        None
 
 // RFC 9110, section 5.6.7: the date and the time of day whose year is RFC
 // 850's two digits, in the latest year with those digits in which they are
@@ -3181,8 +3188,8 @@ let dates =
                               "Fri, 31 Dec 9999 23:59:59 GMT"]))
 
 // report Appendix G.11, §7.4: a time outside the years 0 to 9999, which
-// IMF-fixdate cannot write, faults with the cause the listing gives.
-// Written with the code
+// IMF-fixdate cannot write, faults with the cause `date`'s page gives.
+// Written with the code.
 let datesOutside =
     Test.Case(name = "a date outside the years 0 to 9999 faults",
               run = fn() =
@@ -3214,6 +3221,18 @@ let threeForms =
                              [Some(784111777000), Some(784111777000), Some(784111777000)]
                                  <> [Some(784975777000)]
                                  <> List.repeat(None, 11)))
+
+// report Appendix G.11: a regression test: IMF-fixdate's year was read with
+// its sign, and a year before 0 faulted in `date`, which wrote it back, where
+// any text of no form the section names is `None`.
+let signedYears =
+    Test.Case(name = "a date whose year has a sign is None",
+              run = fn() =
+                  Test.equal(List.map(["Sun, 06 Nov -001 08:49:37 GMT",
+                                       "Sun, 06 Nov +994 08:49:37 GMT",
+                                       "Sun Nov  6 08:49:37 -001"],
+                                      parseDate),
+                             [None, None, None]))
 
 // report Appendix G.11
 let twoDigitYears =
@@ -3408,8 +3427,8 @@ type TrickleMsg = Stop
 
 type Watched = Ended(Down)
 
-// A client that writes one byte at a time, 10 milliseconds apart, a
-// client that writes slowly, until it is told to stop.
+// A client that writes slowly, one byte at a time, 10 milliseconds apart,
+// until it is told to stop.
 fn trickle(client : Address(Tcp.SocketMsg)) : Unit receiving TrickleMsg =
     receive {
         Stop ->
@@ -4196,7 +4215,7 @@ let writeFaults =
 
 // report Appendix G.11: a header's value that holds a carriage return, a
 // line feed or U+0000, text another party may have sent, is a writer's
-// `Protocol(Malformed)`, and nothing is written. Written with the code
+// `Protocol(Malformed)`, and nothing is written. Written with the code.
 let writtenMalformed =
     Test.Case(name = "a write of a header value that would break the head is Malformed",
               run = fn() = match connection() {

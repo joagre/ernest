@@ -1419,7 +1419,7 @@ module_under_a_library_namespace_test() ->
 %% The refusal of a program's `time.ern`, or of its compiled form, which
 %% hides the library Time, which the library Http uses (Appendix G.11).
 hides_time(File) ->
-    File ++ ": Time hides the library Time, which the library Http uses".
+    File ++ ": Time hides the library Time, which the library Http uses; give time another name".
 
 %% A module's compiled form under the source root Under, written as a
 %% build of the toolchain that held no module to the refusal of one that
@@ -1614,7 +1614,7 @@ first_dependent_named_test() ->
     Program = Dir ++ "/program/zed.ern",
     Refusal = fun(Dependent) ->
                       ern_build:shown(Program) ++ ": Zed hides the library Zed, which the library "
-                          ++ Dependent ++ " uses"
+                          ++ Dependent ++ " uses; give zed another name"
               end,
     LoadPath = ern_build:load_path_of([]),
     ?assertEqual(Refusal("Alpha"),
@@ -9393,8 +9393,8 @@ named_package(Root, Name, Version, Text) ->
 %% line each, after the manifest's name, in the order of where each stands,
 %% an absent field's at the end of the object that lacks it, `ernest`'s
 %% before `packages`' and `name`'s before `version`'s. A field given twice
-%% keeps its first value. A url is held to its entry's name and version
-%% only where both are of their form
+%% keeps its first value. A url is held to `https` alone, whatever its
+%% entry's name and version
 package_manifest_form_test() ->
     in_directory(tmp(), fun package_manifest_form/0).
 
@@ -9443,18 +9443,16 @@ package_manifest_form() ->
            "an entry has no name",
            "an entry's name is not a string",
            "an entry has no version",
-           "the entry for epx's url is not an https URL whose path's last segment is"
-           " epx-0.2.1.tar.gz: \"http://example.org/epx-0.2.1.tar.gz\"",
+           "the entry for epx's url is not an https URL: \"http://example.org/epx-0.2.1.tar.gz\"",
            "the entry for epx's sha256 is not 64 hexadecimal digits, their letters lowercase:"
            " \"ABC\"",
            "the entry for leaf gives version twice",
            "two entries name leaf",
            "the entry for mid has no version",
            "the entry for codec's version is not " ++ Version ++ ": \"01.0.0\"",
+           "the entry for codec's url is not an https URL: \"unread\"",
            "the entry for codec's sha256 is not a string",
            "the entry for base's version is not " ++ Version ++ ": \"1.0.0.1\"",
-           "the entry for zip's url is not an https URL whose path's last segment is"
-           " zip-2.0.0.tar.gz: \"https://example.org/zip/zip-2.0.1.tar.gz\"",
            "the entry for zip's sha256 is not 64 hexadecimal digits, their letters lowercase: \""
            ++ Digest ++ "0\""]}],
     lists:foreach(fun({Text, Lines}) ->
@@ -9470,6 +9468,29 @@ package_manifest_form() ->
           " \"url\": \"https://example.org/epx/epx-0.2.1.tar.gz\", \"version\": \"0.2.1\"}],"
           " \"ernest\": \"0.11.0\"}\n"),
     ?assertEqual({0, <<>>}, said(["build", "given.ern"])).
+
+%% report §11.9: a `url` is an `https` URL, so that a tag archive's
+%% address, whose path's last segment names neither the entry's name nor
+%% its version, is taken by every job that reads the manifest, and `ern
+%% unpack` finds the package standing. A regression test, written after
+%% the code. Not covered: `ern shell`, which reads the manifest by the same
+%% read (ern_package:read/4)
+package_tag_archive_url_test() ->
+    in_directory(tmp(), fun package_tag_archive_url/0).
+
+package_tag_archive_url() ->
+    write(".", "given.ern", hello()),
+    whole_package("leaf", "1.2.0", []),
+    write(".", "package.conf",
+          ["{\"ernest\": \"", element(1, running_release()), "\", \"packages\": [",
+           "{\"name\": \"leaf\", \"version\": \"1.2.0\",",
+           " \"url\": \"https://github.com/someone/leaf/archive/refs/tags/v1.2.0.tar.gz\",",
+           " \"sha256\": \"", lists:duplicate(64, $a), "\"}]}\n"]),
+    ?assertEqual({0, <<>>}, said(["build", "given.ern"])),
+    ?assertEqual({0, <<"hello, world\n">>}, said(["run", "given.erc"])),
+    ?assertMatch({0, _}, said(["doc", "given.ern"])),
+    ?assertMatch({0, _}, said(["test", "given.erc"])),
+    ?assertEqual({0, <<>>}, said(["unpack"])).
 
 %% report §11.9, §11: a directory holds a manifest where it holds the name
 %% `package.conf`, whatever the name reaches. A manifest the job cannot read
@@ -11147,7 +11168,7 @@ package_hiding_dependent() ->
           "export fn main() : Unit =\n    Io.println(Io.show(HdServer.decoded(\"aGk=\")))\n"),
     Refused = fun(Job) ->
                   refusal(Job, "src/base64.ern: Base64 hides the library Base64, which the package"
-                               " hd_server uses")
+                               " hd_server uses; give base64 another name")
               end,
     ?assertEqual(Refused("build"), said(["build", "src"])),
     ?assert(filelib:is_regular("lib/hd_server/build/hd_server.erc")),
@@ -11186,7 +11207,7 @@ package_hiding_dependent_run() ->
     Erc = current_form(tmp(), "base64.ern", "export fn mine() : String =\n    \"mine\"\n"),
     {ok, _} = file:copy(Erc, "build/base64.erc"),
     [?assertEqual(refusal(Job, "build/base64.erc: Base64 hides the library Base64, which the"
-                               " package hr_server uses"),
+                               " package hr_server uses; give base64 another name"),
                   said([Job, File]))
      || {Job, File} <- [{"run", "build/hr_main.erc"}, {"test", "build/hr_checked.erc"}]].
 

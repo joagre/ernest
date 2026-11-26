@@ -126,7 +126,7 @@ prelude_declarations(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Numbered = lists:zip(lists:seq(1, length(Lines)), Lines),
-    Blocks = [Block || #block{info = <<"ernest-prelude">>} = Block <- blocks(Numbered, none, [])],
+    Blocks = [Block || #block{info = <<"ernest-prelude">>} = Block <- blocks(Numbered)],
     recorded(Document, [Number || #block{line = Number} <- Blocks]),
     Quoted = [normalize(Declaration)
               || #block{code = Code} <- Blocks,
@@ -186,7 +186,7 @@ readme_refused_test_() ->
     {ok, Code} = file:read_file("fixtures/refused/other.ern"),
     {ok, Text} = file:read_file(?README),
     Lines = binary:split(Text, <<"\n">>, [global]),
-    Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
+    Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines)),
     [{Number, Shown}] = [{Number, Shown}
                          || #block{line = Number, info = <<"console">>,
                                    code = [<<"$ ern build other.ern">> | Shown]} <- Blocks],
@@ -215,10 +215,9 @@ why_reload_session() ->
     [{Number, Lines}] = [{Number, Lines}
                          || #block{line = Number, info = <<"console">>,
                                    code = [<<"$ ern shell">> | Lines]}
-                                <- blocks(numbered(?WHY), none, []),
+                                <- blocks(numbered(?WHY)),
                             lists:member(<<":reload">>, inputs(Lines))],
     recorded(?WHY, [Number]),
-    Dir = tmp(),
     Counter = fun(Reset) ->
                   ["export type CounterMsg =
 "
@@ -257,49 +256,49 @@ why_reload_session() ->
                    "    }
 "]
               end,
-    ok = write(filename:join(Dir, "counter.ern"), Counter(false)),
-    Shell = filename:join(Dir, "shell"),
-    {Port, Wait} = ern_harness:launched(Shell, ["cd ", Dir, " && HOME=", Dir, " ",
-                                                filename:absname("../bin/ern"), " shell"]),
-    ok = ern_harness:prints(Shell, "> "),
-    Typed = fun({Count, Input}) ->
-                    case Input of
-                        <<":reload">> ->
-                            ok = write(filename:join(Dir, "counter.ern"), Counter(true));
-                        _ ->
-                            ok
-                    end,
-                    true = port_command(Port, [Input, <<"\n">>]),
-                    ok = ern_harness:prints(Shell, "> ", Count + 1, ern_harness:wait_ms())
-            end,
-    Inputs = inputs(Lines),
-    lists:foreach(Typed, lists:zip(lists:seq(1, length(Inputs)), Inputs)),
-    true = port_command(Port, <<":quit\n">>),
-    ?assertEqual(0, Wait()),
-    {Out, _} = ern_harness:said(Shell),
-    Printed = unicode:characters_to_binary(Out),
-    ok = file:del_dir_r(Dir),
+    Inputs = [case Input of
+                  <<":reload">> -> {Counter(true), Input};
+                  _ -> Input
+              end || Input <- inputs(Lines)],
+    Printed = ern_helpers:tmp("ern_guide_",
+                              fun(Dir) ->
+                                  replayed(Dir, {"counter.ern", Counter(false)}, Inputs)
+                              end),
     ?assertEqual(trim(session_shown(Lines)), session_end(Printed)).
 
-%% guide/language.md §5.4 and §8.4, guide/deployment.md section 5; report
-%% §6.9, §11.2, §12.4: each line a guide quotes of a run is what the run
-%% prints, the line read from the guide by the text before it. The lease
-%% broker run with `deadlock` writes §5.4's line among its deadlock's
-%% report. The site of the counter `examples/upgrade`'s tool spawns is the
-%% one `:processes` lists after `Counter.main()` at the prompt: plain in a
-%% session that loaded the second build, and with the version's number in
-%% one that loaded the first and reloaded the second, its source put in the
-%% first's place after the load; each guide quotes both.
+%% guide/language.md §4.4, §5.4, §7.1, §8.1, §8.4, §9.2, §9.3 and §12,
+%% guide/deployment.md section 5; report §6.9, §11.2, §12.4: each line a
+%% guide quotes of a run is what the run prints, the line read from the
+%% guide by the text before it. The lease broker run with `deadlock` writes
+%% §5.4's line among its deadlock's report. The site of the counter
+%% `examples/upgrade`'s tool spawns is the one `:processes` lists after
+%% `Counter.main()` at the prompt: plain in a session that loaded the
+%% second build, and with the version's number in one that loaded the
+%% first and reloaded the second, its source put in the first's place after
+%% the load; each guide quotes both.
+%%
+%% The language guide's other lines of a job are each what the job prints
+%% of the program the prose describes (quoted_programs/0): the refusals of
+%% one build, `ern run`'s line of a faulted and of a killed entry process,
+%% `ern test`'s line of its count and of a fault a case's process made,
+%% what `Test.equal` and `Test.faults` answer, a node's refusal of one key
+%% under two names, `:load`'s line of a module it compiled, and what a
+%% compute answers at the prompt for a function that captures a binding of
+%% the session.
 %%
 %% Written with the lines, which the guides quoted and no test held. It
 %% reads prose and no fenced block, so it records none. Its limit is the
-%% sum of its fifteen waits: the broker's build and run, and each session's
-%% first prompt, a prompt after each input, its end and what it printed.
+%% sum of its thirty-three waits: the broker's build and run, the build
+%% of the programs and five runs of them, each session's first prompt, a
+%% prompt after each input, its end and what it printed, and the compute's
+%% eight (not_loaded/1).
 quoted_runs_test_() ->
-    ern_harness:counted_test({waits, 15}, fun quoted_runs/0).
+    ern_harness:counted_test({waits, 33}, fun quoted_runs/0).
 
 quoted_runs() ->
-    Base = tmp(),
+    ern_helpers:tmp("ern_guide_", fun quoted_runs/1).
+
+quoted_runs(Base) ->
     ?assertEqual(0, ern_harness:built(["--source-root", "../examples", "--build-root", Base,
                                        "../examples/lease_broker.ern"])),
     {1, Deadlocked} = sh("../bin/ern run " ++ filename:join(Base, "lease_broker.erc")
@@ -319,7 +318,142 @@ quoted_runs() ->
                   [quoted(?GUIDE, <<"a reload's with the version's number, `">>)],
                   [quoted(?DEPLOYMENT, <<"with the spawn's line, `">>)],
                   [quoted(?DEPLOYMENT, <<"for a reload's, `">>)]]),
-    ok = file:del_dir_r(Base).
+    Programs = filename:join(Base, "quoted"),
+    [ok = write(filename:join(Programs, Name), Code) || {Name, Code} <- quoted_programs()],
+    ?assertEqual(1, ern_harness:built(["--source-root", Programs, "--build-root", Programs,
+                                       Programs])),
+    Refused = ?capturedOutput,
+    Compiled = fun(Name) -> filename:join(Programs, Name ++ ".erc") end,
+    {1, Faulted} = sh("../bin/ern run " ++ Compiled("main")),
+    {1, Killed} = sh("../bin/ern run " ++ Compiled("hello")),
+    {1, Tested} = sh("../bin/ern test " ++ Compiled("checks")),
+    {0, Answered} = sh("../bin/ern run " ++ Compiled("checks")),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, none}, {"c", B, none}]),
+    {1, OneKey} = sh("../bin/ern run --config-dir " ++ A ++ " " ++ Compiled("main")),
+    Loaded = replayed(filename:join(Base, "words"),
+                      {"words.ern", <<"export fn count(text : String) : Int =\n"
+                                      "    List.size(String.words(text))\n">>},
+                      [<<":load Words">>]),
+    Computed = not_loaded(Base),
+    ?assertEqual([], [{Before, Quoted, Output}
+                      || {Before, Output}
+                             <- [{<<"the caller is refused, `">>, Refused},
+                                 {<<"so the read would have no one type, `">>, Refused},
+                                 {<<"The build stops at the service: `">>, Refused},
+                                 {<<"`ern run` prints the fault, `">>, Faulted},
+                                 {<<"prints its site and `killed`, `">>, Killed},
+                                 {<<"names any fault that counted outside a case, `">>, Tested},
+                                 {<<"whose line names the test, `">>, Tested},
+                                 {<<"where the two are equal, and otherwise `">>, Answered},
+                                 {<<"naming what came instead, `">>, Answered},
+                                 {<<"One key listed under two names is refused, `">>, OneKey},
+                                 {<<"and says which, `">>, Loaded},
+                                 {<<"5000)` answers `">>, Computed}],
+                         Quoted <- [quoted(?GUIDE, Before)],
+                         binary:match(Output, Quoted) =:= nomatch]).
+
+%% The guide's §9.3 compute at the prompt of a binding of the session: a
+%% shell that is the node `a` asks the bare node `foo`, which listens on a
+%% port the harness found free, after `let below = 2000`, its deadline the
+%% harness's time for one wait in place of the guide's 5000. Answers what
+%% the shell printed, once `foo`'s standard error holds the reason of the
+%% answer too, as the guide says: eight waits, `foo`'s listening, the
+%% shell's first prompt and one after each input, its end and what it
+%% printed, and `foo`'s end and what it said.
+not_loaded(Base) ->
+    Listen = ern_harness:free_port(),
+    Foo = ern_harness:made(Base, "foo", Listen),
+    A = ern_harness:made(Base, "desk", none),
+    ok = ern_harness:lists(A, [{"foo", Foo, Listen}]),
+    ok = ern_harness:lists(Foo, [{"a", A, none}]),
+    Wait = ern_harness:bare_started(Foo, []),
+    ok = ern_harness:says(Foo, "listening on "),
+    {Port, Ended} = ern_harness:shell_started(A, Base),
+    ok = ern_harness:prints(A, "> "),
+    Typed = fun({Count, Input}) ->
+                    true = port_command(Port, [Input, "\n"]),
+                    ok = ern_harness:prints(A, "> ", Count, ern_harness:wait_ms())
+            end,
+    lists:foreach(Typed, [{2, "let below = 2000"},
+                          {3, ["Peer.compute(\"foo\", fn() = below + 1, ",
+                               ern_harness:wait_ms_text(), ")"]}]),
+    true = port_command(Port, ":quit\n"),
+    ?assertEqual(0, Ended()),
+    {Out, _} = ern_harness:said(A),
+    ern_harness:stop(Foo, Wait),
+    {"", Err} = ern_harness:said(Foo),
+    Printed = unicode:characters_to_binary(Out),
+    {match, [Reason]} = re:run(Printed, "NotLoaded\\(\"([^\"]*)\"\\)",
+                               [{capture, all_but_first, binary}]),
+    ?assertNotEqual(nomatch, binary:match(unicode:characters_to_binary(Err), Reason)),
+    Printed.
+
+%% The programs the language guide's prose describes whose jobs' lines
+%% quoted_runs/1 holds, each a module of one directory: three the build
+%% refuses, skip's caller with no mailbox, a read of a field of two types
+%% and a service at a type that holds a function, with the module it
+%% names; an entry process that faults and one killed, the kill ending its
+%% sleep; and a module of tests, whose cases wait for the processes they
+%% start or poke to end, so that each fault comes while its case runs, and
+%% whose `main` prints what `Test.equal` and `Test.faults` answer.
+quoted_programs() ->
+    [{"skip.ern",
+      <<"fn skip() : Unit receiving e =\n"
+        "    receive {\n"
+        "        _ -> Unit\n"
+        "    }\n\n"
+        "fn rest() : Unit = skip()\n">>},
+     {"reading.ern",
+      <<"type Reading = Count(value : Int, unit : String) | Ratio(value : Float, unit : String)\n\n"
+        "fn b(r : Reading) = r.value\n">>},
+     {"registry.ern",
+      <<"export type Msg = Register((Int) -> Int)\n\n"
+        "fn serve() : Unit receiving Msg =\n"
+        "    receive {\n"
+        "        Register(_) -> serve()\n"
+        "    }\n\n"
+        "export let registry : Address(Msg) = spawn(fn() = serve())\n">>},
+     {"client.ern",
+      <<"let service : Peer.Service(Registry.Msg) = Peer.service(\"registry\")\n">>},
+     {"main.ern",
+      <<"fn first(list : List(Int)) : Int =\n"
+        "    match list {\n"
+        "        x :: _ -> x\n"
+        "      | [] -> fault(\"first of an empty list\")\n"
+        "    }\n\n"
+        "export fn main() : Unit =\n"
+        "    Io.println(Int.toString(first([])))\n">>},
+     {"hello.ern",
+      ["export fn main() : Unit = {\n"
+       "    kill(Process.current());\n"
+       "    Clock.sleep(", ern_harness:wait_ms_text(), ")\n"
+       "}\n"]},
+     {"checks.ern",
+      <<"export fn add(left : Int, right : Int) : Int =\n"
+        "    left + right\n\n"
+        "type CaseMsg = Ended(Down)\n\n"
+        "let addsTwo = Test.Case(name = \"adds two\", run = fn() = {\n"
+        "    let _ = spawnMonitored(fn() = fault(\"the case's own process faulted\"), Ended);\n"
+        "    receive {\n"
+        "        Ended(_) -> Test.equal(add(1, 1), 2)\n"
+        "    }\n"
+        "})\n\n"
+        "let addsZero = Test.Case(name = \"adds zero\", run = fn() = Test.equal(add(1, 0), 1))\n\n"
+        "let pokes = Test.Case(name = \"pokes the service\", run = fn() = {\n"
+        "    monitor(Process.fromAddress(service), Ended);\n"
+        "    send(service, 1);\n"
+        "    receive {\n"
+        "        Ended(_) -> Test.Passed\n"
+        "    }\n"
+        "})\n\n"
+        "let service : Address(Int) =\n"
+        "    spawn(fn() = receive { _ -> fault(\"the service faulted\") })\n\n"
+        "export fn main() : Unit = {\n"
+        "    Io.println(Io.show(Test.equal(add(1, 2), 2)));\n"
+        "    Io.println(Io.show(Test.faults(fn() = add(1, 1), \"division by zero\")))\n"
+        "}\n">>}].
 
 %% The span Document quotes after Before, which stands once in it, up to
 %% the backtick that closes it.
@@ -328,14 +462,22 @@ quoted(Document, Before) ->
     [_, After] = binary:split(Text, Before, [global]),
     hd(binary:split(After, <<"`">>)).
 
-%% The sites `:processes` lists at the end of a session begun in Dir, its
-%% source root, with Source as counter.ern there, after Inputs, each typed
-%% at its prompt; one that comes with a source is typed once that source
-%% stands in counter.ern's place. A line of the listing is a site, an
+%% The sites `:processes` lists at the end of a session replayed in Dir
+%% with Source and Inputs (replayed/3). A line of the listing is a site, an
 %% activity and the bytes (report §11.2), and its first follows the prompt,
 %% which a shell not at a terminal ends no line after.
 listed(Dir, Source, Inputs) ->
-    File = filename:join(Dir, "counter.ern"),
+    Out = replayed(Dir, {"counter.ern", Source}, Inputs ++ [<<":processes">>]),
+    [Site || Line <- lines(Out),
+             {match, [Site]} <- [re:run(Line, "^(?:> )?([^ ]+) [a-z]+ [0-9]+ bytes$",
+                                        [{capture, all_but_first, binary}])]].
+
+%% What a shell session begun in Dir, its source root and its home, prints
+%% on its standard output, with Source as the file Name there: each of
+%% Inputs typed at its prompt, one given as {Edit, Input} once Edit stands
+%% in the file's place, then `:quit`, after which the shell ends with 0.
+replayed(Dir, {Name, Source}, Inputs) ->
+    File = filename:join(Dir, Name),
     ok = write(File, Source),
     Shell = filename:join(Dir, "shell"),
     {Port, Wait} = ern_harness:launched(Shell, ["cd ", Dir, " && HOME=", Dir, " ",
@@ -349,14 +491,11 @@ listed(Dir, Source, Inputs) ->
                     true = port_command(Port, [Line, <<"\n">>]),
                     ok = ern_harness:prints(Shell, "> ", Count + 1, ern_harness:wait_ms())
             end,
-    Typing = Inputs ++ [<<":processes">>],
-    lists:foreach(Typed, lists:zip(lists:seq(1, length(Typing)), Typing)),
+    lists:foreach(Typed, lists:enumerate(Inputs)),
     true = port_command(Port, <<":quit\n">>),
     ?assertEqual(0, Wait()),
     {Out, _} = ern_harness:said(Shell),
-    [Site || Line <- lines(unicode:characters_to_binary(Out)),
-             {match, [Site]} <- [re:run(Line, "^(?:> )?([^ ]+) [a-z]+ [0-9]+ bytes$",
-                                        [{capture, all_but_first, binary}])]].
+    unicode:characters_to_binary(Out).
 
 %% guide/language.md §8.1; report §8.7, §11.2, §11.3, Appendix E.27: the
 %% section's square.ern run on two nodes from one directory, as the
@@ -610,7 +749,7 @@ node_consoles(Heading) ->
 
 %% The blocks under the guide's heading that begins with Heading, in order.
 section_blocks(Heading) ->
-    [Block || #block{heading = Under} = Block <- blocks(numbered(?GUIDE), none, []),
+    [Block || #block{heading = Under} = Block <- blocks(numbered(?GUIDE)),
               is_under(Heading, Under)].
 
 %% Whether a block's heading, Under, begins with Heading; a block before
@@ -847,7 +986,7 @@ units([First | _] = Documents) when is_list(First) ->
 units(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
-    Blocks = [Block || Block <- blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
+    Blocks = [Block || Block <- blocks(lists:zip(lists:seq(1, length(Lines)), Lines)),
                        not is_replayed(Document, Block)],
     group(continued(Blocks, []), #{}).
 
@@ -870,18 +1009,11 @@ recorded(Document, Lines) ->
 is_replayed(?GUIDE, #block{heading = Heading}) -> is_under(?PACKAGES, Heading);
 is_replayed(_, _) -> false.
 
-%% Every fenced block, a #block{}.
-blocks([], _, Acc) ->
-    lists:reverse(Acc);
-blocks([{_, <<"#", _/binary>> = Heading} | Rest], _, Acc) ->
-    blocks(Rest, Heading, Acc);
-blocks([{Number, <<"```", Info/binary>>} | Rest], Heading, Acc) ->
-    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
-    Block = #block{line = Number, info = Info, heading = Heading,
-                   code = [Line || {_, Line} <- Code], fences = [Number]},
-    blocks(After, Heading, [Block | Acc]);
-blocks([_ | Rest], Heading, Acc) ->
-    blocks(Rest, Heading, Acc).
+%% Every fenced block of a document's numbered lines, a #block{}
+%% (ern_helpers:blocks/1).
+blocks(Numbered) ->
+    [#block{line = Number, info = Info, heading = Heading, code = Code, fences = [Number]}
+     || {Number, Heading, Info, Code} <- ern_helpers:blocks(Numbered)].
 
 fence(<<"```", _/binary>>) -> true;
 fence(_) -> false.

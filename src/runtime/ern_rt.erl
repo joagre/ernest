@@ -59,7 +59,7 @@
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, host_term/1, host_term/2,
          fault/1, fault/2, trace/1, failure_trace/2, system_process/1, hold_terminal/1,
-         terminal_holder/0, shell_holds/0,
+         shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1, disown_terminal/0,
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
          input_opened/1, input_taken/1,
@@ -843,10 +843,29 @@ call_forever(Address, Request) ->
     call_forever(Address, Request, none).
 
 %% Report §6.6, §8.4: a program's callForever, whose answer from foreign
-%% code is checked by Check.
+%% code is checked by Check, the call that waits for its answer however
+%% long it takes. Report §6.6: the callee's site, as a Down names it
+%% (§6.9), is read as the call begins, while the callee's row stands, so
+%% that the fault of the callee's it carries names it.
 -spec call_forever(address(), fun((reply()) -> term()), check()) -> term().
 call_forever(Address, Request, Check) ->
-    call_forever(Address, Request, Check, false).
+    Since = monotonic(),
+    {Callee, Reply} = watched(Address),
+    Site = callee_site(Callee),
+    Call = #call{callee = Callee, reply = Reply, since = Since, limited = false},
+    Answer = noted_call(Address, Request, Call, fun() -> forever_answer(Reply, Check) end),
+    case Answer of
+        {answered, Answered} -> Answered;
+        {fault, Cause} -> fault(Cause);
+        {thrown, Fault} -> throw(Fault);
+        {restarted, asked} -> callee_ended(<<"callee was restarted">>, Site);
+        {restarted, {fault, Cause}} -> callee_fault(Callee, Cause, Site);
+        %% report §6.6, Appendix E.18: a socket or a listener the program
+        %% closed ended as a function returns, and its caller learns why
+        {ended, {ern, closed}} -> callee_ended(<<"callee was closed">>, Site);
+        {ended, ExitReason} -> ended(Callee, Site, reason(ExitReason));
+        restart -> restart_now()
+    end.
 
 %% Report Appendix E.18, E.23, E.21: a call private to Tcp and Os, a call
 %% without a time of its own, whose request carries the time its callee
@@ -956,31 +975,7 @@ finished_by({Alias, _}, Finisher) ->
     Alias ! {Alias, finished_by, Finisher},
     ?UNIT.
 
-%% The call that waits for its answer however long it takes, Limited where
-%% the request gives its callee a time. Report §6.6: the callee's
-%% site, as a Down names it (§6.9), is read as the call begins, while the
-%% callee's row stands, so that the fault of the callee's it carries names
-%% it.
-call_forever(Address, Request, Check, Limited) ->
-    Since = monotonic(),
-    {Callee, Reply} = watched(Address),
-    Site = callee_site(Callee),
-    Call = #call{callee = Callee, reply = Reply, since = Since, limited = Limited},
-    Answer = noted_call(Address, Request, Call, fun() -> forever_answer(Reply, Check) end),
-    case Answer of
-        {answered, Answered} -> Answered;
-        {fault, Cause} -> fault(Cause);
-        {thrown, Fault} -> throw(Fault);
-        {restarted, asked} -> callee_ended(<<"callee was restarted">>, Site);
-        {restarted, {fault, Cause}} -> callee_fault(Callee, Cause, Site);
-        %% report §6.6, Appendix E.18: a socket or a listener the program
-        %% closed ended as a function returns, and its caller learns why
-        {ended, {ern, closed}} -> callee_ended(<<"callee was closed">>, Site);
-        {ended, ExitReason} -> ended(Callee, Site, reason(ExitReason));
-        restart -> restart_now()
-    end.
-
-%% The wait of call_forever/4, on the answer or the callee's end.
+%% The wait of call_forever/3, on the answer or the callee's end.
 forever_answer(Reply, Check) ->
     receive
         {Reply, answered, Value} -> {answered, Value};
@@ -5517,7 +5512,7 @@ evaluate(Units, Site, Interrupt) ->
             {ended, Evaluator, BindingSite, How};
         {interrupted, _} = Interrupted ->
             evaluator_ended(Evaluator, Ref),
-            told(Ref),
+            words_flushed(Ref),
             _ = withdraw_load([Evaluator], Units),
             resumed(Interrupted)
     end.
@@ -5539,8 +5534,8 @@ beginning(Interrupt, Told) ->
 
 %% What the evaluator told its caller under Ref and the caller did not
 %% take, its outcome and that it began, taken.
-told(Ref) ->
-    receive {Ref, _} -> told(Ref) after 0 -> ok end.
+words_flushed(Ref) ->
+    receive {Ref, _} -> words_flushed(Ref) after 0 -> ok end.
 
 %% Report Appendix E.28: Code.load's evaluation, evaluate/3's, settled by a
 %% process of the runtime's own, its settler, which watches the caller from

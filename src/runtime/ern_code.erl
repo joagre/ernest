@@ -49,16 +49,15 @@
 %% hash among them (§8.7), at the cost of one lookup, a fraction of the
 %% spawn. A function or a type of one hash is one definition wherever it
 %% is held (§8.7), so a hash may have rows in two units, and the table is
-%% a bag. It is made at
-%% its first use, by a process of its own that holds it for the host's
-%% life, since the units it describes stay loaded across every run of the
-%% host: `ern test` over a directory runs many (§11.2).
+%% a bag. It is made at its first use, by a process of its own that holds
+%% it for the host's life, since the units it describes stay loaded across
+%% every run of the host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
 -export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/4,
          documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         holder/1, ground/1, grounded/1, forms/1, recorded/2,
+         holder/1, ground/1, grounded/1, forms/1, recorded/2, definitions/2,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
          function_text/2, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
@@ -608,6 +607,17 @@ recorded(Unit, Read) ->
                            none -> none
                        end,
             {Recorded, Read#{Unit => Recorded}}
+    end.
+
+%% Report §12.7: the definitions the unit Unit's compiled form records, as
+%% recorded/2 reads them, with Read grown by it; no definition where
+%% recorded/2 answers none.
+-spec definitions(module(), #{module() => #recorded{} | none}) ->
+          {[#definition{}], #{module() => #recorded{} | none}}.
+definitions(Unit, Read) ->
+    case recorded(Unit, Read) of
+        {#recorded{definitions = Definitions}, Read1} -> {Definitions, Read1};
+        {none, Read1} -> {[], Read1}
     end.
 
 %% Whether Bytes, a file's, are the code of the loaded Unit, as the host

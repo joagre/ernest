@@ -57,7 +57,8 @@ examples/          Ernest programs written for a reader of the language, which
 test/              what spans the roots of src/: the integration, nodes, deployment guide,
                    tour, installation, manual pages', document, style, guide, site,
                    grammar, generated-program, shell and terminal tests; ern_harness.erl,
-                   the harness of those that run nodes, shells and programs; the harness
+                   the harness of those that run nodes, shells and programs, with its
+                   own tests, ern_harness_tests; the harness
                    of the loads; bench/, the benchmark's harnesses and its memory of its runs,
                    ern_last_run; the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
@@ -240,8 +241,8 @@ make test-manual # the manual pages against §11, each rendered
 make test-install # the installation and the release archive, installed and run
                 # where they are put; after test-manual, which it runs first,
                 # since both write the manual pages
-make test-docs  # the document tests and the style tests, after make doc, whose pages
-                # they read
+make test-docs  # the document tests, the style tests and the harness's own, after make
+                # doc, whose pages they read
 make paragraphs # list every prose paragraph past about a hundred words, a list item among
                 # them, for its writer to read again for a turn it may hide; test-docs lists
                 # them too, and fails on none

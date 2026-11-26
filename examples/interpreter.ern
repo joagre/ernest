@@ -38,7 +38,9 @@ type Token =
   | Equals
   | Arrow
 
-type LexError = BadChar(char : Char, index : Int)
+// A run of digits the host cannot hold as an integer is too large, as
+// `String.toInt` answers it (report Appendix E.5).
+type LexError = BadChar(char : Char, index : Int) | TooLarge(index : Int)
 
 type Expression =
     Literal(Int)
@@ -84,6 +86,10 @@ fn evaluateLine(env : Map(String, Value), text : String) : Map(String, Value) =
                            <> Char.toString(char)
                            <> " at "
                            <> Int.toString(index));
+            env
+        }
+      | Left(TooLarge(=index)) -> {
+            Io.println("number too large at " <> Int.toString(index));
             env
         }
       // a line with nothing on it answers nothing
@@ -185,11 +191,10 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
             lex(rest, index + 2, Arrow :: acc)
       | char :: _ when Char.isAsciiDigit(char) -> {
             let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
-            let value = match String.toInt(String.fromList(digits)) {
-                Some(number) -> number
-              | None -> fault("a run of ASCII digits reads as a number")
-            };
-            lex(rest, index + List.size(digits), Number(value) :: acc)
+            match String.toInt(String.fromList(digits)) {
+                Some(value) -> lex(rest, index + List.size(digits), Number(value) :: acc)
+              | None -> Left(TooLarge(=index))
+            }
         }
       | char :: _ when Char.isAlpha(char) -> {
             let #(word, rest) = List.splitWhile(chars, Char.isAlpha);

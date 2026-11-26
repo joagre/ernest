@@ -12,14 +12,14 @@
 
 -include_lib("stdlib/include/assert.hrl").
 
--export([nodes_test/2, counted_test/2, counted_test/3, step/1, step/2, counting/0, free_port/0,
-         made/3, address/1, edit/2, configuration/1, public/1, lists/2, peer/3, name/1, digest/1,
+-export([nodes_test/2, nodes_test/3, counted_test/2, counted_test/3, step/1, step/2, counting/0,
+         free_port/0, made/3, address/1, edit/2, configuration/1, public/1, lists/2, peer/3, name/1,
          program/1, built/1, wait_ms_declaration/0, wait_ms_text/0, client/0, client/7, client/8,
-         key_files/1, forged/2, host/1, start/3, started/3, shell_started/2, shell_started/3,
-         bare_started/2, bound_port/1, launched/2, ended/2, says/2, says/3, prints/2, prints/3,
-         prints/4, seen/5, stop/2, terminated/1, fault_line/3, written/2, said/1, wait_ms/0,
-         detector_ms/0, has/2, connected/2, accepted/1, received/2, unread_writer/1,
-         read_to_its_end/1, run_signaled/2, collected/2, closed/1]).
+         key_files/1, start/3, started/3, shell_started/2, shell_started/3, bare_started/2,
+         bound_port/1, launched/2, ended/2, says/2, says/3, prints/2, prints/3, prints/4, seen/5,
+         stop/2, terminated/1, fault_line/3, written/2, said/1, wait_ms/0, detector_ms/0, has/2,
+         connected/2, accepted/1, received/2, unread_writer/1, read_to_its_end/1, run_signaled/2,
+         collected/2, closed/1]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -50,34 +50,37 @@
 %% its last traffic.
 -define(DETECTOR_MS, 75000).
 
-tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_nodes_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
-
-%% A test of real nodes, named by its function, given the directory it
-%% makes them under, after which every node still running from a directory
-%% there is killed, however the test ended, its time running out among the
-%% ways: the cleanup is the fixture's, which outlives the test's process.
-%% Its time is the sum of its steps' bounds, Count steps each bounded by
-%% the harness's time for one wait (waits/1) and the Beyond milliseconds
-%% of the report's times its steps wait beside them, so that a step that
-%% fails is told by its own bound before the test's runs out; and its
-%% steps are counted as it takes them, Count of them (counted/2).
+%% A test of real nodes, named by its module and its function, given the
+%% directory it makes them under, after which every node still running
+%% from a directory there is killed, however the test ended, its time
+%% running out among the ways: the cleanup is the fixture's, which
+%% outlives the test's process. Its time is the sum of its steps' bounds,
+%% Count steps each bounded by the harness's time for one wait (waits/1)
+%% and the Beyond milliseconds of the report's times its steps wait beside
+%% them, so that a step that fails is told by its own bound before the
+%% test's runs out; and its steps are counted as it takes them, Count of
+%% them (counted/2).
 -spec nodes_test({waits, pos_integer()} | {waits, pos_integer(), non_neg_integer()},
                  fun((file:filename()) -> term())) ->
           {setup, fun(() -> file:filename()), fun((file:filename()) -> ok),
            fun((file:filename()) -> tuple())}.
-nodes_test({waits, Count}, Test) ->
-    nodes_test({waits, Count, 0}, Test);
-nodes_test({waits, Count, Beyond}, Test) ->
+nodes_test(Waits, Test) ->
+    {module, Module} = erlang:fun_info(Test, module),
     {name, Name} = erlang:fun_info(Test, name),
-    {setup, fun tmp/0, fun killed/1,
+    nodes_test(lists:concat([Module, ":", Name]), Waits, Test).
+
+%% The same, named Name, for a test whose function is a closure.
+-spec nodes_test(string(), {waits, pos_integer()} | {waits, pos_integer(), non_neg_integer()},
+                 fun((file:filename()) -> term())) ->
+          {setup, fun(() -> file:filename()), fun((file:filename()) -> ok),
+           fun((file:filename()) -> tuple())}.
+nodes_test(Name, {waits, Count}, Test) ->
+    nodes_test(Name, {waits, Count, 0}, Test);
+nodes_test(Name, {waits, Count, Beyond}, Test) ->
+    {setup, fun() -> ern_helpers:tmp("ern_harness_") end, fun killed/1,
      fun(Base) ->
          {timeout, waits(Count) + Beyond div 1000,
-          {atom_to_list(Name), fun() -> counted(Count, fun() -> Test(Base) end) end}}
+          {Name, fun() -> counted(Count, fun() -> Test(Base) end) end}}
      end}.
 
 %% A test of the harness's steps that starts no node here, an integration
@@ -246,24 +249,19 @@ name(Dir) ->
     [{_, Der, _}] = public_key:pem_decode(public(Dir)),
     atom_to_list(ern_carrier:name(Der)).
 
-%% A node's key's digest, as a refusal names an unlisted key.
--spec digest(file:filename()) -> string().
-digest(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    binary_to_list(binary:encode_hex(crypto:hash(sha256, Der), lowercase)).
-
-%% The test program, built in Root: it dials a peer, sends it a frame its
-%% gateway cannot read, sends it a spawn of the function whose hash it is
-%% given with a site that is not UTF-8, sends it a find whose alias is of
-%% another node, asks how busy a peer is, or waits, as its arguments say.
+%% The program of the nodes' and the deployment's tests, built in Root,
+%% with its host modules: it dials a peer, sends it a frame its gateway
+%% cannot read, sends it a spawn of the function whose hash it is given
+%% with a site that is not UTF-8, sends it a find whose alias is of another
+%% node, asks how busy a peer is, or waits, as its arguments say.
 -spec program(file:filename()) -> file:filename().
 program(Root) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "node.ern"), [<<"
 foreign fn connect(node : Foreign.Term) : Bool = \"net_kernel:connect_node/1\"
-foreign fn frame(node : Foreign.Term) : Unit = \"ern_nodes_frame:send/1\"
-foreign fn site(node : Foreign.Term, hash : String) : Unit = \"ern_nodes_frame:site/2\"
-foreign fn elsewhere(node : Foreign.Term) : Unit = \"ern_nodes_frame:elsewhere/1\"
+foreign fn frame(node : Foreign.Term) : Unit = \"ern_harness_frame:send/1\"
+foreign fn site(node : Foreign.Term, hash : String) : Unit = \"ern_harness_frame:site/2\"
+foreign fn elsewhere(node : Foreign.Term) : Unit = \"ern_harness_frame:elsewhere/1\"
 
 export fn main() : Unit receiving Unit =
     match Os.arguments {
@@ -302,8 +300,8 @@ export fn main() : Unit receiving Unit =
 // Until the node is stopped: a node waiting for ever is no deadlock.
 fn held() : Unit receiving Unit = receive { _ -> held() }
 ">>, wait_ms_declaration()]),
-    ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
--module(ern_nodes_frame).
+    ok = file:write_file(filename:join(Root, "ern_harness_frame.erl"), <<"
+-module(ern_harness_frame).
 -export([send/1, site/2, elsewhere/1]).
 send(Node) ->
     erlang:send({ern_gateway, Node}, unreadable),
@@ -322,9 +320,9 @@ elsewhere(Node) ->
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
-    {ok, _} = compile:file(filename:join(Root, "ern_nodes_frame.erl"), [{outdir, Root}]),
-    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
-    {ok, _} = compile:file(filename:join(Root, "ern_nodes_client.erl"), [{outdir, Root}]),
+    {ok, _} = compile:file(filename:join(Root, "ern_harness_frame.erl"), [{outdir, Root}]),
+    ok = file:write_file(filename:join(Root, "ern_harness_client.erl"), client()),
+    {ok, _} = compile:file(filename:join(Root, "ern_harness_client.erl"), [{outdir, Root}]),
     0 = built([Root]),
     filename:join(Root, "node.erc").
 
@@ -362,7 +360,7 @@ wait_ms_text() ->
 -spec client() -> binary().
 client() ->
     <<"
--module(ern_nodes_client).
+-module(ern_harness_client).
 -export([start_link/0, register_node/2, register_node/3, port_please/2, port_please/3,
          address_please/3, listen_port_please/2, names/1, main/0]).
 start_link() -> ignore.
@@ -374,14 +372,14 @@ address_please(_, _, _) -> {ok, {127, 0, 0, 1}, port(), 6}.
 listen_port_please(_, _) -> {ok, 0}.
 names(_) -> {error, address}.
 port() ->
-    {ok, [[Port]]} = init:get_argument(ern_nodes_port),
+    {ok, [[Port]]} = init:get_argument(ern_harness_port),
     list_to_integer(Port).
 main() ->
-    {ok, [[Target]]} = init:get_argument(ern_nodes_target),
+    {ok, [[Target]]} = init:get_argument(ern_harness_target),
     Node = list_to_atom(Target),
     io:format(\"connect: ~p~n\", [net_kernel:connect_node(Node)]),
     io:format(\"call: ~p~n\", [called(Node)]),
-    case init:get_argument(ern_nodes_wait) of
+    case init:get_argument(ern_harness_wait) of
         {ok, _} ->
             _ = io:get_line(\"\"),
             io:format(\"after: ~p~n\", [called(Node)]);
@@ -390,7 +388,7 @@ main() ->
     end,
     halt().
 called(Node) ->
-    {ok, [[Ms]]} = init:get_argument(ern_nodes_ms),
+    {ok, [[Ms]]} = init:get_argument(ern_harness_ms),
     try erpc:call(Node, erlang, node, [], list_to_integer(Ms)) of
         Node -> ran
     catch
@@ -409,11 +407,11 @@ called(Node) ->
              inet:port_number(), string(), boolean()) ->
           {port(), fun(() -> {integer(), binary()})}.
 client(Root, Name, Keys, Cookie, Port, Target, Wait) ->
-    client(Root, Name, Keys, Cookie, Port, Target, [Flag || Flag <- ["-ern_nodes_wait"], Wait],
-           "ern_nodes_client").
+    client(Root, Name, Keys, Cookie, Port, Target, [Flag || Flag <- ["-ern_harness_wait"], Wait],
+           "ern_harness_client").
 
 %% The same, running Module's main/0 with the flags Flags, the epmd module
-%% ern_nodes_client's, the harness's time for one wait its `-ern_nodes_ms`.
+%% ern_harness_client's, the harness's time for one wait its `-ern_harness_ms`.
 -spec client(file:filename(), string(), {file:filename(), file:filename()}, string(),
              inet:port_number(), string(), [string()], string()) ->
           {port(), fun(() -> {integer(), binary()})}.
@@ -425,10 +423,10 @@ client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Flags, Module) ->
                                                {"versions", "tlsv1.3"}]]),
     Arguments = ["-noshell", "-pa", Root, "-name", Name, "-proto_dist", "inet_tls",
                  "-ssl_dist_opt" | Tls]
-        ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-dist_listen", "false",
+        ++ ["-epmd_module", "ern_harness_client", "-start_epmd", "false", "-dist_listen", "false",
             "-connect_all", "false", "-setcookie", Cookie,
-            "-ern_nodes_port", integer_to_list(Port), "-ern_nodes_target", Target,
-            "-ern_nodes_ms", integer_to_list(?WAIT_MS)]
+            "-ern_harness_port", integer_to_list(Port), "-ern_harness_target", Target,
+            "-ern_harness_ms", integer_to_list(?WAIT_MS)]
         ++ Flags ++ ["-s", Module, "main"],
     Client = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
@@ -439,23 +437,6 @@ client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Flags, Module) ->
 -spec key_files(file:filename()) -> {file:filename(), file:filename()}.
 key_files(Dir) ->
     {filename:join(Dir, "certificate.pem"), filename:join(Dir, "private-key.pem")}.
-
-%% A certificate signed with the key of a configuration directory that names
-%% the host given, written beside the directory: the key is one node's, the
-%% host another's.
--spec forged(file:filename(), string()) -> {file:filename(), file:filename()}.
-forged(Dir, Host) ->
-    File = Dir ++ ".forged.pem",
-    ok = file:write_file(File, public_key:pem_encode([{'Certificate',
-                                                        ern_helpers:forged_certificate(Dir, Host),
-                                                        not_encrypted}])),
-    {File, filename:join(Dir, "private-key.pem")}.
-
-%% A node's key's host on the carrier.
--spec host(file:filename()) -> string().
-host(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    ern_carrier:host(Der).
 
 %% A node started in the background; answers what waits for its end.
 -spec start(file:filename(), file:filename(), [string()]) -> wait().
@@ -665,7 +646,8 @@ terminated(Dir) ->
 %% prints nothing is typed and the prompt it brings waited for, then
 %% standard output read for Part, until it holds Part or the harness's
 %% time for one wait is out, one step; each round waits on its prompt and
-%% none on a time. A prompt is counted as the shell's `> `, which what the
+%% none on a time, and no round begins once the time is out, the failure
+%% naming Part. A prompt is counted as the shell's `> `, which what the
 %% inputs here print holds nowhere else.
 -spec fault_line(port(), file:filename(), string()) -> ok.
 fault_line(Input, Dir, Part) ->
@@ -673,13 +655,13 @@ fault_line(Input, Dir, Part) ->
     fault_line(Input, Dir, Part, erlang:monotonic_time(millisecond) + ?WAIT_MS).
 
 fault_line(Input, Dir, Part, Deadline) ->
+    Left = Deadline - erlang:monotonic_time(millisecond),
+    Left > 0 orelse erlang:error({not_said, Dir, Part}),
     Prompts = length(string:split(written(Dir, out), "> ", all)) - 1,
     true = port_command(Input, "Unit\n"),
-    Left = Deadline - erlang:monotonic_time(millisecond),
-    waited(Dir, out, "> ", Prompts + 1, max(Left, 1)),
+    waited(Dir, out, "> ", Prompts + 1, Left),
     case string:find(written(Dir, out), Part) of
-        nomatch when Left > 0 -> fault_line(Input, Dir, Part, Deadline);
-        nomatch -> erlang:error({not_said, Dir, Part});
+        nomatch -> fault_line(Input, Dir, Part, Deadline);
         _ -> ok
     end.
 
@@ -692,8 +674,9 @@ written(Dir, Stream) ->
 %% What a node that has ended wrote, once both its streams have ended: one
 %% step. The helper that holds a node's lock keeps the node's standard error
 %% until it has removed the node's ernest.pid and ended (report §12.5), so
-%% that a node's file is gone once said/1 returns, and once finished/1 does
-%% for a command that sends the node's standard error to its output.
+%% that a node's file is gone once said/1 returns, and once
+%% ern_nodes_tests:finished/1 does for a command that sends the node's
+%% standard error to its output.
 -spec said(file:filename()) -> {string(), string()}.
 said(Dir) ->
     step({said, Dir}),

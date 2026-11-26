@@ -45,8 +45,8 @@ bound_leaf({tfn, _, _, _}, _, _) ->
     "a function";
 bound_leaf({tcon, ['Address'], [Message]}, Inside, Env) ->
     case resource(ern_types:resolve(Message, ern_typecheck:type_state(Env))) of
-        false -> holding("an address whose message type holds ", Inside(Message));
-        Resource -> Resource
+        {_, Address, _} -> Address;
+        none -> holding("an address whose message type holds ", Inside(Message))
     end;
 bound_leaf({tcon, ['Reply'], [Answer]}, Inside, _) ->
     holding("a reply whose answer holds ", Inside(Answer));
@@ -54,20 +54,20 @@ bound_leaf({tcon, ['Reply'], [Answer]}, Inside, _) ->
 %% named as one and not by its representation
 bound_leaf({tcon, ['Clock', 'Alarm'], []}, _, _) ->
     "an alarm";
-%% report §3.11, Appendix E.18, E.23: the message types of a socket, a
-%% listener and a running program are bound themselves
-bound_leaf({tcon, [_, _], []} = Message, _, _) when Message =:= ?SOCKET_MSG;
-                                                     Message =:= ?LISTENER_MSG;
-                                                     Message =:= ?PROGRAM_MSG ->
-    {Phrase, _} = resource_message(Message),
-    Phrase;
-bound_leaf({tcon, QualifiedName, _}, _, Env) ->
-    case {ern_prelude:is_builtin(QualifiedName),
-          ern_typecheck:described_type(QualifiedName, Env)} of
-        {false, #type_info{foreign = true}} ->
-            "a value of the foreign type " ++ ern_namespace:text(QualifiedName);
-        _ ->
-            inside
+bound_leaf({tcon, QualifiedName, _} = Type, _, Env) ->
+    case resource_message(Type) of
+        %% report §3.11, Appendix E.18, E.23: the message types of a
+        %% socket, a listener and a running program are bound themselves
+        {Phrase, _} ->
+            Phrase;
+        none ->
+            case {ern_prelude:is_builtin(QualifiedName),
+                  ern_typecheck:described_type(QualifiedName, Env)} of
+                {false, #type_info{foreign = true}} ->
+                    "a value of the foreign type " ++ ern_namespace:text(QualifiedName);
+                _ ->
+                    inside
+            end
     end;
 bound_leaf(_, _, _) ->
     inside.
@@ -77,21 +77,28 @@ holding(Prefix, Inner) -> Prefix ++ Inner.
 
 %% Report §3.11, Appendix E.18, E.23: the message types of the runtime's
 %% processes for a socket, a listener and a running program, whose
-%% addresses are resources; a library's resource is a foreign type, bound
-%% as one.
-resource(?SOCKET_MSG) -> "the address of a socket";
-resource(?LISTENER_MSG) -> "the address of a listener";
-resource(?PROGRAM_MSG) -> "the address of a running program";
-resource(_) -> false.
+%% addresses are resources, each as a refusal names it, its address as
+%% binds/2 names it and what the process that offers it in its place
+%% holds; none for any other type. A library's resource is a foreign type,
+%% bound as one.
+resource(?SOCKET_MSG) ->
+    {"the message type of a socket", "the address of a socket", "socket"};
+resource(?LISTENER_MSG) ->
+    {"the message type of a listener", "the address of a listener", "listener"};
+resource(?PROGRAM_MSG) ->
+    {"the message type of a running program", "the address of a running program", "program"};
+resource(_) ->
+    none.
 
 %% Report §3.11, §11.5: one of the three message types, as a refusal names
 %% it, and what the process that offers it in its place holds; none for
 %% any other type.
 -spec resource_message(ern_types:type()) -> {string(), string()} | none.
-resource_message(?SOCKET_MSG) -> {"the message type of a socket", "socket"};
-resource_message(?LISTENER_MSG) -> {"the message type of a listener", "listener"};
-resource_message(?PROGRAM_MSG) -> {"the message type of a running program", "program"};
-resource_message(_) -> none.
+resource_message(Type) ->
+    case resource(Type) of
+        {Phrase, _, Held} -> {Phrase, Held};
+        none -> none
+    end.
 
 %% Report §3.11, §11.5: a bound type as a refusal writes it, Text, with
 %% what binds it, Why: one of the three message types is named as itself.
@@ -198,8 +205,8 @@ spawn_name(_) ->
 primitive_note(Referent) ->
     case {spawn_name(Referent), is_running(Referent)} of
         {none, false} -> [];
-        {none, true} -> ["a primitive: called where it is named; a is the name of a top-level fn"
-                         " and m its mailbox type"];
+        {none, true} -> ["a primitive: called where it is named; a is the name of a top-level"
+                         " `fn` and m its mailbox type"];
         _ -> ["a primitive: called where it is named"]
     end.
 
@@ -483,43 +490,44 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
 mailbox_crosses(Name, Span, Mailbox, Scope, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     Text = ern_types:format(Mailbox, TypeState),
-    Written = ern_types:annotation_name(Mailbox, TypeState),
-    case {crossing(Mailbox, Env), ern_types:resolve(Mailbox, TypeState)} of
-        {crosses, _} ->
+    case {crossing(Mailbox, Env), ern_types:resolve(Mailbox, TypeState),
+          ern_types:annotation_name(Mailbox, TypeState)} of
+        {crosses, _, _} ->
             ok;
-        {variable, {tvar, _}} when is_map_key({annotation, Written}, Scope) ->
+        {variable, {tvar, _}, {ok, Written}} when is_map_key({annotation, Written}, Scope) ->
             fail(Span, operation_text(Name) ++ " starts a process whose mailbox type " ++ Text
                        ++ " is not known whole here",
                  [{ern_diagnostic:span(maps:get({annotation, Written}, Scope)),
                    "the signature writes " ++ atom_to_list(Written) ++ " here"}],
                  "write the mailbox type in place of " ++ atom_to_list(Written));
-        {variable, {tvar, _}} ->
+        {variable, {tvar, _}, _} ->
             fail(Span, operation_text(Name) ++ " starts a process whose mailbox type " ++ Text
                        ++ " is not known whole here",
                  "give the function its mailbox type, " ++ annotated(Name) ++ ": an instance of"
                  " this definition could make the variable a type bound to its node");
-        {variable, _} ->
+        {variable, _, _} ->
             fail(Span, operation_text(Name) ++ " starts a process whose mailbox type " ++ Text
                        ++ " is not known whole here",
                  "give the function its mailbox type, " ++ annotated(Name) ++ ": a type"
                  " variable in it could stand for a type bound to its node");
-        {{bound, _}, Resolved} when Resolved =:= ?SOCKET_MSG; Resolved =:= ?LISTENER_MSG;
-                                    Resolved =:= ?PROGRAM_MSG ->
-            %% report §3.11: a process that takes a resource's messages is
-            %% the runtime's, and the program's own stands in its place
-            {Phrase, Held} = resource_message(Resolved),
-            fail(Span, operation_text(Name) ++ " starts a process at " ++ Text ++ ", " ++ Phrase
-                       ++ ", which is bound to its node",
-                 "start a process of the program's own, which holds the " ++ Held
-                 ++ " and takes values that cross");
-        {{bound, Why}, _} ->
-            %% report §6.5, §8.7: the process is started on the peer at its
-            %% own mailbox type, and an adapted address of a type that
-            %% crosses reaches it from elsewhere
-            fail(Span, operation_text(Name) ++ " starts a process whose mailbox type " ++ Text
-                       ++ " is bound to its node, since it holds " ++ Why,
-                 started_there(Name) ++ ", or keep " ++ Why ++ " on this node and send the"
-                 " process values that cross")
+        {{bound, Why}, Resolved, _} ->
+            case resource_message(Resolved) of
+                %% report §3.11: a process that takes a resource's messages
+                %% is the runtime's, and the program's own stands in its place
+                {Phrase, Held} ->
+                    fail(Span, operation_text(Name) ++ " starts a process at " ++ Text ++ ", "
+                               ++ Phrase ++ ", which is bound to its node",
+                         "start a process of the program's own, which holds the " ++ Held
+                         ++ " and takes values that cross");
+                %% report §6.5, §8.7: the process is started on the peer at
+                %% its own mailbox type, and an adapted address of a type
+                %% that crosses reaches it from elsewhere
+                none ->
+                    fail(Span, operation_text(Name) ++ " starts a process whose mailbox type "
+                               ++ Text ++ " is bound to its node, since it holds " ++ Why,
+                         started_there(Name) ++ ", or keep " ++ Why ++ " on this node and send"
+                         " the process values that cross")
+            end
     end.
 
 %% Report §3.11: whether a value of the type crosses to another node, as a

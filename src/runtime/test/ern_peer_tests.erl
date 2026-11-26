@@ -210,8 +210,7 @@ pick_test() ->
 %% waiting above it among them, a later one in its place; a number below
 %% 0.0 faults the caller and sets nothing. The launch's table, which a
 %% launch makes, stands in for one here. A regression test, written after
-%% the code; the numbers above 1.0 since the release review,
-%% which found them refused
+%% the code, and for the numbers above 1.0 once they were found refused
 set_utilization_test() ->
     undefined = ets:whereis(ern_launch),
     ern_launch = ets:new(ern_launch, [named_table, public]),
@@ -1429,8 +1428,8 @@ proxy_one_find_test() ->
     Quiet = ern_helpers:quiet(#{stderr => fun(_) -> ok end}),
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
     {traced, During, After} = receive {traced, _, _} = Traced -> Traced end,
-    ?assertEqual([find, {sent, 1, 'Never'}, {sent, 2, 'Never'}], During),
-    ?assertEqual([find, {sent, 3, 'Never'}], After).
+    ?assertEqual([find, {sent, 1, 'Nowhere'}, {sent, 2, 'Nowhere'}], During),
+    ?assertEqual([find, {sent, 3, 'Nowhere'}], After).
 
 %% A library's module, compiled under build/libs, loaded.
 library(Name) ->

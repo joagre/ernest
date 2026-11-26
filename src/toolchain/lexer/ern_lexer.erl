@@ -44,9 +44,8 @@
                   "+", "-", "*", "/", "%", "<", ">", "!"]).
 
 %% What a call reads under its options, read once: whether a comment is a
-%% token, whether a name the host has not met is the stand-in, and each
-%% symbol's text with its atom and its length.
--record(lexing, {comments, no_new_names, symbols}).
+%% token, and whether a name the host has not met is the stand-in.
+-record(lexing, {comments, no_new_names}).
 
 -spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Source) ->
@@ -62,8 +61,7 @@ tokenize(Source) ->
           {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Source, Options) ->
     Lexing = #lexing{comments = lists:member(comments, Options),
-                     no_new_names = lists:member(no_new_names, Options),
-                     symbols = [{Text, list_to_atom(Text), length(Text)} || Text <- ?SYMBOLS]},
+                     no_new_names = lists:member(no_new_names, Options)},
     case unicode:characters_to_list(Source) of
         Chars when is_list(Chars) ->
             Text = ern_diagnostic:without_bom(Chars),
@@ -94,8 +92,8 @@ refuse_controls([$\n | Rest], Line, _) ->
 refuse_controls([Char | _], Line, Column) when Char < 16#20, Char =/= $\t, Char =/= $\r;
                                                Char >= 16#7F, Char =< 16#9F ->
     error_at(Line, Column, io_lib:format("control character U+~4.16.0B", [Char]),
-             lists:flatten(io_lib:format("a string or a character literal writes it `\\u{~.16B}`",
-                                         [Char])));
+             lists:flatten(["a string or a character literal writes it `",
+                            ern_literal:escape(Char, none), "`"]));
 refuse_controls([_ | Rest], Line, Column) ->
     refuse_controls(Rest, Line, Column + 1).
 
@@ -165,7 +163,7 @@ lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Lexing)
         [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, name(Name, Lexing)} | Acc],
         Lexing);
 lex(Input, Line, Column, PreviousEnd, Acc, Lexing) ->
-    case symbol_at(Input, Lexing#lexing.symbols) of
+    case symbol_at(Input, ?SYMBOLS) of
         {Symbol, Rest, Length} ->
             EndColumn = Column + Length,
             lex(Rest, Line, EndColumn, {Line, EndColumn},
@@ -192,7 +190,7 @@ lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, Lexing) ->
 is_after_token([{Kind, _, _} | Before], Line) when Kind =:= comment; Kind =:= doc ->
     is_after_token(Before, Line);
 is_after_token([Token | _], Line) ->
-    {_, _, {EndLine, _}, _} = element(2, Token),
+    {_, _, {EndLine, _}, _} = position(Token),
     EndLine =:= Line;
 is_after_token([], _Line) ->
     false.
@@ -494,14 +492,15 @@ name(Name, #lexing{no_new_names = false}) ->
 
 symbol_at(_Input, []) ->
     none;
-symbol_at(Input, [{Text, Symbol, Length} | Symbols]) ->
+symbol_at(Input, [Text | Texts]) ->
     case lists:prefix(Text, Input) of
-        true -> {Symbol, lists:nthtail(Length, Input), Length};
-        false -> symbol_at(Input, Symbols)
+        true -> {list_to_atom(Text), lists:nthtail(length(Text), Input), length(Text)};
+        false -> symbol_at(Input, Texts)
     end.
 
-%% Report §2: a token is {Symbol, Position} or {Symbol, Position, Value},
-%% its symbol its kind or the reserved word or the symbol it is.
+%% A token is {Symbol, Position} or {Symbol, Position, Value}, a shape
+%% that is the lexer's own, its symbol its kind or the reserved word or
+%% the symbol it is.
 -spec symbol(token()) -> atom().
 symbol(Token) -> element(1, Token).
 

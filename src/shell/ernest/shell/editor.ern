@@ -86,7 +86,7 @@ fn fresh() : Editing =
 export fn start(history : List(String)) : Editing =
     Editing(..fresh(), =history)
 
-/// The state to type the next input in, once one is entered or
+/// The editing to type the next input in, once one is entered or
 /// abandoned: the input just taken joins the history, which keeps the
 /// last inputs as the file does, the texts the walk kept go (report
 /// §11.2), and what was killed outlives the input it was killed from, as
@@ -1512,7 +1512,7 @@ let notKept =
 
 //
 // Report §11.2: the keys' table and `edit` agree. A key is bound where, on
-// one of the states `states` gives, its events do other than nothing; in a
+// one of the editings `editings` gives, its events do other than nothing; in a
 // search, other than end it, since any key that is not the search's own
 // ends it and then does what it does.
 //
@@ -1557,15 +1557,15 @@ fn tried() : List(List(Terminal.Event)) = {
                         fn(begun) = List.map(endings, fn(ending) = escaped(begun <> ending)))
 }
 
-// Whether the events do other than nothing on one of the states.
+// Whether the events do other than nothing on one of the editings.
 fn isBound(events : List(Terminal.Event)) : Bool =
-    List.any(states(), fn(editing) = changes(editing, events))
+    List.any(editings(), fn(editing) = changes(editing, events))
 
-// The states a key is tried on: an empty input, an input of several lines
+// The editings a key is tried on: an empty input, an input of several lines
 // with the cursor inside it, a kill held and the history walked back, and a
 // search under way. Each has inputs behind it, so that a walk and a search
 // can go somewhere.
-fn states() : List(Editing) = {
+fn editings() : List(Editing) = {
     let empty = start(["one two", "three"]);
     [empty,
      withLine(empty, "ab cd\nef gh\nij kl", 9),
@@ -1573,7 +1573,7 @@ fn states() : List(Editing) = {
      editedBy(empty, [ctrl('r')] <> keys("o"))]
 }
 
-// Whether the events change the state, or end the input, the record of the
+// Whether the events change what is edited, or end the input, the record of the
 // key before aside, since every key forgets it; a search that only ends is
 // no change.
 fn changes(editing : Editing, events : List(Terminal.Event)) : Bool =
@@ -1587,7 +1587,7 @@ fn changes(editing : Editing, events : List(Terminal.Event)) : Bool =
 fn forgotten(editing : Editing) : Editing =
     Editing(..editing, previous = OtherKey)
 
-// The state the events leave, which the states above are made by.
+// The editing the events leave, which the editings above are made by.
 fn editedBy(editing : Editing, events : List(Terminal.Event)) : Editing =
     match plays(editing, events) {
         Edited(edited) -> edited

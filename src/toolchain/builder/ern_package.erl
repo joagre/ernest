@@ -340,7 +340,7 @@ entry(Item, Earlier) ->
         Said ->
             Version = version_given(<<"version">>, Said),
             Given = [Field || {field, Field, _} <- Said],
-            Faults = lists:append([entry_faults(What, Name, Version, Pair) || Pair <- Said])
+            Faults = lists:append([entry_faults(What, Pair) || Pair <- Said])
                 ++ [What ++ " has no name" || not lists:member(<<"name">>, Given)]
                 ++ [What ++ " has no version" || not lists:member(<<"version">>, Given)]
                 ++ ["two entries name " ++ Name || Name =/= none, lists:member(Name, Earlier)],
@@ -385,29 +385,25 @@ string_given(Field, Said) ->
         false -> none
     end.
 
-%% Report §11.9: a field of an entry held to its form. A `url` is held to
-%% the entry's name and version where both are of their form.
-entry_faults(_What, _Name, _Version, {fault, Fault}) ->
+%% Report §11.9: a field of an entry held to its form.
+entry_faults(_What, {fault, Fault}) ->
     [Fault];
-entry_faults(What, _Name, _Version, {field, <<"name">>, Value}) ->
+entry_faults(What, {field, <<"name">>, Value}) ->
     case is_binary(Value) of
         false -> [What ++ "'s name is not a string"];
         true ->
             [What ++ "'s name is not words joined by `_`, each a lowercase letter, then"
              " lowercase letters and digits: " ++ ern_conf:quoted(Value) || not is_name(Value)]
     end;
-entry_faults(What, _Name, _Version, {field, <<"version">>, Value}) ->
+entry_faults(What, {field, <<"version">>, Value}) ->
     version_faults(What ++ "'s version", Value);
-entry_faults(What, Name, Version, {field, <<"url">>, Value}) ->
+entry_faults(What, {field, <<"url">>, Value}) ->
     case is_binary(Value) of
         false -> [What ++ "'s url is not a string"];
-        true when Name =:= none; Version =:= none -> [];
-        true ->
-            Archive = Name ++ "-" ++ Version ++ ".tar.gz",
-            [What ++ "'s url is not an https URL whose path's last segment is " ++ Archive ++ ": "
-             ++ ern_conf:quoted(Value) || not is_url(Value, Archive)]
+        true -> [What ++ "'s url is not an https URL: " ++ ern_conf:quoted(Value)
+                 || not is_url(Value)]
     end;
-entry_faults(What, _Name, _Version, {field, <<"sha256">>, Value}) ->
+entry_faults(What, {field, <<"sha256">>, Value}) ->
     case is_binary(Value) of
         false -> [What ++ "'s sha256 is not a string"];
         true ->
@@ -439,13 +435,11 @@ is_numeral(<<First, Rest/binary>>) when First >= $1, First =< $9 ->
 is_numeral(_) -> false.
 
 %% Report §11.9: an https URL, its scheme read as RFC 3986 reads one, with
-%% no regard to case, whose path's last segment is Archive.
-is_url(Text, Archive) ->
+%% no regard to case.
+is_url(Text) ->
     case uri_string:parse(Text) of
-        #{scheme := Scheme, host := Host, path := Path} when Host =/= <<>> ->
-            string:lowercase(Scheme) =:= <<"https">>
-                andalso lists:last(binary:split(Path, <<"/">>, [global]))
-                        =:= list_to_binary(Archive);
+        #{scheme := Scheme, host := Host} when Host =/= <<>> ->
+            string:lowercase(Scheme) =:= <<"https">>;
         _ ->
             false
     end.

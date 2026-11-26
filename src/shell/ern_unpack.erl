@@ -19,14 +19,14 @@
 %% as every persistent term is set at a launch (docs/design/runtime.md).
 -spec given([ern_package:entry()], boolean()) -> ok.
 given(Entries, IsVerbose) ->
-    persistent_term:put({?MODULE, entries}, {Entries, IsVerbose}).
+    persistent_term:put({?MODULE, given}, {Entries, IsVerbose}).
 
 %% Report §11.9: the entries as `Ernest.Unpack.Entry` values, each its name,
 %% its version, and its `url` and its `sha256` where it has them.
 -spec entries() -> [{'Entry', binary(), binary(), ern_rt:optional(binary()),
                      ern_rt:optional(binary())}].
 entries() ->
-    {Entries, _} = persistent_term:get({?MODULE, entries}, {[], false}),
+    {Entries, _} = persistent_term:get({?MODULE, given}, {[], false}),
     [{'Entry', list_to_binary(Name), list_to_binary(Version), ern_rt:optional(Url),
       ern_rt:optional(Sha256)}
      || #package_entry{name = Name, version = Version, url = Url, sha256 = Sha256} <- Entries].
@@ -35,7 +35,7 @@ entries() ->
 %% stood at its entry's version, `--verbose`.
 -spec is_verbose() -> boolean().
 is_verbose() ->
-    {_, IsVerbose} = persistent_term:get({?MODULE, entries}, {[], false}),
+    {_, IsVerbose} = persistent_term:get({?MODULE, given}, {[], false}),
     IsVerbose.
 
 %% Report §11.9: the members of the archive Bytes, a tar archive compressed
@@ -110,8 +110,8 @@ hold({'Path', Path}) ->
 %% a library's shim, each a module on the host's code path, which the run
 %% has given the libraries' directories (ern_code:load_runtime/0). No atom
 %% is made of the name.
--spec is_found_first({'Path', binary()}) -> boolean().
-is_found_first({'Path', File}) ->
+-spec is_found_first(binary()) -> boolean().
+is_found_first(File) ->
     Name = unicode:characters_to_list(File),
     lists:member(filename:rootname(Name), [atom_to_list(Module) || Module <- erlang:pre_loaded()])
         orelse code:where_is_file(Name) =/= non_existing.

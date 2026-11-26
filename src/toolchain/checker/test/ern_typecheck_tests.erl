@@ -232,9 +232,9 @@ restarting_takes_the_function_s_mailbox_test() ->
 %% mailbox type is expected, whether it is named, declared, annotated, a
 %% parameter, a field, or a call's result, and in either order beside one
 %% that receives; one that receives never stands where one that receives
-%% nothing is expected. Found by the cold read (its 1.1): a named function
-%% that received nothing was refused where the same function written in
-%% place was accepted
+%% nothing is expected. A regression test: a named function that received
+%% nothing was refused where the same function written in place was
+%% accepted
 receiving_nothing_stands_for_a_mailbox_test() ->
     Types = "type Msg = Add(Int) | Up(next : (Int) -> Unit receiving Msg)\n"
             "type Hook = Hook(run : (Int) -> Unit)\n"
@@ -304,7 +304,7 @@ widening_at_the_expression_s_own_type_test() ->
 %% the clauses before it leave is an error, in `match` and in `receive`; a
 %% guarded clause covers nothing, and a bitstring pattern judged is taken
 %% to match anything. The label names the clause that completes the cover.
-%% Found by the cold read (its 2.13): every redundant clause was accepted
+%% A regression test: every redundant clause was accepted
 redundant_clause_test() ->
     Never = "this clause can never match",
     ?assertEqual(Never, refusal("fn f(x : Optional(Int)) : Int ="
@@ -886,9 +886,8 @@ alarm_bound_test() ->
 %% listener and a running program are bound themselves, so a service at
 %% one, a spawn on a peer of a function that takes one and a value that
 %% holds one are refused, the first two naming the type as itself. A
-%% regression test of the cold reading's programs: a service at
-%% Tcp.SocketMsg built, and on two nodes one found the other's socket and
-%% wrote to it
+%% regression test: a service at Tcp.SocketMsg built, and on two nodes one
+%% found the other's socket and wrote to it
 resource_message_types_bound_test() ->
     Refusal = fun(Source) ->
                   {error, [#diagnostic{message = Message, help = Help} | _]} = with_peer(Source),
@@ -1489,12 +1488,11 @@ code_running_test() ->
 %% know: its declaration's, though the function stands at the call for one
 %% that receives (§3.9). A send to one is refused, `expected Never`, a send
 %% over the list too, and an annotation of another mailbox type; `kill`
-%% over it is not. A regression test, written after the fix (the release
-%% review found the addresses at a variable nothing fixed, a
-%% send of 42 to a process that received another type compiling and
-%% breaking its mailbox at run time); the process-only function a
-%% regression test of its own, written after the fix of the full review,
-%% which found it refused. It does not run a program
+%% over it is not. A regression test, written after the fix: the addresses
+%% were at a variable nothing fixed, a send of 42 to a process that
+%% received another type compiling and breaking its mailbox at run time;
+%% the process-only function a regression test of its own, written after
+%% the fix: it was refused. It does not run a program
 code_running_never_test() ->
     Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)\n",
     Skip = "fn skip() : Unit receiving m = receive { _ -> Unit }\n",
@@ -1523,10 +1521,10 @@ code_running_never_test() ->
 %% written in, a local fn's at that fn's end, and at the end of the
 %% definition around it where a local of that one holds what it answers;
 %% two top-level definitions that name one another end together; and a
-%% compute of a generalized function is read at its instance. The cold
-%% reading's programs: `p11` and `p12` build, the type fixed after the
-%% spawn and the compute, and `p28`, `q1` and `q4`, whose local fn ends
-%% before anything fixes it, are refused
+%% compute of a generalized function is read at its instance. Regression
+%% tests: the first spawn and the first compute build, the type fixed
+%% after them, and the three whose local fn ends before anything fixes it
+%% are refused
 definition_end_reads_the_spawn_test() ->
     Builds = ["fn main() = {\n"
               "    let r = Peer.spawn(\"b\", fn() = Io.println(\"x\"), 1000);\n"
@@ -1571,6 +1569,20 @@ signature_variable_labeled_test() ->
     ?assertEqual({"Peer.spawn starts a process whose mailbox type a is not known whole here",
                   [{{2, 39, {2, 40}}, "the signature writes a here"}],
                   "write the mailbox type in place of a"},
+                 {Message, Labels, Help}).
+
+%% report §3.11, §11.5: a spawn on a peer whose mailbox type is a variable
+%% no annotation writes, beside a signature that names a variable none, is
+%% reported with the variable and no label. A regression test: a variable
+%% named `none` was read as the name a variable of no annotation has
+unwritten_mailbox_variable_test() ->
+    #diagnostic{message = Message, labels = Labels, help = Help} =
+        diagnostic("fn skip() : Unit receiving m = receive { _ -> Unit }\n"
+                   "fn start(k, z : none) : Unit = k(Peer.spawn(\"w\", skip, 1000))\n"),
+    ?assertEqual({"Peer.spawn starts a process whose mailbox type a is not known whole here", [],
+                  "give the function its mailbox type, `fn() : Unit receiving Msg = ...`: an"
+                  " instance of this definition could make the variable a type bound to its"
+                  " node"},
                  {Message, Labels, Help}).
 
 %% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
@@ -1698,7 +1710,7 @@ members_and_requirements_across_an_interface_test() ->
              {Unique, "fn g(xss : List(List(Int))) : List(List(Int)) = List.map(xss, A.unique)\n",
               ok},
              {Unique, "let u = A.unique\n",
-              "A.unique needs a.compare, which a top-level let cannot declare"},
+              "A.unique needs a.compare, which a top-level `let` cannot declare"},
              {Describe, "fn g() : String = A.describe(1)\n", ok},
              {Describe, "fn g(x : b) : String = A.describe(x)\n",
               "A.describe needs b.show, which g does not declare"},
@@ -1734,7 +1746,7 @@ requirement_callee_named_whole_test() ->
               {"App.Util.unique needs b.compare, which g does not declare",
                "add `needs b.compare` to g's signature"}},
              {"let u = Util.unique\n",
-              {"App.Util.unique needs a.compare, which a top-level let cannot declare",
+              {"App.Util.unique needs a.compare, which a top-level `let` cannot declare",
                "declare a `fn` with `needs a.compare`"}},
              {"fn g(v : Util.Vec) : Util.Vec = Util.total([v], v)\n",
               {"App.Util.total needs App.Util.Vec.+ : (App.Util.Vec, App.Util.Vec) ->"
@@ -1771,8 +1783,7 @@ qualifiers_resolve_in_the_tree_as_it_is_test() ->
 %% annotation, a mailbox type, the form a message asks for, a fill as the
 %% source writes it, and the patterns a `match` does not cover; a name
 %% nothing declares has the namespace its first segment names whole, and is
-%% as written where that names none. A regression test of the cold
-%% readings' programs (cold42/t1, t4, cold2/work/n1, n4): the code was
+%% as written where that names none. A regression test: the code was
 %% printed whole and a constructor bare
 names_in_diagnostics_test() ->
     Util = "export type Shape = Circle(radius : Int) | Square(side : Int) | Dot\n"
@@ -1847,9 +1858,8 @@ names_in_diagnostics_test() ->
 %% report §11.5: a prelude type a type of the module hides prints as
 %% `Prelude.x` and the module's own plain, in a message and in a witness,
 %% and a prelude function or a module's own a binding hides as
-%% `Prelude.x` and whole. A regression test of the cold readings' programs
-%% (cold42/t1's third.ern, cold3/CA/t10b, t11b, cold1/n5): the module's own
-%% printed qualified and the prelude's plain
+%% `Prelude.x` and whole. A regression test: the module's own printed
+%% qualified and the prelude's plain
 hidden_names_in_diagnostics_test() ->
     Optional = "type Optional(a) = Nope | Yep(a)\n",
     ?assertEqual("the body does not have the declared result type: expected Optional(Int),"
@@ -2067,9 +2077,9 @@ toolchains_own_names_test() ->
 %% each of its values, a function's reach among it, which the interface
 %% carries only where it names a binding or a foreign declaration, so that
 %% a function whose new reach names none names none it named before. A
-%% regression test, written after the fix: the full review
-%% found the old reach kept, as the module's ground terms once were; it
-%% does not cover a build, which reads one interface of each module
+%% regression test: the old reach was kept, as the module's ground terms
+%% once were; it does not cover a build, which reads one interface of each
+%% module
 interface_replaces_a_reach_test() ->
     Function = #scheme{type = {tfn, [], none, {tcon, ['Unit'], []}}},
     Interface = fun(BackEnd) ->
@@ -2089,8 +2099,7 @@ interface_replaces_a_reach_test() ->
 %% constructor of its name, the standard library's or a module's the
 %% module names; none where none has, where two have, or where the one is
 %% an abstract type's, which only its module writes (§4.4). A regression
-%% test, written after the code: the release review's newcomer met
-%% `unknown constructor NotFound` with no help; it does not cover the
+%% test: `unknown constructor NotFound` had no help; it does not cover the
 %% prompt's previous versions, whose namespaces no source writes
 plain_constructor_help_test() ->
     Interface = fun(Namespace, Text) ->
@@ -2791,10 +2800,9 @@ process_only_through_an_interface_test() ->
 %% enclosing definition holds it, a local fn's.
 %%
 %% A wait and a process-only callee are refused at once, as before, and a
-%% parameter the body calls still receives nothing. A regression test,
-%% written after the checker, the lambda's `: T` after the fix of the full
-%% review, which found it refused: it does not cover a
-%% recursive group whose other member fixes the variable
+%% parameter the body calls still receives nothing. A regression test: the
+%% lambda's `: T` was refused; the rest was written after the checker. It
+%% does not cover a recursive group whose other member fixes the variable
 %% (group_member_written_none_test covers one whose member calls `self`),
 %% nor the shell's prompt, whose inputs are typed as a block's statements
 %% are
@@ -2877,9 +2885,9 @@ standing_over_a_body_that_calls_self_test() ->
 %% name around it, a capture or the enclosing function's parameter, or by a
 %% selection the enclosing definition resolves as it ends, keeps it, and is
 %% refused there; so is a call under a lambda's `: T` whose variable such a
-%% selection holds. A regression test, written after the fix: the full
-%% review found the lambda refused where the same body as a
-%% `fn` or a `let`-bound lambda was accepted; it does not cover the prompt
+%% selection holds. A regression test: the lambda was refused where the
+%% same body as a `fn` or a `let`-bound lambda was accepted; it does not
+%% cover the prompt
 lambda_calling_self_receives_nothing_test() ->
     Run = "fn run(f : () -> Unit) : Unit = f()\n",
     ?assertEqual("() -> Unit", type_of(Run ++ "export fn g() : Unit = run(fn() ="
@@ -2971,11 +2979,10 @@ monitor_in_a_wrap_test() ->
 %% one that calls `self` checks, in either order of declaration, since the
 %% members written `: T` are checked after the others, each group's members
 %% in the order of their declarations; one whose other member waits is
-%% refused at the call. A regression test, written after the fix: the full
-%% review found the verdict changing with the order the
-%% host's graph gave the members, which changed from one start of the host
-%% to the next; within one start of the host the test cannot show that
-%% order, only each order of declaration
+%% refused at the call. A regression test: the verdict changed with the
+%% order the host's graph gave the members, which changed from one start of
+%% the host to the next; within one start of the host the test cannot show
+%% that order, only each order of declaration
 group_member_written_none_test() ->
     A = "export fn a(n : Int) = { kill(Process.fromAddress(self())); b(n) }\n",
     B = "fn b(n : Int) : Unit = a(n)\n",
@@ -2990,10 +2997,9 @@ group_member_written_none_test() ->
 %% none only where it quantifies it: a lambda or a local `fn` that calls
 %% the enclosing function's callback keeps the callback's mailbox type,
 %% and is refused where a function that receives nothing is expected. A
-%% regression test, written after the fix: the full review
-%% found the variable written as none, a process started by a function
-%% that receives nothing reading an `Int` as a `String`; it does not cover
-%% the prompt
+%% regression test: the variable was written as none, a process started by
+%% a function that receives nothing reading an `Int` as a `String`; it
+%% does not cover the prompt
 generalization_keeps_a_held_effect_test() ->
     Run = "fn run(f : () -> Unit) : Address(Int) = spawn(f)\n",
     Refused = "the argument does not fit run: expected () -> Unit, found () -> Unit receiving e"
@@ -3010,9 +3016,8 @@ generalization_keeps_a_held_effect_test() ->
 %% call's value that `Io.debug` writes, an operator's operand, a selection,
 %% a `<-` or a top-level `let` that the call gives its type, so that the
 %% definition's error is the one reported; an error of the user's own is
-%% still reported. A regression test, written after the fix: the full
-%% review found `the type a is not known whole here` after
-%% the error it followed from
+%% still reported. A regression test: `the type a is not known whole here`
+%% was reported after the error it followed from
 failed_definition_draws_no_second_error_test() ->
     Failed = "type Shape = Dot(name : String) | Circle(name : String, radius : Int)\n"
              "fn f(s : Shape) = s.radius\n",
@@ -3199,6 +3204,16 @@ parameter_appears_once_test() ->
     ?assertEqual({{1, 15, {1, 16}}, [{{1, 6, {1, 7}}, "first bound here"}]}, {Span, Labels}),
     ?assertEqual("variable x appears twice in the pattern",
                  refusal("fn f(#(x, x) : #(Int, Int)) : Int = x")).
+
+%% report §4.5, §11.5: where one parameter's pattern repeats several
+%% names, the first repeated as written is reported. A regression test: the
+%% alphabetically first was
+first_repeated_parameter_test() ->
+    #diagnostic{message = Message, span = Span, labels = Labels} =
+        diagnostic("fn f(a : Int, b : Int, #(b, a) : #(Int, Int)) : Int = a"),
+    ?assertEqual({"parameter b appears twice", {1, 26, {1, 27}},
+                  [{{1, 15, {1, 16}}, "first bound here"}]},
+                 {Message, Span, Labels}).
 
 %% report §5.10: a variable appears once in a pattern
 pattern_variable_appears_once_test() ->
@@ -3508,8 +3523,8 @@ type_declarations_test() ->
 %% written, `an` before a vowel's name (the log's *The Review's Fixes, First
 %% Round*), where what is written reads as that type, its positional fields
 %% as many as the type's parameters; elsewhere it renames the constructor,
-%% naming where the type is declared. The four lone constructors are the
-%% cold reading's (`type Word = String` to `type Config = Map(k : String)`);
+%% naming where the type is declared. The four lone constructors, `type
+%% Word = String` to `type Config = Map(k : String)`, are regression tests;
 %% the test does not cover a type of the session whose interface the
 %% checker lacks, whose constructor is renamed
 no_alias_test() ->
@@ -3556,6 +3571,26 @@ no_alias_test() ->
                                              " session declares"}]},
                  ern_typecheck:check(['M'], Declarations, [Interface], Session,
                                      ern_typecheck:prelude_env())).
+
+%% report §3.1, §3.5: a constructor of several positional fields that reads
+%% as a type applied, as many fields as the type's parameters, is told
+%% there are no type aliases, and the help writes the wrapper; one that
+%% is no alias is refused at its first `,`, with the two ways to write it,
+%% in a type of one constructor and in a type of several. A regression
+%% test: `type Alias = Either(String, Int)` was told only of the fields
+several_positional_fields_test() ->
+    ?assertEqual({"constructor Either is named as the type Either",
+                  "there are no type aliases; a type that holds an Either(String, Int) is written"
+                  " `type Alias = Alias(Either(String, Int))`"},
+                 refusal_and_help("type Alias = Either(String, Int)")),
+    ?assertMatch({error, [#diagnostic{span = {1, 21, _},
+                                      message = "a constructor has exactly one positional field",
+                                      help = "name the fields, `Vec(x : ..., y : ...)`, or hold"
+                                             " a tuple, `Vec(#(..., ...))`"}]},
+                 check("type Vec = Vec(Float, Float)")),
+    ?assertEqual({"a constructor has exactly one positional field",
+                  "name the fields, `Box(x : ..., y : ...)`, or hold a tuple, `Box(#(..., ...))`"},
+                 refusal_and_help("type Shape = Dot | Box(Int, Int)")).
 
 %% report §4.2, §5.4: a module declares each top-level name once, private or
 %% exported, and a block each local fn name once; two adjacent ones are the
@@ -4366,6 +4401,18 @@ errors_of_a_block_test() ->
     ?assertEqual(["both operands of `+` must have the same type: expected String, found Int"],
                  refusals("fn f() : Int = { let c = \"z\" + 1; c * 2 }")).
 
+%% report §11.5: a `let` whose pattern binds no name, `let _ = e` and
+%% `let #(_, _) = e`, is a statement that binds nothing, and its block goes
+%% on after its error. A regression test: the block stopped there, and the
+%% error after it was not reported
+errors_after_a_let_that_binds_nothing_test() ->
+    Twice = ["the argument does not fit Io.println: expected String, found Int",
+             "the argument does not fit Io.println: expected String, found Int"],
+    ?assertEqual(Twice, refusals("fn f() : Unit receiving Never ="
+                                 " { let _ = Io.println(3); let _ = Io.println(4); Unit }")),
+    ?assertEqual(Twice, refusals("fn f() : Unit receiving Never ="
+                                 " { let #(_, _) = #(Io.println(5), 0); Io.println(6); Unit }")).
+
 %% report §5.10: each constructor is matched in one form: a nullary one
 %% bare, a single-positional one with one pattern, and one with named
 %% fields with its parentheses, `C()` matching any of its values. A
@@ -4770,8 +4817,7 @@ foreign_types_test() ->
 
 %% report §3.7: Never is an ordinary type, which unifies with itself alone,
 %% and a function that may stand at any type has a variable as its result,
-%% as fault has. A regression test, written after the code, which the
-%% review found stated and untested
+%% as fault has. A regression test: the rule was stated and untested
 never_is_ordinary_test() ->
     ?assertEqual("the body does not have the declared result type: expected Int, found Never",
                  refusal("fn f(x : Never) : Int = x")),
@@ -4816,7 +4862,7 @@ prelude_values_test() ->
                           {none, [{Variable, Member} | _]} ->
                               ?assertEqual(Name ++ " needs " ++ atom_to_list(Variable) ++ "."
                                            ++ atom_to_list(Member)
-                                           ++ ", which a top-level let cannot declare",
+                                           ++ ", which a top-level `let` cannot declare",
                                            refusal("export let v = " ++ Name))
                       end
                   end, ern_prelude:values()),
@@ -5121,8 +5167,8 @@ type_names_in_messages_test() ->
 
 %% report §11.5: an unnamed type variable takes no name an annotation's
 %% variable keeps, in the type printed and in the signature around the
-%% error. A regression test of the cold reading's program (cold2): the
-%% signature's `a` printed as `b`, the lambda's variable taking `a`
+%% error. A regression test: the signature's `a` printed as `b`, the
+%% lambda's variable taking `a`
 unnamed_variable_avoids_names_in_use_test() ->
     ?assertEqual("the body does not have the declared result type: expected Int,"
                  " found (b) -> #(b, a)",
@@ -5131,6 +5177,24 @@ unnamed_variable_avoids_names_in_use_test() ->
                  " requirement can name",
                  refusal("fn f4(xs : List(a)) : List(a) needs a.compare = {\n"
                          "    let build = fn(ys) = OrderedSet.fromList(ys);\n    xs\n}")).
+
+%% report §11.5: an unnamed type variable takes no name the signature
+%% around the error writes, where the type printed holds none of the
+%% signature's variables, in a mismatch, a capture and a mailbox type. A
+%% regression test: each took the signature's `a`
+unnamed_variable_avoids_signature_names_test() ->
+    ?assertEqual("the body does not have the declared result type: expected Int,"
+                 " found (b) -> #(b, c)",
+                 refusal("fn f(x : a, ys) : Int = { let g = fn(y) = #(y, ys); g }")),
+    ?assertEqual("the function Peer.spawn starts captures x, whose type b= holds a type"
+                 " variable",
+                 refusal("fn start(x, z : a) : Unit = {\n"
+                         "    let _ = Peer.spawn(\"w\", fn() = receive {\n"
+                         "        y -> if y == x then Unit else Unit\n    }, 1000);\n"
+                         "    Unit\n}\n")),
+    ?assertEqual("Peer.spawn starts a process whose mailbox type b is not known whole here",
+                 refusal("fn skip() : Unit receiving m = receive { _ -> Unit }\n"
+                         "fn start(k, z : a) : Unit = k(Peer.spawn(\"w\", skip, 1000))\n")).
 
 %% report §11.5, §3.9: a type variable prints under its annotation's name;
 %% an unnamed one gets a fresh name that avoids the names in use; a use
@@ -5227,11 +5291,10 @@ local_helper_over_an_operator_test() ->
 %% operator gives, `List(Int)` where `List(String)` is declared, refused as
 %% the top-level `let`, the top-level `fn`, the member written out and the
 %% annotated parameter always were, and an operand the lambda leaves open
-%% is refused at its `let`, whatever calls it later. A regression test,
-%% written after the fix: the full review found the result
-%% quantified, an `Int` reaching `String.toUpper` and the shell's printer;
-%% it does not cover the prompt, whose inputs are typed as a block's
-%% statements are
+%% is refused at its `let`, whatever calls it later. A regression test:
+%% the result was quantified, an `Int` reaching `String.toUpper` and the
+%% shell's printer; it does not cover the prompt, whose inputs are typed as
+%% a block's statements are
 lambda_let_resolves_before_it_generalizes_test() ->
     Declared = fun(Type, Found, Body) ->
                    ?assertEqual("the body does not have the declared result type: expected "
@@ -6015,6 +6078,22 @@ later_use_labeled_test() ->
     ?assertMatch(#diagnostic{labels = []},
                  diagnostic(Same ++ Twice ++ "fn f() : Bool = twice(same, Int.abs)\n")).
 
+%% report §11.5: the use labeled is the local's own, after the `let`, and
+%% no use of a parameter of its name before it or of a lambda's parameter
+%% that shadows it. A regression test: the first use of the name anywhere
+%% in the body was labeled
+later_use_is_the_locals_test() ->
+    Same = "fn same(a, b) = a == b\n",
+    ?assertMatch(#diagnostic{span = {4, 14, _},
+                             labels = [{{5, 5, {5, 33}}, "this use takes eq at" ++ _}]},
+                 diagnostic(Same ++ "fn f(eq : Int) : Bool = {\n    let n = eq + 1;\n"
+                            "    let eq = same;\n    eq(Int.abs, fn(x : Int) = x) && n > 0\n}\n")),
+    ?assertMatch(#diagnostic{span = {3, 14, _},
+                             labels = [{{5, 5, {5, 33}}, "this use takes eq at" ++ _}]},
+                 diagnostic(Same ++ "fn f() : Bool = {\n    let eq = same;\n"
+                            "    let g = fn(eq : Int) = eq + 1;\n"
+                            "    eq(Int.abs, fn(x : Int) = x) && g(1) > 0\n}\n")).
+
 %% report §3.10, §11.5: a map keyed by addresses is an error at its first
 %% operation, at the argument that gives the key, as the guide teaches it.
 %% A regression test: the error stood at the map's last operation, a
@@ -6155,9 +6234,9 @@ bitstring_pattern_test() ->
 
 %% report §6.3: a receive guard is a guard expression, and calls nothing;
 %% a match guard is any Bool expression. The help offers a `let` before
-%% the `receive` first, which keeps the message in the mailbox, a regression
-%% test of the help, written after it (the release review
-%% found the help to `match` alone, which takes the message out)
+%% the `receive` first, which keeps the message in the mailbox. A
+%% regression test: the help offered `match` alone, which takes the message
+%% out
 receive_guard_test() ->
     Source = "type Msg = N(Int) | Stop\n",
     ?assertEqual(ok, ok(Source ++ "fn big(k : Int) : Bool = k > 100\n"
@@ -6276,9 +6355,8 @@ without_interface_test() ->
 %% or from such a selection, `s.at`, `s.lot.at`, is an operand of a
 %% `receive` guard, and a Bool one a guard expression; one selected through
 %% a call, a function's or a lambda's a field holds, is not, the guard
-%% calling nothing. A regression test, written after the code; the field
-%% read was refused before, which a reader of the release review found as it
-%% read a state's field
+%% calling nothing. A regression test: a field read from a state was
+%% refused
 receive_guard_field_test() ->
     Head = "type Msg = At(at : Int)\ntype Lot = Lot(at : Int, open : Bool)\n"
            "type State = State(at : Int, lot : Lot, next : () -> State)\n"
@@ -6294,8 +6372,8 @@ receive_guard_field_test() ->
     ?assertEqual(ok, ok("type Msg = At(at : Int)\ntype State = State(at : Int)\n"
                         "fn loop(s : State) : Unit receiving Msg ="
                         " (fn() = receive { At(at = n) when n == s.at -> Unit })()\n")),
-    Calls = {"a `receive` guard selects a field from a variable, a top-level let, or a field"
-             " of one, and calls nothing",
+    Calls = {"a `receive` guard selects a field from a variable, a top-level `let`, or a"
+             " field of one, and calls nothing",
              "bind what the guard needs that does not come from the message with a `let`"
              " before the `receive` and compare that; or receive the message and `match` it,"
              " which takes it out of the mailbox"},
@@ -6583,7 +6661,7 @@ requirement_supplied_test() ->
                                   "    List.foldLeft(list, zero, fn(acc, x) = acc + x)\n"
                                   "fn f() : Vec = total([Vec(1.0)], Vec(0.0))")),
     %% a top-level let declares no requirement
-    ?assertEqual({"OrderedSet.fromList needs a.compare, which a top-level let cannot declare",
+    ?assertEqual({"OrderedSet.fromList needs a.compare, which a top-level `let` cannot declare",
                   "declare a `fn` with `needs a.compare`"},
                  refusal_and_help("let f = OrderedSet.fromList")).
 

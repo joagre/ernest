@@ -73,8 +73,8 @@ cookie_test() ->
     %% report §12.5: a release's version is three whole numbers, each part
     %% its digits alone, which ern_release reads, the carrier parsing
     %% nothing; one of another shape is refused plainly, naming it. A
-    %% regression test, written after the fix (the release review found a
-    %% badmatch; the full review found `+0.4.0` taken)
+    %% regression test: one of another shape raised a badmatch, and `+0.4.0`
+    %% was taken
     ?assertEqual({0, 4, 0}, ern_release:release("0.4.0")),
     ?assertEqual({0, 4, 0}, ern_release:release("00.4.0")),
     [?assertThrow({cli_error, _}, ern_release:release(Text))
@@ -190,11 +190,10 @@ listed_test() ->
 %% the process the connection's own monitors, and refuses another listed
 %% key, the node saying which peer answered the dial of which; a check
 %% that finds no process that dialed refuses the key, saying so, and fails
-%% in nothing of the host's. A regression test, written after the fix (the
-%% release review found a listed key taken for any peer dialed; the full
-%% review a badmatch where none had dialed); test/ern_nodes_tests.erl's
-%% answered_by_another_key_test_ dials through
-%% the host's TLS
+%% in nothing of the host's. A regression test: a listed key was taken for
+%% any peer dialed, and a check that found none that had dialed raised a
+%% badmatch; test/ern_nodes_tests.erl's answered_by_another_key_test_ dials
+%% through the host's TLS
 dialed_test() ->
     Own = configured(),
     Peer = configured(),

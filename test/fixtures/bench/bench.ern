@@ -38,6 +38,9 @@ export fn main() : Unit receiving Msg = {
     let path = Path("srv/site");
     let ended = endedProcess();
     let endedProcessOf = Process.fromAddress(ended);
+    // made at run time, so that the host's compiler folds no product of it
+    // into a literal, and outside the loops, so that Float.* converts nothing
+    let scale = Int.toFloat(List.size(list));
     raises([8, 12, 64]);
     let _ = systemFlag(backtraceDepth, 64);
     measure("loop", 10000000, fn(index) = index);
@@ -108,7 +111,8 @@ export fn main() : Unit receiving Msg = {
         Less -> index
       | _ -> 0
     });
-    measure("float_times", 10000000, fn(index) = Float.truncate(Int.toFloat(index) * 1.5));
+    measure("float_times", 10000000, fn(index) = Float.truncate(scale * 1.5) + index);
+    measure("int_to_float", 10000000, fn(index) = Float.truncate(Int.toFloat(index)));
     measure("int_divide", 10000000, fn(index) = index / 3 + index % 7);
     measure("restarting", 1000000, fn(index) = {
         restarting(Unlimited, fn() = Unit)();

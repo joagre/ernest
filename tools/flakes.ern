@@ -61,7 +61,7 @@ export fn main() : Unit receiving HuntMsg =
     match Either.andThen(parsed(Os.arguments), hunted) {
         Right(0) -> Unit
       | Right(status) -> Os.exit(status)
-      | Left(message) -> quit(message)
+      | Left(message) -> Repository.quit("make flakes", message)
     }
 
 fn parsed(arguments : List(String)) : Either(String, Hunt) =
@@ -351,11 +351,6 @@ fn removed(path : Path) : Either(String, Unit) = {
                  <> Path.toString(path)
                  <> ": "
                  <> String.fromUtf8Lossy(finished.stderr))
-}
-
-fn quit(message : String) : a = {
-    said(message);
-    Os.exit(1)
 }
 
 // A line of the hunt's own on standard error.

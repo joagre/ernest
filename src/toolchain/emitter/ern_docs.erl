@@ -88,9 +88,9 @@ member(MemberOf, Name, _) ->
 %% and the arity of its unit's function, a requirement's members after its
 %% parameters (report §4.9). The unit names its functions by their
 %% position (§11.1); the documentation names them as the program does. The
-%% names the host gives every module, `module_info` and `record_info`, get a `$`, as
-%% no Ernest name can spell, so that the host's own documentation tools,
-%% which read the chunk, do not take one for the host's function.
+%% names the host gives every module, `module_info` and `record_info`, get
+%% a `$`, as no Ernest name can spell, so that the host's own documentation
+%% tools, which read the chunk, do not take one for the host's function.
 doc_key(#type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
 doc_key(#abstract_declaration{declaration = #type_declaration{name = Name, params = Params}}) ->
     {type, Name, length(Params)};
@@ -173,7 +173,7 @@ param_names(Params) ->
 
 constructor_item(#constructor{doc = Doc, name = Name, fields = Fields}) ->
     #{kind => constructor, name => Name, doc => doc_or_none(Doc),
-      fields => [#{name => FieldName, type => text(syntax_text(Annotation)),
+      fields => [#{name => FieldName, type => text(ern_ast:type_text(Annotation, resolved)),
                    doc => doc_or_none(FieldDoc)}
                  || #field{doc = FieldDoc, name = FieldName,
                            annotation = Annotation} <- named_fields(Fields)]}.
@@ -259,31 +259,11 @@ params_text(Params) -> ["(", lists:join(", ", [atom_to_list(Param) || Param <- P
 constructor_text(#constructor{name = Name, fields = none}) ->
     atom_to_list(Name);
 constructor_text(#constructor{name = Name, fields = {positional, Annotation}}) ->
-    [atom_to_list(Name), "(", syntax_text(Annotation), ")"];
+    [atom_to_list(Name), "(", ern_ast:type_text(Annotation, resolved), ")"];
 constructor_text(#constructor{name = Name, fields = {named, Fields}}) ->
     [atom_to_list(Name), "(",
      lists:join(", ",
-                [[atom_to_list(FieldName), " : ", syntax_text(Annotation)]
+                [[atom_to_list(FieldName), " : ", ern_ast:type_text(Annotation, resolved)]
                  || #field{name = FieldName, annotation = Annotation} <- Fields]),
      ")"].
-
-%% A syntactic type as written.
-syntax_text(#t_named{namespace = Namespace, name = Name, args = []}) ->
-    ern_namespace:text(Namespace ++ [Name]);
-syntax_text(#t_named{namespace = Namespace, name = Name, args = Args}) ->
-    [ern_namespace:text(Namespace ++ [Name]), "(",
-     lists:join(", ", [syntax_text(Arg) || Arg <- Args]), ")"];
-syntax_text(#t_var{name = Name, equality = false}) -> atom_to_list(Name);
-syntax_text(#t_var{name = Name, equality = true}) -> [atom_to_list(Name), "="];
-syntax_text(#t_tuple{elements = Elements}) ->
-    ["#(", lists:join(", ", [syntax_text(Element) || Element <- Elements]), ")"];
-syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
-    %% report §3.4: a function-typed result under an outer `receiving` keeps
-    %% its parentheses, so that the `receiving` is the outer arrow's
-    ResultText = case {Result, Effect} of
-                     {#t_fn{}, Outer} when Outer =/= undefined -> ["(", syntax_text(Result), ")"];
-                     _ -> syntax_text(Result)
-                 end,
-    ["(", lists:join(", ", [syntax_text(Param) || Param <- Params]), ") -> ", ResultText,
-     case Effect of undefined -> ""; _ -> [" receiving ", syntax_text(Effect)] end].
 

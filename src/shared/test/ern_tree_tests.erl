@@ -32,9 +32,8 @@ code_path_script_test() ->
     Script = filename:join(Tree, "tools/code_path.sh"),
     Expanded = os:cmd("eval \"set -- $(sh '" ++ Script ++ "' '" ++ Tree ++ "')\";"
                       " printf '%s\\n' \"$@\""),
-    ?assertEqual(ern_tree:code_path(),
-                 string:split(string:trim(Expanded, trailing), "\n", all) -- ["-pa", "-pa", "-pa",
-                                                                          "-pa", "-pa"]),
+    Lines = string:split(string:trim(Expanded, trailing), "\n", all),
+    ?assertEqual(ern_tree:code_path(), [Arg || Arg <- Lines, Arg =/= "-pa"]),
     Named = os:cmd("sh '" ++ Script ++ "' \"/a b/it's\""),
     ?assertMatch({_, _}, binary:match(list_to_binary(Named),
                                       <<"-pa '/a b/it'\\''s'/build/shared/ebin ">>)).

@@ -15,13 +15,15 @@
 (require 'ernest-mode)
 (load (expand-file-name "test/check.el") nil t)
 
-(defconst ernest-test-expected
-  '(("bar.ern" . "4")                   ; a receive whose next line is a bare |
+(defconst ernest-half-typed-columns
+  '(("after_comment.ern" . "33")        ; a call's first item after a block comment
+    ("bar.ern" . "4")                   ; a receive whose next line is a bare |
     ("block.ern" . "kept")              ; an unclosed block comment
     ("brace.ern" . "4")                 ; a block whose } is missing
     ("clause.ern" . "8")                ; a match with no closing brace
     ("comma.ern" . "22")                ; a constructor with a trailing comma
     ("comment.ern" . "0")               ; a comment before a closing brace
+    ("comment_ends.ern" . "8")          ; a block comment that ends a call's line
     ("constructor.ern" . "0")           ; constructors spelled as reserved words
     ("equals.ern" . "4")                ; a line ending in =
     ("list.ern" . "13")                 ; a match in a list in a call
@@ -35,14 +37,14 @@
 `kept' means the mode decides nothing and the line stays where it is,
 which is the answer inside an unclosed string or comment.")
 
-(defun ernest-test-next-column ()
+(defun ernest-half-typed-next-column ()
   "The column a fresh line at the end of the buffer would be given."
   (goto-char (point-max))
   (unless (bolp) (insert "\n"))
   (let ((indent (ernest-calculate-indent)))
     (if indent (number-to-string indent) "kept")))
 
-(dolist (want ernest-test-expected)
+(dolist (want ernest-half-typed-columns)
   (let ((file (expand-file-name (car want) "test/half_typed")))
     (with-temp-buffer
       (insert-file-contents file)
@@ -54,7 +56,7 @@ which is the answer inside an unclosed string or comment.")
                  unless (string= a b) do (setq moved (1+ moved)))
         (unless (zerop moved)
           (ernest-test-fail "%s: %d lines moved" (car want) moved))
-        (let ((got (ernest-test-next-column)))
+        (let ((got (ernest-half-typed-next-column)))
           (unless (equal got (cdr want))
             (ernest-test-fail "%s: a fresh line at %s, wanted %s"
                               (car want) got (cdr want))))))))

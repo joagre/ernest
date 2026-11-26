@@ -26,6 +26,7 @@
          with_interfaces/2, lookup_type/2, identity/2, position/2, reach/2, ground_term/2, shim/2,
          global_scheme/2,
          is_provided/2, described_type/2, let_order/1, settled/2, foreign_implementation/1,
+         spawned_position/1,
          constructor_code/2, fields/2, declared_scheme/3, declared_referent/3, is_running_never/2,
          declaration_type/2, is_top_let/2, is_foreign/2, declaration_scheme/2, declared_fields/3,
          found_in/3, is_member_name/3, prelude_one_text/2, session_member/3, lookup_constructor/4,
@@ -127,7 +128,8 @@
 %% declaring: the namespace of the module that declares each value of the
 %% modules given, by qualified name, which their interfaces hold, so that
 %% `M.T.f` is told M's member of its type T from the module M.T's f
-%% (qualified_referent/3, report §4.2, §11.2)
+%% (qualified_referent/3, report §4.2, §11.2), and a function's position
+%% is read in its unit (position/2, §11.1)
 %% foreign: the module's own foreign declarations, by qualified name,
 %% which have no hash and are no definition (report Appendix H, §3.11)
 %% private_types: the private types of the modules given that their
@@ -138,14 +140,14 @@
 %%
 %% back_end: the back end's facts of the definitions and foreign
 %% declarations of the modules given, a #back_end{} by qualified name,
-%% which their interfaces hold, each position with the namespace of the
-%% module that declares it: the hash the canonical form names a definition
-%% by (identity/2, report Appendix H), a function's reach that a
+%% which their interfaces hold: the hash the canonical form names a
+%% definition by (identity/2, report Appendix H), a function's reach that a
 %% dependent's reaches take in (reach/2, §8.7, §11.1), the position its
-%% code calls a function by (position/2, §11.1), the value of a binding
-%% whose initializer is a ground term (ground_term/2, §11.1), and the
-%% host's function a foreign declaration of the standard library's names
-%% (shim/2, §11.1); the checker reads none
+%% code calls a function by, in the unit of the module `declaring` names
+%% (position/2, §11.1), the value of a binding whose initializer is a
+%% ground term (ground_term/2, §11.1), and the host's function a foreign
+%% declaration of the standard library's names (shim/2, §11.1); the
+%% checker reads none
 %%
 %% uses: the uses of each definition under inference, by its placeholder's
 %% variable, newest first, each with whether its result type was still
@@ -305,6 +307,7 @@ checked(Namespace, Parsed, Interfaces, SessionScope, Prelude, Shortest, Forms) -
         one_clause(Parsed),
         declared_twice(Declarations),
         no_alias(Declarations, Env),
+        one_positional_field(Declarations),
         host_names(Declarations),
         {Env1, TypeDiagnostics, Unconstructed} = declare_types(Declarations, Env),
         %% report §11.2: a session type prints unqualified, except one a
@@ -471,12 +474,32 @@ no_alias(Declarations, Env) ->
                        {none, 0} -> alias_help(TypeName, atom_to_list(Name));
                        {{positional, Type}, 1} ->
                            alias_help(TypeName, atom_to_list(Name) ++ "("
-                                                ++ ern_ast:type_text(Type) ++ ")");
+                                                ++ ern_ast:type_text(Type, written) ++ ")");
+                       {{positionals, Types, _}, Count} when length(Types) =:= Count ->
+                           Applied = #t_named{written = [], name = Name, args = Types},
+                           alias_help(TypeName, ern_ast:type_text(Applied, written));
                        _ -> "rename the constructor; " ++ atom_to_list(Name) ++ " is "
                                 ++ where_declared(Where)
                    end,
             fail(Span, "constructor " ++ atom_to_list(Name) ++ " is named as the type "
                  ++ atom_to_list(Name), [], Help)
+    end.
+
+%% Report §3.5: a constructor has one positional field at most, so several,
+%% where no_alias/2 found no alias, are an error at the first `,`, whose
+%% help names the two ways to write them.
+one_positional_field(Declarations) ->
+    case [{Name, Comma} || #type_declaration{constructors = Constructors}
+                               <- declared_types(Declarations),
+                           #constructor{name = Name, fields = {positionals, _, Comma}}
+                               <- Constructors] of
+        [] ->
+            ok;
+        [{Name, Comma} | _] ->
+            Text = atom_to_list(Name),
+            fail(Comma, "a constructor has exactly one positional field", [],
+                 "name the fields, `" ++ Text ++ "(x : ..., y : ...)`, or hold a tuple, `" ++ Text
+                 ++ "(#(..., ...))`")
     end.
 
 %% Report §3.1, §11.2: where the type of a name in scope is declared, the
@@ -619,8 +642,6 @@ check_string(Namespace, Text) ->
         {ok, Declarations} -> check(Namespace, Declarations, []);
         {error, Diagnostic} -> {error, [Diagnostic]}
     end.
-
-diagnostic(Span, Message) -> #diagnostic{span = ern_diagnostic:span(Span), message = Message}.
 
 -spec type_state(env()) -> ern_types:type_state().
 type_state(#env{type_state = TypeState}) -> TypeState.
@@ -812,10 +833,6 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
     #interface{namespace = Namespace, types = InterfaceTypes, values = Values, lets = Lets,
                private_types = PrivateTypes, back_end = BackEnd,
                private_values = PrivateValues} = without_shadowed(Interface, Env),
-    Held = maps:map(fun(_, #back_end{position = undefined} = Facts) -> Facts;
-                       (_, #back_end{position = Number} = Facts) ->
-                            Facts#back_end{position = {Namespace, Number}}
-                    end, honored(Namespace, BackEnd, Env)),
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
                              end, Env#env.constructors, InterfaceTypes),
@@ -828,7 +845,8 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
             %% each name's facts replaced whole, so that a value of the
             %% module given, a reload's version among them, holds no fact
             %% it held before that the interface does not carry now
-            back_end = maps:merge(maps:without(maps:keys(Values), Env#env.back_end), Held),
+            back_end = maps:merge(maps:without(maps:keys(Values), Env#env.back_end),
+                                  honored(Namespace, BackEnd, Env)),
             declaring = maps:merge(Env#env.declaring,
                                    maps:from_keys(maps:keys(Values), Namespace))}.
 
@@ -1024,8 +1042,11 @@ identity(QualifiedName, Env) ->
 %% module's unit, which its interface holds; undefined where the modules
 %% given declare none of that name.
 -spec position([atom()], env()) -> {[atom()], pos_integer()} | undefined.
-position(QualifiedName, Env) ->
-    (facts(QualifiedName, Env))#back_end.position.
+position(QualifiedName, #env{declaring = Declaring} = Env) ->
+    case (facts(QualifiedName, Env))#back_end.position of
+        undefined -> undefined;
+        Number -> {maps:get(QualifiedName, Declaring), Number}
+    end.
 
 %% Report §8.7, §11.1: the reach of another module's function, the bindings
 %% and the foreign declarations it names transitively, which its interface
@@ -1532,16 +1553,29 @@ run_group(Group, #env{groups = UncheckedGroups} = Env) ->
 demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
     case UncheckedGroups of
         #{QualifiedName := Group} ->
-            restore_scope(run_group(Group, restore_scope(Env, #env{})), Env);
+            restore_scope(run_group(Group, cleared_scope(Env)), Env);
         _ ->
             Env
     end.
 
 %% A definition's own scope set aside: Checked, the environment after it,
-%% with the scope of Env, the environment before it, every field of it.
+%% with the scope of Env, the environment before it, every field of it, and
+%% the names its messages print under with it.
 restore_scope(Checked, Env) ->
-    lists:foldl(fun(Field, Acc) -> setelement(Field, Acc, element(Field, Env)) end, Checked,
-                ?SCOPE).
+    with_rigid(Env#env.rigid,
+               lists:foldl(fun(Field, Acc) -> setelement(Field, Acc, element(Field, Env)) end,
+                           Checked, ?SCOPE)).
+
+%% Report §3.9, §11.5: Env with Rigid the annotations' variables in scope,
+%% each with its name, which an annotation names for every type, and whose
+%% names a variable of no annotation does not take in a message.
+with_rigid(Rigid, #env{type_state = TypeState} = Env) ->
+    Env#env{rigid = Rigid, type_state = ern_types:with_in_scope(Rigid, TypeState)}.
+
+%% Env with no definition's scope, each field of it as a new environment
+%% has it.
+cleared_scope(Env) ->
+    restore_scope(Env, #env{}).
 
 is_value_declaration(#fn_declaration{}) -> true;
 is_value_declaration(#let_declaration{}) -> true;
@@ -1858,13 +1892,21 @@ check_group(Group, Env) ->
     %% inferred, since a local fn's end leaves the types of what its lambdas
     %% capture from around it to the definition that encloses it, and once
     %% its mailbox type nothing fixed is Never (post_checks/3)
-    lists:foreach(fun(Declaration) -> ern_bound:check(Declaration, Env4) end, Typed),
+    lists:foreach(fun({Declaration, {_, Post}}) -> ern_bound:check(Declaration, posted(Post, Env4))
+                  end, lists:zip(Typed, TypedAndPost)),
     Env5 = Env4#env{type_state = ern_types:leave(Env4#env.type_state),
                     inferring = Env#env.inferring},
     %% generalize and publish; the typed AST is substituted so consumers read
     %% resolved types off the nodes
     Publish = fun(Declaration, Acc) -> publish(Declaration, Placeholder(Declaration), Acc) end,
     lists:mapfoldl(Publish, Env5, Typed).
+
+%% Report §11.5: Env as a definition's check left it, its messages printed
+%% under the names its annotations write.
+posted(#post_check{rigid = Rigid}, #env{type_state = TypeState} = Env) ->
+    Env#env{type_state = ern_types:with_in_scope(Rigid, TypeState)};
+posted(none, Env) ->
+    Env.
 
 is_written_none(#fn_declaration{result_type = ResultAnnotation, effect = Effect}) ->
     declares_none(ResultAnnotation, Effect);
@@ -2281,8 +2323,10 @@ depends_on_itself(Span, Name, Body, Between, Fns) ->
                                || {MemberOf, ValueName} <- Between],
                       ", through " ++ lists:join(", ", Names)
               end,
-    Message = lists:flatten(["the initializer of ", LetName, " depends on itself", Through]),
-    (diagnostic(Span, Message))#diagnostic{help = cycle_help(LetName, Body, Between, Fns)}.
+    #diagnostic{span = ern_diagnostic:span(Span),
+                message = lists:flatten(["the initializer of ", LetName, " depends on itself",
+                                         Through]),
+                help = cycle_help(LetName, Body, Between, Fns)}.
 
 %% Report §11.5: a lambda on a cycle is a recursive function, which is a
 %% `fn` whatever else the cycle holds; a value that a function reads, the
@@ -2490,18 +2534,21 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
     Signature = [{Variable, VariableName, Name}
                  || VariableName := Variable <- AnnotationVariables1,
                     not is_map_key(VariableName, Env#env.annotation_variables)],
-    Env3 = Env2#env{type_state = ern_types:value_positions_marked(FunctionType, TypeState1),
-                    effect = EffectType,
-                    pending = [], deferred = [], standing = [], mailboxes = [], receives = [],
-                    annotation_variables = AnnotationVariables1,
-                    rigid = maps:to_list(AnnotationVariables1), effect_origin = Origin,
-                    declared_none = declares_none(ResultAnnotation, Effect),
-                    receiving_use = undefined,
-                    requirement = [{Variable, Member} || #member{type = Variable, name = Member}
-                                                             <- Members]
-                                  ++ Env#env.requirement,
-                    signature = Signature ++ Env#env.signature, definition = {fn, Name},
-                    function = Name},
+    Env3 = with_rigid(maps:to_list(AnnotationVariables1),
+                      Env2#env{type_state = ern_types:value_positions_marked(FunctionType,
+                                                                            TypeState1),
+                               effect = EffectType,
+                               pending = [], deferred = [], standing = [], mailboxes = [],
+                               receives = [], annotation_variables = AnnotationVariables1,
+                               effect_origin = Origin,
+                               declared_none = declares_none(ResultAnnotation, Effect),
+                               receiving_use = undefined,
+                               requirement = [{Variable, Member}
+                                              || #member{type = Variable, name = Member}
+                                                     <- Members]
+                                             ++ Env#env.requirement,
+                               signature = Signature ++ Env#env.signature,
+                               definition = {fn, Name}, function = Name}),
     early_compare_shape(Declaration, ResultAnnotation, FunctionType, Env3),
     {TypedBody, Env4} = checked_body(Body, ResultAnnotation, ResultType, {Name, Placeholder},
                                      Env3),
@@ -2518,21 +2565,22 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
         end,
     %% report §4.6: a top-level initializer is a body of mailbox type Never,
     %% which may spawn, send, and call, and receives no message
-    Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [], deferred = [],
-                   standing = [], mailboxes = [], receives = [],
-                   annotation_variables = AnnotationVariables,
-                   declared_none = false, receiving_use = undefined,
-                   rigid = maps:to_list(AnnotationVariables),
-                   definition = {'let', declaration_name(Declaration)},
-                   %% report §3.9: a lambda that is the whole initializer is
-                   %% generalized with it, and may name variables of its own
-                   generalizing = is_record(Body, e_lambda),
-                   binder = {ern_ast:span(Body), Declaration#let_declaration.name},
-                   effect_origin = #effect_origin{
-                                      what = top_let, span = Span,
-                                      label = "the initializer of " ++ declaration_name(Declaration)
-                                              ++ " runs as a body of mailbox type Never",
-                                      help = "receive in a process the initializer spawns"}},
+    Origin = #effect_origin{what = top_let, span = Span,
+                            label = "the initializer of " ++ declaration_name(Declaration)
+                                    ++ " runs as a body of mailbox type Never",
+                            help = "receive in a process the initializer spawns"},
+    Env1 = with_rigid(maps:to_list(AnnotationVariables),
+                      Env#env{type_state = TypeState, effect = ?NEVER, pending = [],
+                              deferred = [], standing = [], mailboxes = [], receives = [],
+                              annotation_variables = AnnotationVariables,
+                              declared_none = false, receiving_use = undefined,
+                              definition = {'let', declaration_name(Declaration)},
+                              %% report §3.9: a lambda that is the whole initializer
+                              %% is generalized with it, and may name variables of
+                              %% its own
+                              generalizing = is_record(Body, e_lambda),
+                              binder = {ern_ast:span(Body), Declaration#let_declaration.name},
+                              effect_origin = Origin}),
     {TypedBody, BodyType, Env2} =
         case AnnotationType of
             undefined -> infer(Body, Env1);
@@ -2654,13 +2702,14 @@ bind_params(Params, Env, AnnotationVariables) ->
 
 %% Report §4.5: each name appears at most once among a function's
 %% parameters, a lambda's and a foreign fn's alike, as a variable does in
-%% a pattern; the second is refused and the first labeled (§11.5). A name
-%% twice in one parameter's pattern is the pattern's error (check_pattern/2).
+%% a pattern; the second is refused and the first labeled (§11.5), the
+%% first repeated name as written where several are. A name twice in one
+%% parameter's pattern is the pattern's error (check_pattern/2).
 distinct_param_names(Params) ->
     lists:foldl(fun(#param{pattern = Pattern}, Seen) ->
-                    Binders = lists:ukeysort(1, [{Name, Span}
-                                                 || {Name, Span, _}
-                                                        <- ern_ast:pattern_binders(Pattern)]),
+                    All = [{Name, Span} || {Name, Span, _} <- ern_ast:pattern_binders(Pattern)],
+                    Binders = [Binder || {Name, _} = Binder <- All,
+                                         lists:keyfind(Name, 1, All) =:= Binder],
                     [fail(Span, "parameter " ++ atom_to_list(Name) ++ " appears twice",
                           [{ern_diagnostic:span(First), "first bound here"}], undefined)
                      || {Name, Span} <- Binders, {_, First} <- [lists:keyfind(Name, 1, Seen)]],
@@ -2837,11 +2886,15 @@ post_checks(Declaration,
                         requirement = Requirement, signature = Signature,
                         definition = Definition},
             Env) ->
+    %% report §11.5: its messages print under the names its annotations
+    %% write, as its inference's did
     Solved = solve_deferred(Env#env{effect = Effect, effect_origin = Origin, pending = Pending,
                                     deferred = Deferred, standing = Standing,
                                     mailboxes = Mailboxes, receives = Receives,
                                     requirement = Requirement, signature = Signature,
-                                    definition = Definition}),
+                                    definition = Definition,
+                                    type_state = ern_types:with_in_scope(Rigid,
+                                                                         Env#env.type_state)}),
     %% report §4.5: what a call left free is read as the body left it,
     %% before §6.2 makes a mailbox type nothing fixed Never
     read_standing(Type, Solved),
@@ -2861,14 +2914,16 @@ post_checks(Declaration,
     %% the lesser error last, so that a restriction the body breaks is what
     %% a refusal names first
     needless_effect(Declaration, Type, Env2),
-    {Supplied, Env2#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
-                        pending = Env#env.pending, deferred = Env#env.deferred,
-                        standing = Env#env.standing,
-                        mailboxes = Env2#env.mailboxes ++ Env#env.mailboxes,
-                        receives = Env2#env.receives ++ Env#env.receives,
-                        requirement = Env#env.requirement, signature = Env#env.signature,
-                        definition = Env#env.definition,
-                        definition_type = Env#env.definition_type}}.
+    {Supplied, with_rigid(Env#env.rigid,
+                          Env2#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
+                                   pending = Env#env.pending, deferred = Env#env.deferred,
+                                   standing = Env#env.standing,
+                                   mailboxes = Env2#env.mailboxes ++ Env#env.mailboxes,
+                                   receives = Env2#env.receives ++ Env#env.receives,
+                                   requirement = Env#env.requirement,
+                                   signature = Env#env.signature,
+                                   definition = Env#env.definition,
+                                   definition_type = Env#env.definition_type})}.
 
 %% Report §6.2, §3.11, Appendix E.21: as a definition of type Type ends,
 %% each mailbox type its spawns', computes' and runs' functions were given
@@ -2982,6 +3037,7 @@ spawned_call(_Callee, _Args) ->
 %% `spawn`'s, `spawnMonitored`'s, and `Peer`'s spawns' and computes', after
 %% the peer's name where one is taken, are a spawned function, and
 %% `Process.run`'s and `Test.faults`'s are named as given to them.
+-spec spawned_position(term()) -> {pos_integer(), string()} | none.
 spawned_position({prelude, [spawn]}) -> {1, "a spawned function"};
 spawned_position({prelude, [spawnMonitored]}) -> {1, "a spawned function"};
 spawned_position(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name}) ->
@@ -3402,36 +3458,25 @@ callee_label(Span, {Name, Type}) -> {Span, Name ++ " : " ++ Type}.
 
 %% Report §11.5: the first use of the local a `let` binds the instance at
 %% Span to, a call underlined whole, at the type the local holds; none
-%% where no `let` binds the instance alone.
+%% where no `let` binds the instance alone. The use is the local's own, in
+%% the statements after the `let`, where the local is in scope, and no use
+%% of another binding of its name, before it or shadowing it.
 later_use(Span, Body, #env{type_state = TypeState}) ->
     Instance = ern_diagnostic:span(Span),
-    Bound = fun(#binding{pattern = #p_var{name = Name, type = Type}, expr = Expr}, Acc) ->
-                    case ern_diagnostic:span(ern_ast:span(Expr)) of
-                        Instance -> [{Name, Type} | Acc];
-                        _ -> Acc
-                    end;
+    Bound = fun(#e_block{statements = Statements}, Acc) ->
+                    bound_instance(Instance, Statements, Acc);
                (_, Acc) ->
                     Acc
             end,
     case ern_ast:walk(Bound, Body, []) of
-        [{Name, Type}] ->
-            Use = fun(#e_call{span = CallSpan,
-                              callee = #e_var{span = VarSpan, namespace = [], name = Used,
-                                              referent = var}}, Acc) when Used =:= Name ->
-                          [{ern_diagnostic:span(VarSpan), CallSpan} | Acc];
-                     (#e_var{span = VarSpan, namespace = [], name = Used, referent = var}, Acc)
-                       when Used =:= Name ->
-                          Key = ern_diagnostic:span(VarSpan),
-                          case lists:keymember(Key, 1, Acc) of
-                              true -> Acc;
-                              false -> [{Key, VarSpan} | Acc]
-                          end;
-                     (_, Acc) ->
-                          Acc
-                  end,
-            case lists:sort(ern_ast:walk(Use, Body, [])) of
-                [{_, UseSpan} | _] ->
-                    [{ern_diagnostic:span(UseSpan),
+        [{Name, Type, After}] ->
+            Uses = [{ern_diagnostic:span(VarSpan), VarSpan}
+                    || #e_var{span = VarSpan, name = Used, referent = var}
+                           <- ern_ast:free_uses(#e_block{statements = After}, []),
+                       Used =:= Name],
+            case lists:sort(Uses) of
+                [{Key, VarSpan} | _] ->
+                    [{ern_diagnostic:span(underlined(Key, VarSpan, After)),
                       "this use takes " ++ atom_to_list(Name) ++ " at "
                       ++ ern_types:format(Type, TypeState)}];
                 [] ->
@@ -3439,6 +3484,35 @@ later_use(Span, Body, #env{type_state = TypeState}) ->
             end;
         _ ->
             []
+    end.
+
+%% The local a statement of a block binds the instance at Instance to,
+%% alone, with its type and the statements after it.
+bound_instance(Instance, [#binding{pattern = #p_var{name = Name, type = Type}, expr = Expr}
+                          | After], Acc) ->
+    case ern_diagnostic:span(ern_ast:span(Expr)) of
+        Instance -> [{Name, Type, After} | Acc];
+        _ -> bound_instance(Instance, After, Acc)
+    end;
+bound_instance(Instance, [_ | After], Acc) ->
+    bound_instance(Instance, After, Acc);
+bound_instance(_, [], Acc) ->
+    Acc.
+
+%% The span a use is underlined at, its call's where the use at Key is the
+%% callee of a call among Statements.
+underlined(Key, VarSpan, Statements) ->
+    Calls = ern_ast:walk(fun(#e_call{span = CallSpan, callee = #e_var{span = Callee}}, Acc) ->
+                                 case ern_diagnostic:span(Callee) of
+                                     Key -> [CallSpan | Acc];
+                                     _ -> Acc
+                                 end;
+                            (_, Acc) ->
+                                 Acc
+                         end, Statements, []),
+    case Calls of
+        [CallSpan | _] -> CallSpan;
+        [] -> VarSpan
     end.
 
 argument_need_text(compared, {Name, _}, Index) ->
@@ -4485,12 +4559,12 @@ not_in_force(Span, Variable, Member, Need, Outer, #env{type_state = TypeState} =
         {none, {shown, _}} ->
             not_shown(Span, ern_types:substitute(Variable, TypeState), Need, Env);
         {none, _} ->
-            {Name, At} = holder_text(Variable, Need, Outer, names_in_scope(Env), TypeState),
+            {Name, At} = holder_text(Variable, Need, Outer, TypeState),
             Wanted = Name ++ "." ++ atom_to_list(Member),
             case Env#env.definition of
                 {'let', _} ->
                     fail(Span, needer_text(Need) ++ " needs " ++ Wanted
-                               ++ ", which a top-level let cannot declare", [],
+                               ++ ", which a top-level `let` cannot declare", [],
                          "declare a `fn` with `needs " ++ Wanted ++ "`");
                 {fn, [$$ | _]} ->
                     %% report §11.2: an input at the prompt, named as no
@@ -4510,7 +4584,7 @@ not_in_force(Span, Variable, Member, Need, Outer, #env{type_state = TypeState} =
 %% that type is the variable alone, and for a name taken as a value, no type
 %% is named. An unnamed variable takes no name the signature's variables
 %% carry (report §11.5).
-holder_text(Variable, Need, Outer, InScope, TypeState) ->
+holder_text(Variable, Need, Outer, TypeState) ->
     {tvar, Id} = ern_types:resolve(Variable, TypeState),
     Holds = fun(Type) -> lists:member(Id, ern_types:free_variables(Type, TypeState)) end,
     Holder = case {Need, Outer} of
@@ -4532,23 +4606,13 @@ holder_text(Variable, Need, Outer, InScope, TypeState) ->
     Unnamed = "a type variable no requirement can name",
     case ern_types:resolve(Holder, TypeState) of
         {tvar, Id} ->
-            {string:trim(ern_types:format(Variable, InScope, TypeState), trailing, "=+"),
+            {string:trim(ern_types:format(Variable, TypeState), trailing, "=+"),
              "at " ++ Unnamed};
         _ ->
-            {HolderText, VariableText} = ern_types:format_pair(Holder, Variable, [], [], InScope,
-                                                               TypeState),
+            {HolderText, VariableText} = ern_types:format_pair(Holder, Variable, [], TypeState),
             Name = string:trim(VariableText, trailing, "=+"),
             {Name, "at the " ++ Name ++ " of " ++ HolderText ++ ", " ++ Unnamed}
     end.
-
-%% Report §11.5: the names the variables of the definition's signature
-%% carry, by their ids, which an unnamed variable a message prints beside
-%% them does not take.
-names_in_scope(#env{definition_type = undefined}) ->
-    [];
-names_in_scope(#env{definition_type = DefinitionType, type_state = TypeState}) ->
-    [{Name, Id} || Id <- ern_types:free_variables(DefinitionType, TypeState),
-                   Name <- [ern_types:annotation_name({tvar, Id}, TypeState)], Name =/= none].
 
 %% Report §11.5, §4.9: the help for a type variable no requirement names,
 %% by whether the definition's type holds it: a type variable a signature
@@ -4943,19 +5007,25 @@ callee_signature(_, TypedCallee, CalleeType, Env) ->
 %% variable names, which an instance does not.
 -spec declared_scheme([atom()], atom(), env()) -> {ok, #scheme{}} | error.
 declared_scheme(Namespace, Name, Env) ->
-    %% the position is never shown: an unknown name answers `error`
-    try lookup_value({1, 1, {1, 1}}, Namespace, Name, Env) of
-        {Scheme, _, _} -> {ok, Scheme}
-    catch
-        throw:{type_error, _} -> error
+    case declared_value(Namespace, Name, Env) of
+        {ok, Scheme, _} -> {ok, Scheme};
+        error -> error
     end.
 
 %% Report §11.2, §3.11: the declaration a name refers to, for the shell's
 %% input that is one name, which `:type` says of a primitive.
 -spec declared_referent([atom()], atom(), env()) -> {ok, term()} | error.
 declared_referent(Namespace, Name, Env) ->
+    case declared_value(Namespace, Name, Env) of
+        {ok, _, Referent} -> {ok, Referent};
+        error -> error
+    end.
+
+%% The scheme of a name and the declaration it refers to, or error where
+%% it names none; the position looked up at is never shown.
+declared_value(Namespace, Name, Env) ->
     try lookup_value({1, 1, {1, 1}}, Namespace, Name, Env) of
-        {_, Referent, _} -> {ok, Referent}
+        {Scheme, Referent, _} -> {ok, Scheme, Referent}
     catch
         throw:{type_error, _} -> error
     end.
@@ -5190,21 +5260,24 @@ lambda(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotat
         _ ->
             ok
     end,
-    Env2 = Env1#env{type_state = ern_types:value_positions_marked(Type, TypeState),
-                    effect = EffectType, standing = [],
-                    declared_none = declares_none(ResultAnnotation, Effect),
-                    receiving_use = undefined,
-                    annotation_variables = AnnotationVariables1,
-                    generalizing = false, rigid = New ++ Env1#env.rigid,
-                    %% report §11.5: the label names the annotation that fixed the
-                    %% mailbox, and an unannotated lambda's is its own, not the
-                    %% enclosing definition's
-                    effect_origin = effect_origin("the lambda", ResultAnnotation,
-                                                  Effect, ResultType, EffectType, TypeState),
-                    function = case Env#env.binder of
-                                   {LambdaSpan, Bound} -> atom_to_list(Bound);
-                                   _ -> "the lambda"
-                               end},
+    Function = case Env#env.binder of
+                   {LambdaSpan, Bound} -> atom_to_list(Bound);
+                   _ -> "the lambda"
+               end,
+    Env2 = with_rigid(New ++ Env1#env.rigid,
+                      Env1#env{type_state = ern_types:value_positions_marked(Type, TypeState),
+                               effect = EffectType, standing = [],
+                               declared_none = declares_none(ResultAnnotation, Effect),
+                               receiving_use = undefined,
+                               annotation_variables = AnnotationVariables1,
+                               generalizing = false,
+                               %% report §11.5: the label names the annotation that
+                               %% fixed the mailbox, and an unannotated lambda's is
+                               %% its own, not the enclosing definition's
+                               effect_origin = effect_origin("the lambda", ResultAnnotation,
+                                                             Effect, ResultType, EffectType,
+                                                             TypeState),
+                               function = Function}),
     Rule = result_rule(ResultAnnotation, "the lambda body does not have the declared type"),
     ResultOrigin = result_origin(ResultAnnotation, ResultType, Env2),
     {TypedBody, _BodyType, Env3} = check_expr(Body, ResultType, Rule, ResultOrigin, Env2),
@@ -5224,12 +5297,13 @@ lambda(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotat
     {Opened, TypeState1} = open_effect(Own, ern_types:leave(Env3#env.type_state)),
     {Expr#e_lambda{params = TypedParams, body = TypedBody, type = Own}, Opened,
      Env3#env.receiving_use,
-     Env3#env{type_state = TypeState1, locals = Env#env.locals, effect = Env#env.effect,
-              standing = Env#env.standing, declared_none = Env#env.declared_none,
-              receiving_use = Env#env.receiving_use,
-              annotation_variables = Env#env.annotation_variables,
-              effect_origin = Env#env.effect_origin, parameters = Env#env.parameters,
-              function = Env#env.function, generalizing = false, rigid = Env#env.rigid}}.
+     with_rigid(Env#env.rigid,
+                Env3#env{type_state = TypeState1, locals = Env#env.locals, effect = Env#env.effect,
+                         standing = Env#env.standing, declared_none = Env#env.declared_none,
+                         receiving_use = Env#env.receiving_use,
+                         annotation_variables = Env#env.annotation_variables,
+                         effect_origin = Env#env.effect_origin, parameters = Env#env.parameters,
+                         function = Env#env.function, generalizing = false})}.
 
 %% Report §4.5, §3.9: the type a lambda has as it ends. One whose effect
 %% variable a call of `self` or `monitor` left free, the lambda's own,
@@ -5657,7 +5731,7 @@ guard_operand(#e_selection{expr = Selected} = Operand, Env) ->
             guard_operand(Selected, Env);
         _ ->
             fail(ern_ast:span(Operand), "a `receive` guard selects a field from a variable, a"
-                                        " top-level let, or a field of one, and calls nothing",
+                                        " top-level `let`, or a field of one, and calls nothing",
                  [], ?GUARD_CALLS_HELP)
     end;
 guard_operand(Operand, _) ->
@@ -6596,13 +6670,14 @@ infer_statements([#binding{operator = '='} = Binding | Rest], Span, Expect, Env,
     Continue = fun(Next, Typed) ->
                    infer_statements(Rest, Span, Expect, Next, Local, Typed ++ Acc)
                end,
-    case annotated_fallback(Binding, Env) of
+    case binding_fallback(Binding, Env) of
         none ->
             {TypedBinding, Env1} = let_binding(Binding, Env),
             Continue(Env1, [TypedBinding]);
         {ok, Fallback} ->
-            %% report §11.5: the annotation fixes the name's type whatever
-            %% the value is, so nothing after depends on the value's error
+            %% report §11.5: the binding binds nothing, or the annotation
+            %% fixes the name's type whatever the value is, so nothing after
+            %% depends on the value's error
             try let_binding(Binding, Env) of
                 {TypedBinding, Env1} -> Continue(Env1, [TypedBinding])
             catch
@@ -6790,20 +6865,30 @@ annotated_value(BindingSpan, Annotation, Expr, Generalize, Env) ->
         _ ->
             ok
     end,
-    Annotated = Env#env{type_state = TypeState, annotation_variables = AnnotationVariables,
-                        rigid = New ++ Env#env.rigid},
+    Annotated = with_rigid(New ++ Env#env.rigid,
+                           Env#env{type_state = TypeState,
+                                   annotation_variables = AnnotationVariables}),
     Origin = annotation_origin(Annotation, AnnotationType, Annotated),
     {TypedValue, ValueType, Checked} =
         check_expr(Expr, AnnotationType, "the value does not have the declared type", Origin,
                    Annotated),
     rigid_annotation_variables(BindingSpan, New, Checked),
     {TypedValue, ValueType,
-     Checked#env{annotation_variables = Env#env.annotation_variables, rigid = Env#env.rigid}}.
+     with_rigid(Env#env.rigid, Checked#env{annotation_variables = Env#env.annotation_variables})}.
 
-%% Report §11.5: a `let x : T = e` binds x at T whatever e's error, so the
-%% rest of its block is checked with x at T; any other binding's error may
-%% be the cause of one after it, and the block stops there. A lambda's
-%% annotation may name variables of its own, and is not taken so.
+%% Report §11.5: the environment the rest of a block is checked in after a
+%% binding's error. A `let` whose pattern binds no name, `let _ = e` and
+%% `let #(_, _) = e`, binds nothing, and the rest is checked as after a
+%% statement; a `let x : T = e` binds x at T whatever e's error, so the
+%% rest is checked with x at T; any other binding's error may be the cause
+%% of one after it, and the block stops there. A lambda's annotation may
+%% name variables of its own, and is not taken so.
+binding_fallback(#binding{pattern = Pattern} = Binding, Env) ->
+    case bound_names(Pattern) of
+        [] -> {ok, Env};
+        _ -> annotated_fallback(Binding, Env)
+    end.
+
 annotated_fallback(#binding{pattern = #p_var{name = Name}, annotation = Annotation,
                             expr = Expr}, Env)
   when Annotation =/= undefined, not is_record(Expr, e_lambda) ->
@@ -8108,9 +8193,7 @@ unify_message(Rule, {mismatch, _, _}, Expected, Actual, Taken, TypeState) ->
     lists:flatten([Rule, ": expected ", ExpectedText, ", found ", ActualText]);
 unify_message(Rule, {rigid_mailbox, Id}, Expected, Actual, Taken, TypeState) ->
     none_vs_mailbox(Rule, Expected, Actual, Taken, [Id], TypeState);
-unify_message(Rule, Reason, Expected, Actual, Taken, TypeState)
-  when Reason =:= none_where_mailbox_needed; Reason =:= mailbox_where_none_needed;
-       element(1, Reason) =:= none_vs_mailbox ->
+unify_message(Rule, {none_vs_mailbox, _}, Expected, Actual, Taken, TypeState) ->
     none_vs_mailbox(Rule, Expected, Actual, Taken, [], TypeState);
 unify_message(Rule, Reason, Expected, Actual, _Taken, TypeState) ->
     lists:flatten([Rule, ": ", ern_types:format_error(Reason), " (",

@@ -2854,10 +2854,11 @@ foreign_faults_test() ->
     ?assertMatch({fault, <<"later">>, _}, Result5).
 
 %% report §12.3: a return's cause names the first part of the return that
-%% fails and the host's term there, a list's element and a tuple's field
-%% by their places, a map's key or the value of one, a set's member, and
-%% the return itself where it fails whole; the term on one line as the host
-%% writes it with a `chars_limit` of 80, which ends what it cuts with `...`
+%% fails and the host's term there, a list's element and a tuple's or a
+%% constructor's field by their places, a map's key or the value of one, a
+%% set's member, and the return itself where it fails whole; the term on
+%% one line as the host writes it with a `chars_limit` of 80, which ends
+%% what it cuts with `...`
 foreign_return_part_test() ->
     Main = "export fn main() : Unit = ",
     Cause = fun(Declaration, Body) ->
@@ -2871,6 +2872,12 @@ foreign_return_part_test() ->
                        "Io.println(Int.toString(List.size(rows([Foreign.term(#(3,"
                        " Foreign.atom(\"three\"))), Foreign.term(#(2, \"two\")),"
                        " Foreign.term(#(1, \"one\"))]))))")),
+    ?assertEqual(return_cause("lists:reverse/1", "List(Optional(Int))",
+                              "element 2, field 1, is x"),
+                 Cause("foreign fn options(items : List(Foreign.Term)) : List(Optional(Int)) ="
+                       " \"lists:reverse/1\"\n",
+                       "Io.println(Int.toString(List.size(options([Foreign.term(Some("
+                       "Foreign.atom(\"x\"))), Foreign.term(Some(1))]))))")),
     Keyed = "foreign fn keyed(pairs : List(Foreign.Term)) : Map(Int, String) ="
             " \"maps:from_list/1\"\n",
     ?assertEqual(return_cause("maps:from_list/1", "Map(Int, String)", "the value of key 2, is 3"),
@@ -4428,7 +4435,7 @@ fault_test() ->
                                   "export fn main() : Unit = Io.println(Int.toString(later()))\n"),
     ?assertMatch({fault, <<"later">>, _}, Result).
 
-%% report §5.6, §12.2: named fields in canonical order, and update from a
+%% report §5.6, §12.2: named fields in declared order, and update from a
 %% base value
 constructors_test() ->
     {ok, Output} = ern_program:run(
@@ -4628,18 +4635,18 @@ prelude_targets_test() ->
 
 %% Whether ern_emitter writes a prelude name inline, as the host's
 %% operation, with no function to call: Int's arithmetic and negate, the
-%% `<>` of String and Bytes, and `compare`, which applies its supply
+%% `<>` of String, List and Bytes, and `compare`, which applies its supply
 %% (report §3.10, §9.6).
 is_inline(['Int', compare]) -> false;
 is_inline(['Int', _]) -> true;
-is_inline([TypeName, '<>']) -> TypeName =:= 'String' orelse TypeName =:= 'Bytes';
+is_inline([TypeName, '<>']) -> lists:member(TypeName, ['String', 'List', 'Bytes']);
 is_inline([compare]) -> true;
 is_inline(_) -> false.
 
 %% The function a prelude name's emission calls: a primitive the runtime's
-%% (ern_emitter:primitive/1); Float's operators, and the `<>` of List and
-%% Path, their modules' functions (report §4.8), each the function its unit
-%% names it by (report §11.1, ern_code:function/2), a parameter after the
+%% (ern_emitter:primitive/1); Float's operators and Path's `<>`, their
+%% modules' functions (report §4.8), each the function its unit names it
+%% by (report §11.1, ern_code:function/2), a parameter after the
 %% function's own for each member its requirement names (report §4.9).
 prelude_target(QualifiedName, Text) ->
     {TypeText, Requirement} = ern_prelude:signature(Text),

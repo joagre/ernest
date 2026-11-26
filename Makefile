@@ -37,12 +37,13 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/ernest/*.ern src/shell/ernest/shell/
 		test/fixtures/programs/modules/*/*.ern \
 		src/libs/*/*.ern tools/*.ern tools/*/*.ern
 
-# The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are built by `ern build`
-# every time, and its own rule decides what in each to compile again, by the
-# sources' and the interfaces' hashes (report §11.1): make keeps no stamp of
-# its own, whose times would disagree with the sources' contents. Each
-# module is one file, its .erc, which ern loads by its namespace as it is
-# first called (report §11.2), and the host's code path holds none.
+# The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are
+# built by `ern build` every time, and its own rule decides what in each to
+# compile again, by the sources' and the interfaces' hashes (report §11.1):
+# make keeps no stamp of its own, whose times would disagree with the
+# sources' contents. Each module is one file, its .erc, which ern loads by
+# its namespace as it is first called (report §11.2), and the host's code
+# path holds none.
 
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,
@@ -318,25 +319,25 @@ unicode: tools
 # library's examples, the tests of the documents and the style, the
 # site's generator over its fixture, and xref's calls.
 # `make test-full` is every area, for the commit that closes an item and
-# for a release. The light run and
-# the full run's first phase run their jobs side by side, as many at once
-# as the host has cores, each job's output together as it ends. One make
-# runs each phase, since a make started with a -j of its own runs apart
-# from the count, and takes `all` as made (-o), since the run made it
-# before the phase. In the full run the unit tests
-# run first, with the jobs that start no host: EUnit gives a test with no
-# time of its own five seconds, which the load of the areas that start
-# hosts would take from them. Make starts those jobs in the order given, so
-# the longest come first. The areas that start hosts then run one after
-# another, each whatever the one before it ended with: each runs its own
-# tests side by side, as many at once as the host has schedulers
-# (test/Makefile), which is what the host carries; the areas run side by
-# side, each with as many, ran past it, and tests ran past their limits. In both runs
-# the modules under test/ are compiled first, once, so that no two parts
-# compile one module at once, as the documents' and the site's did where a
-# test module had changed; one make runs the roots' tests, each waiting on
-# its modules, so that they need no such step. A change runs its own area's
-# target as it is worked on (docs/development.md, *Building*).
+# for a release. The light run and the full run's first phase run their
+# jobs side by side, as many at once as the host has cores, each job's
+# output together as it ends. One make runs each phase, since a make
+# started with a -j of its own runs apart from the count, and takes `all`
+# as made (-o), since the run made it before the phase. In the full run
+# the unit tests run first, with the jobs that start no host: EUnit gives a
+# test with no time of its own five seconds, which the load of the areas
+# that start hosts would take from them. Make starts those jobs in the
+# order given, so the longest come first. The areas that start hosts then
+# run one after another, each whatever the one before it ended with: each
+# runs its own tests side by side, as many at once as the host has
+# schedulers (test/Makefile), which is what the host carries; run side by
+# side, each with that many, the areas ran past what the host carries, and
+# tests ran past their limits. In both runs the modules under test/ are
+# compiled first, once, so that no two parts compile one module at once,
+# as the documents' and the site's did where a test module had changed;
+# one make runs the roots' tests, each waiting on its modules, so that they
+# need no such step. A change runs its own area's target as it is worked on
+# (docs/development.md, *Building*).
 test: all
 	@$(MAKE) -s -C test beams
 	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site xref
@@ -426,7 +427,7 @@ FLAKE_HOST = -- $(1) $(call UNIT_HOST,$(call flake_root,$(1))) \
 	  halt(ern_flakes:hunt(Mine)).'
 
 flakes:
-	@case "$(MINUTES)" in ''|*[!0-9]*|0) \
+	@case "$(MINUTES)" in ''|*[!0-9]*|0*) \
 	  echo "make flakes: MINUTES=n, a positive whole number, is required" >&2; exit 2 ;; esac
 	@$(MAKE) -s all $(foreach a,$(SPLIT_APPS),$(call test_beams,$(call root,$(a))))
 	@bin/ern run build/tools/flakes.erc "$(MINUTES)" "$(LOOPS)" $(FLAKES) \
@@ -721,10 +722,13 @@ sections:
 # appendix or one of its sections, which a citation names `Appendix E.17` or
 # `E.17`; a part under a level-four heading, §11.2's, is counted with its
 # section, and a citation counts for the section it names alone. CITED is a
-# citation, the guide's among them, which is left out.
+# citation, the guide's among them, which is left out. A doc block's line,
+# `///`, is dropped before the count: its citation is the documentation's,
+# and no test citing the section.
 CITED = (guide )?§[0-9]+(\.[0-9]+)?|Appendix [A-Z](\.[0-9]+)?|(^|[^A-Za-z0-9.])[A-Z]\.[0-9]+
 coverage:
-	@cited=$$(cat $(CITING_SOURCES) | grep -oE '$(CITED)' | grep -v '^guide' | \
+	@cited=$$(cat $(CITING_SOURCES) | grep -vE '^[[:space:]]*///' | grep -oE '$(CITED)' | \
+	  grep -v '^guide' | \
 	  sed -E 's/^[^A-Z§]//; s/^([A-Z]\.)/Appendix \1/'); \
 	awk '/^#{2,3} .* Unused$$/ { if (s != "") print w, s; s = ""; next } \
 	      /^#{2,3} [0-9]+(\.[0-9]+)?\.? / { if (s != "") print w, s; \

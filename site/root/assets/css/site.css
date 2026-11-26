@@ -1347,12 +1347,12 @@ body.panel-below .panel-handle {
    xterm.js's element's padding, which the fit addon takes from the room it
    measures; a padding of its parent would be counted as room, and the
    screen would overflow the panel by it. */
-.panel-terminal {
+.panel-screen {
     flex: 1;
     min-height: 0;
 }
 
-.panel-terminal .xterm {
+.panel-screen .xterm {
     padding: .5rem .75rem;
 }
 
@@ -1363,7 +1363,7 @@ body.panel-below .panel-handle {
     font-size: .9rem;
 }
 
-.panel-terminal:focus-visible {
+.panel-screen:focus-visible {
     outline-offset: -3px;
 }
 

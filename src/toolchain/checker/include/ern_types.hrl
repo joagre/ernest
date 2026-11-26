@@ -87,10 +87,11 @@
 
 -record(constructor_info, {name, qualified_name, type_qualified_name, fields = none, tag_arity,
                            scheme}).
-%% fields: none | positional | {named, [atom()]} in canonical (sorted) order;
-%% scheme: the constructor as a value, quantified over the type's parameters:
-%% the result type for a nullary constructor, else a function that receives
-%% nothing from the field types (in canonical order) to the result type
+%% fields: none | positional | {named, [atom()]} in declared order (report
+%% §3.5); scheme: the constructor as a value, quantified over the type's
+%% parameters: the result type for a nullary constructor, else a function
+%% that receives nothing from the field types (in declared order) to the
+%% result type
 
 %% The declaration a name refers to, which the checker records in its
 %% #e_var{} for the emitter (report §4.2): this module's, member_of a type
@@ -136,9 +137,7 @@
 %% §11.1)
 %% position: pos_integer(), the number of a function of the module's unit,
 %% a definition's or a foreign function's, by which its unit names it,
-%% '$3' (§11.1), and a dependent calls it; in a checker's environment
-%% {namespace(), pos_integer()}, with the namespace of the module that
-%% declares it
+%% '$3' (§11.1), and a dependent calls it
 %% term: {term, term()}, the value of a binding of `lets` whose initializer
 %% is a ground term, which a dependent's code holds where it reads the
 %% binding (§11.1)

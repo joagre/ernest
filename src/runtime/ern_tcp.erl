@@ -1300,7 +1300,7 @@ endpoint(_, Ask) ->
             {'Left', 'Closed'}
     end.
 
-%% Report Appendix E.18: the primitive beneath `Tcp.address`, the host's
+%% Report Appendix E.18: the primitive beneath `Tcp.ipAddress`, the host's
 %% inet:parse_strict_address/1 exactly, which reads what endpoint/2 writes,
 %% the host's inet:ntoa/1: the bytes of the address Text writes, and `None`
 %% for a text the host refuses. The host takes a list of characters and

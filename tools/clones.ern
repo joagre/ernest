@@ -89,10 +89,7 @@ fn listed() : List(String) = {
 
 // A language's clones, the longest first, each with its two paths.
 fn cloned(language : Language) : #(List(Module), List(Clone)) = {
-    let borrowed = Set.fromList(Repository.borrowed("clones"));
-    let paths =
-        List.filter(String.lines(Repository.git("clones", ["ls-files", "--"] <> language.files)),
-                    fn(path) = !Set.contains(borrowed, path));
+    let paths = Repository.withoutBorrowed("clones", Repository.tracked("clones", language.files));
     let modules = read(paths, language);
     let found = clones(List.map(modules, fn(module) = module.codes), language.size);
     #(modules, List.filter(found, fn(clone) = !betweenChapters(modules, clone)))

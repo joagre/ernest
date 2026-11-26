@@ -22,10 +22,7 @@ export fn main() : Unit =
 
 // The page's lines, or why there are none.
 fn manual(report : String, version : String, pages : String) : Either(String, List(String)) = {
-    let bytes <-
-        Either.mapLeft(Fs.read(Path(report), Repository.fileMs),
-                       fn(error) = "cannot read " <> report <> ": " <> Io.show(error));
-    let text <- Either.fromOptional(String.fromUtf8(bytes), report <> " is not UTF-8");
+    let text = Repository.contents("manual", report);
     let entries <-
         Either.mapLeft(Fs.list(Path(pages), Repository.fileMs),
                        fn(error) = "cannot list " <> pages <> ": " <> Io.show(error));

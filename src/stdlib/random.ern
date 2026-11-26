@@ -73,34 +73,29 @@ export fn seed(int : Int) : Seed =
 ///
 /// since 0.4.0
 export fn nextInt(seed : Seed, bound : Int) : #(Seed, Int) =
-    if bound < 1 then
-        fault("a bound is 1 or above")
-    else {
-        let #(drawn, seed) = below(seed, bound);
-        #(seed, drawn)
-    }
+    if bound < 1 then fault("a bound is 1 or above") else below(seed, bound)
 
-// A number from 0 to below `bound`, from as many 64-bit draws as span
-// `bound`, those at or above the largest multiple of `bound` the draws can
-// reach drawn again.
-fn below(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(value, span, seed) = spanning(seed, bound, 0, 1);
-    if value < span - span % bound then #(value % bound, seed) else below(seed, bound)
+// The seed after the draws, and a number from 0 to below `bound`, from as
+// many 64-bit draws as span `bound`, those at or above the largest multiple
+// of `bound` the draws can reach drawn again.
+fn below(seed : Seed, bound : Int) : #(Seed, Int) = {
+    let #(seed, value, span) = spanning(seed, bound, 0, 1);
+    if value < span - span % bound then #(seed, value % bound) else below(seed, bound)
 }
 
-// A value drawn from as many 64-bit draws as span `bound`, the span they
-// reach, and the seed after them.
-fn spanning(seed : Seed, bound : Int, value : Int, span : Int) : #(Int, Int, Seed) =
+// The seed after as many 64-bit draws as span `bound`, the value drawn from
+// them, and the span they reach.
+fn spanning(seed : Seed, bound : Int, value : Int, span : Int) : #(Seed, Int, Int) =
     if span >= bound && span > 1 then
-        #(value, span, seed)
+        #(seed, value, span)
     else {
-        let #(draw, seed) = splitMix(seed);
+        let #(seed, draw) = splitMix(seed);
         spanning(seed, bound, value * drawSpan + draw, span * drawSpan)
     }
 
 // SplitMix64: the counter advanced by the golden gamma, and its new value
 // mixed into the draw.
-fn splitMix(seed : Seed) : #(Int, Seed) =
+fn splitMix(seed : Seed) : #(Seed, Int) =
     match seed {
         Seed(state) -> {
             let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, low64);
@@ -110,7 +105,7 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
             let mixed =
                 Int.bitAnd(Int.bitXor(mixed, Int.shiftRight(mixed, 27)) * 0x94D0_49BB_1331_11EB,
                            low64);
-            #(Int.bitXor(mixed, Int.shiftRight(mixed, 31)), Seed(counter))
+            #(Seed(counter), Int.bitXor(mixed, Int.shiftRight(mixed, 31)))
         }
     }
 
@@ -127,7 +122,7 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
 /// // => true
 /// ```
 export fn nextFloat(seed : Seed) : #(Seed, Float) = {
-    let #(draw, seed) = splitMix(seed);
+    let #(seed, draw) = splitMix(seed);
     #(seed, (Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan)
 }
 

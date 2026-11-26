@@ -322,6 +322,15 @@ fn upperDigit(value : Int) : Int =
 /// written between `[` and `]`. A reference `parse` answered is written as
 /// a text `parse` reads as that reference.
 ///
+/// ### Errors
+///
+/// Faults where `parse` does not read the text back as `reference`, with the
+/// cause `the reference has no text`: a path that begins with `//` where
+/// there is no authority, a first segment that holds a `:` where there is no
+/// scheme, a path neither empty nor beginning with `/` beside an authority,
+/// and a component that holds a later component's delimiter, references
+/// RFC 3986 writes no text for (report §7.4).
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -330,16 +339,21 @@ fn upperDigit(value : Int) : Int =
 /// ```
 ///
 /// since 0.11.0
-export fn toString(reference : Reference) : String =
-    String.join([written(reference.scheme, fn(scheme) = scheme <> ":"),
-                 match reference.authority {
-                     Some(authority) -> "//" <> authorityText(authority)
-                   | None -> ""
-                 },
-                 reference.path,
-                 written(reference.query, fn(query) = "?" <> query),
-                 written(reference.fragment, fn(fragment) = "#" <> fragment)],
-                "")
+export fn toString(reference : Reference) : String = {
+    let text =
+        String.join([written(reference.scheme, fn(scheme) = scheme <> ":"),
+                     match reference.authority {
+                         Some(authority) -> "//" <> authorityText(authority)
+                       | None -> ""
+                     },
+                     reference.path,
+                     written(reference.query, fn(query) = "?" <> query),
+                     written(reference.fragment, fn(fragment) = "#" <> fragment)],
+                    "");
+    // Report Appendix G.12: the text is the reference's only where `parse`
+    // reads it back as that reference.
+    if parse(text) == Some(reference) then text else fault("the reference has no text")
+}
 
 // Report Appendix G.12: an authority's text, its host in brackets where it
 // holds a `:`.
@@ -733,10 +747,40 @@ let recomposedReadBack =
                        "./a:b",
                        "",
                        "HTTP://Example.COM/a/../b/%2e/%41",
+                       "mailto:John.Doe@example.com",
+                       "tel:+1-816-555-1212",
+                       "telnet://192.0.2.16:80/",
+                       "urn:oasis:names:specification:docbook:dtd:xml:4.1.2",
+                       "index.html",
+                       "/a/b",
+                       "/a%2Fb?x=%41",
+                       "//[::1]:8443",
+                       "//h:0",
+                       "//h:65536",
+                       "//h:99999",
                        "//h:",
                        "//h:08"];
                   let references = List.filterMap(texts, parse);
                   let written = List.map(references, toString);
-                  Test.equal(#(List.filterMap(written, parse), List.take(written, 13)),
-                             #(references, List.take(texts, 13)))
+                  Test.equal(#(List.filterMap(written, parse), List.take(written, 24)),
+                             #(references, List.take(texts, 24)))
               })
+
+// report Appendix G.12, §7.4: a reference whose text `parse` reads as
+// another faults: a path that begins with `//` and no authority, a first
+// segment that holds a `:` and no scheme, a path that does not begin with
+// `/` beside an authority, and a path that holds a query's delimiter.
+let noText = Test.Case(name = "toString faults on a reference that no text writes", run = fn() = {
+    let cause = "the reference has no text";
+    let faulted = fn(reference) = Test.faults(fn() = toString(reference), cause);
+    Test.equal(List.map([bare("//evil.example/"),
+                         bare("javascript:alert(1)"),
+                         Reference(scheme = Some("https"),
+                                   authority = Some(hostAndPort("h", None)),
+                                   path = "a",
+                                   query = None,
+                                   fragment = None),
+                         bare("a?b")],
+                        faulted),
+               List.repeat(Test.Passed, 4))
+})

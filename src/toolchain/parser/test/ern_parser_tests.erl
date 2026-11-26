@@ -527,16 +527,24 @@ after_clause_comes_last_test() ->
                  ern_parser:parse_string("fn f() : Unit = receive {\n    after 5 -> Unit\n"
                                          "  | x -> Unit\n}\n")).
 
-%% report §3.5: a constructor has no fields, one positional field, or named
-%% fields; a second positional field is refused with the two ways to write
-%% it. A regression test: the parser said only that it
-%% expected `)`
-second_positional_field_test() ->
-    ?assertMatch({error, #diagnostic{span = {1, 21, _},
-                                     message = "a constructor has exactly one positional field",
-                                     help = "name the fields, `Vec(x : ..., y : ...)`, or hold a"
-                                            " tuple, `Vec(#(..., ...))`"}},
-                 ern_parser:parse_string("type Vec = Vec(Float, Float)")).
+%% report §3.1, §3.5: a constructor's several positional fields parse,
+%% with where the first `,` stands, for the checker, which tells an alias
+%% from them and refuses the rest (ern_typecheck_tests). A regression test:
+%% the parser refused them first, so `type Alias = Either(String, Int)` was
+%% never told there are no type aliases
+several_positional_fields_test() ->
+    ?assertMatch({ok, [#type_declaration{
+                           constructors = [#constructor{
+                                              name = 'Vec',
+                                              fields = {positionals,
+                                                        [#t_named{name = 'Float'},
+                                                         #t_named{name = 'Float'}],
+                                                        {1, 21, _, _}}}]}]},
+                 ern_parser:parse_string("type Vec = Vec(Float, Float)")),
+    ?assertMatch({ok, [#type_declaration{
+                           constructors = [#constructor{name = 'Dot'},
+                                           #constructor{fields = {positionals, [_, _, _], _}}]}]},
+                 ern_parser:parse_string("type Shape = Dot | Box(Int, Int, Int)")).
 
 %% report §3.5, §5.10, §11.5: a `,` after a constructor pattern's
 %% positional field is refused at the `,` as a declaration's second
@@ -1115,6 +1123,19 @@ items_close_test() ->
     ?assertEqual("expected `)` instead of the name `b`",
                  expression_refusal("match p { Some(a b) -> 1 }")).
 
+%% report §11.5, §3.3, §5.11: a list's and a bitstring's items name the
+%% `,` that may go on beside the closing `]` or `>>`, in an expression and
+%% in a pattern, as a tuple's and a call's do. A regression test: they
+%% named the close alone
+list_and_bitstring_close_test() ->
+    ?assertEqual("expected `,` or `]` instead of `;`", expression_refusal("[1, 2; 3]")),
+    ?assertEqual("expected `,` or `>>` instead of `;`", expression_refusal("<<1, 2; 3>>")),
+    ?assertEqual("expected `,` or `]` instead of the name `b`",
+                 expression_refusal("match x { [a b] -> 1 }")),
+    ?assertEqual("expected `,` or `>>` instead of the name `b`",
+                 expression_refusal("match x { <<a b>> -> 1 }")),
+    ?assertEqual("expected `,` or `)` instead of `;`", expression_refusal("#(1, 2; 3)")).
+
 %% report §3.1, §11.5: `()` where an expression stands has the help that
 %% names Unit's one value, wherever the operand stands; a call's, a
 %% lambda's and a constructor's empty parentheses are no operand and parse
@@ -1469,11 +1490,18 @@ requirement_test() ->
     %% the member underlined whole: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},
                  ern_parser:parse_string("fn f(x : a) : a needs a.zero = x")),
-    ?assertEqual({"expected `.` after a instead of `,`",
-                  "a requirement names a member of a type variable, as needs a.compare"},
-                 refusal_and_help("fn f(x : a) : a needs a, a.+ = x")),
     ?assertEqual("a lambda declares no requirement",
                  expression_refusal("fn(x : a) : a needs a.compare = x")).
+
+%% report §11.5, §4.9: a help writes what the user is to write in
+%% backticks, a requirement's `needs a.compare` among it. A regression
+%% test: the help wrote it plain
+requirement_help_test() ->
+    Help = "a requirement names a member of a type variable, as `needs a.compare`",
+    ?assertEqual({"expected `.` after a instead of `,`", Help},
+                 refusal_and_help("fn f(x : a) : a needs a, a.+ = x")),
+    ?assertEqual({"expected a type variable instead of the integer `1`", Help},
+                 refusal_and_help("fn f(x : a) : a needs 1 = x")).
 
 %% report §4.5, Appendix A's Primary and QName: a member's name stands in
 %% no expression, so an operator after `.` is refused with the operator to

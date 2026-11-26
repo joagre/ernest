@@ -62,7 +62,7 @@
 %% A unit to load: its name, the file name the host gives it, its code, and
 %% `file` where the code table reads its forms from that file, or what it
 %% records, kept beside its code (made/2).
--record(made_unit, {unit, name, beam, recorded}).
+-record(made_unit, {unit, file_name, beam, recorded}).
 
 %% Appendix E.28: `Right(Unit)`, or `Left` with the load's Io.Error.
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
@@ -259,8 +259,9 @@ loaded(Placed) ->
         [] ->
             ok;
         _ ->
-            case code:atomic_load([{Unit, Name, Beam}
-                                   || #made_unit{unit = Unit, name = Name, beam = Beam} <- Made])
+            case code:atomic_load([{Unit, FileName, Beam}
+                                   || #made_unit{unit = Unit, file_name = FileName, beam = Beam}
+                                          <- Made])
             of
                 ok ->
                     lists:foreach(fun(#made_unit{unit = Unit, beam = Beam, recorded = file}) ->
@@ -279,7 +280,7 @@ loaded(Placed) ->
 %% through the interfaces of the modules of the load and the standard
 %% library's, each module's code calling the unit it was placed as.
 made(#placed{found = #found{file = File, beam = Beam}, unit = Unit, made = file}, _) ->
-    #made_unit{unit = Unit, name = File, beam = Beam, recorded = file};
+    #made_unit{unit = Unit, file_name = File, beam = Beam, recorded = file};
 made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Placed) ->
     Interfaces = [Interface || #placed{found = #found{chunk = #{interface := Interface}}}
                                    <- Placed]
@@ -295,7 +296,7 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
                                               io_lib:format("~P", [Reason, 6])])
            end,
     {ok, Recorded} = ern_canonical:read(Made),
-    #made_unit{unit = Unit, name = atom_to_list(Unit), beam = Made, recorded = Recorded}.
+    #made_unit{unit = Unit, file_name = atom_to_list(Unit), beam = Made, recorded = Recorded}.
 
 %%
 %% The bindings, report §8.5

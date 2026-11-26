@@ -170,7 +170,8 @@ export fn startsWith(text : String, prefix : String) : Bool =
     slice(text, 0, size(prefix)) == prefix
 
 /// `true` when `text` ends with `suffix`, as whole graphemes. Every string ends
-/// with the empty string.
+/// with the empty string. It takes time linear in the text's size where the
+/// text ends with the suffix.
 export fn endsWith(text : String, suffix : String) : Bool =
     Optional.isSome(stripSuffix(text, suffix))
 
@@ -199,7 +200,8 @@ export fn stripPrefix(text : String, prefix : String) : Optional(String) =
         None
 
 /// The text before `suffix`, or `None` where `text` does not end with it, as
-/// whole graphemes. Every string ends with the empty string.
+/// whole graphemes. Every string ends with the empty string. It takes time
+/// linear in the text's size where the text ends with the suffix.
 ///
 /// ### Examples
 ///

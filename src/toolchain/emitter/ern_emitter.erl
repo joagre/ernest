@@ -59,11 +59,9 @@
 %% the unit's definitions and foreign functions (#own{}); definition: the
 %% definition being compiled, {Position, Hash, QualifiedName}; declaration:
 %% its Ernest name, [Name] or [MemberOf, Name], which a spawn site names;
-%% printing: the unit's link's type state, under which a check's cause
-%% prints its types (printed/2); restrictions:
-%% each type variable of the definition its schemes quantify, by its
-%% number, with its restrictions, by which a check's cause prints it
-%% (§11.5).
+%% restrictions: each type variable of the definition its schemes
+%% quantify, by its number, with its restrictions, by which a check's
+%% cause prints it (§11.5).
 %%
 %% variables: a local's number => its Erlang variable; counter: the last
 %% number a made variable took; locals: a local fn's number => its
@@ -94,7 +92,7 @@
 %% (caller_sited/1), the Erlang variable of that site, and else none.
 %% fallthroughs: the functions the definition's guards fall through to so
 %% far (fallthrough_name/1).
--record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
+-record(emit_context, {unit, own, definition, declaration, restrictions = #{},
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
                        let_lambdas = #{}, entries = #{}, builds_functions = false,
@@ -204,7 +202,7 @@ fallthrough_name(#emit_context{definition = {Definition, _, _}, inner_position =
 syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     {Placed, ForeignPlaced} = placed(Unit),
     {DefinitionFunctions, AllForeignForms, InitFunction, Context} =
-        compiled(Placed, ForeignPlaced, Unit),
+        unit_functions(Placed, ForeignPlaced, Unit),
     TestsFunction = tests_function(Placed, Context),
     DependenciesFunction = dependencies_function(Unit),
     Entries = maps:values(Context#emit_context.entries),
@@ -252,7 +250,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
 
 %% The unit's definitions and foreign functions, each compiled to its
 %% functions, and its '$init'/0 (§8.5), with the context they leave.
-compiled(Placed, ForeignPlaced, Unit) ->
+unit_functions(Placed, ForeignPlaced, Unit) ->
     {DefinitionFunctions, Context} = lists:mapfoldl(fun definition_functions/2,
                                                     context(Placed, ForeignPlaced, Unit), Placed),
     {ForeignForms, Context1} = lists:mapfoldl(fun foreign_function/2, Context, ForeignPlaced),
@@ -332,8 +330,7 @@ context(Placed, ForeignPlaced, Unit) ->
     Context#emit_context{own = Own#own{grounds = ground_values(maps:keys(Forms), Context)}}.
 
 own_context(Placed, ForeignPlaced, Unit) ->
-    #emit_context{unit = Unit, own = own(Placed, ForeignPlaced, Unit),
-                  printing = Unit#unit.link#link.printing}.
+    #emit_context{unit = Unit, own = own(Placed, ForeignPlaced, Unit)}.
 
 %% Report §11.1: the value of each binding of the unit's at Positions whose
 %% initializer is a ground term, by its position; what ground/2 reads of a
@@ -1700,7 +1697,9 @@ is_primitive(QualifiedName) ->
 
 %% Report §9, §11.2: a primitive of the prelude's, the function of ern_rt's
 %% a call of it calls and that function's arity, a spawn's site among its
-%% parameters (§6.9); none for a name the runtime does not give.
+%% parameters (§6.9), and for `Address.call` and `callForever` the
+%% standard library's call, which checks no answer (reply_call/4); none
+%% for a name the runtime does not give.
 -spec primitive([atom()]) -> {atom(), arity()} | none.
 primitive([self]) -> {self, 0};
 primitive([send]) -> {send, 2};
@@ -2389,8 +2388,8 @@ as_never(_, Type) -> Type.
 %% (ern_types:from_root/2). Its variables are the definition's, named as
 %% Appendix H names a type's variables, each with the restrictions its
 %% definition's scheme gives it.
-printed(Type, #emit_context{unit = Unit, printing = Printing, restrictions = Restrictions}
-              = Context) ->
+printed(Type, #emit_context{unit = #unit{link = #link{printing = Printing}} = Unit,
+                            restrictions = Restrictions} = Context) ->
     Session = case Unit of
                   #unit{session_input = true, site_namespace = SiteNamespace} -> SiteNamespace;
                   #unit{} -> none
@@ -2430,7 +2429,7 @@ check_form(Source, Type, Form, Cause, Context) ->
                                          erl_syntax:clause([erl_syntax:variable(Variable)], none,
                                                            [Fault])]), Context1};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
-            {[Variable, Returned], Context1} = fresh_variables(2, "Checked", Context),
+            {[Variable, Returned], Context1} = named_variables(["Checked", "Returned"], Context),
             VariableForm = erl_syntax:variable(Variable),
             Test = erl_syntax:application(erl_syntax:atom(word_test(Word)), [VariableForm]),
             %% report §3.1: X + 0.0 is 0.0 for either zero, and X otherwise
@@ -2549,15 +2548,12 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
                      Argument
              end
              || {Descriptor, Argument} <- lists:zip(ParamDescriptors, Args)],
-    MakerBound = case lists:any(fun crosses_from/1, ParamDescriptors) of
-                     true -> Bound;
-                     false -> erl_syntax:underscore()
-                 end,
     Call = erl_syntax:try_expr([erl_syntax:application(Function, Given)], [Handler]),
     Check = call_remote(ern_boundary, result, [Result, Call, Function, term_form(Cause)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
-    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result, MakerBound], none,
-                                                   [Wrapper])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result,
+                                                    parameter_read(Bound, Wrapper)],
+                                                   none, [Wrapper])]),
     %% report §8.4: the same function crossing into foreign code, wherever
     %% it stands in what crosses, each argument checked against its
     %% parameter's type, the recursive types around it in Bound
@@ -2579,7 +2575,8 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
                        Called
                end,
     Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Returned))]),
-    Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
+    Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, parameter_read(Bound, Exposed)],
+                                                     none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
                       built_descriptor(ResultDescriptor), term_form(Cause), Maker, Exposer]);
 %% an address's hash, a literal of the unit's code, is bytes and no text
@@ -2592,6 +2589,15 @@ built_descriptor(Elements) when is_list(Elements) ->
     erl_syntax:list([built_descriptor(Element) || Element <- Elements]);
 built_descriptor(Other) ->
     term_form(Other).
+
+%% A fun's parameter Variable as its clause takes it: the variable where
+%% Body reads it, and `_` where Body reads it nowhere, so that the host's
+%% compiler finds no variable unused.
+parameter_read(Variable, Body) ->
+    case sets:is_element(erl_syntax:variable_name(Variable), erl_syntax_lib:variables(Body)) of
+        true -> Variable;
+        false -> erl_syntax:underscore()
+    end.
 
 %% Report §12.3: the program's function where foreign code calls it, Call
 %% its call with the arguments checked and its result as it crosses back,
@@ -2611,8 +2617,8 @@ called(Call) ->
 check_text(Prefix, Type, Context) ->
     string_binary(cause(Prefix, Type, Context)).
 
-%% Report §12.3, §8.4: a check's cause, its Prefix and the type as §11.5
-%% prints it, which the boundary faults with.
+%% Report §12.3, §8.4: a check's cause, its Prefix and the type as §12.3
+%% writes it (printed/2), which the boundary faults with.
 cause(Prefix, Type, Context) ->
     unicode:characters_to_binary(Prefix ++ printed(Type, Context)).
 
@@ -2742,10 +2748,7 @@ described({applied, Reference, Args} = Type, Seen, {_, Abstract} = Scope, Contex
                               all_described(field_types(Fields, Args), Seen#{Type => Id}, Scope,
                                             Context))
                             || {Name, Fields} <- Constructors]},
-                    Descriptor = case ern_descriptor:refers(Sum, Id) of
-                                     true -> {mu, Id, Sum};
-                                     false -> Sum
-                                 end,
+                    Descriptor = ern_descriptor:recursive(Id, Sum),
                     %% report §4.4, Appendix E.1: seen from outside its
                     %% module, an abstract type's representation is not the
                     %% program's to print
@@ -3172,7 +3175,7 @@ statements([Statement | Rest], Context, Acc) ->
             Local = (maps:get(Number, Locals))#local_fn{snapshot = Variables},
             statements(Rest, Context#emit_context{locals = Locals#{Number => Local}}, Acc);
         {Source, {bind, _, Expr, Pattern}} ->
-            {Match, Context1} = bound(Source, Expr, Pattern, Context),
+            {Match, Context1} = let_match(Source, Expr, Pattern, Context),
             statements(Rest, Context1, [Match | Acc]);
         {Source, {unwrap, {named, [Sum]}, _, Expr, Pattern}} ->
             %% report §5.5
@@ -3187,7 +3190,7 @@ statements([Statement | Rest], Context, Acc) ->
 
 %% Report §5.4: a block's `let`, its value matched to its pattern, the
 %% lambda it binds recorded (let_lambda/4).
-bound(Source, Expr, Pattern, Context) ->
+let_match(Source, Expr, Pattern, Context) ->
     {ExprForm, Context1} = expr(Expr, Context),
     {PatternForm, Context2} = pattern(Pattern, Context1),
     {at(Source, erl_syntax:match_expr(PatternForm, ExprForm)),

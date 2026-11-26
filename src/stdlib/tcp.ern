@@ -5,7 +5,7 @@
 /// TLS. `read`, `readForever` and `write` move bytes over a connection, and
 /// `close` ends it, over TLS or not. A connection carries bytes, and a program
 /// frames its messages with bitstrings (report §5.11); there are no socket
-/// options. `address` reads an address's text into its bytes.
+/// options. `ipAddress` reads an IP address's text into its bytes.
 ///
 /// **A socket is a process.** `accept`, `acceptForever`, `connect` and
 /// `connectTls` answer a socket's address.
@@ -611,21 +611,21 @@ export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// address:
 ///
 /// ```ernest
-/// #(Tcp.address("192.0.2.1"),
-///   Optional.map(Tcp.address("2001:DB8::1"), fn(bytes) = Bytes.slice(bytes, 0, 8)),
-///   Tcp.address("localhost"))
+/// #(Tcp.ipAddress("192.0.2.1"),
+///   Optional.map(Tcp.ipAddress("2001:DB8::1"), fn(bytes) = Bytes.slice(bytes, 0, 8)),
+///   Tcp.ipAddress("localhost"))
 /// // => #(Some(<<192, 0, 2, 1>>), Some(<<32, 1, 13, 184, 0, 0, 0, 0>>), None)
 /// ```
 ///
 /// A zone and a sign, which the host would read:
 ///
 /// ```ernest
-/// #(Tcp.address("fe80::1%eth0"), Tcp.address("+192.0.2.1"))
+/// #(Tcp.ipAddress("fe80::1%eth0"), Tcp.ipAddress("+192.0.2.1"))
 /// // => #(None, None)
 /// ```
 ///
 /// since 0.11.0
-export fn address(text : String) : Optional(Bytes) = {
+export fn ipAddress(text : String) : Optional(Bytes) = {
     let bytes = String.toUtf8(text);
     if List.any(["%", "+", "-"], fn(mark) = Bytes.contains(bytes, String.toUtf8(mark))) then
         None
@@ -634,8 +634,8 @@ export fn address(text : String) : Optional(Bytes) = {
 }
 
 // The host's reading of an address, which takes a zone after `%` and a sign
-// before an IPv4 address's number. `address` finds those marks in the text's
-// bytes, since a search of a string matches whole graphemes, and a mark that a
-// combining mark follows is none.
+// before an IPv4 address's number. `ipAddress` finds those marks in the
+// text's bytes, since a search of a string matches whole graphemes, and a
+// mark that a combining mark follows is none.
 foreign fn strictAddress(text : String) : Optional(Bytes) =
     "ern_tcp:strict_address/1"

@@ -7,8 +7,8 @@
 %% sent, a receive with an `after`, the monitor dropped.
 %%
 %% ern_rt's call/4 reads the callee through the address and sends the
-%% request by its way (line_guard/1, process_of/1, adapted_way/2), so that
-%% a checker or an adapted function is honored. It keeps the call's two
+%% request by its way (process_of/1, adapted_way/2), so that a checker or
+%% an adapted function is honored. It keeps the call's two
 %% records, the callee's row in the callees table so that its restart ends
 %% the call (§6.9), and the caller's CALL key in its dictionary, which the
 %% look reads for a request in flight (§8.6) and a kill before it kills
@@ -21,7 +21,9 @@
 %% of foreign code checked (waited_answer/3, §8.4), where an Ernest
 %% callee's answer is not. It waits against a deadline in slices of the
 %% host's longest wait, in a try that takes the mark away and one that
-%% settles (?SLICE, remaining/1).
+%% settles (?SLICE, remaining/1), and the wait is a closure, which
+%% noted_call/4, shared by each of the runtime's calls, runs once it has
+%% made the request, noted the call and sent the request.
 %%
 %% Measured, in call.txt: for each of the shapes, the host's call, the
 %% model of `Address.call` a piece added on each row until it is call/4's
@@ -128,6 +130,8 @@ rows(Unit, Callers, Callees) ->
               fun answered/2},
              {"+ the wait against a deadline, sliced, in tries, as call/4's", Ernest,
               fun waited/2},
+             {"+ the wait a closure, which a function that notes and settles the call runs",
+              Ernest, fun noted/2},
              {"Address.call of an Ernest counter", Counter,
               fun(Callee, _) -> Get(Callee) end},
              {"Address.callForever of it", Counter,
@@ -193,8 +197,10 @@ host_serve(Total) ->
             host_serve(Total + 1)
     end.
 
-%% The counter as the compiler writes its receive, answering by answer/2.
+%% The counter as the compiler writes its receive, at_receive/0 before it,
+%% answering by answer/2.
 ernest_serve(Total) ->
+    ern_rt:at_receive(),
     receive
         '$ern_restart' -> ern_rt:restart_now();
         {'$ern_fault', Fault} -> erlang:throw(Fault);
@@ -222,12 +228,10 @@ host_call(Callee, _) ->
         0
     end.
 
-%% + call/4's way to the callee: the line guard, the process behind the
-%% address, the request made by its function and sent by ern_rt:send/2,
-%% which takes it the address's way, and late answers flushed with the
-%% monitor.
+%% + call/4's way to the callee: the process behind the address, the
+%% request made by its function and sent by ern_rt:send/2, which takes it
+%% the address's way, and late answers flushed with the monitor.
 addressed(Address, Request) ->
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     ern_rt:send(Address, Request(Reply)),
@@ -243,7 +247,6 @@ addressed(Address, Request) ->
 %% made and deleted as the call ends, which the reaper reads at the
 %% callee's restart to end the call (§6.9).
 restartable(Address, Request) ->
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request(Reply),
@@ -264,7 +267,6 @@ restartable(Address, Request) ->
 %% moment (Appendix E.21): pending/1 and uncalled/0 whole, the moment the
 %% deadline's, which waited/2 reads.
 keyed(Address, Request) ->
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request(Reply),
@@ -281,7 +283,6 @@ keyed(Address, Request) ->
 
 %% + the caller marked as in a timed receive while it waits.
 marked(Address, Request) ->
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request(Reply),
@@ -302,7 +303,6 @@ marked(Address, Request) ->
 %% the caller's process beside it, taken among every form a call's wait
 %% takes, and made Some: the callee is the compiled counter's form.
 answered(Address, Request) ->
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request({Reply, self()}),
@@ -328,11 +328,10 @@ answered(Address, Request) ->
 %% + the wait as waited_answer/3 makes it: against a deadline taken as
 %% the call begins, in slices of at most the host's longest wait, the mark
 %% taken away in a try's after and the call settled in another's, the
-%% restart asked for taken: call/4 whole.
+%% restart asked for taken: call/4 but its closure.
 waited(Address, Request) ->
     Since = ern_rt:monotonic(),
     Deadline = ern_rt:deadline(Since, ?MS),
-    guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Answer = try
@@ -348,6 +347,36 @@ waited(Address, Request) ->
     case Answer of
         '$ern_restart' -> ern_rt:restart_now();
         _ -> valued(Answer)
+    end.
+
+%% + the wait a closure, which a function that makes the request, notes
+%% the call, sends the request and settles the call runs, as call/4 gives
+%% noted_call/4 its wait: call/4 whole.
+noted(Address, Request) ->
+    Since = ern_rt:monotonic(),
+    Deadline = ern_rt:deadline(Since, ?MS),
+    Callee = ern_rt:process_of(Address),
+    Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
+    Answer = noted_call(Address, Request, Callee, Reply, Since,
+                        fun() ->
+                            ern_rt:timed(),
+                            try waited_answer(Reply, Deadline) after ern_rt:untimed() end
+                        end),
+    case Answer of
+        '$ern_restart' -> ern_rt:restart_now();
+        _ -> valued(Answer)
+    end.
+
+%% ern_rt's noted_call/4 for a callee of this node.
+noted_call(Address, Request, Callee, Reply, Since, Wait) ->
+    try
+        Message = Request({Reply, self()}),
+        pending(Callee, Reply, Since),
+        ern_rt:send(Address, Message),
+        Wait()
+    after
+        uncalled(),
+        flushed(Reply)
     end.
 
 waited_answer(Reply, Deadline) ->
@@ -370,12 +399,6 @@ waited_answer(Reply, Deadline) ->
 %% Optional.withDefault(answer, 0), as the program's caller writes it.
 valued({'Some', Value}) -> Value;
 valued('None') -> 0.
-
-%% ern_rt's line_guard/1, where no shell holds the terminal.
-guarded() ->
-    case ern_rt:terminal_holder() of
-        undefined -> ok
-    end.
 
 %% ern_rt's pending/1 for a callee of this node, the call's limit that of
 %% call/4.

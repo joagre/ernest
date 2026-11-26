@@ -3068,7 +3068,7 @@ let build = OrderedSet.fromList
 
 ```console
 $ ern build example.ern
-example.ern:1:13: OrderedSet.fromList needs a.compare, which a top-level let cannot declare
+example.ern:1:13: OrderedSet.fromList needs a.compare, which a top-level `let` cannot declare
 1 | let build = OrderedSet.fromList
   |             ^^^^^^^^^^^^^^^^^^^
   | = help: declare a `fn` with `needs a.compare`
@@ -4754,7 +4754,7 @@ fn f(s : State) : Int receiving Int =
 
 ```console
 $ ern build example.ern
-example.ern:7:21: a `receive` guard selects a field from a variable, a top-level let, or a field of one, and calls nothing
+example.ern:7:21: a `receive` guard selects a field from a variable, a top-level `let`, or a field of one, and calls nothing
 6 |     receive {
 7 |         n when n == next(s).at -> 1
   |                     ^^^^^^^^^^

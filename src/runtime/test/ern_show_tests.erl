@@ -46,7 +46,7 @@ by_type_test() ->
 %% element to []. A regression test, written after the code; the order of
 %% the other types the sentence names is not covered here
 bool_ascending_test() ->
-    Set = ern_set:from_list([true, false]),
+    Set = sets:from_list([true, false]),
     ?assertEqual(<<"Set.fromList([false, true])">>, ern_show:show({set, bool}, Set)),
     ?assertEqual(<<"Map.fromList([#(false, []), #(true, [])])">>, ern_show:show(any, Set)),
     Map = #{true => 1, false => 0},

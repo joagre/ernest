@@ -13,7 +13,7 @@
 %%   Inc(amount)                                {'Inc', Amount}
 %%   Get(reply)                                 {'Get', Reply}
 %%   Upgrade(=migrate, =next)                   {'Upgrade', Migrate, Next}, fields
-%%                                              in canonical (sorted) order
+%%                                              in declared order
 %%
 %% The module atom is the module's path with @ for / and the prefix ern@,
 %% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.

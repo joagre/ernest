@@ -171,8 +171,8 @@ helper_says_input_was_dropped_test() ->
 %% last frame, after which the helper waits to be let go. A regression
 %% test: the helper ended without a word, and `start` answered only that
 %% the helper failed. Under `make sanitize` the leak checker, which needs
-%% descriptors of its own as the helper ends, is off for this run alone;
-%% the release review found it starved, and the helper hung as it failed
+%% descriptors of its own as the helper ends, is off for this run alone,
+%% since where it was on it starved, and the helper hung as it failed
 helper_gives_the_hosts_reason_test() ->
     Helper = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
                         " exec " ++ helper_path() ++ " run\""},

@@ -56,7 +56,7 @@ A file is refused before anything runs, with a line that names the fault. Report
 - is not JSON;
 - names a field the node does not know;
 - names a field twice;
-- holds a number too large for the host to read;
+- holds a whole number too large for the host to read;
 - names a peer twice;
 - gives two peers one key;
 - lists this node's own key as a peer's;
@@ -176,7 +176,7 @@ Two nodes connect only where they stand on one *floor*: one major and minor rele
 
 A build of `ern` that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the *program* connect, and agree on the code they share by a hash of each definition (section 6): a *definition* is one function or type of the program, and its *hash* a number computed from the definition's name with its module's, from what it does and from what it uses; a changed comment or layout leaves it as it was, and a moved or renamed module is new code (report §8.7).
 
-The handshake proves the floor by its *cookie*, the digest of the protocol's version, the form's version, `ern`'s major and minor and OTP's major release, or of a development build's own code, which every node's command line carries and `ps` shows, `-setcookie` and the digest. It is the same on every node of one floor, is no secret, and grants nothing: a connection is accepted by its key alone (report §12.5).
+The handshake proves the floor by its *cookie*, the digest of the protocol's version, the form's version (report Appendix H), `ern`'s major and minor and OTP's major release, or of a development build's own code (report §12.5). Every node's command line carries it, `-setcookie` and the digest, which `ps` shows, and it is the same on every node of one floor. It is no secret and grants nothing: a connection is accepted by its key alone (report §12.5).
 
 The node says `the peer b connected` as the connection opens, `the peer b ended` when `b` stopped in order, and `the peer b's connection was replaced by another from the same node` where `b` dialed anew while the old connection was alive, as after `b`'s restart.
 
@@ -389,7 +389,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the peer a's spawn at Site was not loaded: this node could not take the code it received: ...` | The host refused to compile or load what arrived, a count among the reasons. | Restart the node when convenient. |
 | `the peer a's spawn at Site was not loaded: the spawner's node no longer holds the function's reach` | The spawning side let go of the code between asking and sending. | None here; the spawner sees `Io.Other`. |
 | `the host has used N of its M module names, which it never gives back` | Four fifths of a host count, from the code the node was sent or loaded. | Plan a restart at a quiet time; the node runs on meanwhile. |
-| `the process of Counter.serve:14 faulted: division by zero, spawned by the peer a` | A process a peer spawned here faulted; its trace follows. | The program's author's; the site says where. |
+| `the process of Counter.moving:106 faulted: division by zero, spawned by the peer a` | A process a peer spawned here faulted; its trace follows. | The program's author's; the site says where. |
 | `the end waits for 1 subscriber: Keeper.main` | Termination has told a subscriber and waits for its answer. | Wait, or a second `ern stop` ends at once, losing what it was writing. |
 | `the subscriber Keeper.main answered` | The subscriber has done its work, and the end goes on. Both lines are written at every orderly end of a program with a subscriber, however short the wait. | None. |
 | `ern run: dir is the configuration directory of the running node N, which ernest.pid names` | A second start from a directory whose `ernest.pid` a running node holds; the `ern run` command writes it, not a node. | Stop the first, or start from the directory meant. |

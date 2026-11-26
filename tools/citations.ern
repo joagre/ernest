@@ -198,7 +198,9 @@ export fn numberAt(chars : List(Char)) : Optional(#(String, List(Char))) =
 fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
     List.splitWhile(chars, Char.isAsciiDigit)
 
-fn isCapital(char : Char) : Bool =
+/// Whether the character is a capital of ASCII, `A` to `Z`, as an
+/// appendix's letter is.
+export fn isCapital(char : Char) : Bool =
     char >= 'A' && char <= 'Z'
 
 // Whether the character list begins with the word's characters.

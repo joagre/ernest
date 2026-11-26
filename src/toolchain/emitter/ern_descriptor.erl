@@ -11,11 +11,11 @@
 %% holds, the type `let p <- e` binds among them, while the emitter
 %% describes from the forms and the link of the unit it makes. They share
 %% how a constructor and a recursive type are described, and
-%% ern_shell_tests' prompt_shows_as_io_show_test holds what the two print
+%% ern_shell_tests' prompt_shows_as_io_show_test_ holds what the two print
 %% equal for each kind of value.
 -module(ern_descriptor).
 
--export([describe/3, constructor_namespace/1, constructor_descriptor/3, refers/2]).
+-export([describe/3, constructor_namespace/1, constructor_descriptor/3, recursive/2]).
 
 -export_type([descriptor/0, named_cause/0]).
 
@@ -109,10 +109,7 @@ descriptor({tcon, QualifiedName, Args} = Type, Seen, #scope{env = Env} = Scope) 
                     Id = map_size(Seen) + 1,
                     Sum = {con, constructor_namespace(QualifiedName),
                            constructor_descriptors(Constructors, Args, Seen#{Type => Id}, Scope)},
-                    Descriptor = case refers(Sum, Id) of
-                                     true -> {mu, Id, Sum};
-                                     false -> Sum
-                                 end,
+                    Descriptor = recursive(Id, Sum),
                     %% report §4.4: seen from outside its module, an abstract
                     %% type's representation is not the program's to print
                     case Abstract andalso lists:droplast(QualifiedName) =/= Scope#scope.namespace of
@@ -147,13 +144,23 @@ constructor_descriptors(Constructors, Args, Seen, Scope) ->
 %% Report §3.5, Appendix E.1: a constructor's descriptor, its fields'
 %% descriptors, and a named one's fields' names, in declared order, for
 %% printing.
--spec constructor_descriptor(atom(), {named, [atom()]} | term(), [descriptor()]) ->
+-spec constructor_descriptor(atom(),
+                             none | positional | {positional, term()} | {named, [atom()]},
+                             [descriptor()]) ->
           {atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}.
 constructor_descriptor(Tag, {named, Names}, FieldDescriptors) -> {Tag, FieldDescriptors, Names};
 constructor_descriptor(Tag, _, FieldDescriptors) -> {Tag, FieldDescriptors}.
 
-%% Whether a descriptor refers to the mu that binds Id, so that a type
-%% that does not recur is described without one.
+%% A user type's descriptor, its Sum under the mu that binds Id where the
+%% sum refers back to it, and the sum alone for a type that does not recur.
+-spec recursive(pos_integer(), descriptor()) -> descriptor().
+recursive(Id, Sum) ->
+    case refers(Sum, Id) of
+        true -> {mu, Id, Sum};
+        false -> Sum
+    end.
+
+%% Whether a descriptor refers to the mu that binds Id.
 -spec refers(term(), pos_integer()) -> boolean().
 refers({ref, Id}, Id) -> true;
 refers(Part, Id) when is_tuple(Part) ->

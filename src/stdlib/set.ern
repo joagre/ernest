@@ -41,7 +41,7 @@
 export let empty : Set(a) = emptySet()
 
 foreign fn emptySet() : Set(a) =
-    "ern_set:empty/0"
+    "sets:new/0"
 
 /// The number of elements.
 ///
@@ -187,7 +187,7 @@ export fn find(set : Set(a), test : (a) -> Bool receiving e) : Optional(a) recei
 
 /// The set of the list's elements, each once.
 export foreign fn fromList(list : List(a)) : Set(a) =
-    "ern_set:from_list/1"
+    "sets:from_list/1"
 
 /// The elements, in unspecified order.
 export foreign fn toList(set : Set(a)) : List(a) =

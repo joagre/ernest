@@ -3,9 +3,9 @@
 %% one shell that is the node `a`, in a working directory into which each
 %% later chapter's files are copied in turn, `:load Counter` once and
 %% `:reload` at each chapter, beside the two bare nodes `foo` and `bar`,
-%% which chapter 2's commands make and the nodes' harness starts
-%% (ern_nodes_tests), with chapter 5's and chapter 6's builds and tests run
-%% in that directory, and chapter 8's shell attached to `foo` and its stops.
+%% which chapter 2's commands make and the harness starts (ern_harness),
+%% with chapter 5's and chapter 6's builds and tests run in that directory,
+%% and chapter 8's shell attached to `foo` and its stops.
 %%
 %% What is typed and what is held to come is read from the page's blocks
 %% under each chapter's heading, each a console or the json block, bound in
@@ -132,9 +132,9 @@ readme_test_() ->
 
 readme(Base) ->
     [{Number, Console}] = [{Number, Code}
-                           || {Number, <<"console">>,
+                           || {Number, _, <<"console">>,
                                [<<"$ ern shell --config-dir a">> | _] = Code}
-                                  <- fenced(numbered(?README))],
+                                  <- ern_helpers:blocks(numbered(?README))],
     recorded(?README, [Number]),
     PortFoo = ern_harness:free_port(),
     AddressFoo = ern_harness:address(PortFoo),
@@ -177,8 +177,8 @@ home_example_test_() ->
     ern_harness:nodes_test({waits, 16}, fun home_example/1).
 
 home_example(Base) ->
-    [{CodeLine, <<"ernest">>, Code}, {ConsoleLine, <<"console">>, Console}] =
-        fenced(numbered(?EXAMPLE)),
+    [{CodeLine, _, <<"ernest">>, Code}, {ConsoleLine, _, <<"console">>, Console}] =
+        ern_helpers:blocks(numbered(?EXAMPLE)),
     recorded(?EXAMPLE, [CodeLine, ConsoleLine]),
     Declared = [{Declaration, [lists:append(lists:duplicate(Continued, "... ")) ++ Printed]}
                 || {{Declaration, Continued}, Printed}
@@ -475,7 +475,8 @@ blocks(Chapter, Mark) ->
     {_, [_ | Rest]} = lists:splitwith(fun({_, Line}) -> not is_prefix(Heading, Line) end,
                                       numbered(?PAGE)),
     {Section, _} = lists:splitwith(fun({_, Line}) -> not is_prefix(<<"## ">>, Line) end, Rest),
-    Blocks = [{Number, Code} || {Number, Info, Code} <- fenced(Section), Info =:= Mark],
+    Blocks = [{Number, Code} || {Number, _, Info, Code} <- ern_helpers:blocks(Section),
+                                Info =:= Mark],
     recorded(?PAGE, [Number || {Number, _} <- Blocks]),
     [Code || {_, Code} <- Blocks].
 
@@ -492,17 +493,6 @@ recorded(Document, Lines) ->
 numbered(Document) ->
     {ok, Text} = file:read_file(Document),
     lists:enumerate(binary:split(Text, <<"\n">>, [global])).
-
-%% The fenced blocks of numbered lines, each the line its fence opens on,
-%% the word after its fence and its lines.
-fenced([]) ->
-    [];
-fenced([{Number, <<"```", Info/binary>>} | Rest]) ->
-    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not is_prefix(<<"```">>, Line) end,
-                                          Rest),
-    [{Number, Info, [Line || {_, Line} <- Code]} | fenced(After)];
-fenced([_ | Rest]) ->
-    fenced(Rest).
 
 is_prefix(Prefix, Line) ->
     binary:longest_common_prefix([Prefix, Line]) =:= byte_size(Prefix).

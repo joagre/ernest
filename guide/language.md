@@ -268,6 +268,8 @@ number : String
 
 `Int` and `Float` are separate types, and nothing converts between them implicitly: `1 + 2.0` is a type error. Convert with `Int.toFloat`, or with `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`.
 
+A comment runs from `//` to the end of its line, or from `/*` to its `*/`, and the second form nests (report §2.2). `<`, `<=`, `>` and `>=` compare two values of one type that has an order (§2.5). A `-` before an expression negates it, `-x`, and binds tighter than any binary operator, whose precedence is the table of report §2.6.
+
 ### 2.2 Bindings and blocks
 
 At the prompt, as in a block, `let` binds a name:
@@ -589,7 +591,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 
 A data format, a protocol and a pattern language each belong to a library outside the standard library, since report Appendix E.0's admission rule 2 makes a published specification a library's and no module's vocabulary, and report Appendix G lists the libraries there are. Mathematics over collections of floats, statistics, matrices and numerical methods, is a library's too.
 
-The names every module may use without a module's name before them, `Some`, `Left`, `spawn` and `send` among them, are the *prelude*'s (report §9), and `:browse Prelude` in the shell lists them. Two of its functions stand under its type `Address`, `Address.call` and `Address.callForever` (§4.5), and `:browse Address` lists them. The library's rules let a reader guess a name before looking it up (report Appendix E.0):
+The names every module may use without a module's name before them, `Some`, `Left`, `spawn` and `send` among them, are the *prelude*'s (report §9). In the shell, `:browse Prelude` lists its types by name, its functions with their types and each type's members, and `:doc Optional` shows a type's declaration, its constructors among it. Two of its functions stand under its type `Address`, `Address.call` and `Address.callForever` (§4.5), and `:browse Address` lists them too. The library's rules let a reader guess a name before looking it up (report Appendix E.0):
 
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `remove` takes the key, `Map.remove(m, k)`, and a list's removal by index is `List.removeAt(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `map`, `filter`, `fold`, `forEach`, `find`, `fromList`, `toList` wherever they apply, and `foldLeft` in place of `fold` where the container has an order, as a list has.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
@@ -714,7 +716,7 @@ Without a source that fixes the type, `value + value` is a type error, and `(val
 
 - A `fn` is polymorphic.
 - A top-level `let` is polymorphic where its initializer is a value: a literal, a name, a lambda, a tuple or a list of values, or a constructor applied to values, `let empty = []`.
-- A top-level `let` whose initializer calls a function has the type the call gives, and is polymorphic where that type holds no function, foreign value, address or reply. `let empty = fresh()`, `fresh` a function of the program's that answers `Stack([])`, a `Stack(a)` of a type `Stack` the program declares, is polymorphic; `let shared = spawn(...)`, an address (§4.1), is not (report §4.6).
+- A top-level `let` whose initializer is no value, such as a call or an `if`, is polymorphic where its type holds no function, foreign value, address or reply. `let empty = fresh()`, `fresh` a function of the program's that answers `Stack([])`, a `Stack(a)` of a type `Stack` the program declares, is polymorphic; `let shared = spawn(...)`, an address (§4.1), is not (report §4.6).
 - A `let` in a block is polymorphic only where it binds a lambda. Any other `let` in a block has one type.
 
 ```console
@@ -1777,7 +1779,7 @@ A process that is killed, or that ends with the program, has not faulted. A dead
 
 Beneath a fault's line `ern run` writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace goes no deeper than the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A trace keeps twelve lines, and a deeper stack's ends with a thirteenth that counts the frames left out, `... 6 more frames`. A run of identical lines is one line, so a function that calls itself shows one frame, whatever its depth. A frame of the standard library's own Ernest names its line in the library's source, `Process.run:346` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A trace keeps twelve lines, and a deeper stack's ends with a thirteenth that counts the frames left out, `... 6 more frames`. A run of identical lines is one line, so a function that calls itself shows one frame, whatever its depth. A frame of the standard library's own Ernest names its line in the library's source, `Process.run:347` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1814,7 +1816,7 @@ $ ern run tasks.erc
 the process of Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:346
+    Process.run:347
 0: failed, division by zero
 5: 20
 all jobs done
@@ -2036,16 +2038,15 @@ export fn main() : Unit =
 
 `main.ern` stands at the root, so it names the constructor `Shop.Order.Order` by its whole name, as it names the function.
 
-Compile file-by-file and run:
+Compile the whole tree into `build/` and run:
 
 ```console
-$ ern build shop/order.ern            # produces shop/order.erc
-$ ern build main.ern                  # produces main.erc
-$ ern run main.erc                   # shop/order.erc is found under main.erc's root, which is on the load path
+$ ern build --build-root build .         # walks the source tree, writes build/shop/order.erc and build/main.erc
+$ ern run build/main.erc                 # build/shop/order.erc is found under main.erc's root, build, which is on the load path
 3 apples
 ```
 
-Or compile the whole tree at once, into `build/`. A module may export several entry points: `ern run` runs `export fn main`, and `--main` names another exported function that takes no arguments and returns `Unit`, here `check`, which `main.ern` gains:
+A module may export several entry points: `ern run` runs `export fn main`, and `--main` names another exported function that takes no arguments and returns `Unit`, here `check`, which `main.ern` gains:
 
 ```ernest
 // main.ern, continued
@@ -2054,18 +2055,20 @@ export fn check() : Unit =
 ```
 
 ```console
-$ ern build --build-root build .         # walks the source tree, writes build/shop/order.erc and build/main.erc
+$ ern build --build-root build .
 $ ern run --main check build/main.erc
 None
 ```
 
 Directory mode compiles the modules in the order their dependencies need, and a second run compiles again only what changed (§9.1).
 
-A build of one file compiles that module alone, so a program of several modules builds its directory. A build reads a module's namespace from the source root and writes its `.erc` beside the source, unless `--build-root` names another directory. In a package (§9.6) the source root is its `src` and the build root its `build`. A program becomes a package when it names one: a library taken from an archive is a named package of its `package.conf` (§9.6). A directory of the program's own compiled modules needs none, and is added with `--load-path` (§9.1).
+A build of one file, `ern build main.ern`, compiles that module alone, so a program of several modules builds its directory. A build reads a module's namespace from the source root and writes its `.erc` beside the source, unless `--build-root` names another directory. In a package (§9.6) the source root is its `src` and the build root its `build`. A program becomes a package when it names one: a library taken from an archive is a named package of its `package.conf` (§9.6). A directory of the program's own compiled modules needs none, and is added with `--load-path` (§9.1).
 
 **The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one or more lowercase words joined by `_`, and the namespace capitalizes each word and drops the `_`, `ordered_set.ern` for `OrderedSet`. A directory adds a namespace segment: `shop/order.ern` is `Shop.Order`, a module apart from `shop_order.ern`'s `ShopOrder`.
 
-The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory, and in a package its `src` (§9.6). No segment of a module's namespace, at any depth, may be a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `shop/io.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1). The namespace of a library of the toolchain's own, `Json` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library's, which stands last on the load path (report §4.2). A module that hides one another library uses is refused where the program uses that library, as `time.ern` is beside a module that uses `Http`, since `Http` uses `Time`: `time.ern: Time hides the library Time, which the library Http uses` (report §4.2, report §11.1).
+The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory, and in a package its `src` (§9.6). No segment of a module's namespace, at any depth, may be a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `shop/io.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1).
+
+The namespace of a library of the toolchain's own, `Json` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library's, which stands last on the load path (report §4.2). A module that hides one another library uses is refused where the program uses that library, as `time.ern` is beside a module that uses `Http`, since `Http` uses `Time`. A node and the shell's `:load` refuse it whether or not the program uses the library. The refusal ends with what to do: `time.ern: Time hides the library Time, which the library Http uses; give time another name` (report §4.2, report §11.1).
 
 **Declarations use local names.** In `shop/order.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Shop.Order.parse`, and the code inside by its plain name (report §4.2).
 
@@ -2077,7 +2080,7 @@ The source root is `--source-root dir`; without it, the directory `ern build` is
 
 **Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. `parse`'s block above says when its `Optional` is never `None`, which its type cannot. What a module's documentation contains is report Appendix E.0's shape rule 6, a section 3 manual page written for the programmer about to use the module, and [`docs/module_doc_template.md`](../docs/module_doc_template.md) shows it on an example module.
 
-**Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)` (report Appendix E.24). `Test.equal(actual, expected)` is the comparison most tests make: `Test.Passed` where the two are equal, and otherwise `Test.Failed("expected 2, got 3")`, each value as `Io.show` writes it. Several values are compared at once as a tuple, `Test.equal(#(add(1, 1), add(0, 3)), #(2, 3))`. A module with two tests and a doc example:
+**Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)` (report Appendix E.24). `Test.equal(actual, expected)` is the comparison most tests make: `Test.Passed` where the two are equal, and otherwise `Test.Failed("expected 2, got 3")`, each value as `Io.show` writes it. Several values are compared at once as a tuple, `Test.equal(#(add(1, 1), add(0, 3)), #(2, 3))`. A module with two tests and a doc example, `checks.ern` beside `main.ern`:
 
 ```ernest
 /// The sum of two integers.
@@ -2103,8 +2106,8 @@ let answersBack = Test.Case(name = "a worker answers back", run = fn() = {
 ```
 
 ```console
-$ ern build checks.ern
-$ ern test checks.erc
+$ ern build --build-root build .
+$ ern test build/checks.erc
 adds two: passed
 a worker answers back: passed
 Checks.add example 1: passed
@@ -2475,7 +2478,7 @@ $ ern run square.erc
 no foo: Io.NotListed
 ```
 
-With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. Two nodes on one machine run here from one directory: `square.erc` on the node `a`, and `foo` a *bare node*, started from its configuration directory with no program, which holds nothing of `square`'s and is sent `heavy` by the compute (report §8.7). Both stand on one floor, one minor release of `ern` on one major release of OTP.
+With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. Two nodes on one machine run here from one directory, a new one, since a node reads every compiled file under its program's root and refuses §7.1's `build/` beneath it (report §11.2): `square.erc` on the node `a`, and `foo` a *bare node*, started from its configuration directory with no program, which holds nothing of `square`'s and is sent `heavy` by the compute (report §8.7). Both stand on one floor, one minor release of `ern` on one major release of OTP.
 
 A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the `listen` address `--listen` gives, no peer and no service yet, and the private key and a certificate beside it. A peer has a name, which the program uses, a public key and a network address, and `ern config --peer-dir` adds a peer of the same machine, reading all three from the peer's directory.
 
@@ -2899,7 +2902,7 @@ A program that needs such a thing on another node makes it there: the spawned fu
 
 ### 8.4 A service moved to new code
 
-A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own, where `f` names a top-level `fn`. It lists the addresses of the processes on this node whose stack holds a frame of `f`, or of another version of its name with the same message type, at that moment. Only the innermost 64 frames count, the ones the host keeps, consecutive frames that return to one call counted as one, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28). `:type Code.running` prints `(a) -> List(Address(m))`, and beneath it the rule, `a primitive: called where it is named; a is the name of a top-level fn and m its mailbox type`.
+A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own, where `f` names a top-level `fn`. It lists the addresses of the processes on this node whose stack holds a frame of `f`, or of another version of its name with the same message type, at that moment. Only the innermost 64 frames count, the ones the host keeps, consecutive frames that return to one call counted as one, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28). `:type Code.running` prints `(a) -> List(Address(m))`, and beneath it the rule, ``a primitive: called where it is named; a is the name of a top-level `fn` and m its mailbox type``.
 
 The move's limits are three: the same message type, a frame of `f` among the 64 the host keeps, and no `restarting` around the process, whose restart runs the old loop (report §6.9; the deployment guide's §6.3). A tool moves every counter by sending each its `Upgrade`:
 
@@ -3265,7 +3268,7 @@ The tools are one command, `ern` (§1), and a mode for Emacs. `ern --help` lists
 - `ern build --build-root build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source or the path to it, an interface it depends on, a definition of another module its code uses, any interface of the standard library, or the compiler has changed, when a qualified name in its source would now resolve to another module or to none, or when its `.erc` is no compiled module (report §11.1). A `.erc` whose source is gone is removed.
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library the program uses, and may be given more than once; the toolchain's libraries, report Appendix G, are on the load path already, after every directory it adds.
 - `--emit-erl` writes the Erlang the module compiles to, for reading.
-- `ern doc file.ern` writes the module's documentation to standard output as CommonMark (report §11.4). `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` renders a manual page instead, to standard output for one module and, for a directory, as a file beside each module, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
+- `ern doc file.ern` writes the module's documentation to standard output as CommonMark (report §11.4). It reads the compiled forms of the modules that module uses under the build's roots, so after the directory build above it is given both roots: `ern doc --source-root src --build-root build src/file.ern`. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` renders a manual page instead, to standard output for one module and, for a directory, as a file beside each module, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
 - `ern format file.ern` lays the module out in the one layout report §11.6 states, and `ern format src` every module under `src`; only line breaks and spaces change, and every comment stays where it was. `ern format --check src` names each module not laid out and changes none; `ern format - < file.ern` writes the module as `ern format` would lay it out, to standard output, and changes nothing.
 - `ern unpack` unpacks each package the program's manifest names from its archive under `lib`, once the archive's digest is its entry's, and reads no network (§9.6, report §11.9).
 

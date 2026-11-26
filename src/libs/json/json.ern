@@ -618,7 +618,7 @@ fn longDigits() : String =
     String.repeat("9", 1300000)
 
 // What `parse` answers for the too-long integer at the column.
-fn longAt(column : Int) : Either(Error, Value) =
+fn longDigitsRefusedAt(column : Int) : Either(Error, Value) =
     Left(UnexpectedSequence(text = longDigits(), at = Position(line = 1, =column)))
 
 // report Appendix G.6
@@ -627,7 +627,7 @@ let tooLong =
               run = fn() = {
                   let digits = longDigits();
                   Test.equal(#(parse(digits), parse("[\"" <> digits <> "\", " <> digits <> "]")),
-                             #(longAt(1), longAt(1300006)))
+                             #(longDigitsRefusedAt(1), longDigitsRefusedAt(1300006)))
               })
 
 // report Appendix G.6: a regression test: the digits were looked for at
@@ -638,7 +638,7 @@ let tooLongAfterReal =
         let digits = longDigits();
         Test.equal(#(parse("[0." <> digits <> ", " <> digits <> "]"),
                      parse("[1" <> digits <> "e-1300000, " <> digits <> "]")),
-                   #(longAt(1300006), longAt(1300014)))
+                   #(longDigitsRefusedAt(1300006), longDigitsRefusedAt(1300014)))
     })
 
 // report Appendix G.6: a regression test, written after the code: a real
@@ -650,7 +650,7 @@ let tooLongAfterItsDigits =
                   let digits = longDigits();
                   Test.equal(#(parse("[" <> digits <> "e-1300000, " <> digits <> "]"),
                                parse("[" <> digits <> ".5e-1300000, " <> digits <> "]")),
-                             #(longAt(1300013), longAt(1300015)))
+                             #(longDigitsRefusedAt(1300013), longDigitsRefusedAt(1300015)))
               })
 
 // report Appendix G.6: a regression test: the digits were compared at every
@@ -662,7 +662,7 @@ let tooLongReadOnce =
               run = fn() = {
                   let digits = longDigits();
                   Test.equal(parse("[0." <> String.repeat("9", 1299999) <> ", " <> digits <> "]"),
-                             longAt(1300005))
+                             longDigitsRefusedAt(1300005))
               })
 
 // report Appendix G.6: a regression test: the host answered the end of

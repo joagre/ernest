@@ -635,9 +635,11 @@ package_at(Path, Named) ->
 %% Report §11.1: the refusal of File's module of Namespace, which hides the
 %% module of the library whose build is Library, naming the library or the
 %% named package of the first module of Dependents, in the load path's
-%% order, that depends on the hidden module, Library's own among them; none
-%% where none does. A dependent is a named package's build, `{package,
-%% Package}`, or a library's, `{library, Root}`.
+%% order, that depends on the hidden module, Library's own among them, and
+%% the file's name to change, as a taken segment's refusal names the part
+%% of the path to rename (placed_module/3); none where none does. A
+%% dependent is a named package's build, `{package, Package}`, or a
+%% library's, `{library, Root}`.
 hides(File, Namespace, Library, Dependents) ->
     hides_by(File, Namespace, Library,
              lists:search(fun(Dependent) -> is_dependent(Dependent, Namespace) end, Dependents)).
@@ -655,7 +657,8 @@ hides(File, Namespace, Library, Dependents, Reached) ->
 
 hides_by(File, Namespace, Library, {value, Dependent}) ->
     lists:flatten([shown(File), ": ", ern_namespace:text(Namespace), " hides the library ",
-                   library_name(Library), ", which ", dependent_text(Dependent), " uses"]);
+                   library_name(Library), ", which ", dependent_text(Dependent), " uses; give ",
+                   filename:rootname(filename:basename(File)), " another name"]);
 hides_by(_File, _Namespace, _Library, false) ->
     none.
 
@@ -2943,4 +2946,3 @@ fail(Message) ->
 -spec form_fail(iodata()) -> no_return().
 form_fail(Message) ->
     throw({cli_usage, control_free(Message)}).
-

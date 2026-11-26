@@ -838,11 +838,10 @@ no_longer_held_test() ->
 %% spawn said and left unanswered, its spawner answering itself, and a
 %% reach of it that comes later is passed over; a spawn that joins an
 %% exchange with a shorter time leaves it the longer, which has not run out
-%% at its timer's message. A
-%% regression test, written after the fix (the release review
-%% found an exchange a peer never completed kept until the connection's
-%% loss); it does not cover a compute's exchange, whose time is its frame's
-%% as a spawn's is, nor two nodes
+%% at its timer's message. A regression test: an exchange a peer never
+%% completed was kept until the connection's loss. It does not cover a
+%% compute's exchange, whose time is its frame's as a spawn's is, nor two
+%% nodes
 timed_out_test() ->
     Work = {function, <<11:256>>},
     Joined = {function, <<12:256>>},

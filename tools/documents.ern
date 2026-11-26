@@ -27,7 +27,7 @@
 //
 
 // The listing the command line asks for.
-type Job = Lengths | Citations | Terms | Unchecked | Edits
+type Job = Lengths | CitedSections | Terms | Unchecked | Edits
 
 // Where a line of a document stands: in prose, as a fence's own line, or
 // inside a fenced block.
@@ -61,7 +61,7 @@ export fn main() : Unit =
 fn jobNamed(name : String) : Optional(Job) =
     match name {
         "lengths" -> Some(Lengths)
-      | "citations" -> Some(Citations)
+      | "citations" -> Some(CitedSections)
       | "terms" -> Some(Terms)
       | "unchecked" -> Some(Unchecked)
       | "edits" -> Some(Edits)
@@ -71,7 +71,7 @@ fn jobNamed(name : String) : Optional(Job) =
 fn listed(job : Job) : List(String) =
     match job {
         Lengths -> lengths()
-      | Citations -> citations()
+      | CitedSections -> citations()
       | Terms -> terms()
       | Unchecked -> unchecked()
       | Edits -> edits()
@@ -83,7 +83,7 @@ fn listed(job : Job) : List(String) =
 
 // The guide's documents, as git tracks them.
 fn guideFiles() : List(String) =
-    String.lines(Repository.git("documents", ["ls-files", "--", "guide/*.md"]))
+    Repository.tracked("documents", ["guide/*.md"])
 
 //
 // The reading
@@ -544,7 +544,7 @@ type Record = Record(started : Int, covers : List(String), places : Set(String))
 
 // A test's record as the listing reads it: the places it names, or why it
 // names none.
-type Reading = Read(places : Set(String)) | Unread(why : String)
+type Reading = Read(places : Set(String)) | Unread(cause : String)
 
 // Where the tests write their records.
 let recordsDir : String = "build/checked/"
@@ -572,7 +572,7 @@ fn uncheckedRows(blocks : List(Block), readings : List(#(String, Reading))) : Li
     let checked =
         List.foldLeft(readings,
                       Set.empty,
-                      fn(all, #(_, reading)) = Set.fold(placesOf(reading), all, Set.put));
+                      fn(all, #(_, reading)) = Set.union(all, placesOf(reading)));
     let open = List.filter(blocks, fn(block) = !Set.contains(checked, blockPlace(block)));
     let marks = List.unique(List.sortBy(List.map(blocks, markOf), fn(mark) = mark));
     let sorted = List.sortBy(open, markOf);
@@ -605,7 +605,7 @@ fn uncheckedRows(blocks : List(Block), readings : List(#(String, Reading))) : Li
 fn placesOf(reading : Reading) : Set(String) =
     match reading {
         Read(=places) -> places
-      | Unread(why = _) -> Set.empty
+      | Unread(cause = _) -> Set.empty
     }
 
 // A test's row: the count of the blocks its record names, or why it names
@@ -616,8 +616,8 @@ fn testRow(blocks : List(Block), test : String, reading : Reading) : String = {
             let named = List.filter(blocks, fn(block) = Set.contains(places, blockPlace(block)));
             column(Int.toString(List.size(named)), 4) <> " checked"
         }
-      | Unread(=why) ->
-            why
+      | Unread(=cause) ->
+            cause
     };
     String.padEnd(test, 22, " ") <> said
 }
@@ -666,10 +666,11 @@ fn recordingTests() : List(#(String, String)) =
         |> List.sortBy(fn(#(test, _)) = test)
 
 // The test a source holds, `ern_docs_tests` of test/ern_docs_tests.erl.
-fn testOf(source : String) : String = {
-    let file = Optional.withDefault(List.last(String.split(source, "/")), source);
-    Optional.withDefault(String.stripSuffix(file, ".erl"), file)
-}
+fn testOf(source : String) : String =
+    match List.reverse(String.split(source, "/")) {
+        file :: _ -> Optional.withDefault(String.stripSuffix(file, ".erl"), file)
+      | [] -> fault("String.split answers one part at least")
+    }
 
 // A test's record as the listing reads it, the test's source beside it.
 fn readingOf(test : String, source : String) : Reading = {
@@ -678,10 +679,10 @@ fn readingOf(test : String, source : String) : Reading = {
         Right(bytes) ->
             match recordOf(Repository.text("documents", path, bytes)) {
                 Some(record) -> judged(record, source, modifiedOf)
-              | None -> Unread(why = "record unread, not one the tests write: run it again")
+              | None -> Unread(cause = "record unread, not one the tests write: run it again")
             }
       | Left(Io.NotFound) ->
-            Unread(why = "no record: run it first")
+            Unread(cause = "no record: run it first")
       | Left(error) ->
             Repository.quit("documents", "cannot read " <> path <> ": " <> Io.show(error))
     }
@@ -698,7 +699,7 @@ fn judged(record : Record, source : String, modified : (String) -> Optional(Int)
       | None -> Some("record of " <> path <> ", which is gone: run it again")
     });
     match stale {
-        why :: _ -> Unread(=why)
+        cause :: _ -> Unread(=cause)
       | [] -> Read(places = record.places)
     }
 }
@@ -992,7 +993,7 @@ let readsRecords = Test.Case(name = "reads the tests' records", run = fn() = {
         Some(record) ->
             judged(record, "t.erl", fn(path) = Some(if path == "g.md" then changed else 0))
       | None ->
-            Unread(why = "unread")
+            Unread(cause = "unread")
     };
     Test.equal(uncheckedRows(blocks,
                              [#("fresh_tests", reading(4999)), #("stale_tests", reading(5000))]),

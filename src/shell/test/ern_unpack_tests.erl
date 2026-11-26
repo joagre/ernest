@@ -97,11 +97,11 @@ priv_test() ->
 
 %% A job's status, and what it wrote on standard output and standard error,
 %% both EUnit's group leader, which keeps what it is given, asked of it
-%% before and after.
+%% before and after (ern_helpers:captured_output/0).
 printed(Args) ->
-    Before = unicode:characters_to_binary(?capturedOutput),
+    Before = ern_helpers:captured_output(),
     Status = ern_cli:ern(Args, group_leader()),
-    After = unicode:characters_to_binary(?capturedOutput),
+    After = ern_helpers:captured_output(),
     {Status, binary:part(After, byte_size(Before), byte_size(After) - byte_size(Before))}.
 
 %% The module of the package's own: the text of its `priv`'s file, which

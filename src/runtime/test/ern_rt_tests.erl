@@ -2731,6 +2731,39 @@ never_given_address_test() ->
     ?assertEqual(EntryProcess, Given),
     ?assertEqual({ern, fault, <<"bad return">>}, Found).
 
+%% report §8.4: a Set from foreign code is checked to its whole depth, so a
+%% map whose values are not [] is no Set, as an argument foreign code calls
+%% a function of the program's with and as a return that holds a Float,
+%% which the check makes again for its negative zeros; report §12.3: the
+%% cause writes the host's term as foreign code gave it. A regression test:
+%% the check's second match took such a map as the set of its keys
+map_of_marks_is_no_set_test() ->
+    Pairs = "foreign fn pairs(items : List(Foreign.Term)) : Foreign.Term ="
+            " \"maps:from_list/1\"\n",
+    NotSet = "pairs([Foreign.term(#(1, 2)), Foreign.term(#(3, \"x\"))])",
+    Main = "export fn main() : Unit = ",
+    ?assertMatch({{fault, <<"an argument of M.main from foreign code does not match Set(Int)">>,
+                   _}, _},
+                 ern_program:run(
+                     "foreign fn applied(f : (Set(Int)) -> Int, arguments : List(Foreign.Term))"
+                     " : Int = \"erlang:apply/2\"\n" ++ Pairs ++ Main ++
+                     "Io.println(Int.toString(applied(fn(set) = Set.size(set), [" ++ NotSet
+                     ++ "])))\n")),
+    ?assertMatch({{fault, <<"the return of foreign function erlang:list_to_tuple/1 does not match"
+                            " #(Float, Set(Int)): field 2, is #{1 => 2,3 => <<\"x\">>}">>, _}, _},
+                 ern_program:run(
+                     "foreign fn beside(items : List(Foreign.Term)) : #(Float, Set(Int)) ="
+                     " \"erlang:list_to_tuple/1\"\n" ++ Pairs ++ Main ++
+                     "{ let #(_, set) = beside([Foreign.term(1.5), " ++ NotSet ++ "]);"
+                     " Io.println(Int.toString(Set.size(set))) }\n")),
+    ?assertMatch({{fault, <<"the return of foreign function maps:from_list/1 does not match"
+                            " Set(Int): is #{1 => 2,3 => <<\"x\">>}">>, _}, _},
+                 ern_program:run(
+                     "foreign fn notSet(items : List(Foreign.Term)) : Set(Int) ="
+                     " \"maps:from_list/1\"\n" ++ Main ++
+                     "Io.println(Int.toString(Set.size(notSet([Foreign.term(#(1, 2)),"
+                     " Foreign.term(#(3, \"x\"))]))))\n")).
+
 %% report §8.4, Appendix E.21: an address of the program's that foreign
 %% code gives back at another type than it crossed at is foreign, and
 %% `Process.fromAddress` of it is the process the address names, through

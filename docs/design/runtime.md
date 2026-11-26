@@ -129,7 +129,7 @@ The host's persistent terms, each put once at a job's start, a launch or a reloa
 - `{ern_rt, holder}`, the process that holds the terminal for a shell, put as the shell claims it and erased at each launch (§11.2, §12.1), and each system process's pid under its name, put at each launch (§8.2);
 - `{ern_rt, at_once}`, put where a termination once a launch's end had begun ended it at once, and erased at each launch, after which the job writes out nothing more (§8.6);
 - `{ern_os, umask}`, the file mode mask the host's facts gave, kept for the program's life (Appendix E.17);
-- `{ern_unpack, entries}`, the root package's entries, put as `ern unpack` starts, which its program reads (§11.9);
+- `{ern_unpack, given}`, the root package's entries and whether the job was given `--verbose`, put as `ern unpack` starts, which its program reads (§11.9);
 - `{ern_peer, names}`, `{ern_peer, nodes}`, `{ern_peer, named}`, `{ern_peer, services}`, `{ern_carrier, configuration}` and `{ern_carrier, peers}`, a node's configuration, peers and services, put as it starts and again at each reload (§8.7, §12.5);
 - `{ern_carrier, attached}`, the node an attached shell's session runs on, on the shell's own node (§11.2);
 - `{ern_prelude, stdlib_directory}`, the standard library's directory, found once in a host's life, and `{ern_prelude, stdlib_interfaces}`, its interfaces, replaced whole where a file of the library is added, removed or changed (§11.1);

@@ -268,7 +268,7 @@ statuses(Base) ->
     ?assertEqual({0, ""}, Run("")),
     ?assertEqual({3, ""}, Run(" exit")),
     {1, Faulted} = Run(" fault"),
-    %% the line as the guide's `the process of Counter.serve:14 faulted:
+    %% the line as the guide's `the process of Counter.main:57 faulted:
     %% division by zero`, the entry process's by its site alone (report
     %% §11.2), its time first as `2026-10-13T14:22:11.836Z the peer a
     %% connected`
@@ -421,10 +421,10 @@ refused_code(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     [ok = file:write_file(filename:join(Root, Module ++ ".erl"), Source)
-     || {Module, Source} <- [{"ern_nodes_client", ern_harness:client()},
+     || {Module, Source} <- [{"ern_harness_client", ern_harness:client()},
                              {"ern_deployment_taker", taker()}]],
     [{ok, _} = compile:file(filename:join(Root, Module), [{outdir, Root}])
-     || Module <- ["ern_nodes_client", "ern_deployment_taker"]],
+     || Module <- ["ern_harness_client", "ern_deployment_taker"]],
     %% a function whose form references a definition by a hash no node holds
     Form = {function, ['Crafted', bad],
             {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
@@ -466,7 +466,7 @@ taker() ->
 -module(ern_deployment_taker).
 -export([main/0]).
 main() ->
-    Node = list_to_atom(argument(ern_nodes_target)),
+    Node = list_to_atom(argument(ern_harness_target)),
     {Hash, Bytes, Sources} = binary_to_term(read(argument(ern_deployment_frame))),
     true = register(ern_gateway, self()),
     true = net_kernel:connect_node(Node),
@@ -681,20 +681,16 @@ guide_lines() ->
     string:split(unicode:characters_to_list(Text), "\n", all).
 
 %% The guide's fenced blocks, {Line, Heading, Info, Lines}: the line its
-%% fence opens on, the heading it stands under, the word after its fence,
-%% and its lines.
+%% fence opens on, the heading it stands under, "" above the first, the
+%% word after its fence, and its lines (ern_helpers:blocks/1).
 blocks() ->
-    blocks(lists:enumerate(guide_lines()), "", []).
+    {ok, Text} = file:read_file(?GUIDE),
+    [{Number, text(Heading), text(Info), [text(Line) || Line <- Code]}
+     || {Number, Heading, Info, Code}
+            <- ern_helpers:blocks(lists:enumerate(binary:split(Text, <<"\n">>, [global])))].
 
-blocks([], _, Blocks) ->
-    lists:reverse(Blocks);
-blocks([{Number, "```" ++ Info} | Lines], Heading, Blocks) ->
-    {Code, [{_, "```"} | Rest]} = lists:splitwith(fun({_, Line}) -> Line =/= "```" end, Lines),
-    blocks(Rest, Heading, [{Number, Heading, Info, [Line || {_, Line} <- Code]} | Blocks]);
-blocks([{_, "#" ++ _ = Heading} | Lines], _, Blocks) ->
-    blocks(Lines, Heading, Blocks);
-blocks([_ | Lines], Heading, Blocks) ->
-    blocks(Lines, Heading, Blocks).
+text(none) -> "";
+text(Bytes) -> unicode:characters_to_list(Bytes).
 
 %% The lines of each of the blocks, which are recorded as blocks this test
 %% checks, for tools/documents.ern's listing to read

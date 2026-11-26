@@ -404,8 +404,6 @@ packaged(Options, Dir, Place, Job, Arguments) ->
                                             Line <- ern_package:said(Package)];
         {{error, enoent}, working_directory} ->
             Options;
-        {{error, enoent}, package_dir} ->
-            ern_build:refused(Manifest, enoent);
         {{error, Error}, _} ->
             ern_build:refused(Manifest, Error)
     end.
@@ -484,7 +482,7 @@ named_directories(Job, Spec, Options) ->
                               {false, false} -> no_such_directory(Directory, Named)
                           end;
                      ({peer_dir, Directory}) ->
-                          %% report §11.3: one that names nothing is refused as a
+                          %% report §11.7: one that names nothing is refused as a
                           %% --load-path is
                           filelib:is_file(Directory)
                               orelse no_such_directory(Directory, ", which --peer-dir names"),
@@ -699,7 +697,7 @@ doc_path(Options, Path, ErrorDevice) ->
         directory ->
             doc_dir(Options, Path, ErrorDevice);
         regular ->
-            case beam_of(Options, Path, ErrorDevice, ern_build:verbose(Options, ErrorDevice)) of
+            case beam_of(Options, Path, ErrorDevice) of
                 {ok, Beam} ->
                     io:put_chars(page(Options, Beam, source_named(Path, Beam), ErrorDevice)),
                     0;
@@ -725,17 +723,19 @@ source_named(Path, Beam) ->
     end.
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
-%% is read, the root package said first; a source is compiled first, in
-%% memory, as a directory's is, so that asking for a page writes nothing,
-%% each module read or compiled said by Say (--verbose), the source root,
-%% the build root and the root package first (§11.9); a module that fails
-%% is reported as a build reports it, and its status answered. A file that
-%% is neither is refused for both.
-beam_of(Options, Path, ErrorDevice, Say) ->
+%% is read; a source is compiled first, in memory, as a directory's is, so
+%% that asking for a page writes nothing, and a module that fails is
+%% reported as a build reports it, and its status answered. Under --verbose
+%% the `.erc`'s branch says the root package and the module read (§11.9),
+%% and the source's compile says the source root, the build root, the root
+%% package and each module read or compiled (ern_build:compile_in_memory/5).
+%% A file that is neither is refused for both.
+beam_of(Options, Path, ErrorDevice) ->
     lists:member(filename:extension(Path), [".ern", ".erc"])
         orelse ern_build:fail(ern_build:shown(Path) ++ " ends in neither .ern nor .erc"),
     case filename:extension(Path) of
         ".erc" ->
+            Say = ern_build:verbose(Options, ErrorDevice),
             ern_build:package_said(Options, Say),
             Compiled = compiled(Path),
             %% both chunks a page is built from, so that a module whose
@@ -1453,7 +1453,7 @@ added({Cases, Failed, Outside}, {CasesAcc, FailedAcc, OutsideAcc}) ->
 reload(Options, [], _ErrorDevice) ->
     ConfigDir = node_dir(Options),
     _ = ern_node:read(ConfigDir, left),
-    ern_node:signaled(ConfigDir, ern_signals:number(sighup)),
+    ern_node:signaled(ConfigDir, ern_os:signal_number('Hangup')),
     0;
 reload(_Options, Rest, _ErrorDevice) ->
     usage_fail(none_taken(Rest)).
@@ -1818,10 +1818,15 @@ left_waiting(Process) ->
 %% through ports that learn when a stream has gone (report §12.1), and a
 %% fault line, and the runtime's line of the end's wait (§8.6), carries
 %% its time where standard error is neither a terminal nor a journal
-%% (§11.2); in a test, standard error is the test's device.
+%% (§11.2); in a test, standard error is the test's device. Each fault is
+%% reported by fault_reporter/0's line, or by Faults where the launch gives
+%% its own reporter (cases_launch/6).
 reporting_options(RunOptions, ErrorDevice) ->
     Report = fault_reporter(),
-    Faults = fun(FaultReport, Peer) -> Report(FaultReport, Peer, []) end,
+    reporting_options(RunOptions, fun(FaultReport, Peer) -> Report(FaultReport, Peer, []) end,
+                      ErrorDevice).
+
+reporting_options(RunOptions, Faults, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
             RunOptions#{faults => Faults, say => fun ern_carrier:say/1, stdout => {fd, 1},
@@ -2117,13 +2122,17 @@ init_fun(Loaded) ->
 %% module declares them, each in a process of its own and its line printed
 %% as it ends, then, once their launch has ended, its doc examples,
 %% Examples, as ern_examples made them, each a program of its own, in a
-%% launch of its own in an empty directory of its own; status 1 unless
-%% every one passed. A tests' launch that ends otherwise than by its entry
-%% process's return, by an initializer's fault among them, or that a signal
-%% reached (cases_launch/6), ends the module's run with the status that end
-%% gives (report_outcome/3); an example's fails that example alone, but for
-%% a signal's or a stream's (example_launch/3). The units the examples'
-%% compiling loaded go once the last has run.
+%% launch of its own in an empty directory of its own. The units the
+%% examples' compiling loaded go once the last has run.
+%%
+%% It answers what the module's run came to, `{ran, Status, Tally}`, the
+%% status 1 where a case failed or a fault counted (report §11.8), or
+%% `{ended, Status}` where its end ends the job (run_examples/4). A tests'
+%% launch that ends otherwise than by its entry process's return, by an
+%% initializer's fault among them, or that a signal reached
+%% (cases_launch/6), ends the module's run with the status that end gives
+%% (report_outcome/3); an example's fails that example alone, but for a
+%% signal's or a stream's (example_launch/3).
 run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
     Caller = self(),
     Entry = fun(Running) ->
@@ -2177,11 +2186,14 @@ run_examples([Example | Examples], Tally, ErrorDevice, Node) ->
 %% example whose program ends before the example returns, an initializer's
 %% fault among them, fails with `faulted` and the cause, its line written
 %% as a test's is, its trace beneath it, and the fault is not reported
-%% apart from it (cases_launch/6). The line is the job's own, written once
-%% the launch has ended, since the launch's standard output has ended with
-%% it, flushed. A signal, or a stream that can no longer be written, ends
-%% the module's run, as it ends the tests' launch. Whether the example
-%% passed, or the status of that end.
+%% apart from it (cases_launch/6).
+%%
+%% The line is the job's own, written once the launch has ended, since the
+%% launch's standard output has ended with it, flushed. A signal, or a
+%% stream that can no longer be written, ends the module's run, as it ends
+%% the tests' launch. It answers `{told, Passed, Outside}`, whether the
+%% example passed, with the count of the faults outside its case, or
+%% `{ended, Status}`, the status of that end.
 example_launch(#example{test_case = {'Case', Name, _} = Case, initialized = Initialized,
                         frames = Frames}, ErrorDevice, Node) ->
     Caller = self(),
@@ -2236,9 +2248,6 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
     Running = ets:new(running_test, [public]),
-    %% report §11.2: Os.exit faults the test that calls it
-    RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node),
-                                   ErrorDevice),
     Report = fault_reporter(),
     %% report §11.2: a test's own fault is its line, its trace and what
     %% follows its cause beneath it, which its row keeps until its end is
@@ -2258,6 +2267,9 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                                reported(Running, Report, FaultReport, Peer)
                        end
                end,
+    %% report §11.2: Os.exit faults the test that calls it
+    RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node), Reporter,
+                                   ErrorDevice),
     %% Appendix E.24: the first fault of a case's `Test.faults` that met
     %% another cause than the one asked for, its trace kept under the case
     %% for its line
@@ -2266,8 +2278,7 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                       ets:member(Running, Root)
                           andalso ets:insert_new(Running, {{unasked, Root}, Trace})
               end,
-    Outcome = ern_rt:run_main(Entry(Running), Site,
-                              RunOptions#{faults => Reporter, unasked => Unasked}),
+    Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{unasked => Unasked}),
     Carried = case ets:lookup(Running, entry) of
                   [{entry, EntryCarried}] -> EntryCarried;
                   [] -> []

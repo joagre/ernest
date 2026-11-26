@@ -108,6 +108,17 @@ os_run_timeout_kills_test() ->
     ok = file:del_dir_r(filename:dirname(Mark)),
     ?assertNot(Marked).
 
+%% Appendix E.23 and E.0 shape rule 8: a run given 0 milliseconds or fewer
+%% has run out as it begins, answering Timeout before any other answer and
+%% starting nothing, so a program that is not there is never looked for. A
+%% regression test, before which the run started the program first and
+%% answered NotFound
+os_run_given_no_time_test() ->
+    ?assertEqual({ok, <<"Io.Timeout\n">>},
+                 os_run("\"no-such-program-ern\"", "[]", "<<>>", "0")),
+    ?assertEqual({ok, <<"Io.Timeout\n">>},
+                 os_run("\"no-such-program-ern\"", "[]", "<<>>", "-1")).
+
 %% Appendix E.23: a program whose caller dies is killed with it. The caller
 %% says once the program has started; an absence then: the program would
 %% have left its mark within its own second, which began before it was

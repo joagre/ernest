@@ -40,7 +40,9 @@ fn listed(directory : String) : List(String) = {
       | Left(error) ->
             Repository.quit("slowest", "cannot list " <> directory <> ": " <> Io.show(error))
     };
-    let lines = List.flatMap(files, fn(path) = String.lines(contents(path)));
+    let lines =
+        List.flatMap(files,
+                     fn(path) = String.lines(Repository.contents("slowest", Path.toString(path))));
     let found = timedOf(lines);
     let tests = List.foldLeft(found, 0, fn(acc, timed) = acc + timed.tests);
     let ms = List.foldLeft(found, 0, fn(acc, timed) = acc + timed.ms);
@@ -108,18 +110,6 @@ fn row(timed : Timed) : String =
 // Milliseconds as seconds, to the millisecond.
 fn seconds(ms : Int) : String =
     Int.toString(ms / 1000) <> "." <> String.padStart(Int.toString(ms % 1000), 3, "0")
-
-fn contents(path : Path) : String =
-    match Fs.read(path, Repository.fileMs) {
-        Right(bytes) ->
-            match String.fromUtf8(bytes) {
-                Some(text) -> text
-              | None -> Repository.quit("slowest", Path.toString(path) <> " is not UTF-8")
-            }
-      | Left(error) ->
-            Repository.quit("slowest",
-                            "cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
-    }
 
 //
 // Tests

@@ -616,7 +616,7 @@ scenarios(Dir) ->
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
                   peer_scenarios(), code_scenarios(), utilization_scenarios(), proxy_scenarios(),
-                  http_scenarios()]).
+                  http_scenarios(), uri_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -1242,6 +1242,19 @@ proxy_scenarios() ->
     [{<<"Proxy.start">>,
       {fun() -> ern_rt:kill(ern_rt:process_of(ProxyStart(Service, 1000))) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
+
+%% Appendix G.12: a reference written whole, since one drawn from its type
+%% holds a space, which no text writes and `Uri.toString` faults on, beside
+%% the host's recomposition of the same components.
+uri_scenarios() ->
+    UriToString = (ern_named:functions('ern@uri'))(toString),
+    Reference = {'Reference', {'Some', <<"https">>},
+                 {'Some', {'Authority', 'None', <<"example.com">>, {'Some', 8443}}},
+                 <<"/docs/index.html">>, {'Some', <<"lang=en">>}, {'Some', <<"top">>}},
+    Components = #{scheme => <<"https">>, host => <<"example.com">>, port => 8443,
+                   path => <<"/docs/index.html">>, query => <<"lang=en">>, fragment => <<"top">>},
+    [{<<"Uri.toString">>,
+      {fun() -> UriToString(Reference) end, fun() -> uri_string:recompose(Components) end}}].
 
 ets_scenarios() ->
     Ets = ern_named:functions('ern@ets'),
