@@ -363,6 +363,11 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// alone, and it holds nothing then. It stays until the program removes
 /// it, its files first.
 ///
+/// ### Errors
+///
+/// Faults where `TMPDIR` is not UTF-8, as `Os.environment` does, with the
+/// cause `the environment variable TMPDIR is not UTF-8`.
+///
 /// ### Examples
 ///
 /// ```ernest

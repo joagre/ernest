@@ -28,15 +28,16 @@ builds of the front end, the checker, the emitter, the runtime, in two, the node
 standard library with the libraries, the cli, the shell and the tests are done, three
 Fable rounds are held, and the report's own decided lines are written. The guides, the
 tour and the front pages are written. The decided lines without
-a closing bullet are audited and the report's missing sentences written. Next are a build
-of what the audit found missing in the code, an unchecked address first, and `docs/`.**
+a closing bullet are audited and the report's missing sentences written. What the audit
+found missing in the code is built. `docs/` is next, by a writer on Fable 5.2 at high, then
+the log's and the plan's own lines, `make test-full` and the close.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages* and *The Decided Lines Audited*.
+and the Front Pages*, *The Decided Lines Audited* and *The Audit's Build*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -204,7 +205,7 @@ says what is left once its readings are in, and no figure stands until then.
       comes. The session stops at a commit and asks for a `/clear` where its context is
       worth dropping.
 
-      Nine questions wait, none holding a build, each with its ways and a
+      Ten questions wait, none holding a build, each with its ways and a
       recommendation in `leg4/builds/cold_report/questions.md`: E.0 rule 3's "stated
       whole" against E.13's generator (*P2 42*); a record update against §10's fraction;
       the three sets of a shell's processes (*G 23*); where §12 says which process pays
@@ -213,7 +214,9 @@ says what is left once its readings are in, and no figure stands until then.
       the interrupt ends a running `:load`, which it does not; whether a part of
       §11.2 is cited by its number, which no tool reads; and which of two decided
       texts the deployment guide's row for a certificate that names another host
-      keeps.
+      keeps. The tenth is a hole in a guarantee: the result of a function that foreign
+      code calls crosses unchecked, and §8.4 gains it among what crosses, or says that
+      it does not.
 
       The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
       decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and
@@ -256,8 +259,8 @@ says what is left once its readings are in, and no figure stands until then.
       are written and read cold (the log's *The Decided Lines Audited*). The code
       lacks four things, *U 12*'s test of a guide's quoted line among them, and a
       fifth was found beside them: an address given to a function value that foreign
-      code gave stands behind no check, where §8.4 has one. One build takes the
-      five, on Opus 5.5 at xhigh (`leg4/builds/brief_tests3.md`).
+      code gave stood behind no check, where §8.4 has one. One build took the five
+      (the log's *The Audit's Build*).
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

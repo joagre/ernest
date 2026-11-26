@@ -37,6 +37,9 @@
 %% parts with prose between; one with no session before it under its
 %% heading is an error, named by its line.
 %%
+%% The lines the language and deployment guides quote of a run in their
+%% prose are held to the run by a test of their own (quoted_runs/0).
+%%
 %% A block marked `ernest-prelude` holds the prelude's own declarations,
 %% each one of `ern_prelude`'s as written. A block marked `ernest-fragment`,
 %% and any other, is a fragment, which nothing checks; a console whose `$
@@ -70,6 +73,7 @@
 -define(README, "../README.md").
 -define(WHY, "../guide/why.md").
 -define(FAQ, "../guide/faq.md").
+-define(DEPLOYMENT, "../guide/deployment.md").
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal, which the guide leaves out.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
@@ -276,6 +280,83 @@ why_reload_session() ->
     Printed = unicode:characters_to_binary(Out),
     ok = file:del_dir_r(Dir),
     ?assertEqual(trim(session_shown(Lines)), session_end(Printed)).
+
+%% guide/language.md §5.4 and §8.4, guide/deployment.md section 5; report
+%% §6.9, §11.2, §12.4: each line a guide quotes of a run is what the run
+%% prints, the line read from the guide by the text before it. The lease
+%% broker run with `deadlock` writes §5.4's line among its deadlock's
+%% report. The site of the counter `examples/upgrade`'s tool spawns is the
+%% one `:processes` lists after `Counter.main()` at the prompt: plain in a
+%% session that loaded the second build, and with the version's number in
+%% one that loaded the first and reloaded the second, its source put in the
+%% first's place after the load; each guide quotes both.
+%%
+%% Written with the lines, which the guides quoted and no test held. It
+%% reads prose and no fenced block, so it records none. Its limit is the
+%% sum of its fifteen waits: the broker's build and run, and each session's
+%% first prompt, a prompt after each input, its end and what it printed.
+quoted_runs_test_() ->
+    ern_harness:counted_test({waits, 15}, fun quoted_runs/0).
+
+quoted_runs() ->
+    Base = tmp(),
+    ?assertEqual(0, ern_harness:built(["--source-root", "../examples", "--build-root", Base,
+                                       "../examples/lease_broker.ern"])),
+    {1, Deadlocked} = sh("../bin/ern run " ++ filename:join(Base, "lease_broker.erc")
+                         ++ " deadlock"),
+    Waiting = quoted(?GUIDE, <<"which call the broker: `">>),
+    ?assertEqual([Waiting], [Line || Line <- [string:trim(Written, leading)
+                                              || Written <- lines(Deadlocked)],
+                                     Line =:= Waiting]),
+    {ok, First} = file:read_file("../examples/upgrade/v1/counter.ern"),
+    {ok, Second} = file:read_file("../examples/upgrade/v2/counter.ern"),
+    Plain = listed(filename:join(Base, "plain"), Second,
+                   [<<":load Counter">>, <<"Counter.main()">>]),
+    Reloaded = listed(filename:join(Base, "reloaded"), First,
+                      [<<":load Counter">>, {Second, <<":reload">>}, <<"Counter.main()">>]),
+    ?assertEqual([Plain, Reloaded, Plain, Reloaded],
+                 [[quoted(?GUIDE, <<"the build's plain, `">>)],
+                  [quoted(?GUIDE, <<"a reload's with the version's number, `">>)],
+                  [quoted(?DEPLOYMENT, <<"with the spawn's line, `">>)],
+                  [quoted(?DEPLOYMENT, <<"for a reload's, `">>)]]),
+    ok = file:del_dir_r(Base).
+
+%% The span Document quotes after Before, which stands once in it, up to
+%% the backtick that closes it.
+quoted(Document, Before) ->
+    {ok, Text} = file:read_file(Document),
+    [_, After] = binary:split(Text, Before, [global]),
+    hd(binary:split(After, <<"`">>)).
+
+%% The sites `:processes` lists at the end of a session begun in Dir, its
+%% source root, with Source as counter.ern there, after Inputs, each typed
+%% at its prompt; one that comes with a source is typed once that source
+%% stands in counter.ern's place. A line of the listing is a site, an
+%% activity and the bytes (report §11.2), and its first follows the prompt,
+%% which a shell not at a terminal ends no line after.
+listed(Dir, Source, Inputs) ->
+    File = filename:join(Dir, "counter.ern"),
+    ok = write(File, Source),
+    Shell = filename:join(Dir, "shell"),
+    {Port, Wait} = ern_harness:launched(Shell, ["cd ", Dir, " && HOME=", Dir, " ",
+                                                filename:absname("../bin/ern"), " shell"]),
+    ok = ern_harness:prints(Shell, "> "),
+    Typed = fun({Count, Input}) ->
+                    Line = case Input of
+                               {Edit, Edited} -> ok = write(File, Edit), Edited;
+                               _ -> Input
+                           end,
+                    true = port_command(Port, [Line, <<"\n">>]),
+                    ok = ern_harness:prints(Shell, "> ", Count + 1, ern_harness:wait_ms())
+            end,
+    Typing = Inputs ++ [<<":processes">>],
+    lists:foreach(Typed, lists:zip(lists:seq(1, length(Typing)), Typing)),
+    true = port_command(Port, <<":quit\n">>),
+    ?assertEqual(0, Wait()),
+    {Out, _} = ern_harness:said(Shell),
+    [Site || Line <- lines(unicode:characters_to_binary(Out)),
+             {match, [Site]} <- [re:run(Line, "^(?:> )?([^ ]+) [a-z]+ [0-9]+ bytes$",
+                                        [{capture, all_but_first, binary}])]].
 
 %% guide/language.md §8.1; report §8.7, §11.2, §11.3, Appendix E.27: the
 %% section's square.ern run on two nodes from one directory, as the

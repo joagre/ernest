@@ -973,13 +973,14 @@ stdin() ->
 %% its own words that is not UTF-8 by its text (§11), the environment
 %% answers a value asked for, None for a name it has not, and faults the
 %% asker of a value that is not UTF-8 (a regression test of the rule,
-%% before which the value was left out), and ern run exits with the status
-%% Os.exit gives. A regression test, written after the code; where the host
-%% has no C.UTF-8 locale both runs read bytes, and a name the environment
-%% gives twice is not covered, since a shell cannot give one. Its steps:
-%% the build and four runs in each of the two locales.
+%% before which the value was left out), `Fs.makeTempDir` faulting so where
+%% `TMPDIR` is one, and ern run exits with the status Os.exit gives. A
+%% regression test, written after the code; where the host has no C.UTF-8
+%% locale both runs read bytes, and a name the environment gives twice is
+%% not covered, since a shell cannot give one. Its steps: the build and
+%% five runs in each locale.
 os_test_() ->
-    ern_harness:counted_test({waits, 9}, fun os/0).
+    ern_harness:counted_test({waits, 11}, fun os/0).
 
 os() ->
     SourceRoot = "build/os/src",
@@ -995,6 +996,8 @@ os() ->
                          "                         Os.environment(\"ERN_NONE\"))));\n"
                          "    Io.println(Io.show(Os.environment(\"ERN_BAD\")))\n"
                          "}\n"),
+    ok = file:write_file(SourceRoot ++ "/temp.ern",
+                         "export fn main() : Unit = Io.println(Io.show(Fs.makeTempDir(5000)))\n"),
     0 = build("--source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
       fun(Locale) ->
@@ -1011,7 +1014,12 @@ os() ->
           ?assertMatch({0, _}, binary:match(Output, <<"#(Some(\"caf", 16#e9/utf8,
                                                       "\"), None)\n">>)),
           ?assertMatch({_, _}, binary:match(Output, <<"faulted: the environment variable"
-                                                      " ERN_BAD is not UTF-8">>))
+                                                      " ERN_BAD is not UTF-8">>)),
+          {TempStatus, Temp} = sh("env TMPDIR=\"$(printf '/tmp/caf\\351')\" " ++ Launch
+                                  ++ "temp.erc"),
+          ?assertEqual(1, TempStatus),
+          ?assertMatch({_, _}, binary:match(Temp, <<"faulted: the environment variable"
+                                                    " TMPDIR is not UTF-8">>))
       end, ["C.UTF-8", "C"]).
 
 %% report Appendix E.23, §11: a program's environment is the one ern was

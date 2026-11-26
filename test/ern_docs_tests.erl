@@ -644,13 +644,13 @@ report_versions_test() ->
     ?assertEqual([{File, report_version(Version)} || File <- ?REPORT],
                  [{File, lists:nth(3, lines(ern_repository:read(File)))} || File <- ?REPORT]).
 
-%% CLAUDE.md's *Writing*: what a user reads names no step of the plan:
-%% the report, the guides and the tour, the doc blocks the manual pages are
-%% written from, and the strings of the toolchain's Erlang and the shell's
-%% Ernest, which hold what `ern` and the shell print. A date is left to a
-%% reader, since the documents' examples hold dates as data. Written with
-%% the rule, when none was found (the log's *The Release Cleanup*); a text
-%% that names the plan in other words escapes it
+%% docs/code_style.md's *Every language*: what a user reads names no step
+%% of the plan: the report, the guides and the tour, the doc blocks the
+%% manual pages are written from, and the strings of the toolchain's Erlang
+%% and the shell's Ernest, which hold what `ern` and the shell print. A
+%% date is left to a reader, since the documents' examples hold dates as
+%% data. Written with the rule, when none was found (the log's *The Release
+%% Cleanup*); a text that names the plan in other words escapes it
 user_text_timeline_test() ->
     Timeline = "\\bMVP ?[0-9]|\\b[Mm]ilestones?\\b",
     Documents = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT

@@ -2518,12 +2518,14 @@ descriptor_form(Descriptor, Context) ->
 
 %% A descriptor as the form that builds it. A function's descriptor also
 %% carries the maker of its checked wrapper, a fun of its arity that calls
-%% the function as a foreign function is called, an exception it raises a
+%% the function as a foreign function is called, each argument exposed as a
+%% foreign function's is (exposed/2, report §8.4), an exception it raises a
 %% fault that names it, and checks each result as a foreign function's
 %% return is checked (report §12.3), which only generated code can spell for
 %% every arity; ern_boundary applies it to a function value foreign code
-%% gives, and to the result's descriptor closed over the recursive types
-%% around it. Each cause names the function, which the boundary writes in.
+%% gives, to the result's descriptor closed over the recursive types around
+%% it, and to those types, which the arguments' descriptors refer to. Each
+%% cause names the function, which the boundary writes in.
 built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, ParamCauses}) ->
     [Function, Result, Bound, Class, Error, Trace] =
         [erl_syntax:variable(Name)
@@ -2532,10 +2534,27 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
             || Index <- lists:seq(1, Arity)],
     Raised = call_remote(ern_boundary, raised, [Function, Class, Error, Trace]),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none, [Raised]),
-    Call = erl_syntax:try_expr([erl_syntax:application(Function, Args)], [Handler]),
+    %% report §8.4: a function value foreign code gave is a foreign function
+    %% (§12.3), so each argument the program calls it with crosses into
+    %% foreign code; one whose type holds nothing that crossing changes is
+    %% given as it is, as exposed/2 gives it
+    Given = [case crosses_from(Descriptor) of
+                 true ->
+                     call_remote(ern_boundary, expose,
+                                 [built_descriptor(Descriptor), Argument, Bound]);
+                 false ->
+                     Argument
+             end
+             || {Descriptor, Argument} <- lists:zip(ParamDescriptors, Args)],
+    MakerBound = case lists:any(fun crosses_from/1, ParamDescriptors) of
+                     true -> Bound;
+                     false -> erl_syntax:underscore()
+                 end,
+    Call = erl_syntax:try_expr([erl_syntax:application(Function, Given)], [Handler]),
     Check = call_remote(ern_boundary, result, [Result, Call, Function, term_form(Cause)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
-    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result], none, [Wrapper])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result, MakerBound], none,
+                                                   [Wrapper])]),
     %% report §8.4: the same function crossing into foreign code, wherever
     %% it stands in what crosses, each argument checked against its
     %% parameter's type, the recursive types around it in Bound
@@ -2606,6 +2625,22 @@ crosses({function, _, _, _, _, _}) -> true;
 crosses(Part) when is_tuple(Part) -> lists:any(fun crosses/1, tuple_to_list(Part));
 crosses(Parts) when is_list(Parts) -> lists:any(fun crosses/1, Parts);
 crosses(_) -> false.
+
+%% The same of a descriptor read inside a function's, a parameter's, which
+%% may refer to a recursive type around the function: that type holds the
+%% function, so crossing changes it.
+crosses_from(Descriptor) ->
+    crosses(Descriptor) orelse refers_out(Descriptor, []).
+
+%% Whether a descriptor refers to a mu outside it, Inside the ids of those
+%% around the part read.
+refers_out({ref, Id}, Inside) -> not lists:member(Id, Inside);
+refers_out({mu, Id, Descriptor}, Inside) -> refers_out(Descriptor, [Id | Inside]);
+refers_out(Part, Inside) when is_tuple(Part) ->
+    lists:any(fun(Inner) -> refers_out(Inner, Inside) end, tuple_to_list(Part));
+refers_out(Parts, Inside) when is_list(Parts) ->
+    lists:any(fun(Inner) -> refers_out(Inner, Inside) end, Parts);
+refers_out(_, _) -> false.
 
 %% Report §8.4, Appendix E.1: the descriptor of a type a form writes
 %% (ern_descriptor's descriptor()), as the runtime reads it for the

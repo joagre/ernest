@@ -24,13 +24,15 @@
 %% builds the form this module interprets, descriptor() below, the same but
 %% for a function's: {'fun', Arity, R, Cause, Make, Exposer}, R describing
 %% its result and Make wrapping a function value, given R closed over the
-%% recursive types around it, so that each call's result is checked against
-%% R, faulting with Cause (report §12.3), and Exposer wrapping one that
-%% crosses into foreign code, wherever it stands in what crosses, so that
-%% each argument it is called with is checked (§8.4). A cause of either
-%% names the function, which is known only here: the two parts of Cause and
-%% of each argument's, ern_descriptor's named_cause(), are the text before
-%% the function's name and the text after it.
+%% recursive types around it and those types, so that each argument a call
+%% gives it is exposed as a foreign function's (§8.4) and each call's
+%% result is checked against R, faulting with Cause (§12.3), and Exposer
+%% wrapping one that crosses into foreign code, wherever it stands in what
+%% crosses, so that each argument it is called with is checked (§8.4),
+%% given the same types. A cause of either names the function, which is
+%% known only here: the two parts of Cause and of each argument's,
+%% ern_descriptor's named_cause(), are the text before the function's name
+%% and the text after it.
 -module(ern_boundary).
 
 -export([raised/6, shim_raised/6, raised/4, called_raised/3, expose/2, check/3, value/3,
@@ -364,9 +366,11 @@ conformed(Descriptor, Value, Bound) ->
     end.
 
 %% Report §12.3, §8.4: a checked value from foreign code as the program
-%% holds it: every function value in it wrapped so that its result is
-%% checked at each call, and every address in it that names no process of
-%% the program, and every Reply, held as foreign.
+%% holds it: every function value in it wrapped so that each argument it is
+%% called with crosses into foreign code, exposed inside the mu bindings
+%% around it, and its result is checked at each call, and every address in
+%% it that names no process of the program, and every Reply, held as
+%% foreign.
 armed(Descriptor, Value, Bound) ->
     case lists:any(fun needs_arming/1, [Descriptor | maps:values(Bound)]) of
         true -> arm(Descriptor, Value, Bound);
@@ -381,7 +385,7 @@ needs_arming(Parts) when is_list(Parts) -> lists:any(fun needs_arming/1, Parts);
 needs_arming(_) -> false.
 
 arm({'fun', _, ResultDescriptor, _, Make, _}, Value, Bound) ->
-    Make(Value, closed(ResultDescriptor, Bound));
+    Make(Value, closed(ResultDescriptor, Bound), Bound);
 arm({address, MessageDescriptor, _, Hash}, Value, Bound) when is_pid(Value) ->
     ern_rt:held(Value, MessageDescriptor, Bound, Hash);
 arm({reply, AnswerDescriptor, _}, {Alias, Pid} = Value, Bound)
