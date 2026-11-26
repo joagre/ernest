@@ -7,8 +7,18 @@
 %% (ern_nodes_tests), with chapter 5's build and test run in that directory,
 %% and chapter 8's shell attached to `foo` and its stops.
 %%
+%% What is typed and what is held to come is read from the page's blocks
+%% under each chapter's heading, each a console or the json block, bound in
+%% the order the chapter shows them; each is recorded as a block this test
+%% checks (ern_helpers:record_checked/3). A console's `$ ern` line is a
+%% command run from the reader's directory, and its `> ` lines inputs
+%% (inputs/1). What the page tells in its prose and does not show stays
+%% here, each named where it is used: the files a chapter copies, the bare
+%% nodes' start, what a node's terminal says, the shell a console is typed
+%% at, and the stops.
+%%
 %% An input is typed once the shell has printed all that the one before it
-%% prints, and what it prints is held to the lines tour/README.md shows, each
+%% prints, and what it prints is held to the lines the page shows, each
 %% whole, a node's line without its time. A line nothing orders against
 %% the input's answer, a fault's report, a node's connection, a monitor's
 %% message, is held to come once, its own lines together, before or after
@@ -23,64 +33,51 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(TOUR, "../tour").
+-define(PAGE, "../tour/README.md").
+-define(README, "../README.md").
+-define(EXAMPLE, "../site/example.md").
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal, which the tour leaves out.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
-%% What `Counter.apply` answers to an inc, whose send does not wait.
--define(SENT, "\"ok\" : String").
 
 %% A shell the test types at, named by the directory its streams are
 %% written beside (ern_harness:launched/2): the port its inputs are
 %% written to, what waits for its end, all it has printed that the test
-%% has read, and the parts the input before printed none of, which nothing
-%% ordered against its prompt, and which the next input's lines hold.
--record(shell, {dir, port, wait, read, carried = []}).
+%% has read, the parts the input before printed none of, which nothing
+%% ordered against its prompt, and which the next input's lines hold, and
+%% the numbers of the addresses the page shows it print, in order.
+-record(shell, {dir, port, wait, read, carried = [], addresses = []}).
 
 %% The tour's working directory, the reader's own, which holds the program
-%% and the configuration directories; the bare nodes' directories and what
-%% waits for each one's end; the shell that is `a`; and chapter 8's shell
-%% attached to `foo`.
--record(tour, {base, foo, bar, wait_foo, wait_bar, shell, attached}).
+%% and the configuration directories; the bare nodes' ports by their
+%% directories' names; the bare nodes' directories and what waits for each
+%% one's end; the shell that is `a`; chapter 8's shell attached to `foo`;
+%% and the count of chapter 7's computes that name no node.
+-record(tour, {base, ports, foo, bar, wait_foo, wait_bar, shell, attached, computes}).
 
 %%
 %% Chapter 1, a shell that is no node
 %%
 
-%% tour/1/, tour/README.md's chapter 1; report §6.1, §6.2, §6.6, §11.2,
-%% §11.5: the counter loaded at a shell that is no node, a process spawned
-%% on its loop, a send, a call that answers 5, a send of a String refused
-%% at the prompt with the input's line and a caret under the argument, and
-%% a function declared to receive a String refused for its call of
-%% `count`, its declared mailbox type marked; the shell ends at `:quit`
-%% with status 0. It does not cover the shell at a terminal, whose colors
-%% the tour does not show. Its limit is the sum of its nine waits, each
-%% bounded by the harness's time for one wait: the start, six inputs, the
-%% end and what the shell said
+%% tour/README.md's chapter 1; report §6.1, §6.2, §6.6, §11.2, §11.5: the
+%% counter, the program the chapter shows whole, written into the reader's
+%% directory and loaded at a shell that is no node, a process spawned on
+%% its loop, a send, a call that answers 5, a send of a String refused at
+%% the prompt with the input's line and a caret under the argument, and a
+%% function declared to receive a String refused for its call of `count`,
+%% its declared mailbox type marked; the shell ends at `:quit` with status
+%% 0. It does not cover the shell at a terminal, whose colors the tour does
+%% not show. Its limit is the sum of its nine waits, each bounded by the
+%% harness's time for one wait: the start, six inputs, the end and what the
+%% shell said
 chapter_1_test_() ->
     ern_harness:nodes_test({waits, 9}, fun chapter_1/1).
 
 chapter_1(Base) ->
-    copied(1, Base),
-    Shell = started(Base, filename:join(Base, "shell"), ""),
-    quit(session(Shell,
-                 [{":load Counter", ["Counter, compiled from counter.ern"]},
-                  {"let counter = spawn(fn() = Counter.count(0))",
-                   ["counter : Address(Counter.CounterMsg)"]},
-                  {"send(counter, Counter.Inc(5))", []},
-                  {"Address.call(counter, Counter.Get, 1000)", ["Some(5) : Optional(Int)"]},
-                  {"send(counter, \"five\")",
-                   ["input 5:1:15: the argument does not fit send: expected Counter.CounterMsg,"
-                    " found String",
-                    "1 | send(counter, \"five\")",
-                    "  | ---- send : (Address(a), a) -> Unit",
-                    "  |               ^^^^^^"]},
-                  {"fn other() : Unit receiving String = Counter.count(0)",
-                   ["input 6:1:38: Counter.count needs mailbox Counter.CounterMsg, and the mailbox"
-                    " here is String",
-                    "1 | fn other() : Unit receiving String = Counter.count(0)",
-                    "  |                             ------ other is declared `receiving String`"
-                    " here",
-                    "  |                                      ^^^^^^^^^^^^^^^^"]}])).
+    [Program] = blocks(1, <<"ernest">>),
+    ok = file:write_file(filename:join(Base, "counter.ern"), join(Program)),
+    [Session] = consoles(1),
+    quit(opened(Base, Session)).
 
 %% tour/README.md's chapter 7, the line it tells and does not show; report
 %% §4.7, §12.3, §8.4: `erlang:system_info/1` declared to answer a String,
@@ -134,11 +131,14 @@ readme_test_() ->
     ern_harness:nodes_test({waits, 15}, fun readme/1).
 
 readme(Base) ->
-    [_, Start | Session] = readme_console(<<"$ ern shell --config-dir a">>),
-    ?assertEqual(readme_start(), Start),
+    [{Number, Console}] = [{Number, Code}
+                           || {Number, <<"console">>,
+                               [<<"$ ern shell --config-dir a">> | _] = Code}
+                                  <- fenced(numbered(?README))],
+    recorded(?README, [Number]),
     PortFoo = ern_harness:free_port(),
     AddressFoo = ern_harness:address(PortFoo),
-    [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
+    Foo = filename:join(Base, "foo"),
     created(Base, "config --config-dir a"),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
@@ -147,8 +147,7 @@ readme(Base) ->
                         filename:join(Base, "counter.ern")),
     WaitFoo = ern_harness:bare_started(Foo, []),
     ern_deployment_tests:listens(Foo, PortFoo),
-    Shell = started(Base, A, " --config-dir a", []),
-    quit(session(Shell, inputs(Session))),
+    quit(opened(Base, Console)),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
     {"", Err} = ern_harness:said(Foo),
@@ -178,11 +177,9 @@ home_example_test_() ->
     ern_harness:nodes_test({waits, 16}, fun home_example/1).
 
 home_example(Base) ->
-    {ok, Text} = file:read_file("../site/example.md"),
-    Lines = binary:split(Text, <<"\n">>, [global]),
-    Code = fenced(<<"```ernest">>, Lines),
-    [_, Start | Session] = fenced(<<"```console">>, Lines),
-    ?assertEqual(readme_start(), Start),
+    [{CodeLine, <<"ernest">>, Code}, {ConsoleLine, <<"console">>, Console}] =
+        fenced(numbered(?EXAMPLE)),
+    recorded(?EXAMPLE, [CodeLine, ConsoleLine]),
     Declared = [{Declaration, [lists:append(lists:duplicate(Continued, "... ")) ++ Printed]}
                 || {{Declaration, Continued}, Printed}
                        <- lists:zip(declarations(Code),
@@ -190,15 +187,14 @@ home_example(Base) ->
                                      "count : (Int) -> Unit receiving CounterMsg"])],
     PortFoo = ern_harness:free_port(),
     AddressFoo = ern_harness:address(PortFoo),
-    [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
+    Foo = filename:join(Base, "foo"),
     created(Base, "config --config-dir a"),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
     WaitFoo = ern_harness:bare_started(Foo, []),
     ern_deployment_tests:listens(Foo, PortFoo),
-    Shell = started(Base, A, " --config-dir a", []),
-    quit(session(Shell, Declared ++ inputs(Session))),
+    quit(opened(Base, Console, Declared)),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
     {"", Err} = ern_harness:said(Foo),
@@ -219,42 +215,11 @@ declarations(Lines) ->
              | declarations(After)]
     end.
 
-%% The lines of the first fenced block whose fence is Fence.
-fenced(Fence, Lines) ->
-    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= Fence end, Lines),
-    {Block, _} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest),
-    Block.
-
 %% The shell's start line as the README shows it, the release's version.
 readme_start() ->
     {ok, Version} = file:read_file("../VERSION"),
     <<"Ernest ", (string:trim(Version))/binary,
       ", session 1. :help for help.">>.
-
-%% The lines of the README's console whose first line is Command, the
-%% command first.
-readme_console(Command) ->
-    {ok, Text} = file:read_file("../README.md"),
-    readme_console(Command, binary:split(Text, <<"\n">>, [global])).
-
-readme_console(Command, Lines) ->
-    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```console">> end, Lines),
-    case lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest) of
-        {[Command | _] = Console, _} -> Console;
-        {_, [_ | After]} -> readme_console(Command, After)
-    end.
-
-%% A console's inputs as session/2 types them: each `> ` line with the
-%% lines shown after it, a line a node says, `the peer foo connected`,
-%% among the unordered, since nothing orders it against the answer.
-inputs([]) ->
-    [];
-inputs([<<"> ", Input/binary>> | Rest]) ->
-    {Shown, After} = lists:splitwith(fun(Line) -> binary:match(Line, <<"> ">>) =/= {0, 2} end,
-                                     Rest),
-    IsSaid = fun(Line) -> binary:match(Line, <<"the peer ">>) =:= {0, 9} end,
-    {Said, Answered} = lists:partition(IsSaid, Shown),
-    [{binary_to_list(Input), Answered, [[Line] || Line <- Said]} | inputs(After)].
 
 %%
 %% Chapters 2 to 8, one session on three nodes
@@ -264,17 +229,15 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% §3.6, §3.11, §4.4, §4.7, §4.9, §6.5, §6.9, §6.10, §7.3, §8.4, §8.6,
 %% §8.7, §11.1, §11.2, §11.3, Appendix E.24, E.27, E.28: chapter 2's seven
 %% commands, the bare nodes started and the shell as `a`, then each
-%% chapter's files copied and its inputs typed, as each chapter's function
-%% says, and at the end what each bare node wrote.
+%% chapter's files copied and its consoles typed, as each chapter's
+%% function says, and at the end what each bare node wrote.
 %%
 %% A bare node's port is one the harness found free, in place of the
 %% tour's 8655 and 8656, since one machine's nodes cannot share a port, and
 %% `a`, made with no `--listen`, only dials; the harness
 %% starts the bare nodes from their absolute directories, where the reader
 %% types `ern run --config-dir foo`. The inputs are the tour's, their
-%% deadlines among them. Two inputs follow chapter 8's stop of foo, which
-%% the tour's closing line tells and does not show: `far` answers "ok" to
-%% an inc and "no answer" to a report.
+%% deadlines among them.
 %%
 %% The test does not cover the five terminals as a reader sees them, a
 %% node's line's time, which bare node a compute that names none runs on,
@@ -288,93 +251,101 @@ tour_test_() ->
     ern_harness:nodes_test({waits, 95}, fun tour/1).
 
 tour(Base) ->
-    [PortFoo, PortBar] = [ern_harness:free_port() || _ <- [foo, bar]],
-    configured(Base, PortFoo, PortBar),
-    [Foo, Bar] = [filename:join(Base, Name) || Name <- ["foo", "bar"]],
-    WaitFoo = ern_harness:bare_started(Foo, []),
-    WaitBar = ern_harness:bare_started(Bar, []),
-    [ern_deployment_tests:listens(Dir, Port) || {Dir, Port} <- [{Foo, PortFoo}, {Bar, PortBar}]],
-    Shell = started(Base, filename:join(Base, "a"), " --config-dir a", []),
-    Chapters = [{2, fun far/1}, {3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1},
-                {6, fun door/1}, {7, fun anywhere/1}, {8, fun fix/1}],
-    Tour = #tour{base = Base, foo = Foo, bar = Bar, wait_foo = WaitFoo, wait_bar = WaitBar,
-                 shell = Shell},
-    #tour{shell = Ended} = lists:foldl(fun({Chapter, Run}, Before) ->
-                                           copied(Chapter, Base),
-                                           Run(Before)
-                                       end, Tour, Chapters),
+    Chapters = [{3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1}, {6, fun door/1},
+                {7, fun anywhere/1}, {8, fun fix/1}],
+    #tour{ports = Ports, foo = Foo, bar = Bar, shell = Ended, computes = Computes} =
+        lists:foldl(fun({Chapter, Run}, Before) ->
+                        copied(Chapter, Base),
+                        Run(Before)
+                    end, far(Base), Chapters),
     quit(Ended),
     {FooOut, FooErr} = ern_harness:said(Foo),
     {BarOut, BarErr} = ern_harness:said(Bar),
+    [AddressFoo, AddressBar] = [ern_harness:address(maps:get(Name, Ports))
+                                || Name <- ["foo", "bar"]],
     %% each said where it listens and its peer's connection, foo the reload
     %% that listed ops and ops's connection too, and nothing else but, on
-    %% foo, the end of ops, which comes as foo ends or not at all; and each
-    %% of chapter 7's three computes printed its line where it ran
-    ?assertEqual([<<"listening on ", (ern_harness:address(PortBar))/binary>>,
-                  <<"the peer a connected">>], stamped(BarErr)),
-    SaidFoo = [<<"listening on ", (ern_harness:address(PortFoo))/binary>>,
+    %% foo, the end of ops, which comes as foo ends or not at all, as the
+    %% chapters' prose says their terminals show; and each of chapter 7's
+    %% computes printed its line where it ran, as the chapter's prose says
+    ?assertEqual([<<"listening on ", AddressBar/binary>>, <<"the peer a connected">>],
+                 stamped(BarErr)),
+    SaidFoo = [<<"listening on ", AddressFoo/binary>>,
                <<"the peer a connected">>, <<"ernest.conf was read again">>,
                <<"the peer ops was added">>, <<"the peer ops connected">>],
     ?assert(lists:member(stamped(FooErr), [SaidFoo, SaidFoo ++ [<<"the peer ops ended">>]])),
-    ?assertEqual(lists:duplicate(3, <<"counting the primes below 200000">>),
+    ?assertEqual(lists:duplicate(Computes, <<"counting the primes below 200000">>),
                  untimed_lines(FooOut) ++ untimed_lines(BarOut)).
 
-%% Chapter 2's seven commands, run from the reader's directory as the
-%% tour writes them, each `--listen`'s port one the harness found free:
-%% the three that make a directory print its key, and the four that list a
-%% peer print nothing. `a`'s listen is set to a free port before it is
-%% listed. a/ernest.conf, which the tour shows, then lists foo and bar at
-%% their ports, each by its key, and offers no service, and each bare node
-%% lists `a` at its port (report §8.7, §11.3).
-configured(Base, PortFoo, PortBar) ->
-    [A, Foo, Bar] = [filename:join(Base, Name) || Name <- ["a", "foo", "bar"]],
-    [AddressFoo, AddressBar] = [ern_harness:address(Port) || Port <- [PortFoo, PortBar]],
-    created(Base, "config --config-dir a"),
-    created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
-    created(Base, "config --config-dir bar --listen " ++ binary_to_list(AddressBar)),
-    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
-     || Words <- ["a --peer-dir foo", "a --peer-dir bar", "foo --peer-dir a", "bar --peer-dir a"]],
-    ?assertEqual(#{<<"peers">> => [ern_harness:peer("foo", Foo, PortFoo),
-                                   ern_harness:peer("bar", Bar, PortBar)],
-                   <<"services">> => #{}},
-                 ern_harness:configuration(A)),
-    [?assertEqual([ern_harness:peer("a", A, none)],
-                  maps:get(<<"peers">>, ern_harness:configuration(Dir)))
-     || Dir <- [Foo, Bar]].
+%% Chapter 2: the chapter's seven commands run, a/ernest.conf held to the
+%% page (listed/4), and each bare node, which the chapter's prose starts in
+%% a terminal of its own, started and said where it listens; then the
+%% shell that is `a` started and its session typed: the counter loaded,
+%% one spawned here as in chapter 1, and one on foo, a bare node that holds
+%% none of its code, which the shell's first connection reaches; a send to
+%% it and a call it answers. foo says that `a` connected, and nothing
+%% before it, as the chapter's prose says its terminal shows (report §8.7,
+%% §11.2, §11.3, Appendix E.27).
+far(Base) ->
+    copied(2, Base),
+    [Commands, Session] = consoles(2),
+    [Conf] = blocks(2, <<"json">>),
+    Ports = #{Name => ern_harness:free_port() || Name <- ["foo", "bar"]},
+    [ran(Base, Ports, Command) || Command <- commands(Commands)],
+    listed(Base, Ports, commands(Commands), Conf),
+    [Foo, Bar] = [filename:join(Base, Name) || Name <- ["foo", "bar"]],
+    WaitFoo = ern_harness:bare_started(Foo, []),
+    WaitBar = ern_harness:bare_started(Bar, []),
+    [ern_deployment_tests:listens(filename:join(Base, Name), Port) || Name := Port <- Ports],
+    Shell = opened(Base, Session),
+    ern_harness:says(Foo, "the peer a connected"),
+    ?assertMatch([<<"listening on ", _/binary>>, <<"the peer a connected">>],
+                 untimed_lines(ern_harness:written(Foo, err))),
+    #tour{base = Base, ports = Ports, foo = Foo, bar = Bar, wait_foo = WaitFoo,
+          wait_bar = WaitBar, shell = Shell}.
 
+%% Report §8.7, §11.3: a/ernest.conf, which the chapter's prose names, as
+%% the page's json block shows it, each peer's address and key those the
+%% harness gave the peer's directory in place of the page's, which are
+%% those the page's commands gave and printed: it lists foo and bar at
+%% their ports, each by its key, and offers no service. Each bare node
+%% lists `a`, with no address, as the chapter's prose says.
+listed(Base, Ports, Commands, Conf) ->
+    Given = maps:from_list([{Dir, list_to_binary(Address)}
+                            || {Words, _} <- Commands,
+                               {match, [Dir, Address]}
+                                   <- [re:run(Words, "--config-dir (\\S+) --listen (\\S+)",
+                                              [{capture, all_but_first, list}])]]),
+    Printed = maps:from_list([{Dir, join(Shown)}
+                              || {"config --config-dir " ++ Rest, [_, _, _] = Shown} <- Commands,
+                                 [Dir | _] <- [string:split(Rest, " ")]]),
+    #{<<"peers">> := Peers} = Page = json:decode(join(Conf)),
+    Peer = fun(#{<<"name">> := Name, <<"network-address">> := Address,
+                 <<"public-key">> := Key} = Listed) ->
+                   Dir = binary_to_list(Name),
+                   ?assertEqual({Dir, maps:get(Dir, Given), maps:get(Dir, Printed)},
+                                {Dir, Address, Key}),
+                   maps:merge(Listed, ern_harness:peer(Dir, filename:join(Base, Dir),
+                                                       maps:get(Dir, Ports)))
+           end,
+    A = filename:join(Base, "a"),
+    ?assertEqual(Page#{<<"peers">> => lists:map(Peer, Peers)}, ern_harness:configuration(A)),
+    [?assertEqual([ern_harness:peer("a", A, none)],
+                  maps:get(<<"peers">>, ern_harness:configuration(filename:join(Base, Name))))
+     || Name := _ <- Ports].
+
+%% Report §11.3: a job that makes a directory, whose key it prints.
 created(Base, Words) ->
     {Status, Out, Err} = ern_deployment_tests:job(Base, Words),
     ?assertEqual({0, ""}, {Status, Err}),
     ern_deployment_tests:keyed(Out).
 
-%% Chapter 2: the counter loaded at the shell that is `a`, one spawned
-%% here as in chapter 1, and one on foo, a bare node that holds none of
-%% its code, which the shell's first connection reaches; a send to it and
-%% a call it answers. foo says that `a` connected, and nothing before it
-%% (report §8.7, §11.2, Appendix E.27).
-far(#tour{foo = Foo, shell = Shell} = Tour) ->
-    Typed = session(Shell,
-                    [{":load Counter", ["Counter, compiled from counter.ern"]},
-                     {"let counter = spawn(fn() = Counter.count(0))",
-                      ["counter : Address(Counter.CounterMsg)"]},
-                     {"let far <- Peer.spawn(\"foo\", fn() = Counter.count(0), 5000)",
-                      ["far : Address(Counter.CounterMsg)"],
-                      [["the peer foo connected"]]},
-                     {"send(far, Counter.Inc(5))", []},
-                     {"Address.call(far, Counter.Get, 1000)", ["Some(5) : Optional(Int)"]}]),
-    ern_harness:says(Foo, "the peer a connected"),
-    ?assertMatch([<<"listening on ", _/binary>>, <<"the peer a connected">>],
-                 untimed_lines(ern_harness:written(Foo, err))),
-    Tour#tour{shell = Typed}.
-
 %% Chapter 3: a reload that changes no type says the module compiled
 %% again and nothing else, and one function serves the counter here and
 %% the one on foo, an address being a value (report §6.5, §11.2).
 client(#tour{shell = Shell} = Tour) ->
-    Tour#tour{shell = session(Shell,
-                              [{":reload", ["Counter, compiled again"]},
-                               {"Counter.apply(counter, \"inc 3\")", [?SENT]},
-                               {"Counter.apply(far, \"get\")", ["\"5\" : String"]}])}.
+    [Session] = consoles(3),
+    Tour#tour{shell = typed_console(Shell, Session)}.
 
 %% Chapter 4: the counter of the old loop killed and one of the new
 %% started, which a negative amount faults, reported with its site and its
@@ -385,28 +356,9 @@ client(#tour{shell = Shell} = Tour) ->
 %% watcher hears as the fault's `Down` (report §6.9, §6.10, §7.3, §11.2,
 %% Appendix E.21).
 fault(#tour{shell = Shell} = Tour) ->
-    Trace = "    Counter$3.count:8",
-    Tour#tour{shell = session(
-        Shell,
-        [{":reload", ["Counter, compiled again"]},
-         {"kill(Process.fromAddress(counter))", []},
-         {"let counter = spawn(fn() = Counter.count(0))",
-          ["counter : Address(Counter.CounterMsg)"]},
-         {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["the process of $Session1.input 11:1 faulted: a negative amount", Trace]]},
-         {"Counter.apply(counter, \"get\")", ["\"no answer\" : String"]},
-         {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 3600000),"
-          " fn() = Counter.count(0)))",
-          ["counter : Address(Counter.CounterMsg)"]},
-         {"let watcher = spawn(fn() = Counter.watch(counter))",
-          ["watcher : Address(Counter.WatchMsg)"]},
-         {"Counter.apply(counter, \"inc 2\")", [?SENT]},
-         {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["the process of $Session1.input 14:1 faulted, restarted: a negative amount", Trace]]},
-         {"Counter.apply(counter, \"get\")", ["\"0\" : String"]},
-         {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["the process of $Session1.input 14:1 faulted: a negative amount", Trace],
-           ["the counter ended: Fault(\"a negative amount\")"]]}])}.
+    [Killed, Restarted, Ended] = consoles(4),
+    Tour#tour{shell = typed_console(typed_console(typed_console(Shell, Killed), Restarted),
+                                    Ended)}.
 
 %% Chapter 5: `ern build .` compiles both modules and says nothing, and
 %% `ern test counter.erc` passes the first test and faults the second with
@@ -417,36 +369,10 @@ fault(#tour{shell = Shell} = Tour) ->
 %% refused the new protocol, with the help naming the previous version;
 %% it is killed, and a counter of the new type counts per key (report
 %% §3.6, §4.4, §4.9, §8.6, §12.4, §11.1, §11.2, §11.5, Appendix E.24).
-per_key(#tour{base = Base, shell = Shell} = Tour) ->
-    ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "build .")),
-    ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:71\n"
-                     "    1 process of Counter.countsPerKey:62 waits in Counter.count:11\n"
-                     "    1 process of Counter.reports:69 waits in Counter.count:11\n"
-                     "2 cases, 1 failed\n",
-                  ""},
-                 ern_deployment_tests:job(Base, "test counter.erc")),
-    Tour#tour{shell = session(
-        Shell,
-        [{":reload",
-          ["Tally, from tally.erc",
-           "Counter, compiled again",
-           "Counter.CounterMsg changed: the bindings counter and far are of its previous version,"
-           " Counter$3.CounterMsg"]},
-         {"Counter.apply(far, \"inc apples 2\")",
-          ["input 21:1:15: the argument does not fit Counter.apply: expected"
-           " Address(Counter.CounterMsg), found Address(Counter$3.CounterMsg)",
-           "1 | Counter.apply(far, \"inc apples 2\")",
-           "  | ------------- Counter.apply : (Address(Counter.CounterMsg), String) -> String",
-           "  |               ^^^",
-           "  | = help: the types differ at Counter.CounterMsg and Counter$3.CounterMsg;"
-           " Counter$3.CounterMsg is of a previous version of Counter, which a reload replaced"]},
-         {"kill(Process.fromAddress(far))", []},
-         {"let counter = spawn(fn() = Counter.count(Tally.empty()))",
-          ["counter : Address(Counter.CounterMsg)"]},
-         {"Counter.apply(counter, \"inc apples 2\")", [?SENT]},
-         {"Counter.apply(counter, \"inc pears 1\")", [?SENT]},
-         {"Counter.apply(counter, \"inc apples 1\")", [?SENT]},
-         {"Counter.apply(counter, \"report\")", ["\"apples: 3, pears: 1\" : String"]}])}.
+per_key(#tour{base = Base, ports = Ports, shell = Shell} = Tour) ->
+    [Built, Reloaded, Counted] = consoles(5),
+    [ran(Base, Ports, Command) || Command <- commands(Built)],
+    Tour#tour{shell = typed_console(typed_console(Shell, Reloaded), Counted)}.
 
 %% Chapter 6: the reload names the binding of the previous type; a spawn
 %% on foo of the loop whose mailbox type carries `Upgrade` is refused as
@@ -455,152 +381,277 @@ per_key(#tour{base = Base, shell = Shell} = Tour) ->
 %% type, the one on foo counting what this node sends it (report §3.11,
 %% §6.5, §6.10, §8.7, §11.2, §11.5, Appendix E.27).
 door(#tour{shell = Shell} = Tour) ->
-    Tour#tour{shell = session(
-        Shell,
-        [{":reload",
-          ["Counter, compiled again",
-           "Counter.CounterMsg changed: the binding counter is of its previous version,"
-           " Counter$4.CounterMsg"]},
-         {"Peer.spawn(\"foo\", fn() = Counter.count(Tally.empty()), 5000)",
-          ["input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg is"
-           " bound to its node, since it holds a function",
-           "1 | Peer.spawn(\"foo\", fn() = Counter.count(Tally.empty()), 5000)",
-           "  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-           "  | = help: start it on the peer from `Peer.compute`, whose function spawns it"
-           " and answers an adapted address of a type that crosses, or keep a function on this"
-           " node and send the process values that cross"]},
-         {"kill(Process.fromAddress(counter))", []},
-         {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
-         {"let far <- Peer.compute(\"foo\", fn() = Counter.start(), 5000)",
-          ["far : Address(Counter.ClientMsg)"]},
-         {"Counter.apply(counter, \"inc apples 2\")", [?SENT]},
-         {"Counter.apply(far, \"inc apples 3\")", [?SENT]},
-         {"Counter.apply(far, \"inc pears 1\")", [?SENT]},
-         {"Counter.apply(far, \"report\")", ["\"apples: 3, pears: 1\" : String"]}])}.
+    [Session] = consoles(6),
+    Tour#tour{shell = typed_console(Shell, Session)}.
 
 %% Chapter 7: a foreign function asked on each bare node answers the
 %% host's count of schedulers, the shell's first compute on bar connecting
-%% to it; the shell holds both peers' utilizations, in the configuration's
-%% order; and three computes that name no node each answer the count of the
-%% primes below 200000, each printing its line where it runs, which the
-%% test holds once the nodes have ended (report §4.7, §8.4, §8.7, Appendix
-%% E.27).
+%% to it, which bar says, as the chapter's prose says; the shell holds both
+%% peers' utilizations, in the configuration's order; and the computes
+%% that name no node each answer the count of the primes below 200000, each
+%% printing its line where it runs, which the test holds once the nodes
+%% have ended (report §4.7, §8.4, §8.7, Appendix E.27).
 anywhere(#tour{bar = Bar, shell = Shell} = Tour) ->
-    Schedulers = "Right(" ++ integer_to_list(erlang:system_info(schedulers))
-        ++ ") : Either(Io.Error, Int)",
-    Utilization = "[0-9]+\\.[0-9]+(?:e-?[0-9]+)?, [0-9]+",
-    Primes = {"Peer.computeAnywhere(fn() = Counter.primes(200000), 5000)",
-              ["Right(17984) : Either(Io.Error, Int)"]},
-    Typed = session(
-        Shell,
-        [{":reload", ["Counter, compiled again"]},
-         {"Peer.compute(\"foo\", fn() = Counter.schedulers(), 5000)", [Schedulers]},
-         {"Peer.compute(\"bar\", fn() = Counter.schedulers(), 5000)", [Schedulers],
-          [["the peer bar connected"]]},
-         {"Peer.utilizations()",
-          [{re, "\\[#\\(\"foo\", " ++ Utilization ++ "\\), #\\(\"bar\", " ++ Utilization
-                ++ "\\)\\] : List\\(#\\(String, Float, Int\\)\\)"}]},
-         Primes,
-         Primes,
-         Primes]),
+    [Asked, Anywhere] = consoles(7),
+    Typed = typed_console(typed_console(Shell, Asked), Anywhere),
     ern_harness:says(Bar, "the peer a connected"),
-    Tour#tour{shell = Typed}.
+    Computes = [Input || {"Peer.computeAnywhere(" ++ _ = Input, _, _} <- inputs(Anywhere)],
+    Tour#tour{shell = Typed, computes = length(Computes)}.
 
 %% Chapter 8: the fix, a second loop, moved to on this node and on foo,
 %% each counter keeping its tally, and the nodes stopped.
 fix(Tour) ->
-    stopped(moved_there(moved_here(Tour))).
+    [Here, Ops, Attached, Called, There, Ended, Lost] = consoles(8),
+    stopped(moved_there(moved_here(Tour, Here), Ops, Attached, Called, There), Ended, Lost).
 
 %% The reload changes no type; `Code.running` lists the counter on the
 %% first loop and none on the second, and `Counter.move()` sends it its
 %% `Upgrade`. A report, which the counter answers after the `Upgrade` it
 %% took first, says the tally is kept, and the lists are then the other
-%% way round, the same address on each; a negative amount is passed over
-%% and the tally kept (report §6.4, §6.10, §11.2, Appendix E.28).
-moved_here(#tour{shell = Shell} = Tour) ->
-    Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
-    Empty = "[] : List(Address(Counter.CounterMsg))",
-    #shell{read = Read} = Moved = session(
-        Shell,
-        [{":reload", ["Counter, compiled again"]},
-         {"Code.running(Counter.count)", [{re, Running}]},
-         {"Code.running(Counter.countGuarded)", [Empty]},
-         {"Counter.move()", []},
-         {"Counter.apply(counter, \"report\")", ["\"apples: 2\" : String"]},
-         {"Code.running(Counter.count)", [Empty]},
-         {"Code.running(Counter.countGuarded)", [{re, Running}]},
-         {"Counter.apply(counter, \"inc apples -1\")", [?SENT]},
-         {"Counter.apply(counter, \"report\")", ["\"apples: 2\" : String"]}]),
-    {match, [[First], [Second]]} = re:run(Read, Running, [global, {capture, first, binary}]),
-    ?assertEqual(First, Second),
-    Tour#tour{shell = Moved}.
+%% way round, the same address on each (quit/1); a negative amount is
+%% passed over and the tally kept (report §6.4, §6.10, §11.2, Appendix
+%% E.28).
+moved_here(#tour{shell = Shell} = Tour, Here) ->
+    Tour#tour{shell = typed_console(Shell, Here)}.
 
-%% A shell attached to foo from ops, a directory made in the reader's
-%% directory as the tour makes it, its `listen` removed, listed in foo's
-%% file, which a reload reads, and listing foo, the shell's own node saying
-%% that foo connected before its start line. `:load Counter` sends the
-%% sources of Counter and Tally to foo, which compiles them; `Code.running`
-%% lists foo's counter, which chapter 6's compute started, on the old loop
-%% and none on the new, and `Counter.move()` at foo's prompt sends it its
-%% `Upgrade`. The counter, which the shell that is `a` then calls, passes a
-%% negative amount over and keeps its tally, and its answer to the report
-%% follows the `Upgrade` it took first, so the lists at foo's prompt are
-%% then the other way round, the same address on each (report §6.4, §8.7,
-%% §11.2, §11.3, Appendix E.28).
-moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
-    Ops = filename:join(Base, "ops"),
-    created(Base, "config --config-dir ops"),
-    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
-     || Words <- ["config --config-dir ops --peer-dir foo",
-                  "config --config-dir foo --peer-dir ops", "reload --config-dir foo"]],
+%% A shell attached to foo from ops, made by the chapter's commands with
+%% no `listen`, listed in foo's file, which a reload reads, and listing
+%% foo; foo says it read its file and added ops, as the prose says. The
+%% shell's node says that foo connected before its start line. `:load
+%% Counter` sends the sources of Counter and Tally to foo, which compiles
+%% them, and foo says that ops connected; `Code.running` lists foo's
+%% counter, chapter 6's, on the old loop and none on the new, and
+%% `Counter.move()` sends it its `Upgrade`. The counter, which the shell
+%% that is `a` then calls, as the prose says, passes a negative amount
+%% over and keeps its tally, and answers the report after the `Upgrade`, so
+%% the lists at foo's prompt are then the other way round, the same address
+%% on each (stopped/3) (report §6.4, §8.7, §11.2, §11.3, Appendix E.28).
+moved_there(#tour{base = Base, ports = Ports, foo = Foo, shell = Shell} = Tour, Ops, Attached,
+            Called, There) ->
+    [ran(Base, Ports, Command) || Command <- commands(Ops)],
     ern_harness:says(Foo, "the peer ops was added"),
-    Attached = started(Base, Ops, " --config-dir ops --attach foo",
-                       [<<"the peer foo connected">>]),
-    Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
-    Empty = "[] : List(Address(Counter.CounterMsg))",
-    Sent = session(
-        Attached,
-        [{":load Counter",
-          ["Tally, compiled from tally.ern", "Counter, compiled from counter.ern"]},
-         {"Code.running(Counter.count)", [{re, Running}]},
-         {"Code.running(Counter.countGuarded)", [Empty]},
-         {"Counter.move()", []}]),
+    Sent = opened(Base, Attached),
     ern_harness:says(Foo, "the peer ops connected"),
-    Called = session(Shell,
-                     [{"Counter.apply(far, \"inc apples -1\")", [?SENT]},
-                      {"Counter.apply(far, \"report\")",
-                       ["\"apples: 3, pears: 1\" : String"]}]),
-    #shell{read = Read} = Moved = session(
-        Sent,
-        [{"Code.running(Counter.count)", [Empty]},
-         {"Code.running(Counter.countGuarded)", [{re, Running}]}]),
-    {match, [[First], [Second]]} = re:run(Read, Running, [global, {capture, first, binary}]),
-    ?assertEqual(First, Second),
-    Tour#tour{attached = Moved, shell = Called}.
+    Back = typed_console(Shell, Called),
+    Tour#tour{attached = typed_console(Sent, There), shell = Back}.
 
-%% `ern stop --config-dir foo` ends foo by termination, with status 143;
-%% the shell attached to foo ends with it, with status 0, saying on its
-%% standard error that foo ended, under its last prompt, as the chapter's
-%% block shows it (ern_deployment_tests:ended/3), and the shell that is `a`
-%% says so too;
+%% `ern stop --config-dir foo`, which the prose runs, ends foo by
+%% termination, with status 143; the shell attached to foo ends with it,
+%% with status 0, saying on its standard error that foo ended, under its
+%% last prompt, as the chapter's block shows it
+%% (ern_deployment_tests:ended/3), and the shell that is `a` says so too;
 %% `far` then answers "ok" to an inc, since a send does not wait, and "no
 %% answer" to a report; `ern stop --config-dir bar` ends bar, which the
-%% shell says too, since chapter 7 connected to it (report §8.6, §8.7,
-%% §11.2, §11.3, §11.8).
+%% shell says too, since chapter 7 connected to it, as the prose says
+%% (report §8.6, §8.7, §11.2, §11.3, §11.8).
 stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell,
-              attached = #shell{dir = Ops, wait = WaitAttached, read = Read}} = Tour) ->
+              attached = #shell{dir = Ops, wait = WaitAttached, read = Read} = Attached} = Tour,
+        Ended, Lost) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
     ?assertEqual(0, WaitAttached()),
+    addressed(Attached),
     {Out, Err} = ern_harness:said(Ops),
     ?assertEqual(Read, binary:part(list_to_binary(Out), 0, byte_size(Read))),
-    ern_deployment_tests:ended(["> ", "the node foo ended"], {Out, Err}, "the node foo ended"),
-    Lost = session(unasked(Shell, ["the peer foo ended"]),
-                   [{"Counter.apply(far, \"inc apples 1\")", [?SENT]},
-                    {"Counter.apply(far, \"report\")", ["\"no answer\" : String"]}]),
+    Shown = [binary_to_list(Line) || Line <- Ended],
+    ern_deployment_tests:ended(Shown, {Out, Err}, lists:last(Shown)),
+    Told = typed_console(Shell, Lost),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir bar")),
     ?assertEqual(143, WaitBar()),
-    Tour#tour{shell = unasked(Lost, ["the peer bar ended"])}.
+    Tour#tour{shell = unasked(Told, [<<"the peer bar ended">>])}.
+
+%%
+%% The page read
+%%
+
+%% The blocks under chapter Chapter's heading, `## 5. Per key`, up to the
+%% next chapter's, whose fence's word is Mark, in order, each its lines;
+%% each is recorded as a block this test checks.
+blocks(Chapter, Mark) ->
+    Heading = iolist_to_binary(["## ", integer_to_list(Chapter), ". "]),
+    {_, [_ | Rest]} = lists:splitwith(fun({_, Line}) -> not is_prefix(Heading, Line) end,
+                                      numbered(?PAGE)),
+    {Section, _} = lists:splitwith(fun({_, Line}) -> not is_prefix(<<"## ">>, Line) end, Rest),
+    Blocks = [{Number, Code} || {Number, Info, Code} <- fenced(Section), Info =:= Mark],
+    recorded(?PAGE, [Number || {Number, _} <- Blocks]),
+    [Code || {_, Code} <- Blocks].
+
+consoles(Chapter) ->
+    blocks(Chapter, <<"console">>).
+
+%% The blocks of Document whose fences open on Lines recorded as blocks
+%% this test checks, which tools/documents.ern's listing reads
+%% (ern_helpers:record_checked/3).
+recorded(Document, Lines) ->
+    ok = ern_helpers:record_checked(?MODULE, Document, Lines).
+
+%% A document's lines, each with its number.
+numbered(Document) ->
+    {ok, Text} = file:read_file(Document),
+    lists:enumerate(binary:split(Text, <<"\n">>, [global])).
+
+%% The fenced blocks of numbered lines, each the line its fence opens on,
+%% the word after its fence and its lines.
+fenced([]) ->
+    [];
+fenced([{Number, <<"```", Info/binary>>} | Rest]) ->
+    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not is_prefix(<<"```">>, Line) end,
+                                          Rest),
+    [{Number, Info, [Line || {_, Line} <- Code]} | fenced(After)];
+fenced([_ | Rest]) ->
+    fenced(Rest).
+
+is_prefix(Prefix, Line) ->
+    binary:longest_common_prefix([Prefix, Line]) =:= byte_size(Prefix).
+
+join(Lines) ->
+    iolist_to_binary([[Line, <<"\n">>] || Line <- Lines]).
+
+%% A console's commands, each a `$ ern` line's words after `ern` and the
+%% lines the console shows it print.
+commands([]) ->
+    [];
+commands([<<"$ ern ", Words/binary>> | Lines]) ->
+    {Shown, Rest} = lists:splitwith(fun(Line) -> not is_prefix(<<"$ ">>, Line) end, Lines),
+    [{binary_to_list(Words), Shown} | commands(Rest)].
+
+%% A command of the page's run from the reader's directory, Base, a
+%% `--listen` given its directory's port of Ports in place of the page's.
+%% One whose lines are a key, `ern config`'s that makes a directory, prints
+%% a key (report §11.3), the page's of the same form; `ern test` ends with
+%% status 1 where its count says a case failed (report §11.8); every other
+%% ends with status 0, and each prints the lines the page shows, none where
+%% it shows none, and nothing on its standard error.
+ran(Base, Ports, {Words, Shown}) ->
+    {Status, Out, Err} = ern_deployment_tests:job(Base, listening(Words, Ports)),
+    case Shown of
+        [<<"-----BEGIN PUBLIC KEY-----">>, _, <<"-----END PUBLIC KEY-----">>] ->
+            ern_deployment_tests:keyed(binary_to_list(join(Shown))),
+            ?assertEqual({Words, 0, ""}, {Words, Status, Err}),
+            ern_deployment_tests:keyed(Out);
+        _ ->
+            ?assertEqual({Words, status(Words, Shown), binary_to_list(join(Shown)), ""},
+                         {Words, Status, Out, Err})
+    end.
+
+%% Report §11.8: `ern test` exits with status 1 where a case failed, which
+%% its count, its last line, says.
+status("test " ++ _, Shown) ->
+    case re:run(lists:last(Shown), "^[0-9]+ cases?, [1-9][0-9]* failed$") of
+        {match, _} -> 1;
+        nomatch -> 0
+    end;
+status(_, _) ->
+    0.
+
+%% A command's words, its `--listen` address the harness's port for its
+%% `--config-dir`.
+listening(Words, Ports) ->
+    case re:run(Words, "--config-dir (\\S+) --listen (\\S+)", [{capture, all_but_first, list}]) of
+        {match, [Dir, Address]} ->
+            Port = binary_to_list(ern_harness:address(maps:get(Dir, Ports))),
+            lists:flatten(string:replace(Words, Address, Port));
+        nomatch ->
+            Words
+    end.
+
+%% A shell started as a console shows it, `$ ern shell` with its options,
+%% in the reader's directory, Base, the lines its node says before its
+%% start line held to those the console shows there and its start line the
+%% release's (readme_start/0); then Before typed, each an input that
+%% typed/2 types, and the console's lines (typed_console/2). A shell given
+%% `--config-dir` writes its streams beside that directory.
+opened(Base, Console) ->
+    opened(Base, Console, []).
+
+opened(Base, [<<"$ ern shell", Options/binary>> | Lines], Before) ->
+    {Said, [Start | Rest]} = lists:splitwith(fun(Line) -> not is_prefix(<<"Ernest ">>, Line) end,
+                                             Lines),
+    ?assertEqual(readme_start(), Start),
+    Dir = case re:run(Options, "--config-dir (\\S+)", [{capture, all_but_first, list}]) of
+              {match, [Name]} -> filename:join(Base, Name);
+              nomatch -> filename:join(Base, "shell")
+          end,
+    typed_console(session(started(Base, Dir, binary_to_list(Options), Said), Before), Rest).
+
+%% A console's lines typed at a shell: the lines before its first input,
+%% which the shell prints unasked after its prompt, then its inputs
+%% (inputs/1); the numbers of the addresses the console shows are kept for
+%% the shell's end (addressed/1).
+typed_console(Shell, Lines) ->
+    {Unasked, Rest} = lists:splitwith(fun(Line) -> not is_prefix(<<"> ">>, Line) end, Lines),
+    Told = case Unasked of
+               [] -> Shell;
+               _ -> unasked(Shell, Unasked)
+           end,
+    #shell{addresses = Addresses} = Typed = session(Told, inputs(Rest)),
+    Typed#shell{addresses = Addresses ++ addresses(join(Lines))}.
+
+%% A console's inputs as typed/2 types them, read by the form the page
+%% writes them in: each `> ` line, with the lines after it up to the next,
+%% which it prints. A line that begins `the ` is said beside the answer, a
+%% node's connection or end, a fault's report or a process's line, and
+%% nothing orders it against the answer: it is a part of its own, with the
+%% lines indented by four spaces after it, a trace's frames. The rest is
+%% the answer, in order, a refusal's lines among it (shown/2).
+inputs([]) ->
+    [];
+inputs([<<"> ", Input/binary>> | Rest]) ->
+    {Printed, After} = lists:splitwith(fun(Line) -> not is_prefix(<<"> ">>, Line) end, Rest),
+    {Answer, Said} = parted(Printed),
+    [{binary_to_list(Input), [shown(binary_to_list(Input), Line) || Line <- Answer], Said}
+     | inputs(After)].
+
+parted([]) ->
+    {[], []};
+parted([<<"the ", _/binary>> = Line | Rest]) ->
+    {Frames, After} = lists:splitwith(fun(Next) -> is_prefix(<<"    ">>, Next) end, Rest),
+    {Answer, Said} = parted(After),
+    {Answer, [[Line | Frames] | Said]};
+parted([Line | Rest]) ->
+    {Answer, Said} = parted(Rest),
+    {[Line | Answer], Said}.
+
+%% A line of an answer as this host prints it: the page's numbers that are
+%% the host's or the run's stand for this host's and this run's. The
+%% count of the host's schedulers, `Right(8)` of a compute of
+%% `Counter.schedulers()`, is this host's; each utilization and its age,
+%% `0.25, 387`, of `Peer.utilizations()` is any; and an address,
+%% `<address.221>`, is any, the same where the page's are the same
+%% (addressed/1).
+shown("Peer.utilizations()", Line) ->
+    {re, pattern(Line, "[0-9]+\\.[0-9]+, [0-9]+", "[0-9]+\\.[0-9]+(?:e-?[0-9]+)?, [0-9]+")};
+shown(Input, Line) ->
+    case {string:find(Input, "Counter.schedulers()"), addresses(Line)} of
+        {nomatch, []} ->
+            Line;
+        {nomatch, _} ->
+            {re, pattern(Line, "<address\\.[0-9]+>", "<address\\.[0-9]+>")};
+        _ ->
+            Count = integer_to_list(erlang:system_info(schedulers)),
+            re:replace(Line, "^Right\\([0-9]+\\)", ["Right(", Count, ")"], [{return, binary}])
+    end.
+
+%% The line as a regular expression that matches it whole, each part that
+%% Page matches standing for any text Any matches.
+pattern(Line, Page, Any) ->
+    Parts = re:split(Line, Page, [{return, binary}]),
+    iolist_to_binary(lists:join(Any, [["\\Q", Part, "\\E"] || Part <- Parts])).
+
+%% The numbers of the addresses a text shows, `221` of `<address.221>`, in
+%% order.
+addresses(Text) ->
+    case re:run(Text, "<address\\.([0-9]+)>", [global, {capture, all_but_first, binary}]) of
+        {match, Numbers} -> [Number || [Number] <- Numbers];
+        nomatch -> []
+    end.
+
+%% Report Appendix E.1: the addresses a shell printed are the same where
+%% the page's are the same, and differ where they differ, the host's
+%% numbers being its own.
+addressed(#shell{read = Read, addresses = Shown}) ->
+    Same = fun(Numbers) -> [[Each =:= Other || Other <- Numbers] || Each <- Numbers] end,
+    ?assertEqual(Same(Shown), Same(addresses(Read))).
 
 %%
 %% The reader's directory and the shell
@@ -679,16 +730,19 @@ faulted(#shell{dir = Dir, port = Port, read = Read, carried = []} = Shell, Input
 %% Lines the shell prints unasked after its prompt, a node's end, once its
 %% stream holds them.
 unasked(#shell{dir = Dir, read = Read, carried = Carried} = Shell, Lines) ->
-    [ern_harness:prints(Dir, Line, count(Read, Line) + 1, ern_harness:wait_ms())
+    [ern_harness:prints(Dir, unicode:characters_to_list(Line), count(Read, Line) + 1,
+                        ern_harness:wait_ms())
      || Line <- Lines],
     {Written, Text} = since(Shell, 0),
     Shell#shell{read = Text, carried = held(Written, [Lines | Carried], [])}.
 
 %% Report §11.2: `:quit` ends the session, which leaves the cursor on a
 %% line of its own and ends with status 0, having written nothing on
-%% standard error, since in line mode all it says goes to standard output.
-quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read, carried = Carried}) ->
+%% standard error, since in line mode all it says goes to standard output;
+%% the addresses it printed are as the page's (addressed/1).
+quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read, carried = Carried} = Shell) ->
     ?assertEqual([], Carried),
+    addressed(Shell),
     true = port_command(Port, ":quit\n"),
     ?assertEqual(0, Wait()),
     {Out, Err} = ern_harness:said(Dir),

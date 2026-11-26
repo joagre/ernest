@@ -4,13 +4,14 @@
 %% table among them; a compiled module's interface forged; the messages of
 %% one tag a process's mailbox holds; the side of an Either; the options of
 %% a run whose standard output is let go; what EUnit has captured; an I/O
-%% server that keeps what it is given; a process of another node; and a
-%% node's certificate forged.
+%% server that keeps what it is given; a process of another node; a node's
+%% certificate forged; and the record of the documents' blocks a test
+%% checks.
 -module(ern_helpers).
 
 -export([run_dir/0, tmp/1, tmp/2, write/3, loaded/2, unloaded/1, forge/2, taken/1, side/1,
          quiet/0, quiet/1, silent/0, captured_output/0, device/0, device_bytes/1, far_process/0,
-         forged_certificate/2]).
+         forged_certificate/2, record_checked/3, record_of/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -180,3 +181,81 @@ forged_certificate(Dir, Host) ->
              extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
                                         extnValue = [{dNSName, Host}]}]},
     public_key:pkix_sign(Tbs, Key).
+
+%% Test checked the fenced blocks of Document, a path from the working
+%% directory, whose fences open at Lines, each counted from 1, which
+%% tools/documents.ern's listing `unchecked` reads. The record is a line a
+%% fact: first the run that wrote it, its host's number and the moment the
+%% host started; then a `checked` line for each block, its document's path
+%% from the repository's root and its line, and a `covers` line for each
+%% document Test chose blocks from. A run's first record replaces the
+%% earlier run's, so that the record is the last run's, and the test's
+%% processes write it one at a time. A line that opens no block fails the
+%% test that counted it.
+-spec record_checked(module(), file:filename(), [pos_integer()]) -> ok.
+record_checked(Test, Document, Lines) ->
+    {ok, Text} = file:read_file(Document),
+    Relative = from_tree(Document),
+    Opening = opening(binary:split(Text, <<"\n">>, [global]), 1, false),
+    [lists:member(Line, Opening) orelse error({opens_no_block, Relative, Line})
+     || Line <- Lines],
+    Facts = [<<"covers ", Relative/binary>>
+             | [<<"checked ", Relative/binary, ":", (integer_to_binary(Line))/binary>>
+                || Line <- Lines]],
+    Run = iolist_to_binary(["run ", os:getpid(), " ", integer_to_list(host_started())]),
+    true = global:trans({{record_checked, Test}, self()},
+                        fun() -> recorded(record_of(Test), Run, Facts) end, [node()]),
+    ok.
+
+%% The numbers of the lines that open a fenced block, a line that begins
+%% with three backticks opening one or closing the one open, as the
+%% listing reads a fence.
+opening([], _, _) ->
+    [];
+opening([<<"```", _/binary>> | Lines], Number, false) ->
+    [Number | opening(Lines, Number + 1, true)];
+opening([<<"```", _/binary>> | Lines], Number, true) ->
+    opening(Lines, Number + 1, false);
+opening([_ | Lines], Number, Fenced) ->
+    opening(Lines, Number + 1, Fenced).
+
+%% The record of the blocks Test checks, build/checked/Test.txt.
+-spec record_of(module()) -> file:filename().
+record_of(Test) ->
+    filename:join(ern_tree:build("checked"), atom_to_list(Test) ++ ".txt").
+
+%% The record with Facts beside those Run wrote before, written whole.
+recorded(Record, Run, Facts) ->
+    Earlier = case file:read_file(Record) of
+                  {ok, Bytes} ->
+                      case binary:split(Bytes, <<"\n">>, [global, trim_all]) of
+                          [Run | Kept] -> Kept;
+                          _ -> []
+                      end;
+                  {error, enoent} ->
+                      []
+              end,
+    ok = filelib:ensure_dir(Record),
+    Written = Record ++ "." ++ os:getpid(),
+    ok = file:write_file(Written, [[Line, <<"\n">>]
+                                   || Line <- [Run | lists:usort(Earlier ++ Facts)]]),
+    ok = file:rename(Written, Record),
+    true.
+
+%% The moment this host started, in milliseconds since the epoch.
+host_started() ->
+    erlang:convert_time_unit(erlang:system_info(start_time) + erlang:time_offset(), native,
+                             millisecond).
+
+%% Path, from the working directory, as a path from the toolchain's tree,
+%% the repository's root.
+from_tree(Path) ->
+    Tree = filename:split(ern_tree:tree()),
+    Segments = normalized(filename:split(filename:absname(Path)), []),
+    {Tree, Relative} = lists:split(length(Tree), Segments),
+    unicode:characters_to_binary(filename:join(Relative)).
+
+normalized([], Acc) -> lists:reverse(Acc);
+normalized(["." | Rest], Acc) -> normalized(Rest, Acc);
+normalized([".." | Rest], [_ | Acc]) -> normalized(Rest, Acc);
+normalized([Segment | Rest], Acc) -> normalized(Rest, [Segment | Acc]).

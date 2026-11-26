@@ -162,7 +162,9 @@ build/             build products, not in git, an installation holding what it s
                    on no job's code path; release/ from make
                    release; units/ from make units; dialyzer.plt from make dialyzer;
                    sanitize/ from make sanitize; flakes/ from make flakes; cover/ and
-                   slowest/ from make cover and make slowest. The tests under
+                   slowest/ from make cover and make slowest; checked/ from the tests
+                   that record the documents' blocks they check, for make unchecked.
+                   The tests under
                    test/ build beside themselves, in test/ebin/ and test/build/, as an
                    application's do
 ```
@@ -470,9 +472,15 @@ make citations  # each section of the report with the lines of the guide and the
                 # that cite it, then the sections none cites; for the full review
 make terms      # each term of the report's glossary, Appendix F, with its count in the
                 # rest of the report, in the guide and in the tour; for the full review
-make unchecked  # each fenced block of the report, the guide and the tour that no test
-                # compiles, runs or holds to code, by its mark and its place, with the
-                # counts by mark; for the full review
+make unchecked  # each fenced block of the report, the guide and the tour that no test's
+                # record names, by its mark and its place, with the counts by mark, and
+                # each test that records the blocks it checks with its count; a test
+                # that checks a block records it as it runs, its document and its fence's
+                # line, in build/checked/<test>.txt, and the last run's record is read
+                # unless it is missing or older than its test's source or a document it
+                # covers, when the test's line says so and counts it as checking none,
+                # so the tests run first, each whole: a run of some of a test's cases
+                # records those alone and is not found stale; for the full review
 make edits      # each section of the report, the guide and the tour by the commits that
                 # changed a line inside it, most first; for the full review
 make golden     # rewrite test/fixtures/emitted/, the Erlang the compiler emits for each

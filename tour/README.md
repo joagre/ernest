@@ -638,7 +638,7 @@ The counter on the node started with none of this program's code runs its new co
 In your own terminal, `ern stop --config-dir foo`. The attached shell ends with `foo`, where its session ran, and exits with status 0 (the deployment guide's §6), its last prompt left as it stood and the shell's line under it:
 
 ```console
->
+> 
 the node foo ended
 ```
 

@@ -1316,30 +1316,47 @@ ernest_files() ->
 grammar_fragments_test() ->
     {ok, Language} = file:read_file("report/language.md"),
     {ok, Toolchain} = file:read_file("report/toolchain.md"),
-    Text = unicode:characters_to_list(Language),
-    [Before, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    {Start, _} = binary:match(Language, <<"## Appendix A. Grammar">>),
+    {End, _} = binary:match(Language, <<"## Appendix B">>,
+                            [{scope, {Start, byte_size(Language) - Start}}]),
     %% the sections are the language's and the toolchain's
-    Body = Before ++ unicode:characters_to_list(Toolchain),
-    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
+    InAppendix = fragments("report/language.md", Language, {Start, End - Start}),
+    InSections = fragments("report/language.md", Language, {0, Start})
+        ++ fragments("report/toolchain.md", Toolchain, {0, byte_size(Toolchain)}),
+    Appendix = maps:from_list(lists:append([Rules || {_, _, Rules} <- InAppendix])),
+    Sections = maps:from_list(lists:append([Rules || {_, _, Rules} <- InSections])),
+    %% a block is checked where it writes one of the appendix's rules
+    Checked = [{File, Line} || {File, Line, [_ | _] = Rules} <- InAppendix ++ InSections,
+                               lists:any(fun({Name, _}) -> is_map_key(Name, Appendix) end,
+                                         Rules)],
+    [ok = ern_helpers:record_checked(?MODULE, File,
+                                     [Line || {Each, Line} <- Checked, Each =:= File])
+     || File <- ["report/language.md", "report/toolchain.md"]],
+    ?assert(map_size(Appendix) > 40),
+    ?assertEqual([],
+                 [Name || Name := Rule <- Appendix,
+                          maps:get(Name, Sections, undefined) =/= Rule]).
+
+%% The bare blocks of the part of File's Text that Scope bounds, {Offset,
+%% Length} in bytes: each block's file, the line its fence opens on, and its
+%% rules, each a name and the rule with its spaces made one, in order. The
+%% test records the blocks it holds to the appendix's rules
+%% (ern_helpers:record_checked/3), which tools/documents.ern's listing
+%% reads.
+fragments(File, Text, {Offset, _} = Scope) ->
     All = fun(Subject, Regex, Options) ->
-              case re:run(Subject, Regex,
-                          [global, unicode, {capture, all_but_first, list} | Options]) of
+              case re:run(Subject, Regex, [global, unicode | Options]) of
                   {match, Matches} -> Matches;
                   nomatch -> []
               end
           end,
-    Rules = fun(Section) ->
-                maps:from_list(
-                  [{Name, re:replace(Rule, "\\s+", " ", [global, unicode, {return, list}])}
-                   || ["", Block] <- All(Section, "```([\\w-]*)\n([\\s\\S]*?)```", []),
-                      [Rule, Name] <- All(Block, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
-            end,
-    InAppendix = Rules(Appendix),
-    InSections = Rules(Body),
-    ?assert(map_size(InAppendix) > 40),
-    ?assertEqual([],
-                 [Name || Name := Rule <- InAppendix,
-                          maps:get(Name, InSections, undefined) =/= Rule]).
+    Part = binary:part(Text, Scope),
+    [{File, 1 + length(binary:matches(binary:part(Text, 0, Offset + At), <<"\n">>)),
+      [{Name, re:replace(Rule, "\\s+", " ", [global, unicode, {return, list}])}
+       || [Rule, Name] <- All(binary:part(Part, Block), "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$",
+                              [multiline, {capture, all_but_first, list}])]}
+     || [{At, _}, {_, 0}, Block] <- All(Part, "```([\\w-]*)\n([\\s\\S]*?)```",
+                                         [{capture, all, index}])].
 
 %% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
 %% dash-separated specifiers and a size of an expression, in an expression

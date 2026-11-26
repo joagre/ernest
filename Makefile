@@ -752,8 +752,9 @@ coverage:
 # report, the guide and the tour: lengths the words of each section of the
 # guide and the tour, citations each report section with the places that
 # cite it, terms each glossary term's count in each, unchecked each fenced
-# block no test checks, and edits each section by the commits that changed
-# it.
+# block no test's record under build/checked/ names, which the tests that
+# check blocks write as they run, and edits each section by the commits
+# that changed it.
 COVER = $(CURDIR)/build/cover
 SLOWEST = $(CURDIR)/build/slowest
 RECORDED = { $(MAKE) -s -C test beams && { $(FULL_FIRST) -k EUNIT_TEST=ern_recorder:test; \

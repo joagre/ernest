@@ -1,12 +1,13 @@
 %% Report Appendix A read as data, for the tests that hold the grammar and
 %% the parser to it: each rule its name and its expression, Wirth's EBNF as
-%% a term, with §2's categories as the lexer's tokens; the paragraph after
+%% a term, with §2's categories as the lexer's tokens, and the blocks the
+%% rules are read from; the paragraph after
 %% the grammar, which names the tokens past the first; §2.4's reserved
 %% words; and what both suites ask of the rules, the nonterminals an
 %% expression names and a fixed point.
 -module(ern_grammar).
 
--export([rules/0, prose/0, reserved/0, nonterminals/1, fix/2]).
+-export([rules/0, read_blocks/0, prose/0, reserved/0, nonterminals/1, fix/2]).
 
 -export_type([expression/0]).
 
@@ -22,9 +23,16 @@
 %% Appendix A's rules, each its name and its expression.
 -spec rules() -> [{atom(), expression()}].
 rules() ->
-    [_, Rest] = string:split(appendix(), "```\n"),
-    [Grammar | _] = string:split(Rest, "```"),
+    {_, Grammar} = grammar(),
     parse(tokens(Grammar)).
+
+%% The blocks rules/0 reads, Appendix A's grammar and §2.6's categories,
+%% each by the line its fence opens on in the report's language file.
+-spec read_blocks() -> {file:filename(), [pos_integer()]}.
+read_blocks() ->
+    {Grammar, _} = grammar(),
+    {Operators, _} = operators_block(),
+    {?LANGUAGE, [Grammar, Operators]}.
 
 %% The paragraph after the grammar, which names the tokens past the first.
 -spec prose() -> string().
@@ -55,6 +63,33 @@ fix(Step, Value) ->
         Value -> Value;
         Next -> fix(Step, Next)
     end.
+
+%% Appendix A's grammar, its first block: its fence's line and its text.
+grammar() ->
+    [First | _] = blocks("## Appendix A. Grammar", "## Appendix B"),
+    First.
+
+%% §2.6's second block, which writes `binop` and `userop`.
+operators_block() ->
+    [_, Second | _] = blocks("### 2.6 Operators and delimiters", "## "),
+    Second.
+
+%% The fenced blocks from the line that begins with From to the next that
+%% begins with To, each its fence's line and its text.
+blocks(From, To) ->
+    Numbered = lists:enumerate(string:split(language(), "\n", all)),
+    [_ | Rest] = lists:dropwhile(fun({_, Line}) -> not lists:prefix(From, Line) end, Numbered),
+    {Section, _} = lists:splitwith(fun({_, Line}) -> not lists:prefix(To, Line) end, Rest),
+    fenced(Section).
+
+fenced([]) ->
+    [];
+fenced([{Number, "```" ++ _} | Rest]) ->
+    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not lists:prefix("```", Line) end,
+                                          Rest),
+    [{Number, lists:append([Line ++ "\n" || {_, Line} <- Code])} | fenced(After)];
+fenced([_ | Rest]) ->
+    fenced(Rest).
 
 appendix() ->
     [_, FromAppendix] = string:split(language(), "## Appendix A. Grammar"),
@@ -133,8 +168,5 @@ lexical(Name) -> {terminal, list_to_atom(Name)}.
 %% §2.6's categories built from the operators, `binop` and `userop`, read
 %% from the section's second block as Appendix A's rules are read.
 operators() ->
-    [_, FromSection] = string:split(language(), "### 2.6 Operators and delimiters"),
-    [Section | _] = string:split(FromSection, "\n## "),
-    [_, _, _, Block | _] = string:split(Section, "```", all),
-    [_, Rules] = string:split(Block, "\n"),
+    {_, Rules} = operators_block(),
     [Rule || {Name, _} = Rule <- parse(tokens(Rules)), Name =/= literal].

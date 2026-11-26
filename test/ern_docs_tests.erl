@@ -131,7 +131,10 @@ without_consoles(Document) ->
 %% the module's order
 ordered_set_shown_in_part_test() ->
     Guide = ern_repository:read("guide/language.md"),
-    [_, Rest] = binary:split(Guide, <<"```ernest-fragment\n// src/stdlib/ordered_set.ern">>),
+    Opening = <<"```ernest-fragment\n// src/stdlib/ordered_set.ern">>,
+    {At, _} = binary:match(Guide, Opening),
+    recorded("guide/language.md", [line_at(Guide, At)]),
+    [_, Rest] = binary:split(Guide, Opening),
     [Block | _] = binary:split(Rest, <<"\n```">>),
     [_Named | Shown] = binary:split(Block, <<"\n">>, [global]),
     Source = ern_repository:read("src/stdlib/ordered_set.ern"),
@@ -140,6 +143,16 @@ ordered_set_shown_in_part_test() ->
     Parts = parts(Shown),
     ?assert(length(Parts) > 1),
     ?assertEqual(ok, in_order(Parts, Code)).
+
+%% The blocks of Document, a path from the repository's root, whose fences
+%% open on Lines, recorded as blocks this test checks, which
+%% tools/documents.ern's listing reads (ern_helpers:record_checked/3).
+recorded(Document, Lines) ->
+    ok = ern_helpers:record_checked(?MODULE, filename:join(?ROOT, Document), Lines).
+
+%% The number of the line of Text that holds its byte At, counted from 1.
+line_at(Text, At) ->
+    1 + length(binary:matches(binary:part(Text, 0, At), <<"\n">>)).
 
 %% Each part a run of the lines, after the one before it.
 in_order([], _) ->
@@ -182,23 +195,28 @@ parts(Lines) ->
 %% ern_tour_tests runs, nor which file the prose says a block shows.
 tour_blocks_shown_test() ->
     Lines = binary:split(ern_repository:read("tour/README.md"), <<"\n">>, [global]),
-    Blocks = tour_blocks(Lines, none),
+    Blocks = tour_blocks(lists:enumerate(Lines), none),
     ?assertNotEqual([], Blocks),
+    recorded("tour/README.md", [Number || {Number, _, _} <- Blocks]),
     ?assertEqual([], [{Chapter, unicode:characters_to_list(hd(binary:split(Text, <<"\n">>)))}
-                      || {Chapter, Text} <- Blocks, not shown(Chapter, Text)]).
+                      || {_, Chapter, Text} <- Blocks, not shown(Chapter, Text)]).
 
-%% The tour's `ernest` blocks, each with the number of the chapter whose
-%% heading it stands under, or none, and its text.
+%% The tour's `ernest` blocks, each with the line its fence opens on, the
+%% number of the chapter whose heading it stands under, or none, and its
+%% text.
 tour_blocks([], _) ->
     [];
-tour_blocks([<<"## ", Heading/binary>> | Rest], _) ->
+tour_blocks([{_, <<"## ", Heading/binary>>} | Rest], _) ->
     tour_blocks(Rest, chapter(Heading));
-tour_blocks([<<"```", Info/binary>> | Rest], Chapter) ->
-    {Code, [_ | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+tour_blocks([{Number, <<"```", Info/binary>>} | Rest], Chapter) ->
+    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
     Blocks = tour_blocks(After, Chapter),
     case Info of
-        <<"ernest">> -> [{Chapter, iolist_to_binary(lists:join(<<"\n">>, Code))} | Blocks];
-        _ -> Blocks
+        <<"ernest">> ->
+            Text = iolist_to_binary(lists:join(<<"\n">>, [Line || {_, Line} <- Code])),
+            [{Number, Chapter, Text} | Blocks];
+        _ ->
+            Blocks
     end;
 tour_blocks([_ | Rest], Chapter) ->
     tour_blocks(Rest, Chapter).
@@ -237,11 +255,13 @@ among(Shown, [_ | Rest]) -> among(Shown, Rest).
 %% regression test, written after the README's block; it does not cover the
 %% README's console, the transcript of the spawn, which ern_tour_tests runs.
 readme_counter_is_the_tours_test() ->
-    Lines = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
-    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```ernest">> end, Lines),
-    {Code, _} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    Lines = lists:enumerate(binary:split(ern_repository:read("README.md"), <<"\n">>, [global])),
+    {_, [{Number, _} | Rest]} =
+        lists:splitwith(fun({_, Line}) -> Line =/= <<"```ernest">> end, Lines),
+    recorded("README.md", [Number]),
+    {Code, _} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
     ?assertEqual(string:chomp(ern_repository:read("tour/2/counter.ern")),
-                 iolist_to_binary(lists:join(<<"\n">>, Code))).
+                 iolist_to_binary(lists:join(<<"\n">>, [Line || {_, Line} <- Code]))).
 
 %% README.md, guide/language.md: the guide's §1.4 shows the tour's
 %% chapter 2 session as the README's console shows it, line for line, so
@@ -250,23 +270,50 @@ readme_counter_is_the_tours_test() ->
 %% finds the console in the section the guide numbers 1.4, wherever it
 %% stands, and does not cover the prose around either console.
 guide_session_is_the_readmes_test() ->
-    Readme = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
-    Guide = binary:split(ern_repository:read("guide/language.md"), <<"\n">>, [global]),
+    Readme = lists:enumerate(binary:split(ern_repository:read("README.md"), <<"\n">>, [global])),
+    Guide = lists:enumerate(binary:split(ern_repository:read("guide/language.md"), <<"\n">>,
+                                         [global])),
     {_, [_ | Section]} =
-        lists:splitwith(fun(Line) -> binary:match(Line, <<"### 1.4 ">>) =/= {0, 8} end, Guide),
-    {Own, _} = lists:splitwith(fun(Line) -> not is_heading(Line) end, Section),
-    ?assertEqual(console(<<"$ ern shell --config-dir a">>, Readme), console(none, Own)).
+        lists:splitwith(fun({_, Line}) -> binary:match(Line, <<"### 1.4 ">>) =/= {0, 8} end,
+                        Guide),
+    {Own, _} = lists:splitwith(fun({_, Line}) -> not is_heading(Line) end, Section),
+    {ReadmeLine, Shown} = console(<<"$ ern shell --config-dir a">>, Readme),
+    {GuideLine, Quoted} = console(none, Own),
+    recorded("README.md", [ReadmeLine]),
+    recorded("guide/language.md", [GuideLine]),
+    ?assertEqual(Shown, Quoted).
 
-%% The lines of the first `console` block of Lines whose first line is
-%% First, or of the first one where First is none.
+%% The first `console` block of Lines, each a line's number and its text,
+%% whose first line is First, or the first one where First is none: the
+%% line its fence opens on and its lines.
 console(First, Lines) ->
-    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```console">> end, Lines),
-    {Console, After} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    {_, [{Number, _} | Rest]} =
+        lists:splitwith(fun({_, Line}) -> Line =/= <<"```console">> end, Lines),
+    {Numbered, After} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
+    Console = [Line || {_, Line} <- Numbered],
     case Console of
-        [First | _] -> Console;
-        _ when First =:= none -> Console;
+        [First | _] -> {Number, Console};
+        _ when First =:= none -> {Number, Console};
         _ -> console(First, tl(After))
     end.
+
+%% docs/development.md *Building*, `make unchecked`: a test records a block
+%% it checks, its document's path from the repository's root and its
+%% fence's line, beneath the line of the run that wrote the record, and a
+%% line that opens no block, a closing fence's among them, fails the test
+%% that names it. A regression test, written with the records; the listing
+%% that reads them is tested in tools/documents.ern.
+records_blocks_test() ->
+    Lines = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
+    [Opening, Closing | _] = [Number || {Number, <<"```", _/binary>>} <- lists:enumerate(Lines)],
+    recorded("README.md", [Opening]),
+    {ok, Record} = file:read_file(ern_helpers:record_of(?MODULE)),
+    [Run | Facts] = binary:split(Record, <<"\n">>, [global, trim_all]),
+    ?assertMatch({match, _}, re:run(Run, "^run [0-9]+ [0-9]+$")),
+    ?assertEqual([], [<<"checked README.md:", (integer_to_binary(Opening))/binary>>,
+                      <<"covers README.md">>] -- Facts),
+    ?assertError({opens_no_block, <<"README.md">>, Closing}, recorded("README.md", [Closing])),
+    ?assertError({opens_no_block, <<"README.md">>, 1}, recorded("README.md", [1])).
 
 is_heading(<<"## ", _/binary>>) -> true;
 is_heading(<<"### ", _/binary>>) -> true;

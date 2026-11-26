@@ -15,6 +15,8 @@
 %% report §9.4 to §9.7, Appendix E: every signature the report prints is a
 %% value of the tables with the same type text, and nothing else is
 report_signatures_are_the_tables_test() ->
+    ok = checked("## 9. Prelude", "## Appendix A. "),
+    ok = checked("## Appendix E.", "## Appendix G"),
     Lines = code_lines(section("## 9. Prelude", "## Appendix A. ")) ++
         code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
@@ -43,6 +45,7 @@ report_signatures_are_the_tables_test() ->
 %% without the `+` the compiler prints. §6.2 and §6.6 point at §9 and list
 %% none (report §6.2, §6.6), so that §9's is the one copy
 marked_prelude_test() ->
+    ok = checked("### 9.4", "### 9.7"),
     Lines = code_lines(section("### 9.4", "### 9.7")),
     ?assertEqual([], code_lines(section("### 6.2", "### 6.3"))
                      ++ [Line || Line <- code_lines(section("### 6.6", "### 6.7")),
@@ -232,6 +235,7 @@ free_names(Declaration) ->
 
 %% report §9.3: the declared types
 declared_types_test() ->
+    ok = checked("### 9.3", "### 9.4"),
     Report = declarations(code_lines(section("### 9.3", "### 9.4"))),
     Tables = declarations(string:split(ern_prelude:declared_types(), "\n", all)),
     same(Report, Tables).
@@ -241,6 +245,7 @@ declared_types_test() ->
 %% are variables: both sides are compared with the parameters renamed in
 %% order
 stdlib_types_test() ->
+    ok = checked("## Appendix E.", "## Appendix G"),
     Sections = namespaces(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append(
                           [[{Namespace, Declaration}
@@ -277,6 +282,7 @@ set_and_map_words_test() ->
 libraries_test() ->
     %% Appendix G is the report's last, so its section runs to the report's
     %% end
+    ok = checked("## Appendix G.", none),
     Sections = libraries(section("## Appendix G.", none)),
     Dirs = [filename:basename(Dir) || Dir <- filelib:wildcard("src/libs/*"),
                                       filelib:is_dir(Dir)],
@@ -422,6 +428,7 @@ type_text({tfn, Params, Effect, Result}, Namespace, Names) ->
 
 %% report §3.1, §9.1, §9.2: the built-in types and their arities
 builtin_types_test() ->
+    ok = checked("### 9.1", "### 9.3"),
     Base = [{list_to_atom(Name), 0}
             || Line <- section("### 3.1", "**Integer arithmetic"),
                [Name] <- [captures(Line, "^\\| `([A-Z]\\w*)`")]],
@@ -487,14 +494,46 @@ same(Report, Code) ->
 %% stale marker for three days, until a character past Latin-1 reached a
 %% regex.
 section(From, To) ->
-    Contents = iolist_to_binary([element(2, file:read_file(File)) || File <- ?REPORT]),
-    Lines = string:split(unicode:characters_to_list(Contents), "\n", all),
-    Rest = lists:dropwhile(fun(Line) -> not lists:prefix(From, Line) end, Lines),
+    [Line || {_, _, Line} <- numbered_section(From, To)].
+
+%% The same, each line with its file and its number there.
+numbered_section(From, To) ->
+    Lines = lists:append([[{File, Number, Line}
+                           || {Number, Line} <- lists:enumerate(report_lines(File))]
+                          || File <- ?REPORT]),
+    Rest = lists:dropwhile(fun({_, _, Line}) -> not lists:prefix(From, Line) end, Lines),
     Rest =/= [] orelse error({not_in_report, From}),
-    Inside = fun(Line) -> To =:= none orelse not lists:prefix(To, Line) end,
+    Inside = fun({_, _, Line}) -> To =:= none orelse not lists:prefix(To, Line) end,
     {Section, After} = lists:splitwith(Inside, tl(Rest)),
     To =:= none orelse After =/= [] orelse error({not_in_report, To}),
     Section.
+
+%% A file of the report's lines, the empty one after its last line feed
+%% left out but in the last file, as the three read as one text have them.
+report_lines(File) ->
+    {ok, Text} = file:read_file(File),
+    Lines = string:split(unicode:characters_to_list(Text), "\n", all),
+    case {lists:last(?REPORT), lists:last(Lines)} of
+        {File, _} -> Lines;
+        {_, ""} -> lists:droplast(Lines);
+        _ -> Lines
+    end.
+
+%% The blocks whose fences open in the section from From to To, as
+%% section/2 bounds it, recorded as blocks this test checks, which
+%% tools/documents.ern's listing reads (ern_helpers:record_checked/3).
+checked(From, To) ->
+    Section = numbered_section(From, To),
+    Opening = opening([{File, Number} || {File, Number, "```" ++ _} <- Section], false),
+    [ok = ern_helpers:record_checked(?MODULE, File, [Number || {Each, Number} <- Opening,
+                                                               Each =:= File])
+     || File <- lists:usort([File || {File, _, _} <- Section])],
+    ok.
+
+%% The fences that open a block, each other one closing it.
+opening([], _) -> [];
+opening([Fence | Fences], false) -> [Fence | opening(Fences, true)];
+opening([_ | Fences], true) -> opening(Fences, false).
 
 %% The lines inside ``` fences.
 code_lines(Lines) -> code_lines(Lines, false).

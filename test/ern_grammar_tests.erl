@@ -12,7 +12,7 @@
 %% report Appendix A: the grammar defines each nonterminal it uses, and
 %% uses each one it defines but the start
 defined_and_used_test() ->
-    Rules = ern_grammar:rules(),
+    Rules = rules(),
     Defined = [Name || {Name, _} <- Rules],
     Used = lists:usort([Name || {_, Expression} <- Rules,
                                 Name <- ern_grammar:nonterminals(Expression)]),
@@ -22,7 +22,7 @@ defined_and_used_test() ->
 %% report Appendix A, §0 principle 4: each choice is decided by its first
 %% token, or by the later token the paragraph after the grammar names
 first_sets_test() ->
-    Rules = ern_grammar:rules(),
+    Rules = rules(),
     Grammar = maps:from_list(Rules),
     First = first_sets(Grammar),
     Follow = follow_sets(Rules, First),
@@ -37,6 +37,14 @@ first_sets_test() ->
                               not lists:member({Rule, Token}, Named)
                                   orelse not lists:member({Rule, Token}, Conflicts)],
     ?assertEqual([], Stale).
+
+%% Appendix A's rules (ern_grammar:rules/0), the blocks they are read from
+%% recorded as blocks this test checks, which tools/documents.ern's listing
+%% reads (ern_helpers:record_checked/3).
+rules() ->
+    {Document, Lines} = ern_grammar:read_blocks(),
+    ok = ern_helpers:record_checked(?MODULE, Document, Lines),
+    ern_grammar:rules().
 
 %% The choices the next token does not decide, each the rule it is in, the
 %% token its branches share, and the words of the paragraph after the

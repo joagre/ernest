@@ -66,7 +66,7 @@ runbook_test_() ->
 
 runbook(Base) ->
     [Directories, Peers, Started, Reloaded, Moved, Stopped] = consoles("## 8."),
-    [Session, Ended] = [Lines || {"## 8." ++ _, "", Lines} <- blocks()],
+    [Session, Ended] = checked([Block || {_, "## 8." ++ _, "", _} = Block <- blocks()]),
     ok = copied(Base),
     %% the shell's directory is made as the others are, which the step says
     %% and its console does not show
@@ -300,7 +300,7 @@ upgrade_test_() ->
     ern_harness:nodes_test({waits, 12}, fun upgrade/1).
 
 upgrade(Base) ->
-    [Session] = [Lines || {"### 5.3" ++ _, "", Lines} <- blocks()],
+    [Session] = checked([Block || {_, "### 5.3" ++ _, "", _} = Block <- blocks()]),
     Section8 = lists:append(consoles("## 8.")),
     [Built] = [Command || {"build upgrade/v2", _} = Command <- Section8],
     [{Tool, _}] = [Command || {"run --config-dir a " ++ _, _} = Command <- Section8],
@@ -351,7 +351,7 @@ looking_in_test_() ->
     ern_harness:nodes_test({waits, 12}, fun looking_in/1).
 
 looking_in(Base) ->
-    [Session] = [Lines || {"## 6." ++ _, "", Lines} <- blocks()],
+    [Session] = checked([Block || {_, "## 6." ++ _, "", _} = Block <- blocks()]),
     ok = copied(Base),
     PortB = ern_harness:free_port(),
     A = ern_harness:made(Base, "a", none),
@@ -659,26 +659,35 @@ guide_lines() ->
     {ok, Text} = file:read_file(?GUIDE),
     string:split(unicode:characters_to_list(Text), "\n", all).
 
-%% The guide's fenced blocks, {Heading, Info, Lines}: the heading each stands
-%% under, the word after its fence, and its lines.
+%% The guide's fenced blocks, {Line, Heading, Info, Lines}: the line its
+%% fence opens on, the heading it stands under, the word after its fence,
+%% and its lines.
 blocks() ->
-    blocks(guide_lines(), "", []).
+    blocks(lists:enumerate(guide_lines()), "", []).
 
 blocks([], _, Blocks) ->
     lists:reverse(Blocks);
-blocks(["```" ++ Info | Lines], Heading, Blocks) ->
-    {Code, ["```" | Rest]} = lists:splitwith(fun(Line) -> Line =/= "```" end, Lines),
-    blocks(Rest, Heading, [{Heading, Info, Code} | Blocks]);
-blocks(["#" ++ _ = Heading | Lines], _, Blocks) ->
+blocks([{Number, "```" ++ Info} | Lines], Heading, Blocks) ->
+    {Code, [{_, "```"} | Rest]} = lists:splitwith(fun({_, Line}) -> Line =/= "```" end, Lines),
+    blocks(Rest, Heading, [{Number, Heading, Info, [Line || {_, Line} <- Code]} | Blocks]);
+blocks([{_, "#" ++ _ = Heading} | Lines], _, Blocks) ->
     blocks(Lines, Heading, Blocks);
 blocks([_ | Lines], Heading, Blocks) ->
     blocks(Lines, Heading, Blocks).
+
+%% The lines of each of the blocks, which are recorded as blocks this test
+%% checks, for tools/documents.ern's listing to read
+%% (ern_helpers:record_checked/3).
+checked(Blocks) ->
+    ok = ern_helpers:record_checked(?MODULE, ?GUIDE, [Number || {Number, _, _, _} <- Blocks]),
+    [Lines || {_, _, _, Lines} <- Blocks].
 
 %% The consoles under the heading that begins with Heading, each its
 %% commands, {Words, Shown}: a `$ ern` line's words after `ern`, and the
 %% lines the console shows it print.
 consoles(Heading) ->
-    [commands(Lines) || {Under, "console", Lines} <- blocks(), lists:prefix(Heading, Under)].
+    [commands(Lines) || Lines <- checked([Block || {_, Under, "console", _} = Block <- blocks(),
+                                                   lists:prefix(Heading, Under)])].
 
 commands([]) ->
     [];

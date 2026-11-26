@@ -47,6 +47,10 @@
 %% each block a file of one or a console of commands beside `ern`: a test
 %% of its own replays it (packages/0), and the check above passes over
 %% every block under its heading.
+%%
+%% Each block a test here checks is recorded as the test reads it, its
+%% document and its fence's line, for `make unchecked` to read
+%% (ern_helpers:record_checked/3).
 -module(ern_guide_tests).
 
 %% EUnit's captured output (ern_helpers:captured_output/0), in place of
@@ -81,8 +85,10 @@
 -record(replay, {start, dir, path, digests = #{}}).
 
 %% A fenced block of a document: the line its fence opens on, the word
-%% after the fence, the heading it stands under, and its lines.
--record(block, {line, info, heading, code}).
+%% after the fence, the heading it stands under, its lines, and the lines
+%% the fences of the blocks it stands for open on, its own and those of the
+%% consoles joined to it (continued/2).
+-record(block, {line, info, heading, code, fences}).
 
 %% What a console after an example runs: the job and its options as the
 %% console writes them, `run --main f `; the compiled file; the words
@@ -116,8 +122,10 @@ prelude_declarations(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Numbered = lists:zip(lists:seq(1, length(Lines)), Lines),
+    Blocks = [Block || #block{info = <<"ernest-prelude">>} = Block <- blocks(Numbered, none, [])],
+    recorded(Document, [Number || #block{line = Number} <- Blocks]),
     Quoted = [normalize(Declaration)
-              || #block{info = <<"ernest-prelude">>, code = Code} <- blocks(Numbered, none, []),
+              || #block{code = Code} <- Blocks,
                  Declaration <- declarations([uncommented(Line) || Line <- Code])],
     PreludeLines = binary:split(list_to_binary(ern_prelude:declared_types()), <<"\n">>, [global]),
     Prelude = [normalize(Declaration)
@@ -178,6 +186,7 @@ readme_refused_test_() ->
     [{Number, Shown}] = [{Number, Shown}
                          || #block{line = Number, info = <<"console">>,
                                    code = [<<"$ ern build other.ern">> | Shown]} <- Blocks],
+    recorded(?README, [Number]),
     checked({"readme's refused program",
              {rejected, #{line => Number, files => [{"other.ern", Code}], shown => join(Shown)}}}).
 
@@ -199,9 +208,12 @@ why_reload_session_test_() ->
     ern_harness:counted_test({waits, 8}, fun why_reload_session/0).
 
 why_reload_session() ->
-    [Lines] = [Lines || #block{info = <<"console">>, code = [<<"$ ern shell">> | Lines]}
-                            <- blocks(numbered(?WHY), none, []),
-                        lists:member(<<":reload">>, inputs(Lines))],
+    [{Number, Lines}] = [{Number, Lines}
+                         || #block{line = Number, info = <<"console">>,
+                                   code = [<<"$ ern shell">> | Lines]}
+                                <- blocks(numbered(?WHY), none, []),
+                            lists:member(<<":reload">>, inputs(Lines))],
+    recorded(?WHY, [Number]),
     Dir = tmp(),
     Counter = fun(Reset) ->
                   ["export type CounterMsg =
@@ -396,6 +408,7 @@ packages() ->
     Path = filename:absname("../bin") ++ ":" ++ os:getenv("PATH"),
     Blocks = section_blocks(?PACKAGES),
     ?assertNotEqual([], Blocks),
+    recorded(?GUIDE, [Number || #block{line = Number} <- Blocks]),
     lists:foldl(fun replayed/2, #replay{start = Start, dir = Start, path = Path}, Blocks),
     ok = file:del_dir_r(Base).
 
@@ -508,9 +521,11 @@ built(Base, Files) ->
 %% The commands of each console under the guide's heading that begins with
 %% Heading whose first command starts a node, `$ ern run --config-dir`.
 node_consoles(Heading) ->
-    [commands(Code) || #block{info = <<"console">>,
-                              code = [<<"$ ern run --config-dir ", _/binary>> | _] = Code}
-                           <- section_blocks(Heading)].
+    Consoles = [Block || #block{info = <<"console">>,
+                                code = [<<"$ ern run --config-dir ", _/binary>> | _]} = Block
+                             <- section_blocks(Heading)],
+    recorded(?GUIDE, [Number || #block{line = Number} <- Consoles]),
+    [commands(Code) || #block{code = Code} <- Consoles].
 
 %% The blocks under the guide's heading that begins with Heading, in order.
 section_blocks(Heading) ->
@@ -564,7 +579,7 @@ diagnostics_test_() ->
     examples(?DIAGNOSTICS, "diagnostics").
 
 examples(Document, Kind) ->
-    Units = [cataloged(Kind, Unit) || Unit <- units(Document)],
+    Units = [cataloged(Kind, Unit) || Unit <- recorded_units(Document)],
     Named = [{label(Kind, Number, Unit), Unit}
              || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
@@ -755,6 +770,21 @@ units(Document) ->
                        not is_replayed(Document, Block)],
     group(continued(Blocks, []), #{}).
 
+%% The checked units of a document, or of each of several, each document's
+%% blocks its units check recorded as this test's.
+recorded_units([First | _] = Documents) when is_list(First) ->
+    lists:append([recorded_units(Document) || Document <- Documents]);
+recorded_units(Document) ->
+    Units = units(Document),
+    recorded(Document, [Fence || {_, #{fences := Fences}} <- Units, Fence <- Fences]),
+    Units.
+
+%% The blocks of a document whose fences open on Lines recorded as blocks
+%% this test checks, which tools/documents.ern's listing reads
+%% (ern_helpers:record_checked/3).
+recorded(Document, Lines) ->
+    ok = ern_helpers:record_checked(?MODULE, Document, Lines).
+
 %% Whether a block is the language guide's §9.6, which packages/0 replays.
 is_replayed(?GUIDE, #block{heading = Heading}) -> is_under(?PACKAGES, Heading);
 is_replayed(_, _) -> false.
@@ -767,7 +797,7 @@ blocks([{_, <<"#", _/binary>> = Heading} | Rest], _, Acc) ->
 blocks([{Number, <<"```", Info/binary>>} | Rest], Heading, Acc) ->
     {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
     Block = #block{line = Number, info = Info, heading = Heading,
-                   code = [Line || {_, Line} <- Code]},
+                   code = [Line || {_, Line} <- Code], fences = [Number]},
     blocks(After, Heading, [Block | Acc]);
 blocks([_ | Rest], Heading, Acc) ->
     blocks(Rest, Heading, Acc).
@@ -780,14 +810,16 @@ fence(_) -> false.
 %% stays in its place. One that continues no session stays as it is.
 continued([], Acc) ->
     lists:reverse(Acc);
-continued([#block{info = <<"console">>, code = [<<"> ", _/binary>> | _] = Code} = Block | Rest],
+continued([#block{info = <<"console">>, code = [<<"> ", _/binary>> | _] = Code,
+                   fences = Fences} = Block | Rest],
           Acc) ->
     {Between, Before} = lists:splitwith(fun(#block{info = Info}) -> Info =/= <<"console">> end,
                                         Acc),
     case continues(Block, Before) of
         true ->
-            [#block{code = Session} = Console | Earlier] = Before,
-            continued(Rest, Between ++ [Console#block{code = Session ++ Code} | Earlier]);
+            [#block{code = Session, fences = Earlier} = Console | Others] = Before,
+            Joined = Console#block{code = Session ++ Code, fences = Earlier ++ Fences},
+            continued(Rest, Between ++ [Joined | Others]);
         false ->
             continued(Rest, [Block | Acc])
     end;
@@ -812,31 +844,37 @@ shell_command(_) -> false.
 %% Seen: each named file as it stands so far, for a block that continues it.
 group([], _Seen) ->
     [];
-group([#block{line = Number, info = <<"ernest-rejected">>, heading = Heading, code = Code} | Rest],
+group([#block{line = Number, info = <<"ernest-rejected">>, heading = Heading, code = Code,
+              fences = Own} | Rest],
       Seen) ->
-    {File, Shown} = case compiled(Rest) of
-                        {Name, Text} -> {Name, Text};
-                        none -> {file_of(Code), none}
-                    end,
+    {File, Shown, Console} = case compiled(Rest) of
+                                 {Name, Text} -> {Name, Text, console_fences(Rest)};
+                                 none -> {file_of(Code), none, []}
+                             end,
     %% the files the source tree before it under its heading names, which
     %% it is built beside
     Beside = maps:get({tree, Heading}, Seen, []),
-    Unit = #{line => Number, files => [{File, join(Code)} | Beside], shown => Shown},
+    Unit = #{line => Number, fences => Own ++ Console, files => [{File, join(Code)} | Beside],
+             shown => Shown},
     [{rejected, Unit} | group(Rest, Seen)];
-group([#block{line = Number, info = <<"console">>, code = [<<"$ ern shell">> | Lines]} | Rest],
+group([#block{line = Number, info = <<"console">>, code = [<<"$ ern shell">> | Lines],
+              fences = Fences} | Rest],
       Seen) ->
     case lists:member(<<":reload">>, inputs(Lines)) of
         true ->
             group(Rest, Seen);
         false ->
-            [{session, #{line => Number, inputs => inputs(Lines), shown => session_shown(Lines)}}
+            [{session, #{line => Number, fences => Fences, inputs => inputs(Lines),
+                         shown => session_shown(Lines)}}
              | group(Rest, Seen)]
     end;
-group([#block{line = Number, info = <<"console">>, code = [<<"> ", _/binary>> | _]} | Rest],
+group([#block{line = Number, info = <<"console">>, code = [<<"> ", _/binary>> | _],
+              fences = Fences} | Rest],
       Seen) ->
     %% continued/2 joined every console that continues a session to it
-    [{continuation, #{line => Number}} | group(Rest, Seen)];
-group([#block{line = Number, info = Info, heading = Heading, code = Code} = Block | Rest], Seen)
+    [{continuation, #{line => Number, fences => Fences}} | group(Rest, Seen)];
+group([#block{line = Number, info = Info, heading = Heading, code = Code,
+              fences = BlockFences} = Block | Rest], Seen)
   when Info =:= <<"ernest">>; Info =:= <<"erlang">> ->
     case named(Code) of
         none when Info =:= <<"erlang">> ->
@@ -850,7 +888,8 @@ group([#block{line = Number, info = Info, heading = Heading, code = Code} = Bloc
                            filename:rootname(CompiledFile) ++ ".ern";
                        none -> "example.ern"
                    end,
-            [{modules, #{line => Number, files => [{File, join(Code)}], launch => Launch}}
+            [{modules, #{line => Number, fences => BlockFences ++ launch_fences(Launch, Rest),
+                         files => [{File, join(Code)}], launch => Launch}}
              | group(Rest, Seen)];
         _ ->
             InTree = fun(#block{info = BlockInfo, heading = BlockHeading, code = BlockCode}) ->
@@ -863,11 +902,22 @@ group([#block{line = Number, info = Info, heading = Heading, code = Code} = Bloc
                         Seen),
             Files = Own ++ used(Own, Seen),
             Seen1 = (maps:merge(Seen, maps:from_list(Own)))#{{tree, Heading} => Files},
-            Unit = #{line => Number, files => Files, launch => launch(Others)},
+            Launch = launch(Others),
+            Fences = lists:append([Each || #block{fences = Each} <- Tree])
+                ++ launch_fences(Launch, Others),
+            Unit = #{line => Number, fences => Fences, files => Files, launch => Launch},
             [{modules, Unit} | group(Others, Seen1)]
     end;
 group([_ | Rest], Seen) ->
     group(Rest, Seen).
+
+%% The fences of the console a unit's launch is read from, the next block,
+%% or none where nothing launches it.
+launch_fences(none, _) -> [];
+launch_fences(#launch{}, Blocks) -> console_fences(Blocks).
+
+%% The fences of the next block, a console a unit reads.
+console_fences([#block{info = <<"console">>, fences = Fences} | _]) -> Fences.
 
 %% The files an earlier heading wrote, Seen, that a source tree's files,
 %% Own, name the module of and do not hold, each as it stood.

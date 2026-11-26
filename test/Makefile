@@ -54,14 +54,17 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(XREF) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
-	  $(SHELL_TESTS) ern_harness ern_pty ern_repository ern_measure) $(ALONE)
+	  $(SHELL_TESTS) ern_harness ern_pty ern_repository ern_measure) $(ALONE) $(RECORDER)
 
 # ern_eunit, by which EUNIT_ALONE runs each test alone and EUNIT_SIDE_BY_SIDE
-# its tests side by side, a module of the runtime's tests, compiled by the
-# repository's one rule where its source is newer.
+# its tests side by side, and ern_helpers, by which a test records the
+# documents' blocks it checks (tools/documents.ern), modules of the
+# runtime's tests, each compiled by the repository's one rule where its
+# source is newer.
 ALONE = ../build/runtime/test/ern_eunit.beam
-$(ALONE): ../src/runtime/test/ern_eunit.erl ../VERSION
-	@$(MAKE) -s -C .. build/runtime/test/ern_eunit.beam
+RECORDER = ../build/runtime/test/ern_helpers.beam
+$(ALONE) $(RECORDER): ../build/runtime/test/%.beam: ../src/runtime/test/%.erl ../VERSION
+	@$(MAKE) -s -C .. build/runtime/test/$*.beam
 
 # A host with the toolchain and the modules here on its code path, which
 # reads no input: the loads' runs and the bench's.
