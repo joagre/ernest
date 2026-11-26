@@ -26,7 +26,17 @@ outside the project depends on it, as MVP 4.4's opening says.
 leg, whose builds are done: the report, the code by its owners, the tests, the guides, the
 tour, the front pages and `docs/`, with every decided line of the findings closed and
 `make test-full` passing. The ten questions that waited are answered and what they decide is
-built. `make test-full` and the close are next.**
+built, and `make test-full` passes on `f02be453`.**
+
+**Next, the last of item 4: the sort of what the applications' reviews found of Ernest's**,
+51 lines in the three repositories' `docs/language_feedback.md`, ernest-httpd's 35 to 60,
+ernest-epx's 8 and ernest-template's 17. Each is reproduced against the checkout, sorted as
+`docs/reviews/full.md`'s *The findings* sorts a line, and answered to its session by a
+message as `docs/clean_room.md`'s *The answer* says; a `decide` line goes to the user, one at
+a time. Readers that reproduce run on the coding model at the stronger effort, and the sort
+and the verdicts are the session's, on the stronger model. Then `docs/findings.md` goes, the
+review's entry is written with its counts, and item 4 closes (the log's *Ernest's Own Review
+Done, and What Item 4 Still Holds*).
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
@@ -35,7 +45,8 @@ Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Repo
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
 and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A*, *The Session's Own Lines*, *The Full Check, and
 Dialyzer's Nine*, *The Ten Answered*, *A Function's Result Crosses*, *The Interrupt Ends a
-Running Load*, *The Three Terms and §12.9* and *A Part's Anchor*.
+Running Load*, *The Three Terms and §12.9*, *A Part's Anchor* and *Ernest's Own Review Done, and What
+Item 4 Still Holds*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
