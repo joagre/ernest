@@ -10,4 +10,4 @@ The definition of Ernest, in three files, and the only normative document: where
 
 How to read it. §0 first, since it decides every question the rest leaves open; then the section a question names, since the report is written to be read by section and cited by number, `§6.5`, `E.27`, and its numbers never change. Appendix A, the grammar, wins over the prose where the two conflict, and §0's principles are the tiebreaker where the grammar is silent. Each file's third line names the release of Ernest it describes. The three together are a long day read through, which no reader needs to do: the guide, [`guide/`](../guide/), teaches the language in order and names the section for each rule.
 
-What holds it to the code: every section has a test that cites it, and `make sections` names one that has none.
+What holds it to the code: every section has a test that cites it, and `make sections` names one that has none. Where the toolchain is known to depart from the report, [`docs/known_issues.md`](../docs/known_issues.md) lists the departure, a line each.

@@ -896,7 +896,7 @@ ets() ->
     ?assert(lists:member(<<"Sized.main faulted: the table has ended">>,
                          unstamped(binary:split(Sized, <<"\n">>, [global, trim])))).
 
-%% report §12.1, §12.3, Appendix E.1: standard input is UTF-8 whatever the
+%% report §12.1, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return
 %% before it, a last line without a line feed; a line that is not UTF-8
 %% faults; lines and bytes are one stream, and bytes go out as they are.
@@ -1929,8 +1929,8 @@ fault_line_escaped() ->
 %% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is
 %% ern_terminal_tests' to show. Written with the code. Report §7.3, §11.2:
 %% beneath the line its trace, a frame a line, indented by four spaces and
-%% not stamped, a regression test written after the code, where a cause of
-%% §7.4 had none
+%% not stamped, a regression test written after the code, where a cause
+%% stated with its rule (§7.4) had none
 stamped_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun stamped/0).
 

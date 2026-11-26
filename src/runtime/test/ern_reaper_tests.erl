@@ -8,7 +8,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report §8.6, §7.4: a program whose every process waits forever ends
+%% report §8.6: a program whose every process waits forever ends
 %% with the entry process's fault, `deadlock`; a timed receive is a source
 %% and ends by itself. Report §7.3, Appendix E.21: the deadlock's trace is
 %% the entry process's stack where the runtime finds it waiting, `main`'s

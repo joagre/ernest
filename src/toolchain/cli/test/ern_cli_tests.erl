@@ -2731,7 +2731,7 @@ deadlock_listed(Head, Function, What) ->
     <<Prefix:PrefixSize/binary, Line/binary>> = Frame,
     {binary_to_integer(Line), Listed}.
 
-%% report §8.6, §7.4, §11.2: ern reports a deadlock as the entry process's
+%% report §8.6, §11.2: ern reports a deadlock as the entry process's
 %% fault and exits 1
 deadlock_faults_the_entry_process_test() ->
     Dir = tmp(),
@@ -5995,13 +5995,13 @@ error_names_file_from_cwd_test() ->
         file:set_cwd(Cwd)
     end.
 
-%% report §8.6, §7.4: a fault in main is reported on stderr with its
+%% report §8.6, §3.1: a fault in main is reported on stderr with its
 %% cause, status 1; report §7.3, §11.2, Appendix E.21: beneath the line its
 %% trace, a frame a line indented by four spaces, the innermost first, the
 %% host's division and then main's frame by its name and its line, the
 %% outermost of the program's, with which the trace ends. A regression
-%% test of the trace, written after the code, where a cause of §7.4 had
-%% none
+%% test of the trace, written after the code, where a cause stated with
+%% its rule (§7.4) had none
 fault_test() ->
     Dir = tmp(),
     File = write(Dir, "boom.ern",
@@ -6126,7 +6126,7 @@ worker_faults_test() ->
                  lists:sort(binary:split(untraced(captured()), <<"\n">>,
                                          [global, trim]))).
 
-%% report §6.9, §7.4, §11.2: a restarting function called in a monitor's
+%% report §6.9, §11.2: a restarting function called in a monitor's
 %% wrap, which the runtime applies for the process the wrap delivers to,
 %% faults with `Fault("restart in a function the runtime applies")`, the
 %% fault of that process, which meets it at its next wait, and whose report

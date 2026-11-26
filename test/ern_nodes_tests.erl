@@ -3410,8 +3410,9 @@ spawn_on_peer(Base) ->
 %% function's cause, which the caller's node reports once, with the caller's
 %% site and `, on the peer store` after the cause, its subscriber of faults
 %% told of it with the peer, the trace that crossed with it beneath, then
-%% the caller's frame, a cause of §7.4's as a raise's (§7.3, a regression
-%% test), and the store reports nothing, its subscriber told nothing.
+%% the caller's frame, a cause stated with its rule (§7.4) as a raise's
+%% (§7.3, a regression test), and the store reports nothing, its
+%% subscriber told nothing.
 %%
 %% A process killed before it answers answers Other with its Reason. A
 %% process whose caller ends while it waits, one whose function kills its

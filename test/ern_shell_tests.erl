@@ -3697,8 +3697,8 @@ later_member() ->
     ?assertMatch({_, _}, binary:match(Output, <<"`+` is not defined on Coin">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"not a type declared">>)).
 
-%% report §11.2, §12.3: the terminal is the shell's, so an input that reads a
-%% line faults with the cause §12.3 gives and the shell goes on. A
+%% report §11.2: the terminal is the shell's, so an input that reads a
+%% line faults with the cause §11.2 gives and the shell goes on. A
 %% regression test: in line mode the input took the shell's next line, and
 %% at a terminal it ended the program, shell and all
 input_reads_line_test_() ->
@@ -5468,14 +5468,14 @@ libraries_in_the_shell() ->
     ?assertMatch({_, _}, binary:match(Output, <<"build/libs/json/json.erc\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> \"[1]\\n\" : String\n">>)).
 
-%% report §11.2: the commands the report's paragraph lists are the shell's
-%% own list, `Ernest.Shell.Command.commands`, each once; a mirror, a list
-%% that lives in the code and in the report (docs/development.md, *Lists in
-%% two places*)
+%% report §11.2: the commands the list of its part *Commands* names are the
+%% shell's own list, `Ernest.Shell.Command.commands`, each once; a mirror, a
+%% list that lives in the code and in the report (docs/development.md,
+%% *Lists in two places*)
 commands_mirror_test() ->
     {ok, Report} = file:read_file("../report/toolchain.md"),
-    [_, Rest] = binary:split(Report, <<"**Commands.**">>),
-    [Paragraph | _] = binary:split(Rest, <<"\n\n**">>),
+    [_, Rest] = binary:split(Report, <<"\n#### 11.2.3 Commands\n">>),
+    [Paragraph | _] = binary:split(Rest, <<"\n#### ">>),
     {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
                                                          {capture, all_but_first, binary}]),
     {ok, Source} = file:read_file("../src/shell/ernest/shell/command.ern"),

@@ -712,9 +712,11 @@ sections:
 
 # Every report section with the number of tests citing it and its length in
 # words, thinnest first: few citations on a long section is where a rule can
-# hide untested. A heuristic, not a proof.
+# hide untested. A heuristic, not a proof. A part under a level-four heading,
+# §11.2's, is counted with its section.
 coverage:
 	@awk '/^#{2,3} [0-9]+\.[0-9]+/ { if (s != "") print s, w; s = $$2; w = 0; next } \
+	      /^####/ { if (s != "") w += NF; next } \
 	      /^#/ { if (s != "") print s, w; s = ""; next } \
 	      s != "" { w += NF } END { if (s != "") print s, w }' report/*.md | \
 	  while read s w; do \

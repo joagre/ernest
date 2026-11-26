@@ -951,7 +951,7 @@ finished_by({Alias, _}, Finisher) ->
     ?UNIT.
 
 %% The call that waits for its answer however long it takes, Limited where
-%% the request gives its callee a time. Report §6.6, §7.4: the callee's
+%% the request gives its callee a time. Report §6.6: the callee's
 %% site, as a Down names it (§6.9), is read as the call begins, while the
 %% callee's row stands, so that the fault of the callee's it carries names
 %% it.
@@ -1021,7 +1021,7 @@ callee_site(Callee) ->
         _ -> <<>>
     end.
 
-%% Report §6.6, §7.4, §11.2: a callee's fault carried to its caller, which
+%% Report §6.6, §11.2: a callee's fault carried to its caller, which
 %% faults with the callee's cause unchanged, the callee's site beside it
 %% for its report's line, `Faulted` of it (Appendix E.21), `, the fault of
 %% the callee Ledger.start:6`, and none where the site is not known; for a
@@ -1051,7 +1051,7 @@ callee_ended(Cause, Site) -> throw({ern, #fault{cause = Cause, callee = {'Ended'
 foreign_answer(none, Value) -> Value;
 foreign_answer({Descriptor, Cause}, Value) -> ern_boundary:value(Descriptor, Value, Cause).
 
-%% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
+%% Report §6.6: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended, its site beside either; with
 %% the program the caller ends too.
 -spec ended(pid(), binary(), term()) -> no_return().
@@ -3739,7 +3739,7 @@ met(Class, Error, Stack) ->
 failure_met(Class, Error, Stack) ->
     #fault{cause = host_cause(Class, Error), trace = failure_trace(Error, Stack), time = now()}.
 
-%% Report §3.1, §7.4: the cause of the host's badarith, read from its stack
+%% Report §3.1: the cause of the host's badarith, read from its stack
 %% where it was met. An Int `/` or `%` by zero is the host's `div` or `rem`,
 %% whose frame holds its integer operands. A Float operation whose result
 %% is not finite is the host's operation on floats: its frame holds them
@@ -3807,8 +3807,8 @@ found_fault(Pid, Cause) ->
     killed(Pid, {found, Cause}).
 
 %% Appendix E.21: the trace of a fault the runtime raises by design, a
-%% cause of §7.4's or a library function's, the deadlock and a failed
-%% check among them: a frame of the runtime's is left out wherever it
+%% cause stated with its rule (§7.4) or a library function's, the deadlock
+%% and a failed check among them: a frame of the runtime's is left out wherever it
 %% stands, the twelve counted without it, and a frame of the host's above
 %% the program's stays. A frame of the runtime's is one of the toolchain's
 %% own Erlang (ern_code:own_modules/0), which a run's start found, or one
@@ -4118,7 +4118,7 @@ hold_terminal(Address) ->
 terminal_holder() ->
     persistent_term:get({?MODULE, holder}, undefined).
 
-%% Report §12.3, §11.2: the cause of a process that asks for the terminal
+%% Report §11.2: the cause of a process that asks for the terminal
 %% while a shell holds it, a subscriber or a reader of lines alike.
 -spec shell_holds() -> binary().
 shell_holds() ->
@@ -4174,7 +4174,7 @@ end_with_fault(Cause) ->
 %% one before it stopped. Open is the input (open_input/0, or fed/1 in a
 %% test), opened for a request and closed once it is answered, so that no
 %% more is read than a request needs and a program slower than what writes
-%% to it holds the writer back. Report §7.4, §12.1, §12.3: a read that
+%% to it holds the writer back. Report §7.4, §12.1: a read that
 %% fails faults the process that asked for the line or the bytes with a
 %% cause that names it, and a request whose input cannot be opened, the
 %% host's table of ports full, faults its asker with the host's class and
@@ -4270,7 +4270,7 @@ without_return(Line) ->
         _ -> Line
     end.
 
-%% Report §12.1, §12.3: the line, or the fault of the process that asked,
+%% Report §12.1: the line, or the fault of the process that asked,
 %% when it is not UTF-8.
 answer_line(Reply, Text) ->
     case ern_fs:is_utf8(Text) of
@@ -4284,7 +4284,7 @@ bytes(Reply, eof) -> answer(Reply, 'None');
 bytes(Reply, {error, Error}) -> refuse(Reply, unreadable(Error));
 bytes(Reply, limited) -> refused_limited(Reply).
 
-%% Report §12.1, §12.3: the cause of a read of standard input that
+%% Report §12.1: the cause of a read of standard input that
 %% failed, Error the host's reason.
 unreadable(Error) ->
     <<(unreadable())/binary, (host_term(Error))/binary>>.
@@ -4320,7 +4320,7 @@ input_unreadable(Error) ->
 terminal_gone() ->
     told_runner(gone, terminal).
 
-%% Report §12.3, §11.8: whether a fault's cause is one of standard input's,
+%% Report §12.1, §11.8: whether a fault's cause is one of standard input's,
 %% which ends a shell as it ends a run, by its input and not by a defect.
 -spec by_input(binary()) -> boolean().
 by_input(Cause) ->
@@ -5822,7 +5822,7 @@ withdraw_load(Evaluators, Units) ->
 %% Report §8.5, §11.2: a top-level binding's value, which '$init'/0 put.
 %% One that has none, since its load did not finish, a faulting reload's
 %% or a refused load's, whose evaluator or caller may have been killed
-%% with nothing faulting, faults its reader (§7.4).
+%% with nothing faulting, faults its reader (§11.2).
 -spec binding(term()) -> term().
 binding(Key) ->
     case persistent_term:get(Key, '$unevaluated') of
@@ -5862,7 +5862,7 @@ is_initialized(Unit) ->
 %% signals, which no try catches, and F returning ends it as any process
 %% ends.
 %%
-%% Report §6.9, §7.4: called in a process of the runtime's own that applies
+%% Report §6.9: called in a process of the runtime's own that applies
 %% a function for another (acting_for/1), a wrap's delivery, the terminal's
 %% courier, the process kept for an adapted address or a checker (§8.4),
 %% it faults before anything of the restart begins, a fault the process the

@@ -845,28 +845,55 @@ glossary_test() ->
     ?assertEqual([], [Entry || Entry <- Entries,
                                re:run(Entry, "§[0-9]|Appendix [A-G]") =:= nomatch]).
 
-%% report §7.4, §12.3: a cause of a fault quoted in sections 0 to 12
-%% outside §7.4 and §12.3 is one they list, since §7.4 holds the
-%% language's causes and §12.3 those the runtime raises at its boundaries
-%% (§7.3); a library function's own section holds its faults (Appendix E.0
-%% shape rule 4). In their texts `...`, `m:f/n` and a placeholder of one
-%% letter stand for any text.
+%% report §7.3, §7.4: a cause's text stands with its rule, in a section
+%% §7.4's sentence "A cause's text stands with its rule" names, and a
+%% library function's in its own section (Appendix E.0 shape rule 4). So a
+%% cause quoted in sections 0 to 12 outside the sections the sentence
+%% names, §7.4 itself among them, is one a named section quotes. The test
+%% reads the sections' numbers from the sentence, so that the two cannot
+%% part, and a section's text holds its numbered parts, §11.2's. In the
+%% causes' texts `...`, `m:f/n` and a placeholder of one letter stand for
+%% any text.
 fault_causes_test() ->
-    Language = ern_repository:read("report/language.md"),
-    [Before, Rest] = binary:split(Language, <<"### 7.4 Causes of faults">>),
-    [Own, After] = binary:split(Rest, <<"\n## 8. Programs">>),
-    [Chapters, _] = binary:split(After, <<"\n## Appendix A">>),
+    [Language, _] = binary:split(ern_repository:read("report/language.md"),
+                                 <<"\n## Appendix A">>),
     [Toolchain, _] = binary:split(ern_repository:read("report/toolchain.md"),
                                   <<"\n## Appendix C">>),
-    [Runtime, FromRaised] = binary:split(Toolchain, <<"### 12.3 The causes the runtime raises">>),
-    [Raised, Termination] = binary:split(FromRaised, <<"\n### 12.4 ">>),
-    Body = <<Chapters/binary, Runtime/binary, Termination/binary>>,
-    Templates = [template(Cause) || Cause <- causes(Own) ++ causes(Raised)],
+    Sections = report_sections(Language) ++ report_sections(Toolchain),
+    {"7.4", Own} = lists:keyfind("7.4", 1, Sections),
+    [_, From] = binary:split(Own, <<"A cause's text stands with its rule: ">>),
+    [Sentence | _] = binary:split(From, <<". ">>),
+    Named = ["7.4" | [Number || [Number] <- matches(Sentence, "§([0-9]+(?:\\.[0-9]+)?)")]],
+    ?assert(length(Named) > 5),
+    ?assertEqual([], [Number || Number <- Named, not lists:keymember(Number, 1, Sections)]),
+    Templates = [template(Cause) || {Number, Text} <- Sections, lists:member(Number, Named),
+                                    Cause <- causes(Text)],
     ?assert(length(Templates) > 20),
-    ?assertEqual([], [Cause || Cause <- causes(Before) ++ causes(Body),
-                               not lists:any(fun(Template) ->
-                                                 re:run(Cause, Template) =/= nomatch
-                                             end, Templates)]).
+    ?assertEqual([], [{Number, Cause} || {Number, Text} <- Sections,
+                                         not lists:member(Number, Named),
+                                         Cause <- causes(Text),
+                                         not lists:any(fun(Template) ->
+                                                           re:run(Cause, Template) =/= nomatch
+                                                       end, Templates)]).
+
+%% A document's sections, each its number, "7" or "7.4", and its text to
+%% the next section's heading, the parts under its level-four headings
+%% among it; the text before the first is numbered "".
+report_sections(Document) ->
+    Lines = binary:split(Document, <<"\n">>, [global]),
+    report_sections(Lines, "", [], []).
+
+report_sections([], Number, Text, Acc) ->
+    lists:reverse([{Number, section_text(Text)} | Acc]);
+report_sections([Line | Rest], Number, Text, Acc) ->
+    case re:run(Line, "^#{2,3} ([0-9]+(?:\\.[0-9]+)?)[. ]", [{capture, all_but_first, list}]) of
+        {match, [Next]} ->
+            report_sections(Rest, Next, [Line], [{Number, section_text(Text)} | Acc]);
+        nomatch -> report_sections(Rest, Number, [Line | Text], Acc)
+    end.
+
+section_text(Lines) ->
+    iolist_to_binary(lists:join(<<"\n">>, lists:reverse(Lines))).
 
 causes(Document) ->
     case re:run(Document, "Fault\\(\"([^\"]*)\"\\)", [global, {capture, all_but_first, binary}]) of

@@ -39,7 +39,7 @@ own_terminal_race_test() ->
     Cause = <<"the terminal is already read as ", (atom_to_binary(Winner))/binary>>,
     ?assertEqual([], [Result || {_, Result} <- Owned, Result =/= ok, Result =/= {taken, Cause}]).
 
-%% report §12.1, §7.4, §12.3: a read of the standard input that fails
+%% report §12.1, §7.4: a read of the standard input that fails
 %% faults the process that asked for the line or the bytes, with a cause
 %% that names it, the entry process among them, and the program goes on
 %% where another asked; an empty line is the empty string. A regression
@@ -66,7 +66,7 @@ stdin_failure_test() ->
                                      ern_helpers:quiet(#{stdin => fun() -> "\n" end}))),
     ?assertEqual({'Some', <<>>}, ern_waits:wait(line)).
 
-%% report §12.1, §12.3: lines and bytes are one stream, each request taking
+%% report §12.1: lines and bytes are one stream, each request taking
 %% up where the one before it stopped; a line loses its line feed and one
 %% carriage return before it, and a last line needs none; a line that is
 %% not UTF-8 faults the process that asked, and the next line is read. The
@@ -1623,7 +1623,7 @@ deadlock_after_a_wait() ->
 
 %% report §8.6: every live process blocked in an untimed receive or in a
 %% callForever, with no timed receive, clock alarm, or foreign code
-%% pending, is a deadlock, the entry process's fault `deadlock` (§7.4);
+%% pending, is a deadlock, the entry process's fault `deadlock` (§8.6);
 %% each of those can still deliver, so the detector, looking while one is
 %% pending, finds no deadlock: here the program waits as Ernest waits, for
 %% the answer of a process outside it, which the detector does not read,
@@ -2293,7 +2293,7 @@ live_leaves_out_the_ended_test() ->
            end, <<"M.main">>, ern_helpers:quiet()),
     ?assertEqual(false, ern_waits:wait(live)).
 
-%% report §6.9, §7.4: a restarting function called where the runtime
+%% report §6.9: a restarting function called where the runtime
 %% applies a function for another process faults with its cause before
 %% anything of a restart begins: in a monitor's wrap, the fault of the
 %% process the wrap delivers to, met at its next wait; in an adapted
@@ -2459,12 +2459,12 @@ clock_now_reads_the_host() ->
     ?assert(is_integer(Now) andalso abs(Now - erlang:system_time(millisecond)) < 1000).
 
 %% report §12.2: a process's end is a host term, since foreign code may
-%% observe it: normal, {ern, fault, Text, Trace} for every fault, a cause of
-%% §7.4 and a failure of the runtime alike (§7.3), {ern, killed},
-%% {ern, program_end}; a socket's {ern, closed} is ern_tcp_tests'. The
-%% division's term is a regression test of the one fault term, written
-%% after the code, where it had no trace; its trace is empty here, where
-%% no frame is a program's (Appendix E.21)
+%% observe it: normal, {ern, fault, Text, Trace} for every fault, a cause
+%% stated with its rule (§7.4) and a failure of the runtime alike (§7.3),
+%% {ern, killed}, {ern, program_end}; a socket's {ern, closed} is
+%% ern_tcp_tests'. The division's term is a regression test of the one
+%% fault term, written after the code, where it had no trace; its trace is
+%% empty here, where no frame is a program's (Appendix E.21)
 host_exit_reason_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -4488,7 +4488,7 @@ held_until_the_entry_ends() ->
     MonitorRef = erlang:monitor(process, ern_rt:entry_process()),
     receive {'DOWN', MonitorRef, process, _, _} -> true end.
 
-%% report §5.11, §7.4: a segment overflow's cause says what did not fit,
+%% report §5.11: a segment overflow's cause says what did not fit,
 %% the value and the segment's width, where the check knows them. A
 %% regression test, written after the code: the cause named neither; it
 %% does not cover the frame's line, the emitter's
@@ -4522,7 +4522,7 @@ tellers_outside_a_run_test() ->
 %% Programs run as the runner runs them (ern_program)
 %%
 
-%% report §6.6, §7.4: a call ends at once when its callee faults, is killed,
+%% report §6.6: a call ends at once when its callee faults, is killed,
 %% returns, or had ended, before it answers: Address.call answers None, and
 %% callForever faults the caller with the callee's cause, or says how it
 %% ended; a restart ends the calls waiting on the process the same way. A

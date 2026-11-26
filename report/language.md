@@ -8,7 +8,7 @@ For Ernest 0.11.0.
 >
 > — Joe Armstrong, on erlang-questions, 23 January 2003
 
-This file holds the report's §0 to §9 and Appendices A, B and F. §10 to §12 and Appendices C and H are in [`toolchain.md`](toolchain.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
+This file holds the report's §0 to §9 and Appendices A, B and F. §10 to §12 and Appendices C and H are in [`toolchain.md`](toolchain.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report. It is normative, but Appendix G is informative apart from its list of libraries, and where a gloss of Appendix F and the section it names differ, the section holds. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 **Contents**
 <!-- contents -->
@@ -59,7 +59,7 @@ Five principles. Principles 2 to 5 are constructive. Principle 1 overrides where
 
 5. Small: few concepts, few primitives, few reserved words.
 
-   The count is the language's, its concepts, its primitives and its reserved words; the standard library is bounded by Appendix E.0's rules, and a function is there where a reader who knows the type looks for it. How many programs ask for a feature decides nothing, for it or against it: a count measures a cost and is no reason for a rule.
+   The count is the language's, its concepts, its primitives and its reserved words; the standard library is bounded by Appendix E.0's rules, and a function they admit stands in the module of the type a reader looks in. How many programs ask for a feature decides nothing, for it or against it: a count measures a cost and is no reason for a rule.
 
    A type carries what keeps values and messages safe, the type of what a function receives among it, and nothing of what a function does.
 
@@ -225,7 +225,7 @@ A Unicode scalar value is a code point other than a surrogate, U+0000 through U+
 
 A type whose one constructor is named as a type in scope other than its own is an error: `type Word = String` declares a constructor `String`, and is refused, and so is `type Names = List(String)`. Where what is written reads as that type, its positional fields as many as the type's parameters, the help writes the wrapper: `` there are no type aliases; a type that holds a List(String) is written `type Names = Names(List(String))` ``. Elsewhere, `type Failure = Down(String)`, the help is `rename the constructor; Down is the prelude's type`, or, for a type the module declares, `rename the constructor; A is a type this module declares`. `type Heading = Up | Down | Idle` builds, as §4.2 lets a module take a prelude name.
 
-**Integer arithmetic.** Exact, and bounded by the host's integers alone (§10). `/` truncates toward zero: `-7 / 3 = -2`. `%` satisfies `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.rem` (Appendix E.8) use the same convention and return `Optional(Int)` (§9.3) in place of the zero-divisor fault: `Int.rem(-7, 3)` is `Some(-1)`.
+**Integer arithmetic.** Exact, and bounded by the host's integers alone (§10). `/` truncates toward zero: `-7 / 3 = -2`. `%` satisfies `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `/` and `%` with a zero divisor fault with `Fault("division by zero")`. `Int.div` and `Int.rem` (Appendix E.8) truncate the same way and return `Optional(Int)` (§9.3) in place of the zero-divisor fault: `Int.rem(-7, 3)` is `Some(-1)`.
 
 **Float arithmetic.** IEEE 754 binary64, round to nearest, ties to even, restricted to the finite range. An operation whose result is not finite faults with cause `Fault("float arithmetic error")` (§7.3): overflow, division of a non-zero numerator by zero, or `0.0 / 0.0`. Gradual underflow to a subnormal is not a fault. There is no `Infinity`, no `NaN`, and no negative zero: a zero is `0.0`, whether an operation or a negation gives it, or it enters the program from foreign code, from bytes, or from text. A float segment pattern `0.0` matches the bytes of either zero. A float segment pattern does not match the bytes of an infinity or a NaN. `Float.compare`, `Float.round`, `Float.truncate`, `Float.floor`, and `Float.ceil` are total.
 
@@ -297,7 +297,16 @@ A function that receives nothing stands wherever a function of the same type rec
 
 An effect position is the type after `receiving`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. So is a type argument whose parameter occurs in no field of its type: `m` in `Peer.Service(m)` (§8.7). A variable that occurs only in effect positions ranges over the mailbox types and none. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) receiving m` is never none. A body that calls `self` is checked at the variable, and only the definition's type drops it (§4.5).
 
-Inference asks for an annotation at an operator whose operand type nothing in the definition fixes (§4.8), a field selection whose operand type nothing fixes (§3.5), a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6), a `<-` whose sum type is still open (§5.5), a `show` supplied at a type not known whole that no requirement names (§4.9, Appendix E.1), a call whose requirement's variable nothing fixes by its definition's end (§4.9), a fill whose record type leaves a requirement's variable undetermined (§5.6), and a path in a record update through a field whose type nothing fixes (§5.6).
+Inference asks for an annotation at:
+
+- an operator whose operand type nothing in the definition fixes (§4.8);
+- a field selection whose operand type nothing fixes (§3.5);
+- a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6);
+- a `<-` whose sum type is still open (§5.5);
+- a `show` supplied at a type not known whole that no requirement names (§4.9, Appendix E.1);
+- a call whose requirement's variable nothing fixes by its definition's end (§4.9);
+- a fill whose record type leaves a requirement's variable undetermined (§5.6);
+- a path in a record update through a field whose type nothing fixes (§5.6).
 
 Inference asks for one too at `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), the mailbox type of a process spawned on a peer and the result type of a compute's function (§3.11), and an input at the prompt that binds a name its type does not settle (§11.2).
 
@@ -430,7 +439,7 @@ A dotted name's first segment is a namespace, and a member stands in no expressi
 
 The nearer namespace wins where two hold the first segment. The farther is reached from there only by a name whose first segment is found above it, `Top.Util` from `Top.Shell`, where `Util` is `Top.Shell.Util`, and one at the root is out of reach. A qualified name unknown in a namespace nearer than the root, where a module of its first segment stands at the root, has a help line naming the two: `help: Util here is Top.Shell.Util, which hides the root's Util from Top.Shell; give it another name to reach the root's`.
 
-The root is one namespace. The modules of the source root and of each load path root stand in it together, beside the prelude's namespaces, the standard library's and the toolchain's libraries': `geo/a.ern` under the source root and `geo.erc` under a load path root provide `Geo.A` and `Geo`. Where two roots hold a module of one namespace, the module is the first root's, the source root standing first and the load path's roots after it in their order (§11.1, §11.2), and it hides the other. A module is hidden by a module of its namespace alone, and a directory hides nothing. A named package's namespace is found under that package's build alone, and in that package's own build under its source root too (§11.9).
+The root is one namespace. The modules of the source root and of each load path root stand in it together, beside the prelude's namespaces, the standard library's and the toolchain's libraries': `geo/a.ern` under the source root and `geo.erc` under a load path root provide `Geo.A` and `Geo`. Where two roots hold a module of one namespace, the module is the first root's, the source root standing first and the load path's roots after it in their order (§11.1, §11.2), and it hides the other. A module is hidden by a module of its namespace alone, and a directory hides nothing. Where a named package's namespace is found is §11.9's.
 
 So `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse`, `Region.Region` in `Ernest.Shell.Complete` names its sibling's type, `Shell.attach` there names its parent's function, and `Io.println` anywhere names the standard library's. The lookup finds a namespace where a module's file stands at its path, or anywhere under its directory: from `Top.User`, `Net.Http.get` names `Top.Net.Http.get` where `top/net/http.ern` stands and no `top/net.ern` does. A directory that holds no module is passed over. A first segment found nowhere is an error, as a module that does not exist is. A shell's input resolves as §11.2 says.
 
@@ -497,7 +506,11 @@ The binding generalizes its free type variables where its initializer is a value
 
 A binding whose initializer is a call, or holds one, has the type the call gives. It is generalized where that type, read through the fields of the declared types it names, holds no function type, no foreign type, no address and no reply: `let empty : Map(k, v) = emptyMap()`, `emptyMap` a foreign function that answers the host's empty map.
 
-Any other binding is not generalized; an effect variable left in its type that stands in no value position and is not process-only is none (§3.9) where it stands as a function type's effect, a parameter's among them, `let p = twice(fn(x : Int) = x)` with `fn twice(f) = #(f, f)` being `#((Int) -> Int, (Int) -> Int)`, and `Never` where it stands as a type argument, which is a type, a variable that stands as both being `Never` throughout (§6.2, §11.2); a spawned function's unfixed mailbox type is `Never` (§6.2); and any other variable left, a process-only effect variable among them, is a type error at the binding: `let shared = spawn(fn() = cell(None))` is refused until an annotation fixes the type of what the cell holds.
+Any other binding is not generalized. Of the variables left in its type:
+
+- An effect variable that stands in no value position and is not process-only is none (§3.9) where it stands as a function type's effect, a parameter's among them: `let p = twice(fn(x : Int) = x)` with `fn twice(f) = #(f, f)` is `#((Int) -> Int, (Int) -> Int)`. It is `Never` where it stands as a type argument, which is a type, and a variable that stands as both is `Never` throughout (§6.2, §11.2).
+- A spawned function's unfixed mailbox type is `Never` (§6.2).
+- Any other variable left, a process-only effect variable among them, is a type error at the binding: `let shared = spawn(fn() = cell(None))` is refused until an annotation fixes the type of what the cell holds.
 
 A top-level `let`'s type closes by that rule with none where a function type's effect stands open: with `fn makeApplier() = fn(f) = f() + 1`, `let h = makeApplier()` is `(() -> Int) -> Int`, where `fn h2() = makeApplier()` keeps its variable, `() -> (() -> Int receiving e) -> Int receiving e`. A call in the body of a lambda the initializer builds and does not call is the lambda's: `let me = fn() = self()` is generalized. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
@@ -732,7 +745,9 @@ A segment without specifiers is `int` of size 8. A segment is `big` and `unsigne
 
 The specifier names are specifiers only where a `BitSpec` stands, after a segment's `:` or `-`. Elsewhere, in a bitstring as outside one, they are ordinary identifiers: in `<<size:size(int)>>`, the first `size` and `int` are variables.
 
-A bitstring's total bit count, in construction and in a pattern, is a multiple of 8. A violation of these rules the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. A value that does not fit its width is an error too: a numeric literal, negated or not, that does not fit a segment of constant width is a compile-time error, in a construction and in a pattern, and any other value that does not fit faults at construction or fails to match. `<<-1>>` is a compile-time error, and `<<n>>` with `n` −1 faults.
+A bitstring's total bit count, in construction and in a pattern, is a multiple of 8. A violation of these rules the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (below) or fails to match. A value that does not fit its width is an error too: a numeric literal, negated or not, that does not fit a segment of constant width is a compile-time error, in a construction and in a pattern, and any other value that does not fit faults at construction or fails to match. `<<-1>>` is a compile-time error, and `<<n>>` with `n` −1 faults.
+
+A value that does not fit its width at construction, other than a literal the compiler refuses, faults with `Fault("segment overflow: 300 does not fit 8 bits")`, `signed bits` for a signed segment, `a 32-bit float` for a float, and `a 3-byte value does not fit 2 bytes` for bytes, and with `Fault("segment overflow")` where the host refused the segment. A dynamic total bit count that is not a multiple of 8 faults with `Fault("bitstring not byte-aligned")`.
 
 A segment pattern is a variable, `_`, or a literal of the segment's type, a negative numeric literal among them: `<<-1:signed>>`. `size(Expr)` in a pattern is a variable, a top-level `let`, an `Int` literal, or `+`, `-`, or `*` applied to these. The variable is bound by an earlier segment of the same bitstring, or is in scope where the pattern stands: a parameter, a block `let`, a pattern variable of an enclosing clause, or a lambda's capture. A top-level `let` is read when the `match` begins, after its scrutinee, or when the `receive` begins. A variable bound elsewhere in the same pattern is not in scope in its sizes. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match.
 
@@ -940,7 +955,7 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 and §12.3 list and those a standard library function's section gives, the supervisor's among them (Appendix E.22), each with its text. A process that is killed, or that ends with the program, has not faulted.
+A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Each cause is stated with its text in the section §7.4 names for it, the supervisor's in Appendix E.22. A process that is killed, or that ends with the program, has not faulted.
 
 A fault carries a trace, the host's stack where the fault was met, at the moment it was (Appendix E.21); the fault's report shows it (§11.2), and `Down` carries the cause alone.
 
@@ -950,21 +965,13 @@ A function answers a failure as a value: `Optional` where the failure has no cau
 
 A request a rule of this report refuses, which the program alone could have kept, faults the process that made it: a second process running a group, a claim of the terminal the other way, a `Forever` form's call on a socket, a listener or a program that has ended (Appendix E.18, E.23). An argument the host cannot take whole is `Left(Invalid)`; one outside the function's own domain is answered as the function's section says, and where the section says nothing, by `None` or a `Left` where the result has room for one and by a fault where it has none; it is corrected only where this section or the function's says. What the world refuses, a port in use, a file that exists, or a full table of the host's that a request of `Fs`, `Tcp`, `Os` or `Terminal` needs room in, is a value with its cause (§12.5).
 
-A failed read of standard input faults the process that asked for the line or the bytes (§12.1). A failure no request stands behind, keys that are not UTF-8 among them (§12.1), faults the entry process; standard output or standard error that cannot be written, and keys the host can no longer read, end the program without a fault (§8.6, §12.1).
+A failed read of standard input faults the process that asked for the line or the bytes (§12.1). A failure no request stands behind, keys that are not UTF-8 or a key that a full table of ports leaves no room to read (§12.1), faults the entry process; standard output or standard error that cannot be written, and keys the host can no longer read, end the program without a fault (§8.6, §12.1).
 
-A count or a duration below 0 is 0, but for a terminal's rows and columns (Appendix E.23), and a window below 1 is 1 (§6.9, Appendix G.4); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid. A function that receives nothing can fault. The causes are these, and a standard library function's section gives its own:
+A count or a duration below 0 is 0, but for a terminal's rows and columns (Appendix E.23), and a window below 1 is 1 (§6.9); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid. A function that receives nothing can fault.
 
-- `/` and `%` on `Int` with a zero divisor: `Fault("division by zero")`. `Int.div` and `Int.rem`, Appendix E.8, return `Optional` instead.
-- `Float` arithmetic whose result the finite range cannot hold (§3.1): `Fault("float arithmetic error")`. `Int.toFloat` of an integer that rounds beyond the largest finite `Float`: `Fault("Int out of Float range")`.
-- Bitstring construction (§5.11). A value that does not fit its width, other than a literal the compiler refuses: `Fault("segment overflow: 300 does not fit 8 bits")`, `signed bits` for a signed segment, `a 32-bit float` for a float, and `a 3-byte value does not fit 2 bytes` for bytes; `Fault("segment overflow")` where the host refused the segment. A dynamic total bit count that is not a multiple of 8: `Fault("bitstring not byte-aligned")`.
-- `fault(c)`, which compiles at any type: `Fault(c)`.
-- `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, `Fault("callee was killed")`, `Fault("callee returned without answering")`, `Fault("callee was closed")`, `Fault("callee was restarted")`, `Fault("callee had ended")`, `Fault("callee ended with its program")` where the callee's node ended in order, or `Fault("callee is unreachable")` where the callee's node went out of reach (§8.7).
+A cause's text stands with its rule: an operator's in §3.1, a bitstring's in §5.11, a `callForever`'s in §6.6, a restart's in §6.9, the boundary's in §8.4 and §12.3, a deadlock's in §8.6, a load's and a shell's in §11.2, the terminal's and standard input's in §12.1, and a standard library function's in its section. `fault(c)`, which compiles at any type, faults with `Fault(c)`.
 
-Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A message or a delivery the runtime has no room to make, through an adapted address, a wrap or the end's telling of a subscriber, faults the process it is for with `Fault("error:system_limit")` at its next wait, as a fault in a function adapting an address faults its target with its own cause (§6.5).
-
-A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
-
-A deadlock faults the process §8.6 names with `Fault("deadlock")`. A use of a binding a faulting reload or a refused load left without a value faults its reader with `Fault("the binding has no value, since its load did not finish")` (§11.2).
+A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A message or a delivery the runtime has no room to make, through an adapted address, a wrap or the end's telling of a subscriber, faults the process it is for with `Fault("error:system_limit")` at its next wait, as a fault in a function adapting an address faults its target with its own cause (§6.5).
 
 ## 8. Programs
 
@@ -982,7 +989,7 @@ What standard output and standard error, standard input and the terminal do, the
 
 ### 8.3 Peers
 
-A *node* is one running runtime, and a *peer* is another node this one knows by name. A node is a program started with `--config-dir` (§11.2): its configuration directory holds its own key, by which nodes authenticate each other (§8.7), and `ernest.conf`, which lists its peers, each by a name, a public key and a network address (§11.3, Appendix C). A program started without `--config-dir` is no node, has no peers and listens to nothing.
+A *node* is one running runtime, and a *peer* is another node this one knows by name. A node is a program started with `--config-dir` (§11.2): its configuration directory holds its own key, by which nodes authenticate each other (§8.7), and `ernest.conf`, which lists its peers (§12.5, Appendix C). A program started without `--config-dir` is no node, has no peers and listens to nothing.
 
 The module `Peer` (Appendix E.27) acts on a peer by its listed name: `Peer.spawn(name, f, ms)` and `Peer.spawnMonitored(name, f, wrap, ms)` start a process there as `spawn(f)` and `spawnMonitored(f, wrap)` start one on the running node (§6.2), `Peer.offer` and `Peer.find` offer a service to the node's peers, and find one (§8.7), and `Peer.peers` answers the names of the peers the node lists, in the configuration's order. Nodes of different builds connect on one floor (§8.7).
 
@@ -1052,7 +1059,7 @@ The host's termination, a signal from outside, ends the program the same way, on
 
 What a node's end is to its peers is §8.7's. A process this program spawned on a peer runs on there.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused; under `ern test`, the process of the test that runs faults in its place (§11.2). The fault's report lists the waiting processes beneath the trace (§12.4). The fault comes at most 100 milliseconds after the moment no progress is possible, or at most a second after it where something could still deliver when the runtime last looked, each beside the time the runtime takes to find it.
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused; under `ern test`, the process of the test that runs faults in its place (§11.2). The fault's report lists the waiting processes beneath the trace (§12.4). The fault comes at most 100 milliseconds after the moment no progress is possible, or at most a second after it where something could still deliver when the runtime last looked, each beside the time the runtime takes to find it.
 
 No progress is possible when every live process waits in `receive` without `after`, in `Address.callForever`, or in `Process.run` or `Test.faults`, which wait as it does (Appendix E.0 shape rule 8), no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` or `Os.startTerminal` started counts as such a computation until a read has answered its exit or it has been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits.
 
@@ -1062,7 +1069,7 @@ A process inside foreign code (§8.4) is not waiting; the runtime reads that fro
 
 A node (§8.3) is identified by its key, which `ern config` makes with a certificate the node signs itself and `ernest.conf`, printing the public key that another node's configuration lists (§11.3). A configuration directory is made for one machine. Two nodes started from copies of one are one node to their peers, and each one's dial ends the other's connection, which the peer says on its standard error each time.
 
-**Its configuration.** `ernest.conf` (Appendix C) names the node's listener, its peers by name, key and network address, and the peers that may offer each service (§12.5); a node refuses to start on a file that breaks a rule of it, saying which file and which rule.
+**Its configuration.** What `ernest.conf` holds is §12.5's (Appendix C); a node refuses to start on a file that breaks a rule of it, saying which file and which rule.
 
 `services` lists, under a service's name, the peers that may offer it, by their names, in the order a find asks them; a service not listed is found nowhere.
 
@@ -1122,7 +1129,12 @@ What one process sends another arrives in the order §6.4 gives. Between nodes a
 
 **A spawn.** `Peer.spawn(name, f, ms)` asks the peer named `name` to start a process and run `f()` in it, the values `f` captured (§3.11) crossing as they cross in a message, a reply among them answered by the spawned process as §6.6 says of `spawn`, and for `restarting(limit, g)` the limit and `g`; the peer records the spawn's site (§6.9) for the process as it records a local spawn's, and answers its address; what the spawn answers, and within what time, is Appendix E.27's.
 
-A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where every top-level binding its reach names, found by its identity, has its value there, in the unit its code reads it from (§11.2), a constant (§4.6) having it wherever its form is, made from the form and evaluated nowhere (§8.5), and the module every foreign declaration its reach names calls is on the peer with the function in it; otherwise the peer starts nothing, the peer says on its standard error what it lacked, the binding or the module, or the function in it, and the spawn fails with `NotLoaded(text)`, `text` the words the peer writes after `was not loaded:`.
+A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where:
+
+- every top-level binding its reach names, found by its identity, has its value there, in the unit its code reads it from (§11.2), a constant (§4.6) having it wherever its form is, made from the form and evaluated nowhere (§8.5);
+- the module every foreign declaration its reach names calls is on the peer with the function in it.
+
+Otherwise the peer starts nothing, the peer says on its standard error what it lacked, the binding or the module, or the function in it, and the spawn fails with `NotLoaded(text)`, `text` the words the peer writes after `was not loaded:`.
 
 Nothing is initialized because a peer asked. A function spawns whatever its module holds beside it: a binding outside its reach keeps it from no peer.
 
@@ -1239,14 +1251,16 @@ Float.compare : (Float, Float) -> Ordering
 String.compare : (String, String) -> Ordering
 Char.compare : (Char, Char) -> Ordering
 Bool.compare : (Bool, Bool) -> Ordering // §3.10: false before true
-List.compare : (List(a), List(a)) -> Ordering needs a.compare // Appendix E.2 provides it
-Optional.compare : (Optional(a), Optional(a)) -> Ordering needs a.compare // Appendix E.10 provides it
-Either.compare : (Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare // Appendix E.11 provides it
+List.compare : (List(a), List(a)) -> Ordering needs a.compare
+Optional.compare : (Optional(a), Optional(a)) -> Ordering needs a.compare
+Either.compare : (Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare
 fault : (String) -> a // §7.4: faults with the cause given
 compare : (a, a) -> Ordering needs a.compare // §3.10: the operand type's compare, as < is
 ```
 
-On `Int`, `Float`, `String`, and `Bytes` an operator is the runtime's own operation, and so is `<>` on `List`; `Path.<>` is Ernest in its module. The operator is the primitive, and the function of its name in the type's module is written with it: the body of `fn Int.+(left : Int, right : Int) : Int = left + right` applies the runtime's `+`. On `Int`, `Float`, `String`, `Char`, and `Bool`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it. `compare` is the operators' resolution itself, `T.compare` for the operand type, and no module provides it. Each `T.f` this section lists is a member (§4.5).
+On `Int`, `Float`, `String`, and `Bytes` an operator is the runtime's own operation, and so is `<>` on `List`; `Path.<>` is Ernest in its module. The operator is the primitive, and the function of its name in the type's module is written with it: the body of `fn Int.+(left : Int, right : Int) : Int = left + right` applies the runtime's `+`. On `Int`, `Float`, `String`, `Char`, and `Bool`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it. `compare` is the operators' resolution itself, `T.compare` for the operand type, and no module provides it.
+
+Each `T.f` this section lists is a member (§4.5), which `T`'s module provides: Appendix E.2 for `List`, E.5 for `String`, E.6 for `Char`, E.7 for `Bool`, E.8 for `Int`, E.9 for `Float`, E.10 for `Optional`, E.11 for `Either`, E.14 for `Path` and E.20 for `Bytes`.
 
 ### 9.7 System references
 
@@ -1435,7 +1449,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **arity** — the number of arguments a function takes; part of its type. §3.4.
 - **`as`** — `p as x`, a pattern that binds `x` to the whole value `p` matches. §5.10.
 - **attached shell** — a shell whose session runs on a listed peer, the shell's own node being its terminal and its files. §11.2.
-- **authority** — the part of a URI reference between `//` and its path, `userinfo@host:port`, the host alone or with its port. Appendix G.12.
 - **bare node** — a node started with no `.erc`, which holds no definition of a program's and runs what its peers spawn and compute on it. §8.7, §11.2.
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
@@ -1446,15 +1459,15 @@ Every technical term this report introduces, with a gloss and the section that d
 - **callee** — the function a call applies (§5.1); of a request-reply call (§6.6), the process the request is sent to. §5.1, §6.6, §11.2, §12.4, Appendix E.21.
 - **canonical form** — the term a definition's hash is taken of: its typed tree after checking, its locals numbered, its names resolved, each reference the identity of what it names. §11.1, Appendix H.
 - **carrier** — the host's distribution, over which nodes connect, as a node runs it. §12.5, §10.
-- **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 lists the language's. §7.3, §7.4.
+- **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 names the sections that state one. §7.3, §7.4.
 - **child** — a process of a `Supervisor`'s group, which its supervisor restarts. Appendix E.22.
 - **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
-- **code frame** — the exchange's frame that carries one definition's canonical form, a binding's name, its source's lines and what prints a type as its module writes it, with the host's module and function and the line of each foreign declaration the definition calls. §12.7.
+- **code frame** — the exchange's frame that carries one definition's canonical form. §12.7.
 - **code replacement** — a running process going on in a new function it received in a message. §6.10.
 - **code table** — a node's table from each definition's hash to the unit and function that hold it. §10.
 - **compare** — the member that defines a type's order, `fn T.compare`, and the prelude function that reaches the operand type's as `<` does, the one way an order is used as an `Ordering`. §3.10, §9.6.
 - **compiled interface** — what a compiled module records of what it exports, their types and schemes, and the hash of each of its definitions, against which a module that uses it is checked. §3.9, §11.1.
-- **compute** — `Peer.compute(name, f, ms)` on the peer named, or `Peer.computeAnywhere(f, ms)` on a peer the node draws by the utilizations it holds, which runs `f` in a process on the peer and answers its value to the caller, a fault in `f` being the caller's. §6.7, §8.7, Appendix E.27.
+- **compute** — `Peer.compute` or `Peer.computeAnywhere`: a function run in a process on a peer for its value. §6.7, §8.7, Appendix E.27.
 - **concat operator** — `<>`, resolved per type. §4.8.
 - **configuration directory** — the directory `--config-dir` names, which holds a node's `ernest.conf`, its key, its `ernest.pid` and its `startup` file. §12.5, §11.2, §11.3.
 - **connection** — what two nodes send each other over, at most one between them, opened by the first operation that needs it. §8.7.
@@ -1494,9 +1507,9 @@ Every technical term this report introduces, with a gloss and the section that d
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.
 - **handshake** — the opening of a connection, in which each node proves its key and the floor before anything passes. §12.5.
-- **hangup** — the host's signal `SIGHUP`: to the Ernest program, a reload on a node and a termination elsewhere; to a program under a pseudo-terminal, sent when the terminal is closed, as `Os.closeInput` sends it, and to a running program, sent by `Os.signal`. §8.6, §12.5, Appendix E.23.
+- **hangup** — the host's signal `SIGHUP`, a reload to a node and a termination to any other Ernest program. §8.6, §12.5, Appendix E.23.
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
-- **hide** — of a module at the namespace of a module of a later root, as a program's at that of a module of a library of the toolchain's own: to be the module found at that namespace; of a module's declaration of a prelude name: to stand before the prelude's throughout the module; of a binding: to stand before a declaration's or the prelude's name of its spelling within the binding's scope. §4.2, §11.1.
+- **hide** — to be the one found where two share a namespace or a spelling: a module before a later root's, a module's declaration before the prelude's, a binding before a declaration's or the prelude's. §4.2, §11.1.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
@@ -1508,14 +1521,14 @@ Every technical term this report introduces, with a gloss and the section that d
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
 - **live region** — the rows at the foot of the screen that the shell draws again: what programs have written, the input, and what `Tab` shows. §11.2.
-- **load path** — the directories, in order, that a program's modules are found under by their namespaces and a `foreign fn`'s `.beam` is found in, each searched for both: the standard library's build, the loaded module's root, the directories `--load-path` and `--libs-dir` add, in the order the options are given, a `--load-path`'s root and each application's `ebin` under a `--libs-dir`, under `ern run`, `ern test` and `ern shell` the root package's `ebin`, the build of each named package, with its `ebin` under those three, and the build of each library of the toolchain's own. §11.1, §11.2, §11.9.
-- **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each call and each wait on the peer that began before the node ran it, faults a `callForever` on one of its processes, and drops what waited to be sent. §8.7.
+- **load path** — the directories, in order, under which a program's modules are found by their namespaces and in which a `foreign fn`'s `.beam` is found. §11.1, §11.2, §11.9.
+- **loss** — a connection closed by the network, by the host for its silence or at a faulty frame, and not by a node's end in order. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
 - **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.
 - **manifest** — `package.conf`, the file that makes a directory a package: the least release of Ernest the package is written for, and an entry for each package its modules use, directly or through another package. §11.9.
 - **`match`** — the pattern-matching expression form. §5.9.
 - **measure** — one of the host's measures a node runs, `cpu`, `memory` or `disk`, named in `ernest.conf`. §12.5, Appendix C.
-- **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable; reached by its operator or `compare` alone, named in no expression. §4.2, §4.5, §4.9.
+- **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace, reached by its operator or `compare` alone. §4.2, §4.5, §4.9.
 - **module** — a single Ernest source file (`.ern`); the unit of compilation and namespace. §4.1.
 - **monitor** — `monitor(p, wrap)`; sends `wrap(d)` to the caller when the process `p` dies. §6.9, §9.5.
 - **named field** — a field on a constructor identified by name, not position. §3.5.
@@ -1532,17 +1545,16 @@ Every technical term this report introduces, with a gloss and the section that d
 - **package** — a directory that holds a manifest, its Ernest under `src`. §11.9.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
-- **percent-encoding** — a `%` and two hexadecimal digits standing for one octet in a URI reference, which `Uri.decode` undoes. Appendix G.12.
 - **piece** — the bytes one read of a stream answers, whose ends are the host's and no write's. Appendix E.18, E.23.
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.
 - **prelude** — the names §9 lists, which the language requires to exist. §9.
 - **`Prelude`** — the prelude's own namespace, `Prelude.Some`, for a name a module has shadowed; it takes one prelude name and no namespace. §4.2.
-- **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9, or a named function that is no value, `Peer.spawn`; a standard library module's, one that reads or writes what the host owns, or one a function of the host does exactly, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
+- **primitive** — an operation beneath what Ernest writes, the language's or a standard library module's. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
-- **process-only** — a function whose effect variable is never none: one whose own `receive`, outside its lambdas and local `fn`s, fixes no type for what it takes, matching anything, a foreign function receiving a variable of its own, or a function that calls such a function. §3.9.
+- **process-only** — a function whose effect variable is never none. §3.9.
 - **pseudo-terminal** — a terminal the runtime opens for a program `Os.startTerminal` starts, its standard input, standard output and standard error together. Appendix E.23.
 - **pun** — `=f` for `f = f`: in a construction the field `f` given what `f` names in scope, in a pattern the field `f` binding a variable `f`. §5.6, §5.10.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`, resolved from the writer's namespace outward and written in its shortest resolving form. §2.3, §4.2.
@@ -1604,8 +1616,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **type variable** — a lowercase identifier in type position, over which a definition is generalized as §3.9 says. §3.9.
 - **unfixed** — a type variable nothing has fixed by the end of its definition, or of the shell's input, that no call fixes (§6.2); a spawned function's mailbox type that is one is `Never`. §3.11, §6.2.
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
-- **unit** — a compiled module of the host's that holds definitions: one per source module in a build, one for the definitions one exchange brought, one per load; held for the node's life but for what §11.2's *What a node holds* lets go; nothing in a program names one. §10, §11.1, §11.2.
-- **URI reference** — a URI or a relative reference, RFC 3986's, read into its scheme, authority, path, query and fragment. Appendix G.12.
+- **unit** — a compiled module of the host's that holds definitions, which nothing in a program names. §10, §11.1, §11.2.
 - **utilization** — how busy a node is, on one scale: 1.0 every scheduler busy, below it room, above it work waiting; the run queue's measure (§12.8), and answered to a peer by `Peer.utilization`. §8.7, §12.8, Appendix E.27.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
 - **version** — three numbers joined by `.`: a package's, which its `VERSION` holds and an entry names, or the least release a manifest's `ernest` names. §11.9.

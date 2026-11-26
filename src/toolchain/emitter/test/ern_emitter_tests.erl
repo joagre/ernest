@@ -2480,7 +2480,7 @@ float_operators_test() ->
         "}\n"),
     ?assertEqual(<<"5.75\n-1.0e-9\ntrue\n6\n3.0\n">>, Output).
 
-%% report §3.1, §7.4: a Float result outside the finite range faults with
+%% report §3.1: a Float result outside the finite range faults with
 %% its own cause, distinct from the Int zero divisor
 float_fault_test() ->
     Zero = "fn zero() : Float = Int.toFloat(List.size([]))\n",
@@ -2505,7 +2505,7 @@ float_fault_test() ->
         " fn(sum, x) = sum + x)))\n"),
     ?assertMatch({fault, <<"float arithmetic error">>, _}, Result5).
 
-%% report §3.1, §7.3, §7.4: a Float operation is the host's own, and the
+%% report §3.1, §7.3: a Float operation is the host's own, and the
 %% runtime reads its fault from the host's stack: the cause, and the trace
 %% naming the operation's line, the line its expression begins on (§11.5).
 %% Where the host's compiler does not know the operands are floats, its
@@ -3921,7 +3921,7 @@ bitstrings_test() ->
     ?assertEqual(<<"0 1 65 66 \n1: 65 | 66 \nnone\né\n1:15 2:10 \n63 192 0 0 255 2 1 \n2 \nno\n"
                    "104 105 52 \n"/utf8>>, Output).
 
-%% report §7.4, §5.11: a computed value that does not fit its width faults
+%% report §5.11: a computed value that does not fit its width faults
 %% with segment overflow, an Int, a Float, a Bytes of another size, the
 %% cause saying what did not fit; a dynamic size that leaves the count
 %% unaligned faults at construction. Report §7.3, Appendix E.21: the
@@ -4078,7 +4078,7 @@ bitstring_edges_test() ->
         "}\n"),
     ?assertEqual(<<"3.140625\n0.0\n65504.0\nno\nno\nno\nno\n1\nno\n">>, Output).
 
-%% report §7.4: a zero divisor faults main with its cause
+%% report §3.1: a zero divisor faults main with its cause
 division_fault_test() ->
     {Result, _} = ern_program:run("export fn main() : Unit = {\n"
                                   "    let z = List.size([]);\n"
@@ -5012,7 +5012,7 @@ checker_kill_ends_the_target_test() ->
     ?assertEqual(Killed, ern_program:run(checked_target("kill(Process.current())", "Stop",
                                                         "Foreign.term(1)"))).
 
-%% report §8.4, §6.9, §7.4: a restarting function called in the function a
+%% report §8.4, §6.9: a restarting function called in the function a
 %% checker applies faults before anything of a restart begins, and the
 %% target meets the fault at its next wait
 checker_refuses_a_restart_test() ->

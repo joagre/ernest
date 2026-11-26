@@ -33,7 +33,7 @@
 %% Appendix E.21, E.28, §11.2).
 
 -record(fault, {cause, trace = none, callee = none, peer = none, time = none}).
-%% cause: the text of §7.4, which a Down carries (§6.9); trace: the fault's
+%% cause: the cause's text (§7.3), which a Down carries (§6.9); trace: the fault's
 %% trace (§7.3, Appendix E.21); callee: the site of the callee whose fault
 %% a callForever carried to its caller (§6.6), or none; peer: the name of
 %% the peer whose compute, or whose process a callForever called, carried

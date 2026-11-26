@@ -2,7 +2,7 @@
 
 For Ernest 0.11.0.
 
-This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
+This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report. It is normative, but Appendix G is informative apart from its list of libraries, and where a gloss of Appendix F and the section it names differ, the section holds. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 **Contents**
 <!-- contents -->
@@ -126,13 +126,13 @@ export fn main() : Unit = {
 
 ## Appendix E. Standard Library
 
-E.0 is normative; a function enters this appendix by its rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, and the marks are part of its contract: `List.contains : (List(a=), a=) -> Bool` takes elements that `==` compares. A module's own types are written there without its namespace. `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute`, `Peer.computeAnywhere` and `Code.running` are forms, and their listing lines carry the comment `a primitive, called where it is named (§3.11)`.
+A function enters this appendix by E.0's rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, and the marks are part of its contract: `List.contains : (List(a=), a=) -> Bool` takes elements that `==` compares. A module's own types are written there without its namespace. `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute`, `Peer.computeAnywhere` and `Code.running` are forms, and their listing lines carry the comment `a primitive, called where it is named (§3.11)`.
 
 The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
 ### Appendix E.0. Rules
 
-Four *admission rules* decide whether a function is in: rules 1 to 3 each admit a function, and rule 4 refuses one they would admit. None of them counts programs: a function enters when a rule admits it, whether or not a program has asked. A module is the standard library's where its functions are the runtime's or the host's to do and every program may call them. It is a library's where it is over a published specification or a policy, where it needs what §10 refuses the standard library, or where it reads what runs only where a configuration names it. A type enters Appendix E where rule 1 makes it the runtime's, or where a rule of §3 to §11 names it; any other type, with its structure's vocabulary, is a library's. `OrderedSet`, `OrderedMap` and `Random` enter by name.
+Four *admission rules* decide whether a function is in: rules 1 to 3 each admit a function, and rule 4 refuses one they would admit. A module is the standard library's where its functions are the runtime's or the host's to do and every program may call them. It is a library's where it is over a published specification or a policy, where it needs what §10 refuses the standard library, or where it reads what runs only where a configuration names it. A type enters Appendix E where rule 1 makes it the runtime's, or where a rule of §3 to §11 names it; any other type, with its structure's vocabulary, is a library's. `OrderedSet`, `OrderedMap` and `Random` enter by name.
 
 1. Its value is the host's: the operation reads or writes what the host owns, or is work a host function does exactly. What the host owns is a representation the runtime owns, a table of the host's, its path syntax, Unicode's tables or the floating-point library's, or a process of the runtime's (§8.2, E.21). A type the language's syntax builds and takes apart, a list, a tuple, a bitstring or a declared type's value, is the language's, and a type only a module's functions take apart, a `String`, a `Map` or a `Set`, is the runtime's.
 
@@ -151,7 +151,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
    A primitive calls the functions it is given as the host's function does, and no other Ernest function.
 
    The rule decides how an operation is carried out, never what a value is: where a value's identity, lifetime, or failure is the program's concern, it is a process (§8.2), and no shim stands in for one.
-2. It follows from the type's structure, and each kind of type has a vocabulary. The kinds below, a container, a sequence, text, a set, a map, have their vocabulary here; a type of another kind, a path, a filesystem, lists its own in its section.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A vocabulary holds, for each function rule 3 admits on the kind's element, its form over the whole. The kinds below, a container, a sequence, text, a set, a map, have their vocabulary here; a type of another kind, a path, a filesystem, lists its own in its section.
 
    A container provides the container operations of the vocabulary below, or says in its section which it lacks and what stands in its place. Text and octets are containers read through `toList`, and provide the container operations their sections list.
 
@@ -181,7 +181,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    An operations record and a function over one are the program's (§4.9): no module declares one.
 
-Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 11 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
+Eleven *shape rules* give a function its shape. The shape rules hold in every library; the admission rules in the standard library alone.
 
 1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's or a sleep's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`.
@@ -191,6 +191,8 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
    A predicate is `isX`. `empty` is a value, and so is what the host gives once as the program starts and nothing selects from, `Os.arguments`; a function that makes something which belongs to a process and ends, as G.1's table does, is `new`. A function that starts a process to run what the caller names, a program or a policy, and answers its address is `start`; a resource a protocol opens is named by the protocol's act, `listen`, `accept` and `connect`; one that makes an entry of the file system is `make`. A function that builds a value of a record type from the fields a caller must give, the rest their defaults, is named by the type in lower case, `Os.command`.
 
    On a type read through `toList`, `String` and `Bytes`, `contains` takes a run of its own type and finds it anywhere, the empty run being in every value, and `size` counts the units its section names.
+
+   What a process asks to be told ends as §6.9 says. `demonitor` ends the monitors on a process and `Clock.cancel` an alarm. A subscription has no such function: a process holds one of each kind, to the terminal, to faults and to the program's end, and the next call of the same function replaces it, its wrap from then on. A subscription ends when its process dies or restarts (§6.9).
 
    A verb not in this list names an operation none of these does.
 3. A conversion is named by the other type and exists once. Where one type is built from the other, or the other is its encoding as a spelling of its own content, UTF-8 or hexadecimal text, both directions are that type's module's, `fromX` and `toX`, while an encoding a program meets on a wire by a specification, base64, is a library's by admission rule 2: `String.fromList` and `String.toList`, `Map.fromList`, `Either.fromOptional`, `String.fromUtf8`, `Bytes.fromHex`. Every other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`. A conversion of any value into a foreign type is named for what it makes, `Foreign.term`, as a function that makes a particular host term is, `Foreign.atom`.
@@ -213,13 +215,13 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
 
      An example shows the ordinary call, and an edge the text states where a line shows it. An example is an expression, which declarations may stand before, as in a module, where the call needs one, a `fn` that `Code.running` names (Appendix E.28); the page shows the block as written.
 
-     An example ends in `// => v`, a line of its own and the example's last, where `v` is what `Io.show` writes for its value; what the example itself prints comes before it and is not part of `v`.
+     An example ends in its `// => v` line (§11.2); what the example itself prints comes before it and is not part of `v`.
 
-     An example that does not end where the page's examples run, or whose value there differs from run to run, has no `// =>` line and is only compiled: one whose value holds an address or a `Process`, or depends on the program's arguments, environment, input or terminal, on a file outside the example's own directory, or on a socket another program answers. One whose value holds a value of an abstract type the example's module cannot see into, which `Io.show` writes `<abstract>` (E.1), has none either. `ern test` runs a module's examples as cases, and reports one only compiled as `compiled` (§11.2).
-7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module.
-8. A function that waits on another party takes the milliseconds as its last argument, after any callback, which bound that one request, and answers `Left(Timeout)` when they pass, unless the wait's failure ends the program or the runtime holds the answer, in which case it takes none: a file, a socket, a peer, and a program the runtime started are waited on with a time, and standard input, standard output, standard error and the terminal, whose failure ends the program (§12.1), without one. `Test.until`, whose milliseconds bound how often a test is run and no one request, answers the last run's `Result` (E.24). `Clock.sleep`, the wait for a time alone, answers `Unit` (E.15). `Tcp.close` takes no milliseconds: the runtime bounds its wait, and it answers `Unit` whether its bytes were sent or dropped (E.18).
+     An example that does not end where the page's examples run, or whose value there differs from run to run, has no `// =>` line and is only compiled (§11.2): one whose value holds an address or a `Process`, or depends on the program's arguments, environment, input or terminal, on a file outside the example's own directory, or on a socket another program answers. One whose value holds a value of an abstract type the example's module cannot see into, which `Io.show` writes `<abstract>` (E.1), has none either.
+7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module. A prelude operation a module provides is listed in §9.6 and not in the module's section.
+8. A function that waits on what is outside the runtime, a far end, a peer, a device, a started program's output, takes the milliseconds that bound that wait, last, and answers `Left(Timeout)` when they pass, unless it reads or writes the program's standard streams or the terminal (§12.1); named `Forever` it takes none. A wait on a process of the runtime's own takes none. `Tcp.close` takes no milliseconds: the runtime bounds its wait, and it answers `Unit` whether its bytes were sent or dropped (E.18).
 
-   `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`. A call, whose one failure is no answer, answers `None` (§6.6).
+   `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)` or a library's error that wraps it (shape rule 11). A call, whose one failure is no answer, answers `None` (§6.6).
 
    `Address.callForever`, `Tcp.acceptForever`, `Tcp.readForever`, `Os.readForever`, `Process.run` and `Test.faults` are the waits on another party without a limit: a function named `Forever` says so in its name, `Process.run` waits as a direct call of its `f` would (E.21), and `Test.faults` waits as `Process.run` does (E.24). A write, a connect and a request of a file have no such form.
 
@@ -271,7 +273,7 @@ A constructor of the prelude's is written by its name alone, `Some`, `Down`; any
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` and `List.compare` are the prelude's, §9.6; this module provides them (§9). `mapFold` departs from Erlang's `lists:mapfoldl`, which answers the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step.
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `mapFold` departs from Erlang's `lists:mapfoldl`, which answers the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step.
 
 `map`, `filter`, `partition`, `forEach`, `flatMap`, `any`, `all` and `splitWhile` call their function on the elements in the list's order, once each, and `any`, `all` and `splitWhile` on none after the one that decides.
 
@@ -381,9 +383,9 @@ A `String` is a container read through `toList`: of the container operations it 
 
 A search for a second string, `contains`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `replace`, `split` and `splitOnce`, finds it only where its graphemes are whole graphemes of the first: `"/"` is not in `"/\u{301}"`, whose one grapheme is the separator with the combining mark, `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. Text a protocol frames by bytes is searched as `Bytes` (E.20), and a code point is found through `toList`: `List.contains(String.toList("\r\n"), '\r')` is `true`.
 
-The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `drop`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Three that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it. So is `decoded`, what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). `toIntBase` answers the host's raise as `None`, as `toFloat` does for a number past the finite range (§10). The rest is Ernest over them.
+The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `drop`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Three that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the last grapheme `trimEnd` takes off, found from the string's end, and the pair of strings around a part's first occurrence, the one before it and the one after. So is what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). `toIntBase` answers the host's raise as `None`, as `toFloat` does for a number past the finite range (§10). The rest is Ernest over them.
 
-Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`; every other code point stays as written: `String.toAsciiLower("ÅB")` is `"Åb"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`; every other code point stays as written: `String.toAsciiLower("ÅB")` is `"Åb"`. `String.compare` orders by code point.
 
 `fromUtf8Lossy` reads bytes that may not all be UTF-8, showing each byte that begins no character as one U+FFFD: `String.fromUtf8Lossy(<<104, 255, 105>>)` is `"h\u{FFFD}i"`. A character cut short, by the bytes' end or by a byte that cannot continue it, is one U+FFFD a byte: `String.fromUtf8Lossy(<<104, 226, 130>>)` is `"h\u{FFFD}\u{FFFD}"`.
 
@@ -432,7 +434,7 @@ String.fromUtf8Piece : (Bytes) -> #(String, Bytes) // a piece's text, and the by
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll, `isMark` is M, `isNumber` is N, `isPunctuation` is P, `isSymbol` is S, `isSeparator` is Z, and `isControl` is Cc. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`. `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isControl`, `isDigit`, `isLower`, `isMark`, `isNumber`, `isPunctuation`, `isSeparator`, `isSpace`, `isSymbol`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll, `isMark` is M, `isNumber` is N, `isPunctuation` is P, `isSymbol` is S, `isSeparator` is Z, and `isControl` is Cc. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`. `Char.compare` orders by code point. The primitives are the predicates `isAlpha`, `isControl`, `isDigit`, `isLower`, `isMark`, `isNumber`, `isPunctuation`, `isSeparator`, `isSpace`, `isSymbol`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Char.isDigit : (Char) -> Bool
@@ -459,7 +461,7 @@ Char.fromCodePoint : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF 
 
 ### Appendix E.7. `bool.ern` (namespace `Bool`)
 
-`Bool.compare` is the prelude's, §9.6; this module provides it (§9). The module is Ernest (E.0 rule 1).
+The module is Ernest (E.0 rule 1).
 
 ```
 Bool.toString : (Bool) -> String // "true" or "false"
@@ -467,7 +469,7 @@ Bool.toString : (Bool) -> String // "true" or "false"
 
 ### Appendix E.8. `int.ern` (namespace `Int`)
 
-`Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The primitives are `bitAnd`, `bitOr`, `bitXor`, `bitNot`, `toString`, the shifts `shiftLeft` and `shiftRight` make once they have corrected the count, the writing in a base that `toStringBase` makes once it has checked the base, and the conversion `toFloat` makes once it has compared its integer against the bound, the last four private to the module (E.0 rule 1); the rest is Ernest over them.
+The primitives are `bitAnd`, `bitOr`, `bitXor`, `bitNot`, `toString`, the shifts `shiftLeft` and `shiftRight` make once they have corrected the count, the writing in a base that `toStringBase` makes once it has checked the base, and the conversion `toFloat` makes once it has compared its integer against the bound, the last four private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Int.abs : (Int) -> Int
@@ -489,7 +491,7 @@ Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
 
-`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The module holds the operations of the type itself. The primitives are `toString`, `div`, `truncate`, `floor`, `ceil`, and the functions of the host's floating-point library beneath `sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, and `atan2` (E.0 rule 1). `div` is the host's `/` with its raise answered as `None`. `toString` lays out again, in the host's language, the shortest form the host's `float_to_binary` gives with `short`, as `Io.show` lays out a `Float` (E.1).
+The module holds the operations of the type itself. The primitives are `toString`, `div`, `truncate`, `floor`, `ceil`, and the functions of the host's floating-point library beneath `sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, and `atan2` (E.0 rule 1). `div` is the host's `/` with its raise answered as `None`. `toString` lays out again, in the host's language, the shortest form the host's `float_to_binary` gives with `short`, as `Io.show` lays out a `Float` (E.1).
 
 `Float.toString` gives the shortest digits that read back as the same value. From 0.0001 to below 1.0e16 in magnitude, and at `0.0`, it writes them plain, with at least one digit after the point: `0.001`, `123.0`. Beyond, it writes one digit, the point, at least one more digit, and the exponent: `1.0e16`, `1.5e-7`. The exponent's sign is written only when it is negative. Mathematics over collections of floats, statistics, matrices, and numerical methods, is a library.
 
@@ -519,8 +521,6 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
-`Optional.compare` is the prelude's, §9.6; this module provides it (§9).
-
 ```
 Optional.isSome : (Optional(a)) -> Bool
 Optional.isNone : (Optional(a)) -> Bool
@@ -530,8 +530,6 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) receiving e) -> Optional(b) 
 ```
 
 ### Appendix E.11. `either.ern` (namespace `Either`)
-
-`Either.compare` is the prelude's, §9.6; this module provides it (§9).
 
 ```
 Either.isLeft : (Either(e, a)) -> Bool
@@ -579,9 +577,9 @@ Random.nextFloat : (Seed) -> #(Seed, Float) // the seed after it, and a number u
 
 `Path` is `Path(String)`, §9.3, in the runtime's syntax. A path's separator is `/`. A path is read by its code points, as the runtime reads it, and not by graphemes: a separator or a `.` is one though a combining mark follows it, so `Path.name(Path("a/\u{301}b"))` is `Some("\u{301}b")`.
 
-`Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. `join` writes each segment as given, one separator between them, a root first staying a root: a segment that holds a separator, or is empty, is written as it is, and the path reads as the segments its text holds, so `join(["/x", "etc"])` is `Path("/x/etc")`, `join(["root", "/x"])` is `Path("root//x")`, `join(["/", "etc"])` is `Path("/etc")`, and `join(["", "x"])` is `Path("/x")`, absolute.
+`<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. `join` writes each segment as given, one separator between them, a root first staying a root: a segment that holds a separator, or is empty, is written as it is, and the path reads as the segments its text holds, so `join(["/x", "etc"])` is `Path("/x/etc")`, `join(["root", "/x"])` is `Path("root//x")`, `join(["/", "etc"])` is `Path("/etc")`, and `join(["", "x"])` is `Path("/x")`, absolute.
 
-The primitives are `isAbsolute` and `parts`, the text between each occurrence of a separator or a `.`, the second private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` and `from` read the path's text alone: a link under the root that leads out of it is the file system's (E.17).
+The primitives are `isAbsolute` and the text between each occurrence of a separator or a `.`, the second private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` and `from` read the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, a root first staying a root and one separator between the others; the inverse of split for segments that are neither empty nor hold a separator
@@ -627,7 +625,7 @@ Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond; faults ou
 
 Over the terminal's system reference (§8.2). The primitives are `subscribe`, which reaches the terminal's process, and `size`, which reads the host's size of the terminal without it (E.0 rule 1).
 
-`width` is Ernest over a table built from Unicode's East Asian Width, emoji, and general category data, of the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it.
+`width` is Ernest over a table built from the East Asian Width, emoji, and general category data of Unicode 17.0, the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it.
 
 The terminal speaks ECMA-48: `subscribe` decodes its keys from it, and `width` reads its sequences in a string; the library `Ansi` writes them (Appendix G.3). `Event` names what the runtime decodes whole, a character, the four arrows, `Escape`, the interrupt, a paste and a resize; every other sequence arrives as `Escape` and its characters, from which a library names the rest.
 
@@ -636,7 +634,7 @@ type Size = Size(rows : Int, columns : Int)
 type Event =
     Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Escape | Interrupt
   | Pasted(String) | Resized(Size)
-Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) receiving m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal, among its refusals (§12.1)
+Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) receiving m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; held as E.0 shape rule 2 says; Left(NotATerminal) where standard input is not a terminal, among its refusals (§12.1)
 Terminal.size : () -> Either(Io.Error, Size) // the terminal's size now; Left(NotATerminal) where standard output is not a terminal or the terminal has no rows or no columns
 Terminal.width : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining marks, format characters and controls none
 ```
@@ -705,7 +703,7 @@ The site of a listener is `Tcp.listen` or `Tcp.listenTls`, and of a socket `Tcp.
 
 A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port where connections that an earlier listener accepted are still closing, the host's `SO_REUSEADDR`. A name is looked up, its IPv4 address before its IPv6 one. A listener takes connections of its address's family alone, `"::"` IPv6's and never an IPv4 connection as `::ffff:a.b.c.d`, so a listener on `"0.0.0.0"` and one on `"::"` stand on one port together, and a program that serves both families opens both; a listen on an IPv4-mapped address, `::ffff:a.b.c.d`, answers `Left(Invalid)`.
 
-A listener holds the connections the program has not yet accepted, and as many still being opened, up to the largest backlog the host keeps, 65535, which the kernel lowers to its own limit, Linux's `net.core.somaxconn`, 4096 by default. A connection past the accepted ones is not held: the kernel drops its first step, and its client sends it again. One past those being opened alone, which a kernel that answers with a SYN cookie, as Linux does by default, holds nowhere until its first data comes, may be reset where that data is longer than one segment, as a TLS handshake's opening can be. The program sees nothing of either.
+A listener holds the connections the program has not yet accepted, and as many still being opened, up to the largest backlog the host keeps, 65535, which the kernel lowers to its own limit, Linux's `net.core.somaxconn`, 4096 by default.
 
 `close` and `closeListener` answer each read, write or accept the socket or the listener has taken and holds waiting with `Left(Closed)` and end its process; the bytes of a write so answered may have been taken, and are then sent as below. `closeListener` answers once the listener has ended and its host socket has closed, and at once on a listener that has ended already. `kill` ends a socket or a listener as it ends any process, a call waiting on it answering `Left(Closed)` and a `Forever` form's faulting as §6.6 says, and a listener's host socket closes either way.
 
@@ -763,7 +761,7 @@ Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
 
-A `Bytes` is a container read through `toList`, which gives each octet as an `Int` from 0 to 255: of the container operations it provides `size`, `isEmpty`, `contains`, `get`, `fromList`, and `toList`, and the rest go through `toList`. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here.
+A `Bytes` is a container read through `toList`, which gives each octet as an `Int` from 0 to 255: of the container operations it provides `size`, `isEmpty`, `contains`, `get`, `fromList`, and `toList`, and the rest go through `toList`. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here.
 
 The primitives are `size`, `toList` and `fromHex`, and functions of the host's beneath `fromList`, `toHex`, `indexOf`, `splitOnce`, `split`, `replace`, `repeat`, and `join`, private to the module (E.0 rule 1); the rest is written over them and with the bit syntax, `get` and `slice` among them. `fromHex` answers the host's raise as `None` (§10). `toHex` writes lower case, the case a digest is written in, where `Int.toStringBase` writes upper (E.8). Of the functions `String` has for text, `Bytes` has `slice`, `drop`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `split`, `splitOnce`, `replace`, `join` and `repeat`, for octets, under the same names.
 
@@ -819,7 +817,7 @@ The process's site is where `run` is written, as a spawn's is (§6.9), and its m
 
 While it waits, `run` keeps a process of the library's own beside the one that runs `f`, which `live` lists and whose site is the spawn's line in `run`'s body in the library's source. That process is the caller's `callee`. The trace of a fault in `f` holds the library's frame beneath `f`'s, as `List.forEach`'s stands in a trace through it. `run` is not a compute (§8.7, Appendix E.27): it runs on the caller's node, with no time, and answers a fault where a compute faults the caller.
 
-`subscribeFaults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. The reports come through a process made with the subscription, which applies its wrap to each in turn, as the terminal delivers its keys (§12.1); a wrap that does not finish delays that subscriber's reports and no other's. A subscription the table leaves no room for faults its caller, as a spawn beyond the limit does (§7.4). A process holds one subscription to faults, beside one to the terminal (§12.1): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
+`subscribeFaults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. The reports come through a process made with the subscription, which applies its wrap to each in turn, as the terminal delivers its keys (§12.1); a wrap that does not finish delays that subscriber's reports and no other's. A subscription the table leaves no room for faults its caller, as a spawn beyond the limit does (§7.4). A subscription to faults is held and ends as E.0 shape rule 2 says. A subscription to faults is no source that can deliver under §8.6.
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9).
 
@@ -855,7 +853,7 @@ Process.run : (() -> a receiving m) -> Either(Reason, a) // the value `f` return
 
 ### Appendix E.22. `supervisor.ern` (namespace `Supervisor`)
 
-A supervisor restarts a group of processes, its children, together. The primitives are `askRestart`, the restart a supervisor asks of a child, `spawnOrder`, the order in which the children were spawned, and the three beneath `child`, why a restarting function began and the tests of whether a process runs on the caller's node and whether a restarting function already runs in the caller, each private to the module (E.0 rule 1); the rest is Ernest over them and the prelude.
+A supervisor restarts a group of processes, its children, together. The primitives are the restart a supervisor asks of a child, the order in which the children were spawned, and the three beneath `child`, why a restarting function began and the tests of whether a process runs on the caller's node and whether a restarting function already runs in the caller, each private to the module (E.0 rule 1); the rest is Ernest over them and the prelude.
 
 `group(strategy, limit)` spawns the process that keeps the group's children, which a supervisor's restart does not end, and answers the function a supervisor runs; the first process that runs it is the group's supervisor, and another that runs it, while the first runs or after it has ended, faults with `Fault("a group runs in one process")`. Where no process runs the function, that process waits until the program ends. `child(supervisor, f)` is the function a child runs. Run where a restarting function already runs in its process, a child's among them, it faults with `Fault("a child's function runs in no restarting function")`. The caller spawns the supervisor and each child: a child's site (§6.9) and its place are the caller's, and a service binding names it (§6.5).
 
@@ -922,7 +920,7 @@ A name or an argument that holds U+0000 cannot reach a program, and `start` answ
 
 Where the runtime's helper fails, as the program starts or later, the failure is the runtime's own (§7.4): the caller of `start`, `startTerminal`, `read`, `write`, `resize`, `signal` or `closeInput` faults with `Fault("the runtime's helper ern_exec failed")`. A read or a write given 0, and a resize that answers `NotATerminal` or `Invalid`, answer as they do while the helper runs. A failure as the environment and the user are read ends the program before `main` runs (§8.5).
 
-`subscribeTermination(wrap)` subscribes the calling process to the program's end as `Process.subscribeFaults` subscribes to faults (E.21): at the end the runtime delivers `wrap(reply)` to the process, and the end waits as §8.6 says. A subscription is one per process, the latest, and ends when its process dies or restarts (§6.9), or at its own call of `exit` (§8.6); a process is told once in each run, a restarted run as a new one. The runtime keeps nothing for a process that is told; what it keeps it keeps itself.
+`subscribeTermination(wrap)` subscribes the calling process to the program's end as `Process.subscribeFaults` subscribes to faults (E.21): at the end the runtime delivers `wrap(reply)` to the process, and the end waits as §8.6 says. A subscription is held and ends as E.0 shape rule 2 says, and ends too at its own call of `exit` (§8.6); a process is told once in each run, a restarted run as a new one. The runtime keeps nothing for a process that is told; what it keeps it keeps itself.
 
 `run(command, ms)` starts the program, ends its input after `input`, and reads it to its end within `ms` milliseconds of the start: it answers the exit status and all the program wrote to its standard output and to its standard error, the `Left` that `start` or a read answered, or `Left(Timeout)` when the milliseconds pass, the program killed then; it kills the program's process once it has read `Exited`, and leaves no process behind.
 
@@ -959,7 +957,7 @@ A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a p
 
 A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.subscribeFaults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
-`until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8). It polls: it runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is for a test alone, and waits for an effect no message announces, a `Down`'s among them (§6.9).
+`until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)`. It polls: it runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is for a test alone, and waits for an effect no message announces, a `Down`'s among them (§6.9).
 
 `capture(run)` runs `run` in the caller's process and answers its value with what was written to standard output and to standard error while it ran, `Captured(stdout, stderr)`, as `Os.run` answers a program's (E.23). It captures what the caller's chain writes: the process at the head of the caller's spawns, a test's own under `ern test`, the process of an input under a shell (§11.2) and the entry process under `ern run`, and every process that one started, directly or through one it started, which under `ern run` the initializers' spawns are (§8.5). What it captures reaches neither stream nor a shell's live region. A write by any other process, a system process's own or under `ern test` a service's, goes where it went.
 
@@ -1105,9 +1103,16 @@ Peer.setUtilization : (Float) -> Unit // the utilization this node tells and ans
 
 A node's code after its start (§8.7, §11.2): a compiled module loaded by the program, a module's definitions by their hashes, and the processes running a function.
 
-`load(path)` loads the compiled module at `path` and its reach, found under the module's root and then on the node's load path (§11.2), a named package's namespace under that package's build alone (§11.9), as `ern run` loads a program (§11.2), each definition verified against its hash and made a unit of the node's, counted as every unit is (§10), and answers `Right(Unit)`. A module loaded again, unchanged, makes no unit (§11.2).
+`load(path)` loads the compiled module at `path` and its reach, found under the module's root and then on the node's load path (§11.2), a named package's namespace as §11.9 says, as `ern run` loads a program (§11.2), each definition verified against its hash and made a unit of the node's, counted as every unit is (§10), and answers `Right(Unit)`. A module loaded again, unchanged, makes no unit (§11.2).
 
-`load` answers `Left(Invalid)` for a file that is no `.erc` of this `ern`, one another build of `ern` wrote and one whose code the host will not load among them (§11, §11.1), that was compiled against another interface than the node holds, that is a module of a cycle through the load path (§4.1), that holds a module at a named package's namespace or under it, outside that package's build, or at any other namespace in a named package's build (§11.9), that holds a module at the namespace of a library's module on which a module of a library or of a named package in the run's reach, a job's, a session's or a node's as §4.2 gives it, depends, its source outside that library's source root (§11.1), or that is a directory or a file at a module's path that holds another module (§11.2).
+`load` answers `Left(Invalid)` for a file:
+
+- that is no `.erc` of this `ern`, one another build of `ern` wrote and one whose code the host will not load among them (§11, §11.1);
+- that was compiled against another interface than the node holds;
+- that is a module of a cycle through the load path (§4.1);
+- that holds a module at a named package's namespace or under it, outside that package's build, or at any other namespace in a named package's build (§11.9);
+- that holds a module at the namespace of a library's module on which a module of a library or of a named package in the run's reach, a job's, a session's or a node's as §4.2 gives it, depends, its source outside that library's source root (§11.1);
+- that is a directory or a file at a module's path that holds another module (§11.2).
 
 `load` and `hashes` answer `Left(NotAFile)` for a path that names a named pipe, a device or a socket, as `Fs.read` does (Appendix E.1), and do not open it. `load` answers `Left(NotFound)` for a path with no file or a module of the reach the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
 
@@ -1117,7 +1122,7 @@ A module of the reach whose file is such a file answers `Left(Invalid)` as the f
 
 `Process.current()` in a binding the evaluator evaluates is the evaluator, as it is the entry process in a binding `ern run` evaluates (Appendix E.21), and the evaluator's site is the binding it evaluates, as the entry process's is (§8.5). A shell's load evaluates in an evaluator the same way (§11.2), and `live` leaves every evaluator out (Appendix E.21).
 
-Where one faults, nothing is loaded, every process the evaluation started is killed as a shell's load kills them and has ended before the load answers, the evaluator ends, and a unit the load brought is held by the node as a shell's is (§11.2), and the load answers `Left(Other(text))`, `text` the fault as §8.5 reports it, or the evaluator's site and `was killed` where it was killed, `K.x:3 was killed`, as a shell's load says it (§11.2); every binding the load evaluated is without a value again, and a process that reads one faults as §7.4 says. It answers `Left(Other(text))` too where the node cannot load the module, `text` the node's reason. A load that would pass one of the host's limits on what it loads ends the node (§11.2).
+Where one faults, nothing is loaded, every process the evaluation started is killed as a shell's load kills them and has ended before the load answers, the evaluator ends, and a unit the load brought is held by the node as a shell's is (§11.2), and the load answers `Left(Other(text))`, `text` the fault as §8.5 reports it, or the evaluator's site and `was killed` where it was killed, `K.x:3 was killed`, as a shell's load says it (§11.2); every binding the load evaluated is without a value again, and a process that reads one faults as §11.2 says. It answers `Left(Other(text))` too where the node cannot load the module, `text` the node's reason. A load that would pass one of the host's limits on what it loads ends the node (§11.2).
 
 The calling process is inside foreign code (§8.6) only while the load reads and places the modules; its wait for the evaluator is a wait under §6.9 and §8.6, as a wait for a call's answer is, and the bindings run as Ernest code, in the evaluator. Where the calling process is killed while it waits, or meets at that wait a fault or a restart asked for (§6.5, §6.9), the load ends as where a binding faults, the evaluator and every process the evaluation started killed and ended, and nothing loaded, before the caller dies, faults or restarts as it would at any wait.
 

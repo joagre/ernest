@@ -914,7 +914,7 @@ float_operations() ->
     ?assertEqual(3.5, Float('+')(Float('*')(1.5, 2.0), 0.5)),
     ?assertEqual(-1.0, Float('-')(1.0, 2.0)),
     ?assertEqual(0.5, Float('/')(1.0, 2.0)),
-    %% report §3.1, §7.4: the host's own operation, whose badarith the runtime
+    %% report §3.1: the host's own operation, whose badarith the runtime
     %% reads as the float fault
     ?assertEqual(<<"float arithmetic error">>, fault_cause(fun() -> Float('/')(1.0, 0.0) end)),
     ?assertEqual(<<"float arithmetic error">>,

@@ -1170,7 +1170,7 @@ expr_form({list, Elements}, _, Context) ->
     {Forms, Context1} = exprs(Elements, Context),
     {erl_syntax:list(Forms), Context1};
 expr_form({bitstring, Segments}, Source, Context) ->
-    %% report §5.11, §7.4: the runtime's bit syntax, each segment's value
+    %% report §5.11: the runtime's bit syntax, each segment's value
     %% checked for its width by ern_bits, a badarg the segment overflow
     %% fault, and the result checked for alignment when a dynamic size
     %% leaves the bit count open; report §7.3, Appendix E.21: each check

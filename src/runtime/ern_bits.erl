@@ -1,4 +1,4 @@
-%% Report §5.11, §7.4: the checks of bitstring construction that the
+%% Report §5.11: the checks of bitstring construction that the
 %% runtime's bit syntax does not make. Erlang truncates an integer to its
 %% segment, rounds a float to infinity, and takes a prefix of a binary;
 %% Ernest faults, the cause saying what did not fit where the check knows

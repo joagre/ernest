@@ -26,11 +26,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 leg: the report written from the copy, the renames of *The Library's Names*, and the
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
 standard library with the libraries, the cli and the shell are done, and three Fable
-rounds are held. The shell's second build is next, by an agent on Opus 5.5 at high, then
-the report's own decided lines, the tests' build and the documents (the log's *The First Build of Leg 4*, *The Renames
+rounds are held. The report's own decided lines are written. The shell's second build is
+next, by an agent on Opus 5.5 at high, then the tests' build and the documents (the log's *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
-Third Fable Round*, *The Session Stays on Fable* and *The Shell's Build*).**
+Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build* and *The Report's
+Own Lines*).**
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -225,11 +226,11 @@ says what is left once its readings are in, and no figure stands until then.
       Build*). Its second build follows, by an agent on Opus 5.5 at high, from
       `leg4/builds/brief_shell2.md`: the two decided lines the first brief left out,
       *E2 C14* and *E2 C2*, the trace of a reload's faulting binding, and the help's
-      line for `:browse`. After it the report's own decided lines go into the tree, from
-      the three scripts of `leg4/builds/cold_report/`, read cold already; then the
-      tests' build with the examples' and the site's (`brief_tests.md`), *Z1*'s
-      diagnosis (`brief_z1.md`), and the documents, the language guide first
-      (`brief_guide.md`).
+      line for `:browse`. The report's own 73 decided lines are written, read cold, with
+      the tests and the tools that follow them (the log's *The Report's Own Lines*).
+      After the shell's second build come the tests' build with the examples' and the
+      site's (`brief_tests.md`), *Z1*'s diagnosis (`brief_z1.md`), and the documents,
+      the language guide first (`brief_guide.md`).
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

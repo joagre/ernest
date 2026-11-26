@@ -198,7 +198,7 @@ fn verdict(ran : Either(Reason, a), cause : String) : Result = {
 /// Runs `run` again until it answers `Passed` or `ms` milliseconds have passed
 /// since the call, and answers the last `Result`: `Passed`, or the last
 /// `Failed`, which says what the test saw, in place of a `Timeout` (report
-/// Appendix E.0 shape rule 8).
+/// Appendix E.24).
 ///
 /// It polls: `run` runs once at least, in the caller's process, and again
 /// after a `Failed`, the caller yielding the scheduler between runs and

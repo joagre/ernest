@@ -2,10 +2,11 @@
 %% type-checks by construction, then checked, compiled, loaded and run in
 %% this host through the runtime's entry, as the shell runs its own. Four
 %% oracles: the checker accepts the program; the Erlang it becomes compiles
-%% and loads; the run ends by returning, or by a cause of report §7.4, or by
-%% a deadlock; and what it prints is what an interpreter of the same
-%% program, written here in Erlang from the report's rules, computes, so
-%% that a program compiled to the wrong value is a finding too.
+%% and loads; the run ends by returning, or by a fault whose cause a section
+%% states with its rule (report §7.4), or by a deadlock; and what it prints
+%% is what an interpreter of the same program, written here in Erlang from
+%% the report's rules, computes, so that a program compiled to the wrong
+%% value is a finding too.
 %%
 %% Two rounds. The pure programs: `let`, `if`, `match` over every pattern
 %% form, constructors positional and named, records with selection and
@@ -1046,7 +1047,7 @@ apply_closure({closure, Params, Body, Captured}, Values, Helpers) ->
     evaluate(Body, maps:merge(Captured, Bound), Helpers).
 
 %% report §3.1, §4.8: `/` truncates toward zero, `%` takes the sign of the
-%% first, and either by zero faults (§7.4)
+%% first, and either by zero faults
 operate('+', Left, Right) -> Left + Right;
 operate('-', Left, Right) -> Left - Right;
 operate('*', Left, Right) -> Left * Right;
