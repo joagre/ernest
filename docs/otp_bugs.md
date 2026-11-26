@@ -184,7 +184,7 @@ The same holds of a list argument, line 5. Splitting text at `"\n"` that has Win
 
 ## 5. `memsup` closes its port while a collection is under way
 
-Filed 2026-11-15 as [erlang/otp#12207](https://github.com/erlang/otp/issues/12207). Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
+Filed 2026-11-15 as [erlang/otp#12207](https://github.com/erlang/otp/issues/12207). A contributor's fix, [#12269](https://github.com/erlang/otp/pull/12269), against `maint`, is open on 2026-11-26. Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
 
 **Title:** memsup: "Error writing to pipe: Broken pipe" when os_mon is stopped during a memory collection
 
@@ -231,7 +231,7 @@ The line comes from the port program, not from the emulator, so no logger filter
 
 ## 6. `erl_lint`'s check of unused functions costs the square of the module
 
-Filed 2026-11-15 as [erlang/otp#12208](https://github.com/erlang/otp/issues/12208). Found on 2026-10-26; the log's *The Build's Cost per Function*.
+Filed 2026-11-15 as [erlang/otp#12208](https://github.com/erlang/otp/issues/12208). Closed on 2026-11-23 as one OTP will not fix: "we don't see a concrete use-case for this to be concerning", with `+nowarn_unused_function` named as the way around it and the issue to be opened again for "a real project that has a module with ~7000 unused functions". A contributor's fix, [#12268](https://github.com/erlang/otp/pull/12268), was closed unmerged the same day. The report stays. Found on 2026-10-26; the log's *The Build's Cost per Function*.
 
 **Title:** erl_lint: check_unused_functions is quadratic in the number of unused functions
 
@@ -417,7 +417,7 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 ## 10. `ssl:close/2` ignores the time it is given
 
-Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Answered on 2026-11-16: the two waits come of "a very old work around", and OTP will look at whether it can be removed. The answer was acknowledged with a thumbs-up on 2026-11-17. Answered again on 2026-11-18: the workaround is needed on no supported platform, and OTP proposes [#12237](https://github.com/erlang/otp/pull/12237), against `maint` and open on 2026-11-21, by which a close no longer waits for the peer's close, the alert's wait takes the time `close/2` is given and `close/1` 5000 ms, and `alert_timeout` defaults to 0. That answer was acknowledged with a thumbs-up on 2026-11-22.
+Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Answered on 2026-11-16: the two waits come of "a very old work around", and OTP will look at whether it can be removed. The answer was acknowledged with a thumbs-up on 2026-11-17. Answered again on 2026-11-18: the workaround is needed on no supported platform, and OTP proposes [#12237](https://github.com/erlang/otp/pull/12237), against `maint` and open on 2026-11-26, by which a close no longer waits for the peer's close, the alert's wait takes the time `close/2` is given and `close/1` 5000 ms, and `alert_timeout` defaults to 0. That answer was acknowledged with a thumbs-up on 2026-11-22.
 
 Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
@@ -802,7 +802,7 @@ Where the connection's supervisor is started but one of its children is not, the
 
 ## 16. `ssl:format_error/1` raises `badarg` for a reason it does not name
 
-Filed 2026-11-15 as [erlang/otp#12218](https://github.com/erlang/otp/issues/12218). Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
+Filed 2026-11-15 as [erlang/otp#12218](https://github.com/erlang/otp/issues/12218). A contributor's fix, [#12270](https://github.com/erlang/otp/pull/12270), against `maint`, is open on 2026-11-26. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
 
 **Title:** ssl:format_error/1 raises badarg for a reason that is neither an atom nor a form it names
 
