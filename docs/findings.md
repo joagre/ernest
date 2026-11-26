@@ -2816,6 +2816,91 @@ The user answered the six the same day, each under its line as *Answered 2026-11
 - A node's configuration: `public-key` leaves `ernest.conf` (*P3 3, P3 9, T25*); an `ernest.conf` or a configuration directory others may write is refused (*S2*); the `utilization` entry is gone, with `"schedulers"` (*P3 12*).
 - Numbers a document cites: the language guide's §8.3 to §8.9 and its chapters 4 and 8 (*R1 1*, *R1 4*), the deployment guide's sections 5 and 6 (*R2 6, R2 38*), and §11.2's parts as §11.2.1 to §11.2.17 (*G 9*). Every section number a verdict writes is the number of 2026-11-23, and the renumbering is built last, after every verdict that names a section.
 
+### The applications' lines
+
+What the three applications' full reviews found of Ernest's: 51 lines of their `docs/language_feedback.md`, ernest-httpd's 35 to 60, written `H35` to `H60` here, ernest-epx's eight bullets, `E1` to `E8` in its file's order, and ernest-template's seventeen, `T1` to `T17`. Six readers reproduced 50 of them against `c9a0d66d` on 2026-11-26, on Opus 5.5 at xhigh, and the session read `H35`. Every line shows today as written, but `T5`, whose column 46 a later layout removed, and `H54`, whose cost §10 now states. The readers' probes and the session's notes of their reports are kept in the probes directory, under `mvp44_item4/apps/`, `R1/` to `R6/` and `reports/notes.md`. The host there is OTP 29.
+
+The sort is the session's, on Fable 5.2 at high, each line read against the log first. A line carries its decision as `reviews/full.md`'s *The findings* gives them. Where a line asks two things, the second stands in the same line.
+
+#### fix
+
+- **E1** `fix` — §6.5 (`language.md:827`): "where the host collects it only while a process of that node reaches it" says the opposite of what the host does, which keeps a captured foreign value while a process of that node reaches it (`test/ern_nodes_tests.erl`'s `capture_gone_test_`). Fix: "keeps". Owner: report.
+- **H40** `fix` — E.23 (`library.md:911`) says "killed" and names no signal. Run: every kill, the library's, the owner's end, the orderly end and the runtime killed by `kill -9`, is the host's kill signal to the program and its group at once, no termination first and nothing outliving the runtime (`ern_exec.c:300-308`, `:1306`). Fix: E.23 says so. Under a terminal `closeInput`'s hangup reached the program alone and no process it started, which is the kernel's and is not promised. The ask's second half, a termination first and a bound, is dropped: *A Program's Environment, and a Signal Named* of 2026-11-07 has "a kill is not orderly by definition", and a subscriber of `Os.subscribeTermination` that sends `Os.signal(program, Termination)` gives the program its chance, which the readers ran. Owner: report.
+- **H46** `fix` — G.11: `readRequest` and `readResponse` never answer `Protocol(BodyTooLarge)`, a body's read never `LineTooLong` or `HeadersTooLarge`, a write `Protocol(Malformed)` alone of the four, and no page says so. Fix: G.11 says which each answers, by E.0 shape rule 6. The ask, an error type of the head's alone, is dropped: the type is one for every function over a socket (*An Error Across a Library*, 2026-11-07), and a case that cannot come is given no value, its clause faulting (*A Result Never Empty, Decided*, 2026-11-22), as ernest-httpd's now does. Owner: report+libs.
+- **H48** `fix` — G.11, G.12: a segment of the path `Http.target` gives always decodes, since `target` writes a `%` that begins no encoding as `%25` (`http.ern:1422-1433`), and no page says so. Fix: G.12 says so, by shape rule 6. The ask, a path as its segments decoded, is dropped as *H46*'s is. Owner: report+libs.
+- **H60** `fix` — E.17 (`library.md:662`): `Fs.stat` answers a modification time outside 1902 to 9999 as the nearer bound, the host's own clamp (`prim_file_nif.c:1004`), with no way past it, and `setModified` of such a time answers `Right(Unit)` where the next `stat` reads the bound. Fix: E.17 names the range and what a time outside it reads as. Owner: report.
+- **T10** `fix` — §11.2 (`toolchain.md:187`) says nothing of `priv` for an application under `--libs-dir` or an `ebin` that `--load-path` names, where §11.9 says it of a package. Run: the host finds `priv` beside the `ebin` in both, and not beside a `--load-path` directory of another name. Fix: a sentence in §11.2. Owner: report.
+- **T11** `fix` — `guide/deployment.md` does not say that a program is built by the `ern` that runs it, and its table has no row for `compiled by another build of ern` (§11.2). Fix: the sentence and the row. The ask's first half, a rule for a patch release, is dropped: a build is its version and its code (*A Build of the Compiler Is Its Version and Its Code*, 2026-09-25), and the refusal was decided 2026-10-30 (*One Function per Initializer*). Owner: guide.
+- **T12** `fix` — neither the report nor the deployment guide says that a configuration directory stays out of a repository, where both say it is never copied. Fix: a sentence in the deployment guide. A customary name is dropped: a peer's name is its directory's (§11.3), so no one name fits two nodes. Owner: guide.
+- **T15** `fix` — `guide/language.md:2072`, §7.1: "looked up beside the module, then beside each namespace the module stands in" is not §4.2's lookup, which begins directly under the writer's own namespace: `Count.counts` in `tally.ern` builds, and `Tally.Count.counts` is refused as longer than it need be. Fix: the guide follows §4.2. Owner: guide.
+
+#### decide
+
+Each goes to the user, one at a time.
+
+- **H38** `decide` — G.6: `Json.parse` keeps the last of a member named twice, as G.6 says, and no function of `Json` lets a program see the repeat; the host's `json:decode/1` keeps the first, and `ernest.conf`'s reader refuses the file. Decide: whether `parse` refuses a member named twice.
+- **H39** `decide` — E.23: no field of `Os.Command` unsets a variable or starts from an empty environment, so a developer's `SSH_AUTH_SOCK` reaches a program ernest-httpd starts for a visitor. Unsetting was dropped on 2026-11-07 for its cost at every site. Decide: whether a `Command` can start from an empty environment.
+- **H41** `decide` — G.11: `Http.reason` names RFC 9110's 44 statuses, so 428, 429, 431, 451 and 511 write a status line with no phrase. Decide: whether it names IANA's registry.
+- **H43** `decide` — §11.5: from the root directory every job writes a given path without its leading `/`, `ern run: tmp/nosuch.erc: …`, which is the path from the working directory as §11.5 has it. Decide: whether a path is written absolute where the working directory is the root.
+- **H44** `decide` — §11.2: every orderly end of a program with a subscriber writes two lines, `the end waits for 1 subscriber: …` and `the subscriber … answered`, in one millisecond where the subscriber answers at once. Decide: whether they are said only for a wait that lasts.
+- **H51** `decide` — E.20: nothing combines two byte strings by exclusive or; a mask over 1 MiB takes 22 ms in the bit syntax where the host's `crypto:exor/2` takes 2. Decide: whether `Bytes` gains it, by E.0's rules.
+- **H53** `decide` — E.18: a TLS 1.2 client may renegotiate, once in 12 seconds, the host's default, and E.18 says nothing of it. Decide: whether a listener refuses a client's renegotiation, or E.18 states the host's.
+- **H54** `decide` — §10 now states that a call's wait grows with the messages waiting in its caller's mailbox, which the line asked. The mechanism was dropped on 2026-10-20 "if a program of ours meets the cost", and ernest-httpd's session met it: 80,000 resizes waiting made each call cost 0.5 ms. Decide: whether the marked wait becomes an item.
+- **H56** `decide` — §6.9, E.21: no spawn's process ends with the process that spawned it, and E.21 says the runtime has such a function "which the report does not state and the toolchain's libraries alone bind". ernest-httpd writes the monitor by hand in three helpers, Ernest's own sources in two. Decide: whether a program gets it.
+- **H58** `decide` — E.18: no function reads an address's text into its bits, which a cap by an IPv6 visitor's first 64 bits needs; the host has `inet:parse_address/1`. Decide: whether the library gains one. Its other half is a fix: E.18 says how `Endpoint`'s `host` is written, the host's `inet:ntoa`, in lower case, its longest run of zeros compressed, an IPv4-mapped address's tail dotted and no zone.
+- **H59** `decide` — G.11: `Http.filePath`'s one `None` stands for every refusal, and a trailing `/` is dropped, so ernest-httpd, which answers 400, 404 and 301 apart, keeps its own decoding beside the function made for it. Decide: whether `filePath` says why and whether a directory was asked.
+- **E3** `decide` — §11.3: `ern config --peer-dir` refuses a peer whose `listen` names port 0, running or not, as §11.3 says, and a running node's port stands only in its `listening on` line. Decide: whether a running node's directory holds its port.
+- **E4** `decide` — §11.5: a program that names a module the load path lacks is refused by `ern build` with `unknown type Geo.Point` or `unknown name Geo.origin`, where `ern run` says `no module Geo, which Typed uses, on the load path`. Decide: the build's text.
+- **T1** `decide` — §11.4: `ern doc` writes a root module `Index`'s document and then the listing over it, with status 0. Decide: whether the module is refused or the listing takes another name.
+- **T2** `decide` — §11.4: `ern doc` writes its documents under `build-root`, among the `.erc`, and `--build-root` given another directory compiles every module again. Decide: whether a second option names the documents' place.
+- **T3** `decide` — E.2: no `List.findIndex`; `http.ern:2016` writes it over `find` and `indexed`, as the template's reader did. Decide: by E.0 rule 4.
+- **T8** `decide` — G.2: no `Block` of `Markdown.parse` carries its line, so each of Ernest's own tools that reports a line reads Markdown itself, `tools/documents.ern` and `tools/words.ern` each its own way, as the template's `tools/docs.ern` does. Decide: whether a block carries its line.
+- **T9** `decide` — §11.2: `ern test dir` runs a `.erc` under a directory whose name `ern build` refuses, so a staged copy of a build inside the build root runs every test twice. Two sentences of §11.2 read apart. Decide: which.
+- **T14** `decide` — §11.9: a package is held to its namespace only when a dependent builds it, so a library with a module outside its namespace passes its own build, test and release. Decide: whether its own build holds it.
+- **T16** `decide` — §11.5: `expected Path, found String` at `Fs.write` has no help. Decide: whether the help names the constructor.
+
+#### felt
+
+- **H45** `felt` — a handshake that fails at the certificate answers `Other` with the host's state and source line, the cause last. Filed: felt 285, which gains it.
+- **H50** `felt` — a test's fixtures are private to one module or exported to every program. Filed: felt 308, which gains it; *Two Visibilities Are Enough* of 2026-09-25 named this helper as what would change the rule.
+- **E7** `felt` — `List.length` and `Random.int` get no near name. Filed: felt 289. Its other half, `[x, ..acc]`, gets no help: `..` is no form of principle 1's reader's languages, and a table of other languages' forms has no end (*What a Diagnostic Says*, 2026-11-23).
+- **T17** `felt` — `List.each` gets no near name. Filed: felt 289.
+
+#### item
+
+- **H35** `item` — nothing ends a socket and drops what its host holds. Filed: feedback 270, MVP 4.5's item 158, since 2026-11-21.
+- **H36** `item` — a close and a kill after a failed TLS handshake wait 5 seconds. Filed: MVP 4.18's item 1, since 2026-11-23. Reproduced, nine runs of nine; the wait is the host's, its connection process reading up to its `alert_timeout` after an alert of its own (`ern_tcp.erl:1046`), and a close after the far end's alert answers at once.
+- **H37** `item` — over TCP a close answers a second after the far end has everything. Filed: MVP 4.18's item 1, since 2026-11-23. Reproduced, five runs of five; the wait is the closer's look once a second (`ern_tcp.erl:1104-1129`).
+- **H42, T6** `item` — an archive's `CHANGES.md` stops at 0.10.0. Filed: MVP 4.4's item 5, whose step writes the release's section before the tag (`reviews/release.md`); an archive before it says its commit in `ern --version` and in its pages, and is the two sessions' own.
+- **H57** `item` — the library has no WebSocket. Filed: MVP 4.18's item 6, which decides where a library over a published specification lives (*The Refusals That Rested on a Count*, 2026-11-23).
+
+#### dropped
+
+- **H47** `dropped` — `Os.read` under a terminal never answers `Stderr`, and its type holds it. One `Address(ProgramMsg)` for both starts was decided 2026-11-01 (*TLS in `Tcp` and a Terminal in `Os`*), E.23 states the case, and the clause faults, as *H46*'s.
+- **H49** `dropped` — a named constructor is no function value. Decided 2026-09-12 (*Syntax Revision 3*), its fields having no order, and again 2026-10-26 (*What the Newcomer's Feedback Left*); the refusal's help writes the lambda. `Http.header` is the lookup's name.
+- **H52** `dropped` — `Http.elements` answers an element as written. Decided 2026-11-19 (*A List Header's Elements*): whether case counts is its header's, and a program compares with `String.toAsciiLower`.
+- **H55** `dropped` — nothing bounds a mailbox. Decided 2026-09-13 and 2026-09-27 (*Back Pressure, Again*): a full mailbox would deadlock a selective receive. §10 states it, and the guide's §4.5 teaches the pacing.
+- **E2** `dropped` — `Fs` removes no tree. Refused by E.0 rule 3's clause on a link (*Fs.removeAll Removed*, 2026-10-06; *The Refusals That Rested on a Count*, 2026-11-23). A sentence is owed: E.17 says what `remove` answers for a directory that is not empty, `Left(Exists)`.
+- **E5** `dropped` — `Optional` has no `forEach`. E.0 rule 2 gives a sum type `withDefault`, `map` and `andThen`, and a `match` of two clauses is refused by rule 4 (*The Refusals That Rested on a Count*).
+- **E6** `dropped` — a foreign library's info report is not written. §11 states that a job writes what the host logs as a warning or worse (*Where the Host's Warnings Go*, 2026-11-09); a line its user must see is a warning.
+- **E8** `dropped` — a message foreign code sends by a host identity is not checked. §8.4 states it, and a check at each `receive` was refused 2026-10-21 (*The Window's Three Asks*) and by the review's *PL5 9*. The line's library declares its function without `receiving` and sends to its caller, against §4.7; an address given to foreign code is checked, `message does not match M`.
+- **T4** `dropped` — `ern format --check` writes paths alone. Decided 2026-11-23 under *N C22*: for a tool to read, as §11.6 says.
+- **T5** `dropped` — a long call's items stand under its bracket. Decided 2026-09-27 (*Layout for the Reader*), a break after the bracket weighed and refused; the body of a `let` now begins the next line, and feedback 315 holds a long case's name.
+- **T7** `dropped` — six links of the guide leave an installation. By design (`docs/design/install.md`; *The Release Has a README of Its Own*, 2026-10-03): each goes to the repository at the release's tag, and §7.1's sentence names E.0 shape rule 6, which is installed.
+- **T13** `dropped` — `ern doc --man` names every module's page `Ernest.`. Decided 2026-09-28 (*Manual Pages Named `Ernest.List`*), and §11.4 says the prefix names the manual's section and no namespace.
+
+#### The session's own
+
+Met by the readers on the way, each run:
+
+- **Z15** `fix` — §11.4 (`toolchain.md:550`): `ern doc --verbose` writes neither root where every document is current (`ern_cli.erl:827-834`), and writes the manifest before the roots where `ern build` writes it after. Owner: cli.
+- **Z16** `fix` — `guide/deployment.md:362`: the lines of `ern run` and `ern stop` name a directory as resolved (§11), not "as the command line gave it". Owner: guide.
+- **Z17** `fix` — §11.8 (`toolchain.md:636`): `--build-root` of `ern doc` is where the documents go, and no compiled module is written. Owner: report.
+- **Z18** `fix` — the log's `2026-11-22.md:276` cites *Nothing Waits for a Program* for "The call's wait, decided", which is *The Rows That Grew*'s. Owner: log.
+- **Z19** `known` — E.18: `Tcp.connect` and `Tcp.listen` of a link-local IPv6 address answer `Left(Invalid)`, with a zone or without, and E.18 is silent. Filed: a line of `known_issues.md`.
+- **Z20** `item` — E.21: a socket's process reads `Receiving` through the 5 seconds of *H36*'s kill, beside "`Suspended` while the runtime carries out a `kill`". Filed: MVP 4.18's item 1, with *H36*.
+- **Z21** `known` — `tools/documents.ern` reads a fence of backticks alone and `tools/words.ern` one of tildes too; no document they read holds the other today. Goes with *T8*.
+
 ## The full review's lists
 
 ### Z

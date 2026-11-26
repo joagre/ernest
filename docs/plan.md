@@ -22,21 +22,24 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg, whose builds are done: the report, the code by its owners, the tests, the guides, the
-tour, the front pages and `docs/`, with every decided line of the findings closed and
-`make test-full` passing. The ten questions that waited are answered and what they decide is
-built, and `make test-full` passes on `f02be453`.**
+**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is at its last
+step.** Ernest's own review is done: the four legs, every decided line of the findings
+closed, the ten questions that waited answered and built, and `make test-full` passing on
+`f02be453` (the log's *Ernest's Own Review Done, and What Item 4 Still Holds*).
 
-**Next, the last of item 4: the sort of what the applications' reviews found of Ernest's**,
-51 lines in the three repositories' `docs/language_feedback.md`, ernest-httpd's 35 to 60,
-ernest-epx's 8 and ernest-template's 17. Each is reproduced against the checkout, sorted as
-`docs/reviews/full.md`'s *The findings* sorts a line, and answered to its session by a
-message as `docs/clean_room.md`'s *The answer* says; a `decide` line goes to the user, one at
-a time. Readers that reproduce run on the coding model at the stronger effort, and the sort
-and the verdicts are the session's, on the stronger model. Then `docs/findings.md` goes, the
-review's entry is written with its counts, and item 4 closes (the log's *Ernest's Own Review
-Done, and What Item 4 Still Holds*).
+**The sort of what the applications' reviews found of Ernest's is made**, 2026-11-26 (the
+log's *The Applications' Lines Sorted*). The 51 lines of the three repositories'
+`docs/language_feedback.md`, each reproduced against `c9a0d66d`, stand in
+`docs/findings.md` under *The applications' lines*: 9 `fix`, 20 `decide`, 4 `felt`, 6 an
+item's and 12 `dropped`, and seven of the session's own that the readers met on the way.
+The fixes' sentences are written. Their tests, the pages of the declarations they touch
+and *Z15*'s mend of `ern doc --verbose` are one agent's build, which comes next.
+
+**Then the 20 `decide` lines, with the user one at a time**, in the findings' order, each
+after the log is searched and its program run. When they are answered and built, each
+session is answered by a message as `docs/clean_room.md`'s *The answer* says, with an
+archive made on the user's word. Then `docs/findings.md` goes, the review's entry is
+written with its counts, and item 4 closes.
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
@@ -409,6 +412,15 @@ the site, since it sends a reader there. Its release is the launch.
    TCP a close answers up to a second after the far end has read everything, by a look
    once a second, which is a poll in the runtime. One is a gap: no function ends a
    socket and drops what its host holds.
+
+   Both defects were reproduced 2026-11-26 against `c9a0d66d` (the log's *The
+   Applications' Lines Sorted*). The 5 seconds are the host's: its connection process
+   reads for up to its `alert_timeout` after an alert of its own, which Ernest sets
+   nowhere, and a close after the far end's alert answers at once. The second is the
+   closer's look once a second. Through a kill's 5 seconds the socket's process reads
+   `Receiving`, beside E.21's `Suspended`, which the mend reads. Four `decide` lines of
+   the sort are a server's security, the findings' *H39*, *H53*, *H54* and *H59*, and
+   each is mended here or filed as it is decided.
 2. **The release of 0.11.1**, by `docs/reviews/release.md`'s step. It is 0.12.0 where a
    mend of item 1 changes a frame or the form, since a patch moves neither (report §8.7),
    and the milestone's other items then name that release.

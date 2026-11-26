@@ -659,7 +659,7 @@ A function follows the symbolic links of the paths it is given, but for a path's
 
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
-type Entry = Entry(path : Path, modified : Int, size : Int, kind : Kind, mode : Int, user : Int) // modified in milliseconds since the epoch, as Clock.now, read to the second and so a multiple of 1000; size in bytes; mode the permission bits, as setMode takes them; user the host's number for the user the file belongs to, as Os.user is the program's
+type Entry = Entry(path : Path, modified : Int, size : Int, kind : Kind, mode : Int, user : Int) // modified in milliseconds since the epoch, as Clock.now, read to the second and so a multiple of 1000, a time before the year 1902 or past the year 9999 read as the first second of 1902 or the last of 9999, as the host reads it; size in bytes; mode the permission bits, as setMode takes them; user the host's number for the user the file belongs to, as Os.user is the program's
 Fs.read : (Path, Int) -> Either(Io.Error, Bytes) // the whole file, however large
 Fs.readRange : (Path, Int, Int, Int) -> Either(Io.Error, Bytes) // up to count bytes from offset, fewer at the end of the file and none past it; an offset or a count below 0 is 0
 Fs.write : (Path, Bytes, Int) -> Either(Io.Error, Unit) // creates or replaces
@@ -667,7 +667,7 @@ Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) // creates or extends a
 Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name, each described as it is; a name that is not UTF-8 answers `Left(NotUtf8(name))`, the first such in the order of their bytes (§12.1), and an entry gone before it is described is left out
 Fs.stat : (Path, Int) -> Either(Io.Error, Entry) // what the path leads to, its links followed
 Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) // with its missing parents; an existing directory is not an error
-Fs.remove : (Path, Int) -> Either(Io.Error, Unit) // a file, a link, or an empty directory
+Fs.remove : (Path, Int) -> Either(Io.Error, Unit) // a file, a link, or an empty directory; Left(Exists) for a directory that is not empty
 Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) // the first to the second; replaces, whole or not at all
 Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) // a file, the first to the second; replaces
 Fs.makeSymlink : (Path, Path, Int) -> Either(Io.Error, Unit) // a symbolic link at the first path to the second, which may name nothing
@@ -755,7 +755,7 @@ Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit)
 Tcp.close : (Address(SocketMsg)) -> Unit
 Tcp.give : (Address(SocketMsg), Process) -> Unit // makes the process the socket's owner
 Tcp.closeListener : (Address(ListenerMsg)) -> Unit // stops listening
-Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's far end
+Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's far end, its host the address as the host writes one: an IPv6 address in lower case with its longest run of zero groups as `::`, an IPv4-mapped one's last 32 bits dotted, and no zone
 Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's near end
 ```
 
@@ -909,6 +909,8 @@ When `ms` milliseconds pass first, `read` answers `Left(Timeout)`, the program r
 `readForever(program)` is `read` without a time: it waits without a limit, and answers as `read` does, but for `Left(Timeout)`, and on a program whose process has ended faults, as below.
 
 A program ends by its own exit, by a signal `signal` sends that it does not handle, or by `kill`, and has no `close`. A program is killed when its process is killed. Its process is owned by the process that called `start` or `startTerminal`, and `give(program, process)` makes another its owner; it is killed when its owner dies, a program given to a process that has ended at once, and a restart is no death (§6.9). The processes the program started that are still in its process group are killed with it. Its process lives on after the program has exited, as a socket's does after its connection closes (Appendix E.18), until it is killed, until its owner dies or until the Ernest program ends, and each `read` after the one that answered `Exited(status)` answers `Exited(status)` again.
+
+A program is killed by the host's kill signal, which no program handles, sent to the program and to its process group at once, with no signal before it. It is killed so when the Ernest program ends too, however that ends, the runtime's own kill by the host among the ways.
 
 `write(program, bytes, ms)` answers `Right(Unit)` once the program has taken the bytes, and waits while it is behind, at most `ms` milliseconds; a `Left(Timeout)` does not undo the write: its bytes wait, after those written before, until the program takes them or ends, and nothing bounds what waits so. Under a terminal a write is answered once the terminal has taken the bytes, whether or not the program has read them, and in the terminal's ordinary mode a line longer than the terminal holds loses its end. A write after `closeInput`, once the program has exited, or once no process holds its standard input open, answers `Left(Closed)`, and its bytes are dropped. On a program whose process has ended, killed or ended with its owner, a read, a write, a resize and a signal answer `Left(Closed)`, `readForever` faults as `Address.callForever` does on an ended process (§6.6), and `closeInput` does nothing.
 
@@ -1335,11 +1337,11 @@ A value is read without the white space before and after it. White space in this
 
 `cookies(fields)` is the pairs of every `Cookie` header among `fields`, RFC 6265's, in order: each value parted at `;`, each part parted at its first `=`, its name and its value each trimmed of the white space around them, a part with no `=` or with an empty name dropped, and a value otherwise kept as written, its quotes among them. `cookie(headers, name)` is the first value under the name, compared exactly.
 
-`readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is a `SocketError`, the error of every function over a socket: `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
+`readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is a `SocketError`, the error of every function over a socket: `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends. A head's read answers no `Protocol(BodyTooLarge)`, which a body's read alone finds.
 
 `readRequestBody(socket, carried, request, limit, ms)` and `readResponseBody(socket, carried, response, limit, ms)` read the body the head's headers frame and answer it with the bytes after it: `Transfer-Encoding: chunked` decoded, its chunks' extensions and its trailers dropped, else `Content-Length` bytes; where neither frames one a request has no body, and a response's runs to the connection's close (RFC 9112). A response of status 1xx, 204 or 304 has no body, whatever its headers; one to a `HEAD` request has none either, which the reader cannot know, so a client that sent `HEAD` reads none.
 
-`ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it and a chunk's size that would pass it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` beside a `Content-Length` or naming `chunked` twice, are `Protocol(Malformed)`; a response whose last transfer coding is not `chunked` runs to the connection's close, as RFC 9112 has a client read it, and such a request is `Protocol(Malformed)`. Where the connection closes before a body of a size or a chunked body ends, the answer is `Socket(Closed)`.
+`ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it and a chunk's size that would pass it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` beside a `Content-Length` or naming `chunked` twice, are `Protocol(Malformed)`; a response whose last transfer coding is not `chunked` runs to the connection's close, as RFC 9112 has a client read it, and such a request is `Protocol(Malformed)`. Where the connection closes before a body of a size or a chunked body ends, the answer is `Socket(Closed)`. A body's read answers neither `Protocol(LineTooLong)` nor `Protocol(HeadersTooLarge)`.
 
 The codings of a body's framing are the elements of the head's `Transfer-Encoding` headers, as `elements` reads them. A `Transfer-Encoding` value in which a quoted string does not end is `Protocol(Malformed)`, in a request and in a response. A coding is compared in any case of the letters `A` to `Z`. A coding written with a parameter, `chunked;q=1`, is not `chunked`, and a `Transfer-Encoding` that names no coding is read as one whose last coding is not `chunked`.
 
@@ -1398,7 +1400,7 @@ An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, 
 
 `parseAuthority(text)` reads an authority alone, `host`, `host:port` or either with `userinfo@` before it, as RFC 9112's `CONNECT` target and RFC 9110's `Host` header write one, and answers `None` for another text. It is Ernest over `parse`, the relative reference `//` and the text, refused where it has a path, a query or a fragment.
 
-`decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5).
+`decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5). The decode of a segment of the path `Http.target` gives (G.11) is never `None`, each `%` there beginning an encoding.
 
 ```
 type Reference = Reference(scheme : Optional(String), authority : Optional(Authority), path : String,

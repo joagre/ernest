@@ -18,7 +18,7 @@ The commands of sections 1, 6.3 and 8 and the shell sessions of sections 5, 6.3 
 
 ## 1. One node
 
-A program becomes a node by being started with a configuration directory, and nothing else: `prog.erc` is the compiled program, which `ern build` writes; `ern run --config-dir dir prog.erc` is a node, and `ern run prog.erc` is not (report §8.3). The directory is the node's identity, and it is made once.
+A program becomes a node by being started with a configuration directory, and nothing else: `prog.erc` is the compiled program, which `ern build` writes; `ern run --config-dir dir prog.erc` is a node, and `ern run prog.erc` is not (report §8.3). A program is built by the `ern` that runs it: `ern run` refuses a compiled form that another build of `ern` wrote, a patch release's among them, so a new `ern` builds the program again (report §11.2). The directory is the node's identity, and it is made once.
 
 ### 1.1 The directory
 
@@ -31,7 +31,7 @@ MCowBQYDK2VwAyEA...
 
 `ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet and listens where `--listen` says, here at port 8654 on every interface; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. Given a directory that exists and holds `private-key.pem`, it prints that key and changes nothing, and refuses `--listen` there; one that holds no key it refuses, `b exists and holds no private-key.pem`. Only `--peer-dir`, section 2.1, writes into a directory that exists. Where `certificate.pem` is missing, the node makes it from its key at its start and at a reload.
 
-The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
+The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. So it stays out of the program's repository and out of an archive of it. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
 A node refuses to start from a directory, or an `ernest.conf`, that any but its owner may write, and from a private key any but its owner may read or write, and says why and how to mend it, `/etc/counter/b/ernest.conf may be written by others than its owner; chmod go-w /etc/counter/b/ernest.conf` (report §12.5).
 
@@ -359,7 +359,7 @@ So a reload starts the module's services again beside the old, unless the bindin
 
 ## 7. What a node says, and what to do
 
-Every line below is written once, on the node's standard error, with its time where that is a file or a pipe. The lines that begin `ern run:` or `ern stop:` are written by the command instead of a node, and name the directory as the command line gave it. The table is a selection: report §12.5, *What it says*, and §11.2 name every line a node writes, the end's lines, a frame it cannot read and a dial refused for its family among them.
+Every line below is written once, on the node's standard error, with its time where that is a file or a pipe. The lines that begin `ern run:` or `ern stop:` are written by the command instead of a node, and name the directory by its path from the working directory, or by its whole path where it lies outside that directory (report §11). The table is a selection: report §12.5, *What it says*, and §11.2 name every line a node writes, the end's lines, a frame it cannot read and a dial refused for its family among them.
 
 The first column is the line as it is written, with the peer's name from `ernest.conf`, or `the node` and its key's digest where it is not listed; `Site` stands for a place in the program, `Module.function:line`, `Q` for a name in the program, `Module.name`, `M` for a module and `N` for a number.
 
@@ -393,6 +393,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `ern run: dir is the configuration directory of the running node N, which ernest.pid names` | A second start from a directory whose `ernest.pid` a running node holds; the `ern run` command writes it, not a node. | Stop the first, or start from the directory meant. |
 | `ern run: a node needs pidfd_open, of Linux 5.3 and later, which this host, Linux 4.15.0-213-generic, does not have` | The operating system cannot say when a process has ended, which a node's lock on `ernest.pid` needs; the `ern run` command writes it. | Run the node on Linux 5.3 or later; in a container, allow the call. |
 | `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file or directory` where the node's end removed the file. The command writes it. | None; the node is already down. |
+| `ern run: prog.erc: compiled by another build of ern` | Another release of `ern`, or another build of the same, wrote the `.erc`; the `ern run` command writes it. | Build the program again with the `ern` that runs it. |
 | `ern run: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended before its program ran, with status 1, as a job that cannot start, `ern shell:` for a shell's own node. | Free the port or change `listen`, and start again. |
 
 Lines that name a process by its site and say it `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
