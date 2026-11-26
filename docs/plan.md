@@ -30,9 +30,9 @@ by a message.
 
 **MVP 4.4's item 5, the release of 0.11.0, is open.** Every entry of the feedback file is
 held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*). The
-release review's checks and readers ran that day over `6c6b8ef1`, and its findings are
-sorted into the lines of [`findings.md`](findings.md). The `fix` lines and the `decide`
-lines are next, as the item's *Where the item stands* says.
+release review ran that day over `6c6b8ef1`: its findings are sorted, decided and built, and
+its round is run. The release's own steps are next, as the item's *Where the item stands*
+says.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -114,11 +114,13 @@ the release, is what is left.
 
    **Where the item stands**, since 2026-11-26 (the log's *The Release Review Before
    0.11.0, Decided*). The review runs over `6c6b8ef1`. Its checks, its readers, the sort
-   and the `decide` round are done: [`findings.md`](findings.md) holds 382 lines, and each
-   of its 123 `decide` lines has the user's verdict beneath it, 47 made for 0.11.0, 54 for
+   and the `decide` round are done: the findings were 382 lines, and each of the 123
+   `decide` lines has the user's verdict beneath it, 47 made for 0.11.0, 54 for
    MVP 4.5's item 177, 3 for MVP 4.18's item 8, 7 lines of the known issues, 10 dropped,
    one for item 169 and one done. nike runs OTP 29.1.3. What the session kept is in its
-   probes directory, `release_0110/`, the readers' facts for the verdicts among it.
+   probes directory, `release_0110/`, the readers' facts for the verdicts among it. The
+   findings file is gone again: a line the plan names as this review's is `findings.md`'s
+   as it stood at `3051fbf5`.
 
    The `fix` lines of the code and the decided lines' code are built (the log's *The
    Release Review's Lines Built*), and `make test-full` passes on them.
@@ -518,8 +520,8 @@ What the line left, in the order it is taken:
   2026-11-26 (the log's *The Release Review Before 0.11.0, Decided*): the 54 `decide`
   lines of the review before 0.11.0 that are questions where the report is true, a recut,
   a name, a second way, a help's text or a rule a program does not show false. A line is
-  `findings.md`'s as it stood at the commit that removed the file, with the user's verdict
-  beneath it.
+  `findings.md`'s as it stood at `3051fbf5`, the last commit that holds it, with the
+  user's verdict beneath it.
 
   They are decided by family as item 176's entries are, after the launch, the names each
   after its word is searched across the report, the code and the shell
