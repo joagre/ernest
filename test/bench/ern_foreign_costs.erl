@@ -9,7 +9,7 @@
 %% writes nothing for the deadlock look, which reads the process's top
 %% frame; a function given to foreign code keeps the look's key while
 %% foreign code calls it, in the wrapper that checks its arguments
-%% (ern_emitter's called/2, §8.6).
+%% (ern_emitter's called/1, §8.6).
 %%
 %% Measured, in foreign.txt: the host's call of `erlang:abs/1` and a foreign
 %% fn of it; the host's call of a function of this module's that answers at

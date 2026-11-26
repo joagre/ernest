@@ -741,7 +741,7 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
 %% deadlock look, which reads a process waiting inside foreign code from
 %% the host's function on top of its stack, and one inside a function
 %% foreign code called back from the key the function's wrapper keeps
-%% (called/2).
+%% (called/1).
 foreign_call(Source, Call, RaisedBy, {HostModule, HostFunction, Arity}, Context) ->
     {[Class, Error, Trace], Context1} = named_variables(["Class", "Error", "Trace"], Context),
     Raised = call_remote(ern_boundary, RaisedBy,
@@ -1248,8 +1248,8 @@ expr_form({'receive', Written, After}, Source, Context) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
     %% it names, or a pattern's size names (§5.11), read into a variable
-    %% before the receive; a message from a foreign process was checked by
-    %% the checker that delivered it (§8.4)
+    %% before the receive; a message foreign code sends was checked by the
+    %% checker that delivered it (§8.4)
     {Clauses, {Reads, Context1}} = lists:mapfoldl(fun read_before/2, {[], Context}, Written),
     {Bindings, Receive, Context2} = receive_form(Source, Clauses, After, Context1),
     {with_bindings(Reads ++ Bindings, Receive), Context2}.
@@ -2524,8 +2524,11 @@ descriptor_form(Descriptor, Context) ->
 %% return is checked (report §12.3), which only generated code can spell for
 %% every arity; ern_boundary applies it to a function value foreign code
 %% gives, to the result's descriptor closed over the recursive types around
-%% it, and to those types, which the arguments' descriptors refer to. Each
-%% cause names the function, which the boundary writes in.
+%% it, and to those types, which the arguments' descriptors refer to.
+%% Beside it stands the exposer of one that crosses into foreign code,
+%% which checks each argument it is called with and exposes its result
+%% (report §8.4), given those types alone. Each cause names the function,
+%% which the boundary writes in.
 built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, ParamCauses}) ->
     [Function, Result, Bound, Class, Error, Trace] =
         [erl_syntax:variable(Name)
@@ -2563,7 +2566,19 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
                             term_form(ParamCause), Bound])
                || {Descriptor, Argument, ParamCause}
                       <- lists:zip3(ParamDescriptors, Args, ParamCauses)],
-    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Function, Checked))]),
+    %% report §8.4: what it returns to foreign code crosses into foreign
+    %% code, exposed inside the same types, so that a ref in its descriptor
+    %% needs no closing; one whose type holds nothing that crossing changes
+    %% is given as it is
+    Called = erl_syntax:application(Function, Checked),
+    Returned = case crosses_from(ResultDescriptor) of
+                   true ->
+                       call_remote(ern_boundary, expose,
+                                   [built_descriptor(ResultDescriptor), Called, Bound]);
+                   false ->
+                       Called
+               end,
+    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Returned))]),
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
                       built_descriptor(ResultDescriptor), term_form(Cause), Maker, Exposer]);
@@ -2578,19 +2593,20 @@ built_descriptor(Elements) when is_list(Elements) ->
 built_descriptor(Other) ->
     term_form(Other).
 
-%% Report §12.3: the program's Function where foreign code calls it, an
-%% exception it raises the fault it would be anywhere (called_raised/3).
-%% Report §8.6, §8.4: the process is inside foreign code while Function
-%% runs, which its stack cannot show where foreign code called it in tail
-%% position, so it keeps the look's key meanwhile (ern_rt:entered_foreign/0).
-called(Function, Arguments) ->
+%% Report §12.3: the program's function where foreign code calls it, Call
+%% its call with the arguments checked and its result as it crosses back,
+%% an exception raised in it the fault it would be anywhere
+%% (called_raised/3). Report §8.6, §8.4: the process is inside foreign code
+%% while the function runs, which its stack cannot show where foreign code
+%% called it in tail position, so it keeps the look's key meanwhile
+%% (ern_rt:entered_foreign/0).
+called(Call) ->
     [Class, Error, Trace] = Raised = [erl_syntax:variable(Name)
                                       || Name <- ['Class', 'Error', 'Trace']],
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none,
                                 [call_remote(ern_boundary, called_raised, Raised)]),
     [call_remote(ern_rt, entered_foreign, []),
-     erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [], [Handler],
-                         [call_remote(ern_rt, left_foreign, [])])].
+     erl_syntax:try_expr([Call], [], [Handler], [call_remote(ern_rt, left_foreign, [])])].
 
 check_text(Prefix, Type, Context) ->
     string_binary(cause(Prefix, Type, Context)).

@@ -3620,7 +3620,7 @@ monotonic_micros() ->
 %% Report §8.6, §8.4: a process inside foreign code is not waiting, and
 %% where its stack cannot show it, it says so under FOREIGN: while a
 %% function given to foreign code runs, called by foreign code through the
-%% wrapper the compiler writes around it (ern_emitter's called/2), which a
+%% wrapper the compiler writes around it (ern_emitter's called/1), which a
 %% tail call of foreign code leaves alone on the stack; and while the
 %% runtime waits for the process on what the look cannot see deliver, a
 %% peer, a port, the code table's holder, a restart's answers, Code.load's

@@ -30,8 +30,8 @@
 %% function of the library's, which is the host's function its declaration
 %% names, Int.toString's erlang:integer_to_binary/1 (report §11.1). A call
 %% gives the runtime what an answer from foreign code is checked by, the
-%% reply's descriptor and the fault's text, and a message from a foreign
-%% process is checked by the proxy that delivered it, so a receive checks
+%% reply's descriptor and the fault's text, and a message foreign code
+%% sends is checked by the checker that delivered it, so a receive checks
 %% nothing (report §8.4).
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".

@@ -34,6 +34,7 @@ This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and
 - A spawn or a compute whose function the peer lacks costs the crossing of what the peer lacks of its reach and the peer's compile of it, once for each definition on each node, within the spawn's time (§8.7).
 
   A node holds the code it receives, and the code it loads after its start, as units of the host's beside its build's, for its life but for what §11.2's **What a node holds** lets go (§11.1); each unit adds to the host's counts of module names, export entries, function entries and atoms, which never fall in the host's life (§11.2).
+- A record update (§5.6) builds its record anew and writes none in place.
 - A raise, a fault's among them, costs the frames the host reads of the stack beneath it, and it reads until it has kept 64 (Appendix E.28). Consecutive frames that return to one call are kept as one and read whole, so a raise beneath a recursion whose call is not in tail position costs the recursion's depth. A primitive that answers the host's raise as a value costs the same: one that refuses an element in `List.map`'s function costs the element's position in the list. A trace shows twelve lines of the frames kept (Appendix E.21).
 - A fault costs, beside its raise, the text of its trace, which its process writes, a frame a line, and the line of its report, which a process of the runtime's writes (§11.2); a foreign function's raise costs the text of the host's error too (§12.3).
 - Memory is the host's. A program that exhausts it ends at once, every process with it: no process faults, no monitor is told, and the host's message is written to standard error (§11.8).
@@ -881,7 +882,7 @@ A mismatch at a check of §8.4 faults the calling process: `Fault("the return of
 
 A return's cause names after `T` the first part of the return that fails and the host's term there, `the return of foreign function m:f/n does not match List(#(Int, String)): element 3, field 2, is three`, the term on one line as the host writes it with a `chars_limit` of 80, which ends what it cuts with `...`. The parts are named from the outside in: a list's element and a tuple's or a constructor's field by its place from 1, a map's key as `a key` and the value of one as `the value of key K`, `K` the key's term, and a set's element as `a member`. A return that fails whole names no part, `does not match Int: is ok`.
 
-A message from a foreign process that does not match the type its address crossed at, `M`, faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
+A message foreign code sends that does not match the type its address crossed at, `M`, faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
 
 Each names the declared type. A type name in it is written whole from the root, as a trace writes a name (§4.2), whichever module's crossing made the check, and a type variable in it is written `a`, `b` and on in the order the variables stand in the type, whatever names the declaration writes (Appendix H). Each check reaches as far as §8.4 has it reach: its **What is checked** and **Type variables** say what crosses unchecked.
 

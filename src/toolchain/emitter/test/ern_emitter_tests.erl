@@ -4,8 +4,10 @@
 
 -export([write_golden/0, frame_of/1, poke/1, stack_here/0, stack_size/0, calls_held/0, pair/0,
          funs/0, opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_all/1, junk_node/0,
-         junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1, same/1,
-         identical/2, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1,
+         junk_server/0, called_junk/1, called_good/1, node_called_junk/1, result_called_bad/1,
+         result_called_good/1, twice/2, stranger/0, hello_junk/0, hello_good/0,
+         hello_called_junk/0, relay_junk/1, relay_good/1, same/1, identical/2,
+         call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1, ask_called_junk/1,
          checker_ended/1]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -3581,6 +3583,187 @@ function_value_given_back_test() ->
                            " Address(M.Msg)">>, _},
                  outcome(Source("Foreign.term(5), Foreign.atom(\"garbage\")"))).
 
+%% report §8.4: what a function that crossed returns to foreign code
+%% crosses into foreign code, so an address it returns stands behind its
+%% check: a message of another type foreign code sends there faults the
+%% receiver on delivery, and one of the type arrives. Written before its
+%% code, and red there: the address went out as it was, and the bad
+%% message was received, its binary bound where an Int was declared
+function_result_address_checked_test() ->
+    Source = fun(Name) ->
+                 "type Msg = Go(Int)\n"
+                 "foreign fn call(f : () -> Address(Msg)) : Unit = \"ern_emitter_tests:"
+                 ++ Name ++ "/1\"\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    let me = self();\n"
+                 "    call(fn() = me);\n"
+                 "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                 "}\n"
+             end,
+    ?assertMatch({fault, <<"message does not match M.Msg">>, _}, outcome(Source("called_junk"))),
+    ?assertEqual({ok, <<"2\n">>}, ern_program:run(Source("called_good"))).
+
+%% report §8.4: an address inside a list or a constructor that a function
+%% that crossed returns to foreign code crosses as one returned alone does,
+%% behind its check (function_result_address_checked_test/0). Written
+%% before its code, and red there: the address went out as it was, and the
+%% bad message was received
+function_result_inner_address_checked_test() ->
+    Source = fun({Result, Returned}, Name) ->
+                 "type Msg = Go(Int)\n"
+                 "foreign fn call(f : () -> " ++ Result ++ ") : Unit = \"ern_emitter_tests:"
+                 ++ Name ++ "/1\"\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    let me = self();\n"
+                 "    call(fn() = " ++ Returned ++ ");\n"
+                 "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                 "}\n"
+             end,
+    Results = [{"List(Address(Msg))", "[me]"}, {"Optional(Address(Msg))", "Some(me)"}],
+    [?assertMatch({fault, <<"message does not match M.Msg">>, _},
+                  outcome(Source(Result, "called_junk")))
+     || Result <- Results],
+    [?assertEqual({ok, <<"2\n">>}, ern_program:run(Source(Result, "called_good")))
+     || Result <- Results].
+
+%% report §8.4: a function that a function that crossed returns to foreign
+%% code crosses as a foreign function's argument does, each argument
+%% foreign code calls it with checked: one that does not match faults the
+%% caller, named by the declaration the lambda is written in, and one that
+%% matches is taken. Written before its code, and red there: the function
+%% went out as it was, and the bad argument raised inside it
+function_result_function_checked_test() ->
+    Source = fun(Name) ->
+                 "foreign fn call(f : () -> (Int) -> Int) : Int = \"ern_emitter_tests:"
+                 ++ Name ++ "/1\"\n"
+                 "export fn main() : Unit =\n"
+                 "    Io.println(Int.toString(call(fn() = fn(n) = n * 2)))\n"
+             end,
+    ?assertMatch({fault, <<"an argument of M.main from foreign code does not match Int">>, _},
+                 outcome(Source("result_called_bad"))),
+    ?assertEqual({ok, <<"-8\n">>}, ern_program:run(Source("result_called_good"))).
+
+%% report §8.4: a result of a recursive type crosses into foreign code as a
+%% value of the type crosses, to its whole depth, an address in it behind
+%% its check: a tree whose recursion runs through its own constructors, and
+%% one whose recursion runs through the function, whose result is then the
+%% type around the function, read inside it. Written before its code, and
+%% red there: the address went out as it was, and the bad message was
+%% received
+function_result_recursive_test() ->
+    Main = "export fn main() : Unit receiving Msg = {\n"
+           "    let me = self();\n",
+    Received = "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+               "}\n",
+    Own = ["type Msg = Go(Int)\n"
+           "type Tree = Leaf(Address(Msg)) | Branch(List(Tree))\n"
+           "foreign fn walk(f : () -> Tree) : Unit = \"ern_emitter_tests:called_junk/1\"\n",
+           Main,
+           "    walk(fn() = Branch([Branch([]), Leaf(me)]));\n",
+           Received],
+    Around = ["type Msg = Go(Int)\n"
+              "type Tree = Leaf(Address(Msg)) | Node(() -> Tree)\n"
+              "foreign fn walk(tree : Tree) : Unit = \"ern_emitter_tests:node_called_junk/1\"\n",
+              Main,
+              "    walk(Node(fn() = Node(fn() = Leaf(me))));\n",
+              Received],
+    [?assertMatch({fault, <<"message does not match M.Msg">>, _}, outcome(lists:append(Source)))
+     || Source <- [Own, Around]].
+
+%% report §8.4: a function sent in a message to a foreign address, or given
+%% in an answer to a Reply foreign code gave, crosses into foreign code
+%% through the wrapper a foreign function's argument crosses through, so
+%% an address it returns stands behind its check, and a message of another
+%% type foreign code sends there faults the receiver on delivery. Written
+%% before its code, and red there: the address went out as it was, and the
+%% bad message was received
+function_result_in_message_test() ->
+    Sent = "type Msg = Go(Int)\n"
+           "type Out = Hello(() -> Address(Msg))\n"
+           "foreign fn start() : Address(Out) = \"ern_emitter_tests:hello_called_junk/0\"\n"
+           "export fn main() : Unit receiving Msg = {\n"
+           "    let me = self();\n"
+           "    send(start(), Hello(fn() = me));\n"
+           "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+           "}\n",
+    Answered = "type Msg = Go(Int)\n"
+               "type Ask = Ask(reply : Reply(() -> Address(Msg)))\n"
+               "foreign fn ask(server : Address(Ask)) : Unit ="
+               " \"ern_emitter_tests:ask_called_junk/1\"\n"
+               "fn serve(me : Address(Msg)) : Unit receiving Ask =\n"
+               "    receive { Ask(reply = r) -> answer(r, fn() = me) }\n"
+               "export fn main() : Unit receiving Msg = {\n"
+               "    let me = self();\n"
+               "    ask(spawn(fn() = serve(me)));\n"
+               "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+               "}\n",
+    [?assertMatch({fault, <<"message does not match M.Msg">>, _}, outcome(Source))
+     || Source <- [Sent, Answered]].
+
+%% report §8.4: "there is one for each distinct address that has crossed,
+%% at each type it crossed at": an address a function returns to foreign
+%% code twice at one type stands behind one check, the one it stands behind
+%% as a foreign function's argument at that type, so foreign code is given
+%% one address for it. Written before its code, and red there: the result
+%% was the program's own address, another term than the argument's check
+function_result_one_check_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, ern_program:run(
+        "type Msg = Go(Int)\n"
+        "foreign fn twice(f : () -> Address(Msg), given : Address(Msg)) : #(Bool, Bool) =\n"
+        "    \"ern_emitter_tests:twice/2\"\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    Io.println(Io.show(twice(fn() = me, me)))\n"
+        "}\n")).
+
+%% report §8.4: what foreign code gave, returned to it by a function that
+%% crossed, goes back as a foreign function's argument does: a foreign
+%% address as foreign code gave it, with no check of its own, and a function
+%% value foreign code gave as a function of the program's crosses
+%% (function_value_given_back_test/0), each argument foreign code calls it
+%% with checked and a mismatch named by the binding whose value it is.
+%% Written before its code, and red there: the address went out in the
+%% runtime's own form of a foreign address, and the function as the wrapper
+%% the program calls it through, so that the bad argument reached the
+%% host's function, which raised
+function_result_given_back_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, ern_program:run(
+        "type Msg = Go(Int)\n"
+        "foreign fn stranger() : Address(Msg) = \"ern_emitter_tests:stranger/0\"\n"
+        "foreign fn twice(f : () -> Address(Msg), given : Address(Msg)) : #(Bool, Bool) =\n"
+        "    \"ern_emitter_tests:twice/2\"\n"
+        "export fn main() : Unit = {\n"
+        "    let other = stranger();\n"
+        "    Io.println(Io.show(twice(fn() = other, other)))\n"
+        "}\n")),
+    Source = fun(Name) ->
+                 "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
+                 "    : (Int) -> Int = \"erlang:make_fun/3\"\n"
+                 "foreign fn call(f : () -> (Int) -> Int) : Int = \"ern_emitter_tests:"
+                 ++ Name ++ "/1\"\n"
+                 "let absolute = made(Foreign.atom(\"erlang\"), Foreign.atom(\"abs\"), 1)\n"
+                 "export fn main() : Unit = Io.println(Int.toString(call(fn() = absolute)))\n"
+             end,
+    ?assertMatch({fault, <<"an argument of M.absolute from foreign code does not match Int">>, _},
+                 outcome(Source("result_called_bad"))),
+    ?assertEqual({ok, <<"4\n">>}, ern_program:run(Source("result_called_good"))).
+
+%% report §8.4, **Type variables**: what a function that crossed returns to
+%% foreign code at a type variable a parameter's type names crosses as it
+%% is, an address in it with no check, so foreign code is given the term
+%% it is given for the same address as an argument at such a variable. A
+%% regression test, written beside the code that exposes a result, which
+%% leaves such a result as it is
+function_result_type_variable_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, ern_program:run(
+        "type Msg = Go(Int)\n"
+        "foreign fn twice(f : () -> a, given : a) : #(Bool, Bool) ="
+        " \"ern_emitter_tests:twice/2\"\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    Io.println(Io.show(twice(fn() = me, me)))\n"
+        "}\n")).
+
 %% report §8.4: foreign code answers a Reply an Ernest process hands on to it
 %% in foreign code's form, which the caller checks; a good answer arrives
 reply_handed_on_test() ->
@@ -3804,14 +3987,46 @@ junk_node() -> {'Node', fun({'Leaf', Pid}) -> junk(Pid) end}.
 -spec junk_server() -> pid().
 junk_server() ->
     spawn(fun() -> receive {'Ask', {Alias, _}} -> Alias ! {Alias, <<"x">>} end end).
+%% report §8.4: calls the function it is given and sends each address its
+%% result holds a message of another type, or of the declared one
+-spec called_junk(fun(() -> term())) -> 'Unit'.
+called_junk(Function) -> junk_all(addresses(Function())).
+-spec called_good(fun(() -> term())) -> 'Unit'.
+called_good(Function) -> tell(addresses(Function())).
+addresses(Pid) when is_pid(Pid) -> [Pid];
+addresses(Term) when is_tuple(Term) -> addresses(tuple_to_list(Term));
+addresses(Terms) when is_list(Terms) -> lists:append([addresses(Term) || Term <- Terms]);
+addresses(_) -> [].
+%% report §8.4: calls the function inside each Node of a recursive type
+%% until its result is a Leaf, whose address it sends a message of another
+%% type
+-spec node_called_junk({'Node', fun(() -> tuple())} | {'Leaf', pid()}) -> 'Unit'.
+node_called_junk({'Node', Function}) -> node_called_junk(Function());
+node_called_junk({'Leaf', Pid}) -> junk(Pid).
+%% report §8.4: calls the function its function returns with a value of
+%% another type than its parameter's, or of the declared one
+-spec result_called_bad(fun(() -> fun((term()) -> integer()))) -> integer().
+result_called_bad(Function) -> (Function())(<<"bad">>).
+-spec result_called_good(fun(() -> fun((integer()) -> integer()))) -> integer().
+result_called_good(Function) -> (Function())(-4).
+%% report §8.4: whether the function it is given returns one term at two
+%% calls, and the term it is given beside the function
+-spec twice(fun(() -> term()), term()) -> {boolean(), boolean()}.
+twice(Function, Given) -> {Function() =:= Function(), Function() =:= Given}.
+%% report §8.4: the address of a process the program never started
+-spec stranger() -> pid().
+stranger() -> spawn(fun() -> ok end).
 %% report §8.4: a foreign process that answers a Hello with a message to the
-%% address it holds, of another type or of the declared one
+%% address it holds, of another type or of the declared one, or that calls
+%% the function it holds and sends its result a message of another type
 -spec hello_junk() -> pid().
-hello_junk() ->
-    spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', <<"x">>} end end).
+hello_junk() -> hello(fun junk/1).
 -spec hello_good() -> pid().
-hello_good() ->
-    spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', 1} end end).
+hello_good() -> hello(fun good/1).
+-spec hello_called_junk() -> pid().
+hello_called_junk() -> hello(fun called_junk/1).
+hello(Answer) ->
+    spawn(fun() -> receive {'Hello', Value} -> Answer(Value) end end).
 %% report §12.2: foreign code given a Reply answers it as the ABI says
 -spec relay_junk({reference(), pid()}) -> 'Unit'.
 relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
@@ -3834,16 +4049,19 @@ call_nested_bad({_, Function}) -> Function(<<"bad">>).
 call_nested_good({Number, Function}) -> Function(Number).
 %% report §8.4: foreign code that asks an Ernest server with a Reply of its
 %% own, its alias and its process, and sends the address it is answered a
-%% message of another type or of the declared one
+%% message of another type or of the declared one, or calls the function
+%% it is answered and sends its result a message of another type
 -spec ask_junk(pid()) -> 'Unit'.
-ask_junk(Server) -> ask(Server, <<"x">>).
+ask_junk(Server) -> ask(Server, fun junk/1).
 -spec ask_good(pid()) -> 'Unit'.
-ask_good(Server) -> ask(Server, 1).
-ask(Server, Value) ->
+ask_good(Server) -> ask(Server, fun good/1).
+-spec ask_called_junk(pid()) -> 'Unit'.
+ask_called_junk(Server) -> ask(Server, fun called_junk/1).
+ask(Server, Answered) ->
     spawn(fun() ->
               Reply = erlang:alias(),
               Server ! {'Ask', {Reply, self()}},
-              receive {Reply, Address} -> Address ! {'Go', Value} end
+              receive {Reply, Value} -> Answered(Value) end
           end),
     'Unit'.
 %% report §8.4: foreign code that ends the checker it was given, as the host

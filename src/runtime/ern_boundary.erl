@@ -3,14 +3,14 @@
 %% exception raised/6 turns into a fault; its return is checked against the
 %% declared type on first observation, as an answer foreign code gives is
 %% (ern_rt). What crosses into foreign code, a foreign function's argument,
-%% a message sent to a foreign address, or an answer given to a Reply
-%% foreign code gave, is exposed: every Ernest address in it is replaced by
-%% a checker that checks each message the foreign side sends against the
-%% address's mailbox type on delivery and forwards it, or faults the
-%% target. The checker is a process of the runtime's own that acts
-%% for the target, as a process kept for an adapted address does
-%% (ern_rt:checker_for/3), and stands through a loss of the target's node
-%% (checker_loop/5).
+%% a message sent to a foreign address, an answer given to a Reply foreign
+%% code gave, or what a function that crossed returns to it, is exposed:
+%% every Ernest address in it is replaced by a checker that checks each
+%% message foreign code sends against the address's mailbox type on
+%% delivery and forwards it, or faults the target. The checker is a
+%% process of the runtime's own that acts for the target, as a process kept
+%% for an adapted address does (ern_rt:checker_for/3), and stands through a
+%% loss of the target's node (checker_loop/5).
 %%
 %% An address that comes from foreign code and names no process of the
 %% program is held as foreign, {foreign, Pid, Process, Descriptor, Bound},
@@ -28,11 +28,11 @@
 %% gives it is exposed as a foreign function's (§8.4) and each call's
 %% result is checked against R, faulting with Cause (§12.3), and Exposer
 %% wrapping one that crosses into foreign code, wherever it stands in what
-%% crosses, so that each argument it is called with is checked (§8.4),
-%% given the same types. A cause of either names the function, which is
-%% known only here: the two parts of Cause and of each argument's,
-%% ern_descriptor's named_cause(), are the text before the function's name
-%% and the text after it.
+%% crosses, so that each argument it is called with is checked and its
+%% result exposed (§8.4), given the same types. A cause of either names the
+%% function, which is known only here: the two parts of Cause and of each
+%% argument's, ern_descriptor's named_cause(), are the text before the
+%% function's name and the text after it.
 -module(ern_boundary).
 
 -export([raised/6, shim_raised/6, raised/4, called_raised/3, expose/2, check/3, value/3,
@@ -118,7 +118,7 @@ raise_text(Class, Error) ->
 %% to the call. A throw met there is the runtime's, a fault or a restart
 %% passing, and passes as raised/6 passes it. A foreign function of the
 %% program's reads no stack: every function it gives the host is wrapped
-%% (called/2), so a raise it catches is the foreign function's.
+%% (called/1), so a raise it catches is the foreign function's.
 -spec shim_raised(module(), atom(), arity(), error | exit | throw, term(), list()) ->
           no_return().
 shim_raised(HostModule, HostFunction, Arity, throw, Error, Stack) ->
@@ -554,12 +554,14 @@ elements_match(_, _, _) -> false.
 
 %% What crosses into foreign code, exposed where mu bindings Bound are in
 %% scope: a foreign function's argument, a message sent to a foreign
-%% address, and an answer given to a Reply foreign code gave, whose
-%% descriptor was read inside them.
+%% address, an answer given to a Reply foreign code gave, and what a
+%% function that crossed returns to foreign code, whose descriptor was read
+%% inside them.
 -spec expose(descriptor(), term(), map()) -> term().
 %% report §8.4: a function given to foreign code checks the arguments it is
-%% called with, whether it is the argument or stands in one, in a message
-%% or in an answer
+%% called with and exposes what it returns, whether it is the argument or
+%% stands in one, in a message, in an answer or in what such a function
+%% returns
 expose({'fun', _, _, _, _, Exposer}, Value, Bound) when is_function(Value) ->
     Exposer(Value, Bound);
 expose({address, MessageDescriptor, Cause, Hash}, Value, Bound) when is_pid(Value) ->
