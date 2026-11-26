@@ -1,6 +1,6 @@
 # The principles review
 
-The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release.md`](release.md) and the full review of [`full.md`](full.md), and its readers read the report and the guide, L the log too, and the code only as *How it runs* allows, to see what a rule means. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
+The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release.md`](release.md), or inside the full review where the plan says so, merged as [`full.md`](full.md)'s *How it runs* says. Its readers read the report and the guide, L the log too, and the code only as *How it runs* allows, to see what a rule means. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
 
 ## When it runs
 
@@ -13,14 +13,14 @@ As the full review's readers run ([`full.md`](full.md), *How it runs*), with thr
 
 ## The readers
 
-Four readers in five agents.
+Four readers, in five agents where L reads in one part.
 
 - **P, the principles**, with the full review's brief, in two parts: §0 to §12 with Appendices A to D and H, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there.
 
   For each rule it also says whether the principles as written would admit the opposite rule as well; where they would, the principles do not decide it, and the reader proposes the sentence for §0 or E.0 that would.
 - **K, the cold reader**, with the full review's brief, over the whole report: what "consistent" means, a rule another rule contradicts or makes unreachable, and a builder made to guess. In Appendix E it also reads every function against E.0's rules and every rule against its functions, and reports every list of exceptions inside a rule, which is a rule stated at the wrong level, with the rule restated so that the list falls out and only the exception the report must keep remains.
 - **W, where the guide works hard.** Reads `guide/language.md` and the report. "Read the guide as one who knows the report. Report every place the guide explains why a rule is as it is, warns, or says 'note that', with the rule that made the sentence necessary; every place it teaches a way around a rule; every job it must teach two ways; and every example whose shape a reader of the report would not have predicted. Apart, list every rule of the report the guide never teaches and never uses."
-- **L, the log.** Reads the report and, of `docs/log/`, the entries since the last principles review, which the log's index dates, and the families those entries fall into; the earlier families are closed (*The findings*), and the log whole grows with every decision, so it is never read whole again.
+- **L, the log.** Reads the report and, of `docs/log/`, the entries since the last principles review, which the log's index dates, and the families those entries fall into; the earlier families are closed (*The findings*), and the log whole grows with every decision, so it is never read whole again. Where those entries are more than 40,000 words, L reads them in parts by date, each a reader of its own and at most 40,000 words, and the brief says so.
 
   "Read the log's entries since the last principles review as a set. Group them into families, a family being the decisions one sentence would decide: what the host's semantics decide, what is refused when a program is compiled and what faults when it runs, what is a member and what a module function, what waits and what answers at once, and what the standard library admits, among the families you find. For each family, list its entries and the principle each cites, and say whether the principle as written implies the verdict or would have implied the opposite as well; where it would, the family lacks a deciding sentence, and you propose it. Apart, report every entry decided on cost, on time or for now, with whether its reason still holds; and every two entries that decided alike cases differently."
 
@@ -39,4 +39,4 @@ Every reader runs as [`full.md`](full.md)'s *The models* says, none of them a re
 
 ## Its cost
 
-Five agents, half a day; the decisions at the user's pace; then the milestone the plan gives the edits.
+Five agents and one for each further part of L, half a day; the decisions at the user's pace; then the milestone the plan gives the edits.

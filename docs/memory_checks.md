@@ -4,7 +4,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 ## The loads
 
-`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about a minute (measured 2026-11-08 on nike).
+`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about a minute on a machine of 12 cores (measured 2026-11-08).
 
 A load does the same work in each of fourteen rounds and calls `mark(round)` after each, a `foreign fn` of `test/ern_load.erl`. The programs are under `test/fixtures/load/`; the harness writes the shell's session.
 
@@ -88,4 +88,4 @@ A round that sets work going for later waits for it before it marks, as the supe
 
 The loads leave out the terminal's keys, which need a terminal; the shell at a terminal, whose editor and screen the line-mode session does not reach; peers, whose calls were measured by hand and left nothing on the callee's node (the log's *Nodes a Failed Test Left Running*); and checkers, which are kept by design. Each is read for instead.
 
-Growth with time rather than with work, and the examples' own programs, were measured by a soak of hours until it was removed on 2026-10-02 (the log's *MVP 2.99b Read After the Review*). `examples/web_server.ern`'s session store, which forgets its sessions every ten minutes, is bounded by design, and its path through the runtime is the `sockets` load's (the log's *MVP 2.99b's Questions, One by One*). A program that grows over hours brings the soak, or a load, back with that evidence.
+No load measures growth with time rather than with work. A program that grows over hours brings a load, with that evidence.

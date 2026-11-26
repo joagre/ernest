@@ -29,15 +29,15 @@ standard library with the libraries, the cli, the shell and the tests are done, 
 Fable rounds are held, and the report's own decided lines are written. The guides, the
 tour and the front pages are written. The decided lines without
 a closing bullet are audited and the report's missing sentences written. What the audit
-found missing in the code is built. `docs/` is next, by a writer on Fable 5.2 at high, then
-the log's and the plan's own lines, `make test-full` and the close.**
+found missing in the code is built. `docs/` is written. Next are the diagnosis of a grammar test that failed on
+one seed, the log's and the plan's own lines, `make test-full` and the close.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages*, *The Decided Lines Audited* and *The Audit's Build*.
+and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build* and *The Documents' Lines*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -248,9 +248,13 @@ says what is left once its readings are in, and no figure stands until then.
       The documents are written each by a writer on Fable 5.2 at high, one after
       another. The language guide is done (the log's *The Language Guide Recut*), and
       so are the other guides with the tour and the front pages (the log's *The Other
-      Guides, the Tour and the Front Pages*). `docs/` is next
-      (`leg4/builds/brief_docs.md`). The log's and the plan's own lines are the
-      session's.
+      Guides, the Tour and the Front Pages*), and `docs/` (the log's *The Documents'
+      Lines*). The log's and the plan's own lines are the session's, and are next.
+
+      `make test-grammar` failed once, on seed 71865135, where the parser takes a text
+      that the test's recognizer of Appendix A refuses. An agent on Opus 5.5 at xhigh
+      diagnoses it before the close: the parser or the test is wrong, and Appendix A
+      holds.
 
       The guide's writer found four decided sentences of the report unwritten, each of
       a line with two owners. Two readers audited the decided lines that carried no

@@ -1,6 +1,6 @@
 # Working on Ernest
 
-For those who work on the language and its toolchain: where things are, how to build and test them, and what the toolchain does not do yet. A reader who wants to learn Ernest starts with the [guide](../guide/language.md) instead.
+For those who work on the language and its toolchain: where things are, and how to build and test them. A reader who wants to learn Ernest starts with the [guide](../guide/language.md) instead.
 
 The report, in three files under [`report/`](../report/), is the one normative document. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
 
@@ -438,7 +438,8 @@ make xref       # the host's xref over what make dialyzer reads: every call name
                 # among the callers; about four seconds; part of make test
 make sanitize   # the helper in C under Clang's analyzer, and the runtime's and the
                 # programs' tests with it built under the sanitizers
-make sections   # list the report sections no test cites
+make sections   # list the report sections no test cites: it prints only a section of a
+                # milestone not yet built, which that milestone's plan item names
 make coverage   # every section with how many tests cite it and its length, thinnest first
 make cover      # the lines of the toolchain's own Erlang no test runs, the vendored getopt
                 # left out: make test-full with each host that runs EUnit through
@@ -559,9 +560,3 @@ bin/ern run --load-path ../mylib/build build/app/main.erc
 ```
 
 The shell's `:help` lists its commands; the language guide §9.3 teaches the shell, report §11.2 defines it, and [`design/shell.md`](design/shell.md) says how it is built.
-
-## What the toolchain accepts
-
-The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
-
-Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

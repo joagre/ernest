@@ -14,13 +14,15 @@ It does not run while the findings of the last one are open.
 - Each reader is an agent of its own. It is given its brief and the files it reads, and nothing that argues for them, such as the log or another reader's list.
 - A reader is handed `CLAUDE.md` as every agent is. Its brief stands in place of it and says so in one line, and the one rule of it a reader keeps is to leave untracked files alone. A cold reader, K or N, has read nothing but what its brief names: neither the log, the plan, a proposal, the code nor another reader's list.
 - What a brief needs of the log, the last counts and the earlier newcomers' programs, the session writes into it.
+- Before the briefs are written, the session searches the log since the last full review for what an entry left to it, and gives each a reader.
 - A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with the clone's `bin/ern`.
 - The readers read one commit, which the findings name, and run side by side.
-- An area too large for one reader is read in parts, each by a reader of its own with the same brief.
+- An area too large for one reader is read in parts the session cuts, each by a reader of its own with the same brief. A reader has no helpers.
 - An area a release review's reader read whole since the last full review is read again only where it changed since: the release review's findings name the commit it read, and `git diff` from it says what changed.
 - Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the reader asks whether anything still needs it, and the session reads in the log what each was for when it sorts the finding.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
-- A reader hands its list back as text and writes it to a file under the review's session's scratchpad, as [`agents.md`](../agents.md) says of an agent.
+- A reader hands its list back as text, and the session writes it to a file under its scratchpad, as [`agents.md`](../agents.md)'s *An agent's report* says.
+- Where the plan puts the principles review of [`principles.md`](principles.md) inside this one, the two run merged, so that each lens reads the report once. P carries that review's brief as well, in that file's parts, and K its additions over Appendix E. W is added, and the log's reader, its parts named PL so that they are not taken for this review's L. The principles findings stand under a heading of their own, as that file has them.
 
 Once the lists are in, the round:
 
@@ -29,6 +31,7 @@ Once the lists are in, the round:
 - An agent runs the program or the command a finding gives before it makes the fix, and hands back a line whose program does not show the defect.
 - What crosses between agents, a cause text, a frame's form, a glossary word, goes through the session as sentences, the report's sentence first.
 - The `decide` lines are a second round, with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Who decides* says; then built by agents as the `fix` lines were.
+- The order of the `decide` round and the fixes is the plan's to change for a run.
 - The session integrates: it builds the tree, runs `make test-full`, closes the seams between the agents' files, and reads every diff back before the commit.
 - `git status --short` is read before the readers start and compared after them and after a round, as [`agents.md`](../agents.md)'s *Before and after* says.
 
@@ -65,7 +68,9 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
   An outline that moves a numbered section of the guide says so, since the guide's numbers are cited. Each recut is `decide`, a chapter at a time.
 - **D, the documents.** Reads every tracked Markdown file but the report's three files, the guide, the log, the proposals under `docs/proposals/` and the fixtures under `test/`: `README.md`, `CLAUDE.md`, `CHANGES.md`, `CONTRIBUTING.md`, `SECURITY.md`, `ACKNOWLEDGMENTS.md`, `report/README.md`, `tour/README.md`, `examples/README.md`, `src/shell/README.md`, `editors/emacs/README.md`, `release/README.md`, `assets/README.md`, the Markdown under `site/` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Where a fact lives*). List every list that lives in two places, with the test that holds it equal, or none."
-- **C, the toolchain's code.** Reads the Erlang under `src/`, the Erlang and the scripts of `test/`, the pseudo-terminal's harness `test/fixtures/pty/pty.ern` among them, the Erlang and the scripts under `tools/`, the site's client, its stylesheet and its templates under `site/`, but the files `THIRD_PARTY_LICENSES` lists, the Makefiles, `bin/ern` and `editors/emacs/`, in six parts of about the same size: the front end (the lexer, the parser, the formatter and the utilities) with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; and the rest of the command line with `test/`, `tools/`, `site/`, the Makefiles and `bin/ern`. Each part's reader starts from its part's lines of `make cover`, `make sizes` and `make clones`.
+- **C, the toolchain's code.** Reads the Erlang under `src/`, the Erlang and the scripts of `test/`, the pseudo-terminal's harness `test/fixtures/pty/pty.ern` among them, the Erlang and the scripts under `tools/`, the site's client, its stylesheet and its templates under `site/`, but the files `THIRD_PARTY_LICENSES` lists, the Makefiles, `bin/ern` and `editors/emacs/`, in seven parts.
+
+  The parts are the front end, the lexer, the parser and the formatter, with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; the command line with the builder, `src/nodes/` and `src/shared/`; and `test/`, `tools/`, `site/`, the Makefiles and `bin/ern`. The session checks the cut against `make sizes` before the readers start. Each part's reader starts from its part's lines of `make cover`, `make sizes` and `make clones`.
 
   "Read the part whole, the sources and their tests, against `docs/code_style.md` and the report sections its comments cite. Report defects, comments that no longer hold, code that could be shorter and clearer, and every name that does not say what its value or its work is, or that names one thing two ways."
 - **E, the Ernest code.** Reads `src/stdlib/`, `src/shell/`, `src/libs/`, `examples/`, the programs of `tour/` and `tools/` in three parts, `src/stdlib/`, `src/shell/` and the rest, with the page `ern doc` writes of each module. Each part's reader starts from its part's lines of `make sizes` and `make clones`.
@@ -103,4 +108,4 @@ Who works a finding is *The findings*'s. An agent that makes a fix runs at the e
 
 ## Its cost
 
-Twenty-five agents, counting the parts of C, E and R, for most of a day; then the milestone the plan gives the findings.
+Twenty-six agents, counting the parts of C, E and R, for most of a day; the run of 2026-11-23, with the principles review inside it, took 36. At most 20 agents run at once, so the later readers wait for a slot. Then the milestone the plan gives the findings.

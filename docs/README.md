@@ -2,7 +2,7 @@
 
 The project's own documents: what each file and directory here is, and the READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/), each with a README of its own, and the tour, [`tour/`](../tour/).
 
-- **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
+- **[`development.md`](development.md)**: where things are, and how to build and test them.
 - **[`plan.md`](plan.md)**: where the project stands and what comes next.
 - **[`log/`](log/README.md)**: the dated rationale for the report and the plan, and what was rejected, a file a day. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
