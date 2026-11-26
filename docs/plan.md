@@ -28,8 +28,9 @@ outside the project depends on it, as MVP 4.4's opening says.
 ernest-epx and ernest-template, each told the verdict on every line of its feedback file
 by a message.
 
-**Next is MVP 4.4's item 5, the release of 0.11.0.** It opens with the decision the item
-names: what becomes of the feedback file's entries that no item of MVP 4.5 holds.
+**MVP 4.4's item 5, the release of 0.11.0, is open.** Every entry of the feedback file is
+held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*), and
+the release's step is next, from its fresh clone.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -103,14 +104,11 @@ the release, is what is left.
 5. **The release of 0.11.0**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
-   log's *The Layout Built*); the findings file gone, as it is since 2026-11-26, and the feedback file holding only entries
-   that an item of MVP 4.5 holds. It is tagged and published with no announcement, so that
-   the applications have a published floor.
-
-   **A decision for the user, first.** Of the feedback file's entries, 44 are held by no
-   item of MVP 4.5: 271, 275, 277 to 280 and 282 to 319. Most are the review's `felt`
-   lines. Each gets an item, joins an item that stands, or is dropped with its reason, or
-   the release's condition is narrowed to say what a `felt` entry waits for.
+   log's *The Layout Built*); the findings file gone and the feedback file holding only
+   entries that an item of MVP 4.5 holds, as both are since 2026-11-26 (the log's *The
+   Feedback Held by an Item*). A line the release review files as `felt` joins MVP 4.5's
+   item 176. It is tagged and published with no announcement, so that the applications
+   have a published floor.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
@@ -257,7 +255,7 @@ the site, since it sends a reader there. Its release is the launch.
    Each ends a run with status 0 or writes no fault's line. Each line of the known issues
    goes with its fix.
 
-## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
+## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about three weeks, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
@@ -271,9 +269,10 @@ later. On 2026-11-21 those that only a built corner, a test or the host alone sh
 lines of [`known_issues.md`](known_issues.md), each naming the item it was (the log's *The
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
-Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 174, 165, 166, 168 to 173 and 175, and item 167
-last, so that OTP's answer to its report may come first.
+Items 118 and 122 are taken first, since no reading of their kind has come back empty. Item
+176 follows, since a need met in use is what drives a change, then items 1 to 4, then items
+68, 96, 113, 158, 174, 165, 166, 168 to 173 and 175, and item 167 last, so that OTP's answer
+to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -339,6 +338,27 @@ What the line left, in the order it is taken:
   never sent, which E.18's "may" allows. Read from the host's driver and not shown: a
   write's milliseconds may also wait on the far end's taking of the write's own bytes,
   against E.18's sentence. This item starts from both and keeps the bound.
+- **176. The full review's feedback, decided**, from MVP 4.4's item 5, placed 2026-11-26
+  (the log's *The Feedback Held by an Item*): the 42 entries of
+  [`language_feedback.md`](language_feedback.md) that the full review and the builds
+  around it left, each a question where the report is true. Nothing is built before its
+  verdict.
+
+  They are decided by family, as the review's `decide` round was. The session searches the
+  log for each entry and runs its program, and writes a verdict for each line against §0
+  and E.0. The user answers once a family, taking a line out to decide it alone. A verdict
+  is a change to the report, built as an item of this milestone; a line of
+  [`known_issues.md`](known_issues.md); or a line of the log that drops the entry.
+
+  The families, in the order they are taken:
+  - what a first hour meets: 289, 294, 297, 305, 309 and 313;
+  - the language's rules: 278, 283, 286, 292, 295, 304, 308, 314 and 317;
+  - processes and calls: 287, 296, 300, 303 and 318;
+  - the library's functions: 275, 277, 279, 280, 288, 298, 306, 307 and 310;
+  - the system's modules and the terminal: 271, 285, 290, 291, 293, 299, 311 and 319;
+  - the toolchain: 282, 284, 302, 315 and 316.
+
+  A line that a release review files as `felt` before this item starts joins its family.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -393,6 +413,10 @@ What the line left, in the order it is taken:
   identity on every ask and a loop in every `receive`, and called none plain.
   ernest-httpd's session met the cost in a flood of resizes, past its backpressure. To
   decide: whether a plainer design exists, and whether the wait is marked.
+
+  Feedback 301 is decided with it. A system module's call with a limit is written two
+  ways, and they are the two waits this design reads: `Fs` through `Address.call`, and
+  `Tcp` and `Os` through `ern_rt:call_limited/2`.
 - **165. A test of the node's file that fails where `TMPDIR` is long**, from MVP 4.17's
   item 163 (the log's *The Known Issues Sorted*). `ern_os_tests:unopened_node_file_test`
   binds a Unix socket at the `ernest.pid` of a directory under `TMPDIR`, and fails with
@@ -429,6 +453,9 @@ What the line left, in the order it is taken:
   which costs an exception sentence in §4.2, in §4.8 and in Appendix F. The standard
   library writes `fn Int.compare` and `fn Int.negate`, and the three sentences go. No
   program meets the rule.
+
+  Feedback 312 is decided with it: the `compare` of `Bool`, `Char`, `Float`, `Int` and
+  `String` is one body written five times, in the lines this item rewrites.
 - **171. A member's heading in `ern doc`**, from the findings' *P1 17, PL1 L21*. §4.2
   refuses a member of an exported type and an exported value of the module of its name
   that share a name, since the page heads both `Main.Stack.compare`. `ern doc` heads a
@@ -529,4 +556,4 @@ What the line left, in the order it is taken:
 | The full review's findings before 0.11.0 | the 929 lines of the review run over `93a13b13`, the principles review inside it: 446 made as plain fixes or as defects a report sentence states, 431 decided with the user, 52 filed; and the 51 lines the three applications' reviews found of Ernest's, 9 fixed, 20 decided, 4 felt, 6 an item's and 12 dropped | 2026-11-26 | | `findings.md` as it stood at `ab68ef61`; the log's entries from 2026-11-23 to 2026-11-26 |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
 | MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, and five decisions from its item 4 | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, and the 42 entries of the feedback file that the full review left, decided by family | | | above |
