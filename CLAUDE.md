@@ -75,6 +75,7 @@ These are taste, and the log argues each.
 - No code is kept only to make it go faster.
 - No fixed sleep and no busy loop: a process waits on what it means.
 - A hole in a guarantee is answered first by a narrower promise, and by a mechanism only where the narrow one is not worth making.
+- An order the report does not give is kept only where the report's own text led a reader to it and a wait on a signal holds it at a fraction; otherwise the report states the host's order.
 - Ernest asks a machine for a new OTP, and nothing else new.
 
 ## Honest reports
