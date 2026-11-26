@@ -91,6 +91,12 @@ with the last read before its tag; item 3; item 4; and item 5 last.
    Lines Decided*): a command's environment, *H39*, and a client's renegotiation,
    *H53*, are built for 0.11.0; a call's wait under a backlog, *H54*, is MVP 4.5's item
    174; and `Http.filePath`, *H59*, stays, with its page's two sentences.
+
+   A fourth came on 2026-11-26, its entry 61, written after the message that answered 35
+   to 60 (the log's *The Applications Told Again*). E.18 does not say that `Tcp.ipAddress`
+   answers `None` for an IPv4 part written with a leading zero, `192.0.2.07`, which is the
+   host's strict reading and what 0.11.0 does. E.18 gains the clause, with a test, for
+   this milestone's release.
 2. **The release of 0.11.1**, by `docs/reviews/release.md`'s step. It is 0.12.0 where a
    mend of item 1 changes a frame or the form, since a patch moves neither (report §8.7),
    and the milestone's other items then name that release.
