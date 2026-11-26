@@ -27,15 +27,16 @@ leg: the report written from the copy, the renames of *The Library's Names*, and
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
 standard library with the libraries, the cli, the shell and the tests are done, three
 Fable rounds are held, and the report's own decided lines are written. The guides, the
-tour and the front pages are written. Next are the report's twelve sentences that an audit
-found missing, a build of what it found missing in the code, and `docs/`.**
+tour and the front pages are written. The decided lines without
+a closing bullet are audited and the report's missing sentences written. Next are a build
+of what the audit found missing in the code, an unchecked address first, and `docs/`.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages*.
+and the Front Pages* and *The Decided Lines Audited*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -251,8 +252,8 @@ says what is left once its readings are in, and no figure stands until then.
       The guide's writer found four decided sentences of the report unwritten, each of
       a line with two owners. Two readers audited the decided lines that carried no
       closing bullet, one against the report and one against the code
-      (`leg4/builds/audit/`). The report lacks the sentences of twelve lines, which
-      are written as three scripts and read cold, and go into the tree next. The code
+      (`leg4/builds/audit/`). The report lacked the sentences of twelve lines, which
+      are written and read cold (the log's *The Decided Lines Audited*). The code
       lacks four things, *U 12*'s test of a guide's quoted line among them, and a
       fifth was found beside them: an address given to a function value that foreign
       code gave stands behind no check, where §8.4 has one. One build takes the

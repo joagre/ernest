@@ -151,7 +151,7 @@ In a root package (§11.9), `--verbose` writes after the build root the manifest
 
 **Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's or the shell's source root (§4.2) uses that root, and a path under the root package's `src` uses that `src` (§11.9). Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. In single-file mode without `--source-root`, a file's namespace is its path from the current directory: `ern build net/http.ern` compiles `Net.Http`, and `ern build app/net/http.ern` compiles `App.Net.Http`.
 
-Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` and `build/shell` beside the toolchain for the toolchain's own source roots (§4.2), where their modules are built, and to the root package's `build` where the source root is its `src` (§11.9).
+Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and for each of the toolchain's own source roots (§4.2) to its build root beside the toolchain, where its modules are built, and to the root package's `build` where the source root is its `src` (§11.9).
 
 **Path shape.** The name of each `.ern` file compiled, and of each directory between it and the source root, is one or more words joined by single `_`, a word being a lowercase letter followed by lowercase letters and digits: `http`, `httpv2`, `ordered_set`. Extensions are `.ern` and `.erc`.
 
@@ -859,7 +859,7 @@ The host's terms for Ernest's values at the boundary of §8.4, and the term a pr
 
 - `Process` → the process's pid, its host identity.
 
-- `Address(m)`, function values → opaque handles foreign code may pass back but not inspect.
+- `Address(m)`, function values → opaque handles foreign code may pass back but not inspect. Foreign code but the runtime's own sends to an address that crossed into it (§8.4) with the host's send, `Address ! Term`, `Term` the message's term by this list. It calls a function value that crossed into it as the host calls a function of its arity, `Function(Term1, ..., TermN)`, each argument its term by this list, and the call returns the function's result as this list gives it.
 
 - `Reply(a)` → `{Alias, Pid}`, the call's alias and the caller's process: foreign code answers `v` by sending `{Alias, v}` to `Alias`, and a reply it makes names the process `Process.fromReply` answers.
 

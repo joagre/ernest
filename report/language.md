@@ -405,7 +405,7 @@ The type of an exported declaration, and the field types of an exported type tha
 
 `Ernest` is taken too, with every namespace under it; the toolchain's own Ernest stands there, the shell as `Ernest.Shell` (§11.2). `ernest.ern` at the source root and `ernest/shell.ern` under it are errors as `io.ern` is, and a program names nothing under `Ernest`: `Ernest.Shell.main` is an unknown name, said so.
 
-No segment of a module namespace, at any depth, is a taken one, `Ernest` among them: `fs/entry.ern`, `fides/io.ern` and `fides/ernest.ern` are errors as `io.ern` is. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
+No segment of a module namespace, at any depth, is a taken one, `Ernest` among them: `fs/entry.ern`, `fides/io.ern` and `fides/ernest.ern` are errors as `io.ern` is. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to a build root of the toolchain's own. A file under one is compiled with it as the source root (§11.1); another source root is an error.
 
 The namespace of a library of the toolchain's own (Appendix G) is not taken. A program's module whose namespace is that of a library's module hides that module, the library standing last on the load path (**Qualified lookup**, §11.2). A qualified name unknown under the namespace of a module that hides a library's module has a help line naming the two, the module by the file the job took for it, a source or a compiled form, its path written as §11.5 writes one: `help: Json here is json.ern, which hides the library Json; give it another name to reach the library's`. At the prompt the `:load` that would put the name in scope is the answer where §11.2 gives one. A program's module under a library's namespace hides nothing where no module of the library has its namespace: `time/zone.ern` provides `Time.Zone` beside the library's `Time`.
 
@@ -492,7 +492,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 A type's operations are functions of its module. A member, `fn T.f` or `foreign fn T.f`, is declared only for what the language resolves by the operand's type: an operator of §2.6, `compare` (§3.10), and `negate` (§5.1); a `let` declares no member. A type whose declaration ends in `derives compare` has that member without declaring it (§3.5). A function declaration may end in a requirement, which names members of its type variables (§4.9).
 
-A member is reached by what resolves to it alone, the operator of §4.8, prefix `-` (§5.1) and `compare` (§3.10); its name, `T.f` and a requirement's `a.f`, stands in a declaration and in a requirement and in no expression, where it is an error naming the operator to write: `Int.negate(x)` is written `-x`, and `Int.compare(a, b)` is written `compare(a, b)`. A program that needs an operation as a value writes the lambda, `fn(x) = -x`. A module reaches its abstract type's constructors by being its module (§4.4).
+A member is reached by what resolves to it alone, the operator of §4.8, prefix `-` (§5.1) and `compare` (§3.10); its name, `T.f` and a requirement's `a.f`, stands in a declaration and in a requirement and in no expression, where it is an error naming the operator to write: `Int.negate(x)` is written `-x`, and `Int.compare(a, b)` is written `compare(a, b)`. A module reaches its abstract type's constructors by being its module (§4.4).
 
 ### 4.6 Bindings
 
@@ -568,27 +568,14 @@ A `fn` in a block declares a requirement for its own variables and shares the en
 
 A requirement is never inferred from a body: a declaration has the one it writes, and a derived `compare` the one §3.5 gives it. It is no part of a type scheme (§3.9); a declaration's requirement is recorded in the module's compiled interface (§11.1) and shown after its type (§11.5).
 
-An *operations record* is a record a program declares of the operations it uses on a type, filled from each representation's namespace (§5.6) and passed as an argument.
-
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Operations(s, a) =
-    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
-
-let hashed : Operations(Set(Int), Int) = Operations(..Set)
-
-let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
-
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
-
-fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
-    operations.toList(operations.intersection(operations.fromList(list),
-                                              operations.fromList(other)))
 ```
 
-`unique(["b", "a", "b"])` is `["a", "b"]`; `common([4, 2, 3], [3, 4, 5], ordered)` is `[3, 4]`, and with `hashed` the same elements in the hash set's order; `OrderedSet.fromList([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)])` is ordered by year, then month, then day.
+`unique(["b", "a", "b"])` is `["a", "b"]`, and `OrderedSet.fromList([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)])` is ordered by year, then month, then day.
 
 ## 5. Expressions
 
@@ -668,11 +655,18 @@ In `let p : T <- e`, `T` is the type of `p`, the value inside. The sum type is d
 
 A field of a field is updated through a *path*: `Pool(..pool, stats.indexed = e)` is `Pool(..pool, stats = Stats(..pool.stats, indexed = e))`, with `pool` evaluated once. A path stands in a record update only, and each type along it has one constructor with the named field. Two paths may share a prefix, `stats.indexed` beside `stats.hits`; neither may be a prefix of the other, and no path is given twice. The base is evaluated first, and the field expressions in source order (§5.1). A path that reaches a type with several constructors or none, or a field whose type is not determined, is reported at the path, naming the type reached; two paths of which one is a prefix of the other are reported at the second, with the first labeled.
 
+An *operations record* is a record a program declares of the operations it uses on a type, filled from each representation's namespace and passed as an argument:
+
+```ernest
+type Operations(s, a) =
+    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+```
+
 `Operations(..Set)`, a *fill*, names a namespace after `..` and takes each field not given beside it from the declaration of its name in that namespace that the use site may name (§4.2), at the field's type; a namespace may stand alone after `..`, and `Operations(..OrderedSet, toList = mine)` takes the field given and fills the rest. The name after `..` is a namespace where it is a qualified name of type names alone, a constructor of the same name notwithstanding, and an expression otherwise. `..Prelude.N` is refused: `Prelude.` reaches a name, not a namespace (§4.2).
 
-A field with no declaration of its name in the namespace is an error naming the field and the namespace: `` `Operations(..Set)` lacks isSubset: Set has no isSubset ``. A field whose declaration there has another type is a type mismatch naming the field and the declaration, `` `Operations(..Set)` fills size with Set.size: expected ..., found ... ``, the constructor labeled with the field as declared. A fill's error is reported at the namespace after `..`.
+A field with no declaration of its name in the namespace is an error naming the field and the namespace: `` `Operations(..Map)` lacks intersection: Map has no intersection ``. A field whose declaration there has another type is a type mismatch naming the field and the declaration, `` `Operations(..Set)` fills fromList with Set.fromList: expected ..., found ... ``, the constructor labeled with the field as declared. A fill's error is reported at the namespace after `..`.
 
-A declaration with a requirement (§4.9) fills a field with its members supplied at the field's type, which the construction's type must fix; where that type leaves the requirement's variable undetermined, the fill is an error naming the declaration and the variable, whose help asks for an annotation: `let ops = Operations(..OrderedSet)`, with §4.9's `Operations`, is refused, `OrderedSet.fromList needs a.compare, and the record's type leaves the variable a undetermined`. A fill whose requirement the enclosing declaration does not declare is an error naming the declaration, the enclosing one and its variable, `OrderedSet.fromList needs b.compare, which g does not declare` in `fn g(list : List(b))`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
+A declaration with a requirement (§4.9) fills a field with its members supplied at the field's type, which the construction's type must fix; where that type leaves the requirement's variable undetermined, the fill is an error naming the declaration and the variable, whose help asks for an annotation: `let ops = Operations(..OrderedSet)`, with the `Operations` above, is refused, `OrderedSet.fromList needs a.compare, and the record's type leaves the variable a undetermined`. A fill whose requirement the enclosing declaration does not declare is an error naming the declaration, the enclosing one and its variable, `OrderedSet.fromList needs b.compare, which g does not declare` in `fn g(list : List(b))`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
 
 A field given the value its own name names in scope may be written once, `=seen` for `seen = seen`, a *pun*: `Snapshot(=directory, =seen)` is `Snapshot(directory = directory, seen = seen)`. A pun stands beside the other forms, `Snapshot(=directory, seen = s)`, `Snapshot(..p, =seen)`, `Operations(..Set, =toList)`. A pun names a field: `Some(=x)` is a type error, `Some has one positional field`, with the help ``write `Some(x)` ``.
 
@@ -794,7 +788,7 @@ A function that calls a function argument runs it in the caller's process and is
 
 The one silence in the language is an act on what has ended, or cannot be reached, that asks nothing back, which does nothing and says nothing: a message whose receiver has ended or restarts (§6.9), or whose request has timed out or been answered, is dropped; a message or a `kill` to a process whose node is out of reach or not listed vanishes, while the process may live on (§8.7); and a `kill` (§6.9), a close, a `give` or a `closeInput` of a resource that has ended (Appendix E.18, E.23) does nothing. A program's end keeps no promise (§8.6). Every other failure is a value, a message, or a fault (§7).
 
-`spawn(f)` starts a process on the running node that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The mailbox type `n` of `f` appears in `Address(n)` and so is a type (§3.9). An `f` that receives nothing fits, as such a function fits wherever one receiving `n` is expected, and `n` is then what the context makes it: a process that never receives is spawned as any other, and what is sent to its address waits in a mailbox nothing reads.
+`spawn(f)` starts a process on the running node that runs `f()` and returns its address. `self()` inside `f` is the new process's address. The mailbox type `n` of `f` appears in `Address(n)` and so is a type (§3.9). An `f` that receives nothing fits, as such a function fits wherever one receiving `n` is expected, and `n` is then what the context makes it: a process that never receives is spawned as any other, and what is sent to its address waits in a mailbox nothing reads.
 
 Where nothing has fixed `n` by the end of the definition the spawn is written in (§4.8), or of the shell's input (§11.2), and no call fixes it (below), `n` is *unfixed*, and is `Never` (§9.1): a top-level `let p = spawn(fn() = Io.println("x"))` binds `p : Address(Never)`, to which nothing can be sent. Definitions that name one another end together (§3.9), and where a name in scope around the definition holds `n`, the same is asked at the end of the definition around it.
 
@@ -865,7 +859,7 @@ The report of a caller's fault names the callee's site after the cause, where th
 
 Where the caller's own program ends, the caller ends with it. A request handed on to another process is watched only at the process it was sent to.
 
-`answer(r, v)` sends `v` to the caller. A call's reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits. A server that cannot answer a request yet keeps its reply as it keeps any value, in a list or a map, and answers it when it can.
+`answer(r, v)` sends `v` to the caller. A call's reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits.
 
 ### 6.7 Remote computation
 
@@ -1460,6 +1454,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **canonical form** — the term a definition's hash is taken of: its typed tree after checking, its locals numbered, its names resolved, each reference the identity of what it names. §11.1, Appendix H.
 - **carrier** — the host's distribution, over which nodes connect, as a node runs it. §12.5, §10.
 - **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 names the sections that state one. §7.3, §7.4.
+- **chain** — the process at the head of a process's spawns and every process that one started, directly or through one it started. §6.5, Appendix E.24.
 - **child** — a process of a `Supervisor`'s group, which its supervisor restarts. Appendix E.22.
 - **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
 - **code frame** — the exchange's frame that carries one definition's canonical form. §12.7.
@@ -1486,6 +1481,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **doc comment** — `///`, not followed by a fourth `/`, to end of line; attached to the following declaration. §2.2.
 - **effect polymorphism** — a mailbox type that is a type variable, an effect variable. §3.9.
 - **effect position** — the type after `receiving` in a function type. §3.9.
+- **effect variable** — a type variable that is a function type's mailbox type, bound at a call to a mailbox type or to none. §3.9.
 - **entry point** — the function run in the entry process: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
@@ -1495,11 +1491,14 @@ Every technical term this report introduces, with a gloss and the section that d
 - **fault** — the end of a process with the reason `Fault(cause)`, or its restart where it restarts (§6.9). §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
 - **fill** — `C(..N)`, a construction whose fields not given are the declarations of their names in the namespace `N`. §5.6.
+- **find** — `Peer.find`: the peers listed under a service's name asked, in the order listed, for the address offered under it. §8.7, Appendix E.27.
 - **floor** — one major and minor release of `ern` on one major release of OTP, or one development build of `ern`, on which nodes of different builds connect. §8.7, §12.5.
 - **foreign address** — an address foreign code gave that names no process of the program, or that names one at another type than its address crossed at; what is sent to it crosses into foreign code. §8.4.
+- **foreign code** — code outside the language, in the runtime's language: a foreign function's implementation or a foreign process's. §4.7, §8.4.
 - **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.
 - **foreign process** — a process whose implementation lies outside the language, the system processes among them; §8.4 says which of its messages are checked. §8.4.
 - **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
+- **form** — in Appendix E, an operation of the standard library that is called where it is named and is no value, as `Peer.spawn` is; elsewhere a construct of the language (§0), or the canonical form. Appendix E.
 - **frame** — a message of the runtime's own between nodes, one of the seventeen §12.6 lists; and a line of a trace, a function of the host's stack (Appendix E.21). §12.6, Appendix E.21.
 - **generalization** — quantifying free type variables in a `fn` definition, a top-level `let`, or a block `let` that binds a lambda. §3.9, §4.6.
 - **grapheme** — an extended grapheme cluster, what a reader sees as one letter, which `String`'s sizes and indices count. Appendix E.5.
@@ -1511,6 +1510,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
 - **hide** — to be the one found where two share a namespace or a spelling: a module before a later root's, a module's declaration before the prelude's, a binding before a declaration's or the prelude's. §4.2, §11.1.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
+- **host** — the host runtime Ernest runs on, a rule of which is Ernest's only where the report states it as Ernest's own. §0.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
 - **interrupt** — the host's signal `SIGINT`, which ends the Ernest program at once; sent to a running program by `Os.signal`. §8.6, Appendix E.23.
@@ -1537,7 +1537,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **`Never`** — the type with no values; as a mailbox type, a process that cannot receive. §3.7, §6.8.
 - **node** — one running runtime, started with a configuration directory and identified by its key. §8.3, §8.7.
 - **offer** — a service made findable by `Peer.offer`, for as long as its process lives. Appendix E.27.
-- **operations record** — a record a program declares of the operations it uses on a type, filled from each representation's namespace and passed to code written once over them. §4.9.
+- **operations record** — a record a program declares of the operations it uses on a type, filled from each representation's namespace and passed to code written once over them. §5.6.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
@@ -1569,6 +1569,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **request-reply** — `Address.call` sends a request that carries a `Reply`, and the callee answers it with `answer`. §6.6.
 - **requirement** — `needs a.compare` after a function's result type, naming members of its type variables that the body reaches through the operators and `compare`, and a call supplies without writing. §4.9.
 - **reserved word** — a word the grammar keeps for itself. §2.4.
+- **resource** — the address of a socket, a listener or a program the runtime started, or a `Clock.Alarm`; a library's is a foreign type. §3.11.
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.
 - **rigid** — of a type variable an annotation names, which means every type its inferred restrictions admit. §3.9.
@@ -1582,6 +1583,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
 - **sequence** — a container with order and position, a list, whose vocabulary adds `reverse`, `take` and the rest. Appendix E.0.
 - **service** — a top-level binding that holds a process's address, §6.5; to the node's peers, a `Peer.Service(m)`, the service's name at its message type, under which its address is offered and found, §8.7, Appendix E.27.
+- **service binding** — the top-level binding that a service is, which grants the permission its address is to the modules that see it. §6.5.
 - **service monitor** — `monitorService(p, wrap)`; a monitor that also sends `wrap(d)` with the reason `Restarted` at each restart of `p`, and stands until `p` dies. §6.9, §9.5.
 - **session** — a shell's run on a node: its declarations, their scope and its inputs' processes; a node has many at once, each with a number. §11.2.
 - **session's own process** — a process the shell runs to serve a session, the session's, its reader's or its screen's, which `Process.live` leaves out. §11.2, Appendix E.21.
@@ -1591,7 +1593,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
 - **`spawn`** — `spawn(f)`, starts a new process; `spawnMonitored(f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give; a session's under its namespace, `$Session2.input 3:1`. §6.9, §11.2.
-- **standard library** — the modules under `src/stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
+- **standard library** — the modules that ship with the compiler, on the load path by default; not the prelude. §9, Appendix E.
 - **start number** — the number the host gives each start of a node, carried in every address of its processes. §8.7.
 - **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
 - **statement** — a part of a block, an expression, a `let`, or a `fn`. §5.4.
@@ -1623,3 +1625,4 @@ Every technical term this report introduces, with a gloss and the section that d
 - **version text** — the toolchain's version as `ern --version` writes it, `0.11.0`, and `0.11.0-dev` or `0.11.0+1a2b3c4d` for a build that is no release. §11.7.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
+- **wrap** — the function a `monitor` or another function that delivers later takes, from what it delivers to the caller's mailbox type, which the runtime applies as it delivers. §6.9, Appendix E.0.

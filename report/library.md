@@ -126,7 +126,7 @@ export fn main() : Unit = {
 
 ## Appendix E. Standard Library
 
-A function enters this appendix by E.0's rules before it enters `src/stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under `src/stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, and the marks are part of its contract: `List.contains : (List(a=), a=) -> Bool` takes elements that `==` compares. A module's own types are written there without its namespace. `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute`, `Peer.computeAnywhere` and `Code.running` are forms, and their listing lines carry the comment `a primitive, called where it is named (§3.11)`.
+A function enters this appendix by E.0's rules before it enters the standard library's source root (§4.2). The listing that follows is what E.0 has admitted, the modules that ship with the compiler, written as ordinary Ernest files under that root. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, and the marks are part of its contract: `List.contains : (List(a=), a=) -> Bool` takes elements that `==` compares. A module's own types are written there without its namespace. `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute`, `Peer.computeAnywhere` and `Code.running` are forms, and their listing lines carry the comment `a primitive, called where it is named (§3.11)`.
 
 The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
@@ -167,6 +167,8 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none.
 
+   Two pairs are two ways to one value: `toString` of a number or a `Bool` and `Io.show` (E.1), and `Process.current()` and `Process.fromAddress(self())` (E.21).
+
    A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote. A published specification, a date, a pattern language, a format, a protocol, is a library's and no module's vocabulary, but for the one text form of a time the toolchain's own lines write (§11.2), which E.15 states as E.9 states `Float.toString`'s.
 3. It is a general operation of the type, and its definition is the obvious one: `List.foldRight`, `Float.sqrt`.
 
@@ -179,11 +181,11 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    The vocabulary is admitted whole, whether or not one of its functions composes others: `Map.contains` is in, though it is `isSome` of `get`. `Io.debug` is kept alone, by name.
 
-   An operations record and a function over one are the program's (§4.9): no module declares one.
+   An operations record and a function over one are the program's (§5.6): no module declares one.
 
 Eleven *shape rules* give a function its shape. The shape rules hold in every library; the admission rules in the standard library alone.
 
-1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's or a sleep's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
+1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's or a sleep's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`.
 
    The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `fold`, `forEach`, `any`, `all`, `find`, `fromList`, and `toList`, and a container with an order folds by `foldLeft`, in that order, in place of `fold`; the sum-type operations are `withDefault`, `map`, and `andThen`.
@@ -493,7 +495,7 @@ Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 
 The module holds the operations of the type itself. The primitives are `toString`, `div`, `truncate`, `floor`, `ceil`, and the functions of the host's floating-point library beneath `sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, and `atan2` (E.0 rule 1). `div` is the host's `/` with its raise answered as `None`. `toString` lays out again, in the host's language, the shortest form the host's `float_to_binary` gives with `short`, as `Io.show` lays out a `Float` (E.1).
 
-`Float.toString` gives the shortest digits that read back as the same value. From 0.0001 to below 1.0e16 in magnitude, and at `0.0`, it writes them plain, with at least one digit after the point: `0.001`, `123.0`. Beyond, it writes one digit, the point, at least one more digit, and the exponent: `1.0e16`, `1.5e-7`. The exponent's sign is written only when it is negative. Mathematics over collections of floats, statistics, matrices, and numerical methods, is a library.
+`Float.toString` gives the shortest digits that read back as the same value. From 0.0001 to below 1.0e16 in magnitude, and at `0.0`, it writes them plain, with at least one digit after the point: `0.001`, `123.0`. Beyond, it writes one digit, the point, at least one more digit, and the exponent: `1.0e16`, `1.5e-7`. The exponent's sign is written only when it is negative.
 
 ```
 Float.abs : (Float) -> Float
@@ -546,7 +548,7 @@ Either.fromOptional : (Optional(a), e) -> Either(e, a)
 
 `Term` is the foreign type of any value of the runtime (§3.8). Its functions are primitives (E.0 rule 1). `term` gives its value as the runtime holds it, the form in which a foreign function receives an argument of the value's type (§8.4), by the type at which the name is used, as a callee or an argument, which is known whole there, as `Io.show`'s is (E.1). On a type variable, and on a type that contains one, it is a type error, and no requirement names it.
 
-`atom` makes the Erlang atom of a text, for a shim over an Erlang function that takes one. An atom is never freed while the node lives, and a node holds at most a number of atoms its host fixes, so `atom` is given the names a shim needs, never text a program receives. An `atom` past that number ends the node, as a load past it does (§11.2). A text longer than 255 characters makes no atom, and `atom` faults as a foreign function that raises does (§12.3).
+`atom` makes the Erlang atom of a text, for a shim over an Erlang function that takes one. An atom is never freed while the node lives, and a node holds at most a number of atoms its host fixes. An `atom` past that number ends the node, as a load past it does (§11.2). A text longer than 255 characters makes no atom, and `atom` faults as a foreign function that raises does (§12.3).
 
 An Erlang function that answers `{ok, V}` or `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s encoding, `{'Right', V}` or `{'Left', R}` (§12.2).
 
@@ -564,7 +566,7 @@ Foreign.atom : (String) -> Term // the Erlang atom of the text
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
 
-The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `Seed` is an abstract type made by `seed`: a seed is a value like any other and crosses nodes, and the same seed gives the same sequence everywhere. A program that wants a fresh seed takes `Clock.now()`.
+The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `Seed` is an abstract type made by `seed`: a seed is a value like any other and crosses nodes, and the same seed gives the same sequence everywhere.
 
 ```
 abstract type Seed
@@ -605,9 +607,9 @@ A time, a duration and a monotonic reading are each an `Int`, of milliseconds bu
 
 `sleep(ms)` waits `ms` milliseconds, counted as `monotonic` does, and takes no message, the mailbox being as it was; a fault waiting in the mailbox, one an adapted address's function met on its way to the process (§6.5) or a foreign message that does not match (§8.4), or a restart asked for (§6.9), reaches the wait as it reaches a `receive`, and the sleep's time is corrected as §7.4 says. Its cost grows with the messages waiting (§10). It is the one wait for a time alone (§6.3, §6.8).
 
-An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and a periodic tick is scheduled after the previous one is handled.
+An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once.
 
-`alarm` and `alarmAt` answer the alarm as an `Alarm`, an abstract type bound to its node (§3.11), on which `==` is the runtime's (§3.10). `cancel(alarm)` ends an alarm that has neither fired nor ended and answers `true`, and the alarm's message never comes; it answers `false` and leaves the alarm where its message has come or is on its way, or the alarm had ended, a fired alarm's message being delivered as any alarm's is (§6.9). An alarm a program will not cancel is set with `let _ =` (§5.4). Any process of the node that holds the alarm may cancel it. A restart of the process that set an alarm cancels it, and one that fires after its process has ended delivers nothing (§6.9).
+`alarm` and `alarmAt` answer the alarm as an `Alarm`, an abstract type bound to its node (§3.11), on which `==` is the runtime's (§3.10). `cancel(alarm)` ends an alarm that has neither fired nor ended and answers `true`, and the alarm's message never comes; it answers `false` and leaves the alarm where its message has come or is on its way, or the alarm had ended, a fired alarm's message being delivered as any alarm's is (§6.9). Any process of the node that holds the alarm may cancel it. A restart of the process that set an alarm cancels it, and one that fires after its process has ended delivers nothing (§6.9).
 
 ```
 abstract type Alarm // an alarm set, until it fires, is canceled or its process ends
@@ -627,7 +629,7 @@ Over the terminal's system reference (§8.2). The primitives are `subscribe`, wh
 
 `width` is Ernest over a table built from the East Asian Width, emoji, and general category data of Unicode 17.0, the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it.
 
-The terminal speaks ECMA-48: `subscribe` decodes its keys from it, and `width` reads its sequences in a string; the library `Ansi` writes them (Appendix G.3). `Event` names what the runtime decodes whole, a character, the four arrows, `Escape`, the interrupt, a paste and a resize; every other sequence arrives as `Escape` and its characters, from which a library names the rest.
+The terminal speaks ECMA-48: `subscribe` decodes its keys from it, and `width` reads its sequences in a string; the library `Ansi` writes them (Appendix G.3). `Event` names what the runtime decodes whole, a character, the four arrows, `Escape`, the interrupt, a paste and a resize; every other sequence arrives as `Escape` and its characters, from which a program names the rest.
 
 ```
 type Size = Size(rows : Int, columns : Int)
@@ -653,7 +655,7 @@ A function follows the symbolic links of the paths it is given, but for a path's
 
 `makeSymlink`, `makeHardLink` and `makeFile` answer `Left(Exists)` where the path they make names something, and `readLink` answers `Right(None)` for a path that names anything but a link and `Left(NotUtf8(target))` for a link whose target is not. `makeHardLink` makes a second name for a regular file: a second path that names anything else, a link among them, answers `Left(NotAFile)`. `makeDir` alone of the functions that make an entry answers `Right(Unit)` where its path names a directory: a directory that stands is what was asked for, and a file that stands holds what the caller did not write.
 
-`makeTempDir` makes a directory in the host's directory for temporary files, the one `TMPDIR` names where `Os.environment` reads it set and not empty (Appendix E.23), and `/tmp` where it does not. Its name is `ern-` and sixteen lowercase hexadecimal digits drawn at random, drawn again where an entry has that name. It is made as `makeDir` makes a directory, and its path, the temporary directory's path joined with its name, is answered once its mode is set to `0o700`, and it holds nothing then. It stays until the program removes it.
+`makeTempDir` makes a directory in the host's directory for temporary files, the one `TMPDIR` names where `Os.environment` reads it set and not empty (Appendix E.23), and `/tmp` where it does not. `makeTempDir` faults its caller where `TMPDIR` is not UTF-8, as `Os.environment` does (Appendix E.23). The directory's name is `ern-` and sixteen lowercase hexadecimal digits drawn at random, drawn again where an entry has that name. It is made as `makeDir` makes a directory, and its path, the temporary directory's path joined with its name, is answered once its mode is set to `0o700`, and it holds nothing then. It stays until the program removes it.
 
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
@@ -707,7 +709,7 @@ A listener holds the connections the program has not yet accepted, and as many s
 
 `close` and `closeListener` answer each read, write or accept the socket or the listener has taken and holds waiting with `Left(Closed)` and end its process; the bytes of a write so answered may have been taken, and are then sent as below. `closeListener` answers once the listener has ended and its host socket has closed, and at once on a listener that has ended already. `kill` ends a socket or a listener as it ends any process, a call waiting on it answering `Left(Closed)` and a `Forever` form's faulting as §6.6 says, and a listener's host socket closes either way.
 
-`close` answers once the socket's bytes and, over TLS, the record that ends the connection are with the kernel, or the bytes are dropped, as below. Where the socket had ended already, by another close, a kill or its owner's death, or its handshake over TLS has not ended, it answers at once. It waits as `closeListener` does and takes no milliseconds: the bound below ends its wait, at most 3 minutes, and 10 seconds more over TLS. A program learns that the far end took what it wrote only from what the far end sends back.
+`close` answers once the socket's bytes and, over TLS, the record that ends the connection are with the kernel, or the bytes are dropped, as below. Where the socket had ended already, by another close, a kill or its owner's death, or its handshake over TLS has not ended, it answers at once. It waits as `closeListener` does and takes no milliseconds: the bound below ends its wait, at most 3 minutes, and 10 seconds more over TLS.
 
 However a socket ends, by `close`, by `kill`, by its owner's death or by the program's end, the bytes it has taken that the far end has not are sent while the far end takes them, until the runtime stops, by a process the socket makes as it ends, once the one that did its writes has ended. Those the far end has not taken 5 seconds after the end or after the last bytes it took, or 3 minutes after the end, are dropped and the connection is reset. The host's socket then closes. The bound is over what the host's driver holds; what the kernel's own buffer for the socket took is sent on the kernel's time, which the close does not touch.
 
@@ -791,7 +793,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 `Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `fromReply`, which reads the caller's process a `Reply` carries (§12.2), `peer`, which reads the node a process is on and the runtime's record of its peers, a private one beneath `subscribeFaults`, which reaches the runtime's report of faults, and two private ones beneath `run`: the site the compiler passes `run`, where its call is written, as it passes a spawn its own (§6.9), and a monitored spawn at that site (E.0 rule 1).
 
-A `Process` is the identity of a process (§6.5). It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` and `kill` take one (§6.9). Across nodes a `Process` names its node.
+A `Process` is the identity of a process (§6.5). It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` and `kill` take one (§6.9). Across nodes a `Process` names its node. `Process.current()` is the short form of `Process.fromAddress(self())`.
 
 `status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, for one the runtime did not start (§8.4), and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
 
@@ -884,7 +886,7 @@ Over Os's system reference (§8.2). The primitives are `start` and `startTermina
 
 `arguments` is the list of the words after the module on `ern run`'s command line (§11.2), `workingDirectory` is the absolute path of the directory the program was started in, and `user` is the host's number for the user the program runs as, which an entry of `Fs` is compared with (E.17), each bound when the program starts. Nothing in Ernest changes the working directory. A relative path given to `Fs`, or as a command's `workingDirectory`, is resolved against it; a program's name is resolved against the command's `workingDirectory`. A working directory the host can no longer read as the program starts, one removed since, faults `workingDirectory`'s initializer with `Fault("the working directory cannot be read: r")`, `r` the host's reason, which ends the program before `main` runs (§8.5).
 
-`environment(name)` answers the value of the program's environment variable of that name, or `None` where the host has none. The program's environment is the one `ern` was started in (§11). It is read once, when the program starts, and a value is decoded when it is asked for: one that is not UTF-8 faults the caller with `Fault("the environment variable n is not UTF-8")`, `n` its name. A name that occurs twice keeps its first value.
+`environment(name)` answers the value of the program's environment variable of that name, or `None` where the host has none. The program's environment is the one `ern` was started in (§11). It is read once, when the program starts, and a value is decoded when it is asked for: one that is not UTF-8 faults the caller with `Fault("the environment variable n is not UTF-8")`, `n` its name. The environment is of the program's start, as its arguments are, which are refused before anything runs where they are not UTF-8 (§11.2). A name that occurs twice keeps its first value.
 
 `exit(status)` ends the program as §8.6 ends it, with that status, and does not return; a status outside 0 to 255 faults the caller with `Fault("an exit status is from 0 to 255")`. In a process a session started, directly or through one it started, in a plain shell as in an attached one (§11.2, §12.1), and under `ern test` it faults the caller instead, a status `n` from 0 to 255 with `Fault("exited with status n")`; from a process of the shell's own it ends the shell with that status, and from a session's own on the node it attached to it faults as from the session's inputs (§11.2).
 
@@ -981,7 +983,7 @@ A function that needs the order declares `needs a.compare` (§4.9), and a call w
 
 The set is a sorted list, one shape per set: `put`, `contains` and `remove` are linear in the set's size, `fromList` is a stable sort and one pass, `n log n`, `map` and `filterMap` cost that beside the function's, and `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1).
 
-The program promises that the element type's `compare` is an order (§3.10) that says `Equal` only where `==` holds, where the type has `==`. A `compare` that is no order misorders the set: `contains` may miss an element the set holds, and two elements it calls `Equal` may both stay. One that says `Equal` where `==` does not hold makes `==` on two sets depend on which of two such elements each was given first. After a code replacement (§6.10) or a reload (§11.2) a set built under the old `compare` is read under the new.
+The program promises that the element type's `compare` is an order (§3.10) that says `Equal` only where `==` holds, where the type has `==`. A `compare` that is no order misorders the set: `contains` may miss an element the set holds, and two elements it calls `Equal` may both stay. One that says `Equal` where `==` does not hold makes `==` on two sets depend on which of two such elements each was given first. A set built under a foreign `compare` whose host code changed is read under the new.
 
 ```
 abstract type Set(a)
@@ -1144,7 +1146,7 @@ Code.running : (a) -> List(Address(m)) // a primitive, called where it is named 
 
 ## Appendix G. Libraries
 
-Informative, but for its list of libraries, which is what §11.1 and §11.2 put on the load path. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, whose build stands on the load path of every job (§11.1, §11.2); a program names none of them, and a program's module at the namespace of a library's module hides that module (§4.2): `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. The toolchain's own jobs call four of them, `Markdown`, `Ansi`, `Ets` and `Crypto`. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name.
+Informative, but for its list of libraries, which is what §11.1 and §11.2 put on the load path. The libraries this project writes, each a directory that is a source root of its own, whose build stands on the load path of every job (§11.1, §11.2); a program names none of them, and a program's module at the namespace of a library's module hides that module (§4.2): `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. The toolchain's own jobs call four of them, `Markdown`, `Ansi`, `Ets` and `Crypto`. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name.
 
 No library listed here is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere is used as a package (§11.9). It follows Appendix D and is not listed here.
 
@@ -1270,7 +1272,7 @@ A message that comes while the service is away and whose find fails goes to the 
 
 A find that answers `OtherType` (E.27) is no absence but a protocol the two builds disagree on, which no find mends: the process faults with a cause naming the service, `the service counter is offered at another type`, reported as every fault is (§11.2), and the address is dead from then on.
 
-The process ends with the process that called `start`, at a shell prompt the input's process (§11.2). It is an ordinary process: a message through it may pass one sent to the service directly, as through any process, and a program that is to monitor the service itself holds the address `Peer.find` gives.
+The process ends with the process that called `start`, at a shell prompt the input's process (§11.2). It is an ordinary process: a message through it may pass one sent to the service directly, as through any process.
 
 ```
 Proxy.start : (Peer.Service(m), Int) -> Address(m)
@@ -1349,7 +1351,7 @@ A header whose name holds anything but a token's characters or whose value holds
 
 `chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
-`writeRequest(socket, request, body, ms)`, `writeResponse(socket, response, body, ms)` and `writeChunk(socket, bytes, ms)` write to a socket of `Tcp` what `renderRequest`, `renderResponse` and `chunk` render, within `ms` milliseconds (E.0 shape rule 11). A `Left` is `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass, or, from `writeRequest` and `writeResponse`, `Protocol(Malformed)` for a header's value that holds a carriage return, a line feed or U+0000, text another party may have sent; the values are read first, and what else the rendering refuses faults the caller as it does there. A program over `Http` opens its connection with `Tcp` and speaks with these.
+`writeRequest(socket, request, body, ms)`, `writeResponse(socket, response, body, ms)` and `writeChunk(socket, bytes, ms)` write to a socket of `Tcp` what `renderRequest`, `renderResponse` and `chunk` render, within `ms` milliseconds (E.0 shape rule 11). A `Left` is `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass, or, from `writeRequest` and `writeResponse`, `Protocol(Malformed)` for a header's value that holds a carriage return, a line feed or U+0000, text another party may have sent; the values are read first, and what else the rendering refuses faults the caller as it does there.
 
 `date(time)` writes a time as RFC 9110's `IMF-fixdate`, `Sun, 06 Nov 1994 08:49:37 GMT`, over `libs/time`; `parseDate(text)` reads that form and the two obsolete ones the RFC has a reader accept, RFC 850's `Sunday, 06-Nov-94 08:49:37 GMT` and asctime's `Sun Nov  6 08:49:37 1994`, each in its own case and spacing with the day of the week the date's, RFC 850's two-digit year read against the clock as the year with those digits that puts the date not more than fifty years after now; it answers `None` for any other text.
 
