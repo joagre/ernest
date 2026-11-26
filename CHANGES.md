@@ -2,6 +2,149 @@
 
 Each release's note, newest first, from 0.7.0 on: what the release is, what a program written for the release before changes, and each change in one line naming the section where it is read.
 
+## 0.11.0, 2026-11-26
+
+Ernest 0.11.0 is the release of packages, and of the language, the library and the toolchain held against each other. A package is a directory with a manifest, `package.conf`, which names the packages its modules use, and `ern unpack` puts each under `lib` from its archive. In the library a function that subscribes says so in its name, one that waits without a limit is named `Forever`, and a socket, a listener or a started program that has ended answers `Left(Closed)`. `Bool` has an order. Foreign code's messages are checked at the type their address crossed at. A fault's line names its process, and a deadlock's report and `:processes` say who waits on whom. The shell edits an input of several lines, and every job says a refusal in one form. With it come the sentences of the report that were silent.
+
+A program written for 0.10.0 changes these things. Its modules are built again, since `ern run`, `ern test` and `Code.load` refuse a compiled form another build of `ern` wrote. A node of 0.11.0 and one of 0.10.0 do not connect, as two minor releases never do. Ernest 0.11.0 runs on Erlang/OTP 29, and on Linux a node needs a kernel of 5.3 or later. It is tested on Linux; on macOS the same steps are expected to work, and nothing there is verified.
+
+These names of the library changed. `Peer.computeAt(name, f, ms)` is `Peer.compute(name, f, ms)`, and what was `Peer.compute(f, ms)` is `Peer.computeAnywhere(f, ms)`. `Process.faults` is `Process.subscribeFaults`, `Os.termination` is `Os.subscribeTermination`, `Reply.process` is `Process.fromReply`, `List.span` is `List.splitWhile`, `OrderedSet.min` and `OrderedSet.max` are `OrderedSet.minimum` and `OrderedSet.maximum`, and `Ets.owned` is `Ets.ownedCount`.
+
+These types changed. `Random.nextInt` and `Random.nextFloat` answer the seed first, `#(Seed, Int)` and `#(Seed, Float)`, and `nextInt` draws from 0 to below its second argument, so `Random.nextInt(seed, 5)` is written `Random.nextInt(seed, 6)`; a bound below 1 faults. `Int.toStringBase` answers a `String`, and faults for a base outside 2 to 36. A command's `environment` is an `Os.Environment`: `Os.Inherited(variables)` where it was a list, or `Os.Only(variables)` for those variables alone. A pattern writes `Io.NotLoaded(_)` for `Io.NotLoaded` and `Process.Calling()` for `Process.Calling`. A `match` that covers `Process.Activity` names `Suspended`, and one that covers `Json.Error` names `RepeatedMember`. A `FaultReport`'s `callee` is an `Optional(Process.Callee)`, `Faulted(site)` or `Ended(site)`.
+
+These answers changed. `Bytes.toHex` writes lower-case letters. `Io.show` writes a process as `<process.84>` and an address as `<address.84>`. `Json.parse` answers `RepeatedMember` for an object that names a member twice, where it kept the last. A function of `Tcp` or `Os` that answers an `Either` answers `Left(Closed)` for a socket, a listener or a started program whose process has ended, where it faulted its caller. `Http.writeRequest` and `Http.writeResponse` answer `Left(Protocol(Malformed))` for a header's value that holds a carriage return, a line feed or U+0000, where they faulted. `Tcp.close` answers once the socket's bytes are with the kernel or dropped, where it answered as it was called. `Os.run` given 0 milliseconds answers `Left(Timeout)` and starts nothing, where it started the program.
+
+A failed read of standard input faults the process that asked, where it faulted the entry process. Foreign code gives and takes a `Set` as a set of Erlang's `sets` in its version 2, with no `{set, S}` around it, and a foreign function whose module the host lacks faults with `foreign function m:f/n: no module m on the load path`.
+
+The language refuses three things it accepted. A name twice among a function's parameters, `fn f(x : Int, x : Int)`, is refused. A module at the namespace of a library's module that another library's module uses, a program's `time.ern` beside `Http`, is refused where it is compiled or loaded, and at a node's start whether or not the program uses `Http`: the module is renamed. A spawn or a compute on a peer whose function receives a socket's, a listener's or a started program's messages is refused, the three message types being bound to their node.
+
+These options and texts of a job changed. `--main` takes the function's name alone, `--main check`, and refuses `--main Tools.check`. A refusal of a command line ends by naming `ern <job> --help`, and the job's usage is not written after it. A path that names nothing is `no such file or directory`, where it was `no such file` or `no such directory`. A fault's line reads `the process of Counter.worker:23 faulted: division by zero`, where it began with the site; the entry process's line is as it was. `ern test` writes a last line that counts its cases, `14 cases, 2 failed`, and refuses a module whose source has changed since it was compiled. `ern build file.ern` fails where a module the file uses has a source changed since its `.erc` was compiled. `ern build` writes each `removed build/old.erc` without `--verbose` too.
+
+`ern config --config-dir dir` on a directory that exists prints its public key and exits with status 0, where it failed. Under `--libs-dir` an application is its directory's name up to its first `-`, so `foo-bar` and `foo-1.0` are one application, and the two together are refused. `ern build`, `ern doc`, `ern run`, `ern test` and `ern shell` started in a directory that holds a `package.conf` read it as a manifest, and a job that walks a directory passes over a `lib` beside one.
+
+A node's `ernest.conf` holds no `public-key` and no `utilization`, and a node refuses a file that holds either, `the file has the unknown field public-key`: remove both fields. The node's key is `private-key.pem`'s, and `ern config --config-dir dir` prints its public key for another node's configuration to list. A node measures how busy it is by its run queue, and a program that wants another measure sets it with `Peer.setUtilization`.
+
+A script that points inside an installation finds another tree than 0.9.0's. The toolchain's modules stand under `lib/ernest/build`, `build/toolchain/<part>/ebin`, `build/shared/ebin`, `build/nodes/ebin` and `build/runtime/ebin`, where they stood under `lib/ernest/erl/<part>/ebin`, and the helper that runs a program is `lib/ernest/build/runtime/priv/ern_exec`. The standard library, the shell and the libraries stand under `lib/ernest/build` as before. Since 0.10.0 the build's own modules moved from `build/toolchain/cli/ebin` to `build/toolchain/builder/ebin`.
+
+Until 1.0 a release may refuse a program the previous release accepted. The report of this release is what holds. What changed since 0.10.0 is the report's diff, `git diff v0.10.0 v0.11.0 -- report/`.
+
+What changed:
+
+### The language and the report
+
+- Principle 1 overriding where a rule would make what is written mean other than predicted, and what principles 2, 3 and 5 say of a second way, of what a call supplies unwritten and of a constructor a covering `match` names: §0.
+- The toolchain held to principles 1 to 3, and a rule of Ernest's own holding at the host's limits: §0.
+- A wait of the runtime's own on a party outside the program ending without that party: §0.
+- `Bool` ordered, `false` before `true`, in `<`, in a derived `compare` and in a `receive` guard: §3.10, §3.5, §6.3, §9.6.
+- A type of several constructors taking a type's name for one of them, and the help where a type's one constructor is named as a type: §3.1.
+- `==` on a value of an abstract type outside its module, and what makes a type hold a function, an address or a reply: §3.10, §4.4.
+- A socket's, a listener's and a started program's message types bound to their node, and a peer's mailbox type, result type and captured types read at their definition's end: §3.11, §3.9.
+- A program's module that hides a library's module another module uses refused, the root one namespace, and the help where a module hides the one a name meant: §4.2, §11.1.
+- A name appearing once among a function's parameters: §4.5.
+- A top-level binding generalized where its initializer is a tuple, a list, a record update or a fill of values: §4.6.
+- What foreign code promises of a function it was given and of a value at a type variable: §4.7, §8.4.
+- The helps of a requirement's errors, of a mark written where none is, of an operand whose type nothing fixes and of a `receive` with an `after` alone: §4.9, §4.7, §4.8, §6.3.
+- An operations record stated with the fill that makes it: §5.6.
+- A guard read neither for redundancy nor for coverage, and the patterns a `match` that does not cover its type is told it lacks: §5.9.
+- A `send`, a call and a `Down` to another node waiting where 1 MB waits to be sent there, and what a death and a node's end do with what is not yet placed: §6.2, §6.6, §8.7.
+- An adapted address keeping nothing alive on the node that made it, and a fault in its function passing a message sent before it: §6.5.
+- A process found through `Code.running` of the function it runs, and what an exported function `Code.running` takes grants: §6.5, §6.10.
+- No `Restarted` after the `Down` of a death, two deaths' `Down`s in no order, and a `demonitor` ending the monitors whichever function asked for them: §6.9.
+- A fault's cause stated with its rule, a failed read of standard input faulting the process that asked, and what a function answers for an argument outside its domain: §7.4, §12.1.
+- What foreign code sends to an address checked at the type the address crossed at, in a process of the check's own, and what a function that crossed returns to foreign code crossing as an argument does: §8.4, §6.4.
+- A deadlock found within 100 milliseconds or a second, `Process.run`, `Test.faults` and `Code.load` among its waits, and none found while a shell holds the terminal: §8.6.
+- A termination ending the end's flush of pending output: §8.6, §12.4.
+- A node that stops in order: what its peers are told, what reaches it meanwhile, and a `Down` its end drops read as `Unreachable`: §8.7, §6.9.
+- A top-level function's qualified name in its hash, the hash of the type an address crossed at, and the form's version 3: §8.7, Appendix H.
+- What enters the prelude, `Io.debug` the standard library's, and `<>` on a list the runtime's own: §9, §9.4, §9.6.
+- What the runtime adds where it keeps a promise the host does not make, the cost of a raise, of a fault, of a record update and of foreign code's checks, and which process pays: §10, §12.9.
+- The glossary's terms of a package, of foreign code, of a wrap and of a process a session started: Appendix F.
+
+### The toolchain and the shell
+
+- A package, its manifest `package.conf`, the root package and its named packages under `lib`, their place on the load path, their namespaces, what `ern build` holds them to, and what a version promises from 1.0.0: §11.9.
+- `ern unpack`, which puts each named package under `lib` from its archive, checked against its `sha256`: §11.9, §11.
+- `--package-dir` of `ern run`, `ern test` and `ern shell`: §11.9, §11.7.
+- A refusal written after its job's name, one cause one text in every job, and a refusal of a command line's form naming the job's `--help`: §11.
+- A path that names nothing refused as `no such file or directory`, and a name that reaches no regular file never opened as one: §11, §11.7.
+- A path of the command line made absolute and resolved once, and a control character in a refusal written as its escape: §11, §11.5.
+- What a job trusts, holding what it reads to no owner and no mode but for three tests: §11, §12.5.
+- The host started without `ERL_OTP29_FLAGS`, `ERL_ROOTDIR` and `ERL_MAX_PORTS` too, and what it logs written with its time: §11.
+- A single-file build compiling the source it is given and no other, and failing where a module it uses has a source changed since its `.erc` was compiled: §11.1.
+- A stale `.erc`'s removal said with `--verbose` or without, the advice where a `.erc` holds another namespace, and a file whose name does not end in `.ern`: §11.1.
+- A file refused for a taken segment of its namespace, by the first such segment and the part of its path to rename: §11.1, §4.2.
+- `--main` taking the function's name alone: §8.1, §11.2, §11.7.
+- `ern test` refusing a module whose source has changed since it was compiled, counting its cases on its last line, and naming the case that started a process that faults: §11.2, §11.8.
+- A fault's line naming `the process of` its spawn site, the callee where the cause says how it ended, and the peer of a callee on another node: §11.2, §6.6.
+- `ern run --verbose` saying how many processes the end ended, and `--verbose` naming the manifest and each named package a job read: §11.2, §11.1.
+- An application under `--libs-dir` named up to its first `-`, and where the host finds an application's `priv`: §11.2.
+- The runner's section in seventeen numbered parts, `ern reload` and `ern stop` the last: §11.2.
+- `:keys`, `:browse` alone, and `:processes` saying each call's callee, whether a time ends it and its age, and each cycle of calls without limit: §11.2.
+- An input of several lines edited by its lines, `Home`, `End`, `Delete` and `C-g`, the history's walk and its search, and an input taller than the screen: §11.2.
+- What `:load` and `:reload` answer, a line for each module and each failure once, the interrupt killing the evaluator that runs, and a source that appears for a module loaded compiled: §11.2.
+- A shell given a file saying which of its modules' sources have changed, and where it finds a source without `--source-root`: §11.2.
+- `Os.exit` on a shell's own node, and a killed input's waiting frame: §11.2, Appendix E.23.
+- The history's and the startup files' refusals, each with its text, held to a mode and no owner: §11.2.
+- `ern reload` and `ern stop` refusing an `ernest.pid` that is not their user's own or is a link: §11.2, §12.5.
+- `ern config` printing the public key of a directory that exists, and changing nothing there: §11.3, §11.7.
+- `--doc-root` of `ern doc`, a module that fails stopping no other, a parameter written as a pattern shown as `_`, and a module `Index` refused where its document would be the listing: §11.4, §11.7.
+- How a diagnostic prints a name, and the code it writes with each name in its shortest resolving form: §11.5.
+- A parse error naming the token it found by its kind, the errors that end a module's check, and the helps at `++`, at a private name and at a lambda that receives: §11.5.
+- `--verbose` of `ern format`, and a file it cannot read left as it is: §11.6, §11.7.
+- A comment that ends its line before a bracket's first item putting that item on a line of its own: §11.6.
+- `ern test` ending by the signal that cut short a run's end: §11.8.
+- `public-key` and `utilization` gone from `ernest.conf`, and a certificate made from the key where the directory holds none: §12.5, Appendix C.
+- A node's refusals of a mode, each with the `chmod` that mends it, of a link at `ernest.pid`, and of a Linux without `pidfd_open`: §12.5.
+- A reload refused where the key or `listen` changed, each with its text, and a removed peer served until the host has closed its connection: §12.5, §8.7.
+
+### The library
+
+- The names held against each other: `Process.subscribeFaults`, `Os.subscribeTermination`, `Process.fromReply`, `List.splitWhile`, `OrderedSet.minimum` and `maximum`, `Ets.ownedCount`, and `Peer.compute` on a named peer beside `Peer.computeAnywhere`: Appendix E.2, E.21, E.23, E.25, E.27, Appendix G.1, §9.5.
+- A function that waits on what is outside the runtime taking the milliseconds that bound its wait, or named `Forever` and taking none: Appendix E.0 shape rule 8.
+- What makes a module the standard library's, a choice stated whole only where the language, the toolchain or the host makes it, the two names kept beside a composition, and the shape rules holding in every library: Appendix E.0.
+- `NotLoaded(text)`, and the constructors of `Io.Error` that each system module answers: Appendix E.1, §8.7.
+- `Io.show` writing a process as `<process.84>`, with its peer's name where it is of another node, and `Io.debug` listed with its module: Appendix E.1.
+- `List.findIndex`, `List.minimum`, `List.maximum`, `List.tryForEach`, and the order in which a list's functions call theirs: Appendix E.2.
+- `String.toAsciiLower` and `toAsciiUpper`, `Char`'s too, and `Char.isMark`, `isNumber`, `isPunctuation`, `isSymbol`, `isSeparator` and `isControl`: Appendix E.5, E.6.
+- `Int.toStringBase` answering a `String` and faulting for a base outside 2 to 36: Appendix E.8.
+- `Random.nextInt` and `nextFloat` answering the seed first, `nextInt` below its bound, and the generator's draws stated: Appendix E.13.
+- `Path.from`, and `parent` and `name` of `Path("")`: Appendix E.14.
+- `Terminal.width` over the tables of Unicode 17.0: Appendix E.16, §10.
+- A file copied onto itself keeping its content, `Fs.remove` answering `Left(Exists)` for a directory that is not empty, and `Fs.makeTempDir`'s directory holding nothing as its path is answered: Appendix E.17.
+- `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever`: Appendix E.18, E.23.
+- A socket, a listener or a started program that has ended answering `Left(Closed)`, and a `Forever` form faulting: Appendix E.18, E.23, §7.4.
+- `Tcp.close` answering once the socket's bytes are with the kernel or dropped, and `Tcp.closeListener` and `Os.closeInput` once the close is made: Appendix E.18, E.23.
+- `Tcp.read` answering one piece, what an unread socket holds, a failed write losing what had arrived, and `accept` at the limit of open files: Appendix E.18.
+- `Tcp.ipAddress`, the form of the host `Tcp.remote` answers, and a renegotiation over TLS 1.2 refused: Appendix E.18.
+- `Bytes.splitOnce`, and `Bytes.toHex` in lower case: Appendix E.20.
+- `Process.Calling` with its callee, whether a time ends its wait and its moment, `Suspended`, `Process.peer`, and `status` of a process the runtime did not start: Appendix E.21.
+- A `FaultReport`'s `callee` a `Callee`, `Faulted` or `Ended`, a cut trace's last line, and what the host says of a raise on a trace's first: Appendix E.21, §12.3.
+- A supervisor's child that waits to run again, and a group no process runs: Appendix E.22.
+- `Os.Environment`, `Inherited` or `Only`, as a command's `environment`: Appendix E.23.
+- A started program killed by the host's kill signal with its process group, what a write that timed out leaves, an echo under a terminal, and `resize` on a program whose process has ended: Appendix E.23.
+- `Test.faults` carrying the trace of another fault beneath its case's line: Appendix E.24.
+- `OrderedMap.minimum` and `maximum`: Appendix E.26.
+- A telling opening no connection, and a find, a spawn, a compute and a utilization waiting as a `send` waits: Appendix E.27.
+- `Code.load` answering `Left(NotAFile)` for a named pipe, a device or a socket, and `Left(Invalid)` for a module at a named package's namespace and for one that hides a library's: Appendix E.28.
+- A library written elsewhere used as a package, and the four libraries the toolchain's own jobs call: Appendix G.
+- `Markdown.parse` answering no empty block, and `roff` one line at least: Appendix G.2.
+- `Ansi.clearRow`, and `Utilization.cpu` answering `None` where the host's service does not answer in time: Appendix G.3, G.4.
+- `Json.RepeatedMember`, an object that names a member twice an error: Appendix G.6.
+- `Crypto.sha256` and `Crypto.bitXor`: Appendix G.9.
+- `Http.filePath`, `Http.elements`, a target's path and query percent-encoded as it is read, the chunked coding's lines, and `Protocol(Malformed)` from a write: Appendix G.11.
+- `Http.reason` by IANA's registry, `Http.date` faulting outside the years 0 to 9999, and a header's name compared in ASCII case: Appendix G.11.
+- `Uri.encode` and `Uri.toString`: Appendix G.12.
+
+### The runtime
+
+- A `Set` crossing to foreign code as a set of `sets` in its version 2 with nothing around it, a `Process` as its pid, and how foreign code sends to an address and calls a function: §12.2.
+- A foreign function whose module or function the host lacks faulting with a cause of its own, and a return's mismatch naming the part that fails: §12.3, §8.4.
+- A deadlock's report naming each group's callee, and the faulting process's: §12.4.
+- A frame of a process that waits in a `receive` naming the `receive`'s own line: Appendix E.21.
+- `Escape` delivered after 50 milliseconds, a paste ended after 200, a paste bracketed only where standard output is the terminal too, and `C-c` delivered as `Interrupt`: §12.1.
+- A loss run once the host has closed the connection, and a node's end telling one peer after another: §12.6, §10, §8.7.
+- The run queue the one measure of how busy a node is: §12.8, Appendix E.27.
+
 ## 0.10.0, 2026-11-10
 
 Ernest 0.10.0 is the release of what building and running ernest-httpd taught. A node lives at the host's limits, of processes, of ports and of open files, each request past a limit answered with the host's refusal. A qualified name resolves from the writer's namespace outward and is written in its shortest form. `kill` takes a `Process`. `Process.run` answers a worker's value or the reason it ended, and `Test.capture` what a run wrote. A program is started with its environment and its working directory, and sent a signal. Text is read from bytes that are not all UTF-8. `libs/uri` reads a URI reference, and `Http` reads a target and cookies and writes to a socket. A listener takes the largest backlog the host keeps. What the host logs goes to standard error. With it come the sentences of the report that were silent, and what was decided before the release.
