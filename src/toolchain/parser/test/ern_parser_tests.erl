@@ -796,26 +796,13 @@ listed_type_mark_test() ->
                                  body = #e_var{name = needs}},
                  declaration("fn f(needs : a) : a = needs")),
     %% in a foreign function's parameter a mark in parentheses is refused,
-    %% the help naming the lists of types where it stands; elsewhere it is
-    %% read, for the checker to refuse as any mark there (ern_typecheck_tests'
-    %% foreign_fn_equality_mark_test)
+    %% the help naming the lists of types where it stands
     ?assertEqual({"a type in parentheses takes no equality mark",
                   "the mark stands in a list of types, as `List(a=)` or `(a=) -> Bool`"},
                  refusal_and_help("foreign fn f(x : List((a=))) : Int = \"m:f/1\"")),
-    ?assertMatch(#fn_declaration{params = [#param{annotation = #t_var{equality = true}}]},
-                 declaration("fn f(x : (a=)) : Int = 1")),
-    %% report §4.7: a mark before the `=` of a body or a binding is read as
-    %% one, `: a= = x`, and the process-only mark is refused wherever it is
-    %% written, `receiving e+` among them; a regression test, where each
-    %% was a syntax error that named the next token
-    ?assertMatch(#foreign_fn_declaration{result_type = #t_var{name = a, equality = true,
-                                                              span = {1, 30, {1, 32}}}},
-                 declaration("foreign fn f(x : List(a=)) : a= = \"m:f/1\"")),
-    ?assertMatch(#fn_declaration{result_type = #t_var{equality = true}, body = #e_var{name = x}},
-                 declaration("fn f(x : a) : a= = x")),
-    ?assertMatch(#let_declaration{annotation = #t_var{equality = true}},
-                 declaration("let x : a= = 1")),
-    ?assertEqual(ok, element(1, ern_parser:parse_string("fn f() = { let x : a= = 1; x }"))),
+    %% report §4.7: the process-only mark is refused wherever it is
+    %% written, `receiving e+` among them; a regression test, where it was
+    %% a syntax error that named the next token
     Plus = {"the process-only mark is never written", "write `e`; the compiler infers the mark"},
     ?assertEqual(Plus, refusal_and_help("fn f() : Unit receiving e+ = Unit")),
     ?assertEqual(Plus, refusal_and_help("fn f(g : () -> Unit receiving e+) : Unit = g()")),
@@ -834,6 +821,37 @@ listed_type_mark_test() ->
                  ern_parser:parse_string("fn f(x : a=) : Int = 1")),
     ?assertEqual("the equality mark is written in a foreign function's parameters alone",
                  expression_refusal("fn(x : a=) = x")).
+
+%% report §3, §4.7, Appendix A's ParenType, Return, LetDecl and Binding: a
+%% mark that ends no type the grammar derives, in parentheses, `(a=)`, or
+%% before the `=` of a body or a binding, `: a= = x`, is refused here, over
+%% the parentheses or over the variable and its mark, in the words the
+%% checker gives a mark the grammar derives where it stands; a regression
+%% test, where the parser read each as a mark for the checker to refuse
+%% and so took a text that is no sentence of Appendix A
+underived_mark_test() ->
+    Plain = {"the equality mark is written in a foreign function's parameters alone",
+             "write `a`; the compiler infers the mark"},
+    Result = {"a foreign function's result type takes no equality mark",
+              "mark a in the parameters, `a=`"},
+    [?assertEqual({Text, Plain}, {Text, refusal_and_help(Text)})
+     || Text <- ["let x : (a=) = 1", "let x : a= = 1", "fn f(x : (a=)) : Int = 1",
+                 "fn f(x : a) : a= = x", "fn f() = fn(x : a) : a= = x",
+                 "fn f() = { let x : a= = 1; x }", "fn f() = { let x : (a=) = 1; x }",
+                 "type T(a) = T((a=))", "fn f(x : List((a=))) : Int = 1"]],
+    ?assertEqual({"the equality mark is written in a foreign function's parameters alone",
+                  "write `m`; the compiler infers the mark"},
+                 refusal_and_help("fn f() : Unit receiving m= = Unit")),
+    [?assertEqual({Text, Result}, {Text, refusal_and_help(Text)})
+     || Text <- ["foreign fn f(x : List(a=)) : a= = \"m:f/1\"",
+                 "foreign fn f(x : List(a=)) : (a=) = \"m:f/1\"",
+                 "foreign fn f(x : List(a=)) : Unit receiving (a=) = \"m:f/1\""]],
+    ?assertMatch({error, #diagnostic{span = {1, 9, {1, 13}}}},
+                 ern_parser:parse_string("let x : (a=) = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 9, {1, 11}}}},
+                 ern_parser:parse_string("let x : a= = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 30, {1, 32}}}},
+                 ern_parser:parse_string("foreign fn f(x : List(a=)) : a= = \"m:f/1\"")).
 
 %% report §2.2
 doc_comments_test() ->

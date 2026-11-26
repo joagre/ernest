@@ -29,15 +29,15 @@ standard library with the libraries, the cli, the shell and the tests are done, 
 Fable rounds are held, and the report's own decided lines are written. The guides, the
 tour and the front pages are written. The decided lines without
 a closing bullet are audited and the report's missing sentences written. What the audit
-found missing in the code is built. `docs/` is written. Next are the diagnosis of a grammar test that failed on
-one seed, the log's and the plan's own lines, `make test-full` and the close.**
+found missing in the code is built. `docs/` is written. Next are the log's and the plan's own lines, `make
+test-full` and the close.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build* and *The Documents' Lines*.
+and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines* and *The Parser Held to Appendix A*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -251,10 +251,10 @@ says what is left once its readings are in, and no figure stands until then.
       Guides, the Tour and the Front Pages*), and `docs/` (the log's *The Documents'
       Lines*). The log's and the plan's own lines are the session's, and are next.
 
-      `make test-grammar` failed once, on seed 71865135, where the parser takes a text
-      that the test's recognizer of Appendix A refuses. An agent on Opus 5.5 at xhigh
-      diagnoses it before the close: the parser or the test is wrong, and Appendix A
-      holds.
+      `make test-grammar` failed once, on seed 71865135, where the parser took a text
+      that Appendix A does not derive, a marked variable in parentheses or before a
+      body's `=`. The parser refuses both now (the log's *The Parser Held to Appendix
+      A*).
 
       The guide's writer found four decided sentences of the report unwritten, each of
       a line with two owners. Two readers audited the decided lines that carried no

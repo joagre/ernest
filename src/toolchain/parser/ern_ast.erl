@@ -1,15 +1,15 @@
 %% What more than one stage reads of the AST the parser builds, typed or
 %% not: a node's span; every node in pre-order; what a pattern binds; the
 %% type variables a declaration's signature names; the unqualified names
-%% free in an expression; and an expression and a type as a help writes
-%% them. The
+%% free in an expression; an expression and a type as a help writes
+%% them; and the words that refuse a mark where none is written. The
 %% parser, the formatter, the checker, the reply check, the exhaustiveness
 %% check and the emitter each use them rather than a copy of their own,
 %% since copies of one rule drift.
 -module(ern_ast).
 
 -export([span/1, walk/3, pattern_binders/1, pattern_bindings/1, free_names/2,
-         free_uses/2, help_text/1, type_text/1]).
+         free_uses/2, help_text/1, type_text/1, mark_refusal/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -173,3 +173,23 @@ type_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
 
 types_text(Types) ->
     lists:append(lists:join(", ", [type_text(Type) || Type <- Types])).
+
+%% Report §4.7: the message and the help that refuse a mark of the variable
+%% Name where none is written, by where it stands: an `=` in a foreign
+%% function's result, `result`; an `=` in any annotation outside a foreign
+%% declaration, `plain`; and an `e+` anywhere, `process_only`. The parser
+%% refuses the marks Appendix A derives in no type, and the checker the
+%% rest.
+-spec mark_refusal(result | plain | process_only, atom()) -> {string(), string()}.
+mark_refusal(result, Name) ->
+    Text = atom_to_list(Name),
+    {"a foreign function's result type takes no equality mark",
+     "mark " ++ Text ++ " in the parameters, `" ++ Text ++ "=`"};
+mark_refusal(plain, Name) ->
+    {"the equality mark is written in a foreign function's parameters alone",
+     inferred_mark_help(Name)};
+mark_refusal(process_only, Name) ->
+    {"the process-only mark is never written", inferred_mark_help(Name)}.
+
+inferred_mark_help(Name) ->
+    "write `" ++ atom_to_list(Name) ++ "`; the compiler infers the mark".

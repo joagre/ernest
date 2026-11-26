@@ -897,8 +897,8 @@ annotation_type(#t_var{span = Span, name = Name, equality = true}, _, _) ->
     %% report §4.7: the mark stands in a foreign function's parameters
     %% alone, which signature_shape takes off before it comes here, and the
     %% compiler infers it anywhere else
-    fail(Span, "the equality mark is written in a foreign function's parameters alone", [],
-         "write `" ++ atom_to_list(Name) ++ "`; the compiler infers the mark");
+    {Message, Help} = ern_ast:mark_refusal(plain, Name),
+    fail(Span, Message, [], Help);
 annotation_type(#t_var{name = Name}, AnnotationVariables, Env) ->
     case AnnotationVariables of
         #{Name := Variable} -> {Variable, AnnotationVariables, Env#env.type_state};
@@ -2412,9 +2412,8 @@ equality_marks(Annotations, Rest) ->
     case [Variable || #t_var{equality = true} = Variable <- variable_nodes(Rest)] of
         [] -> ok;
         [#t_var{span = Span, name = Name} | _] ->
-            Text = atom_to_list(Name),
-            fail(Span, "a foreign function's result type takes no equality mark", [],
-                 "mark " ++ Text ++ " in the parameters, `" ++ Text ++ "=`")
+            {Message, Help} = ern_ast:mark_refusal(result, Name),
+            fail(Span, Message, [], Help)
     end,
     Marks = [Variable || #t_var{equality = true} = Variable <- variable_nodes(Annotations)],
     lists:foldl(fun equality_mark/2, [], Marks).

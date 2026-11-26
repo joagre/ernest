@@ -473,7 +473,7 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
     NameSpan = ern_diagnostic:span(span_through(ern_lexer:position(hd(Rest)), Rest, Rest1)),
     {Params, Rest2} = params(Rest1),
-    {ResultType, Effect, Rest3} = optional_result_type(Rest2),
+    {ResultType, Effect, Rest3} = optional_result_type(Rest2, plain),
     {Requirement, Rest4} = optional_requirement(Rest3),
     {Body, Rest5} = expr(expect(Rest4, '=')),
     Declaration = #fn_declaration{span = Position, doc = Doc, export = Export,
@@ -586,38 +586,41 @@ param(Tokens) ->
 %% variable and its mark in the words of a mark elsewhere outside a foreign
 %% function.
 unmarked(#t_var{span = Span, name = Name}, [{'=', MarkPosition} | _]) ->
-    fail(mark_span(ern_diagnostic:span(Span), MarkPosition),
-         "the equality mark is written in a foreign function's parameters alone",
-         inferred_mark_help(Name));
+    refuse_mark(mark_span(ern_diagnostic:span(Span), MarkPosition), plain, Name);
 unmarked(_, _) ->
     ok.
 
-%% Report §4.7, §11.5: a mark outside a foreign function's parameters is
-%% refused over the variable and its mark, and the help drops the mark,
-%% which the compiler infers.
-inferred_mark_help(Name) ->
-    "write `" ++ atom_to_list(Name) ++ "`; the compiler infers the mark".
+%% Report §4.7: a mark of the variable Name where none is written, refused
+%% over Span in the words of where it stands, which the checker gives a
+%% mark Appendix A derives too (ern_ast:mark_refusal/2).
+refuse_mark(Span, Where, Name) ->
+    {Message, Help} = ern_ast:mark_refusal(Where, Name),
+    fail(Span, Message, Help).
 
 mark_span({Line, Column, _}, {_, _, End, _}) ->
     {Line, Column, End}.
 
-%% Report §4.7: a type variable marked `=` before the `=` of a body or a
-%% binding, `: a= = x`, is read as marked, for the checker to refuse as it
-%% refuses a mark in any annotation and in a foreign function's result.
-marked_before_body({#t_var{equality = false} = Variable, [{'=', _}, {'=', _} | _] = Tokens}) ->
-    spanned({Variable#t_var{equality = true}, tl(Tokens)});
-marked_before_body(Parsed) ->
+%% Report §4.7, Appendix A: a type variable marked `=` before the `=` of a
+%% body or a binding, `: a= = x`, ends no type the grammar derives, so it
+%% is refused over the variable and its mark, in the words of a foreign
+%% function's result under `result` and of any other annotation under
+%% `plain`.
+unmarked_before_body({#t_var{span = Span, name = Name}, [{'=', MarkPosition}, {'=', _} | _]},
+                     Marks) ->
+    refuse_mark(mark_span(ern_diagnostic:span(Span), MarkPosition), Marks, Name);
+unmarked_before_body(Parsed, _) ->
     Parsed.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
 %% as a parameter's is. `->` after the parameters is refused with the form
 %% to write, since a function type writes its result after `->`, and other
-%% languages write a function's so.
-optional_result_type([{'->', Position} | _]) ->
+%% languages write a function's so. Marks is `result` in a foreign function
+%% and `plain` in any other (type/2).
+optional_result_type([{'->', Position} | _], _Marks) ->
     fail(Position, "a function's result is annotated with `:`, not `->`",
          "write `: T` after the parameters, as a parameter's type is written");
-optional_result_type([{':', _} | Rest]) ->
-    {Type, Rest1} = marked_before_body(type(Rest)),
+optional_result_type([{':', _} | Rest], Marks) ->
+    {Type, Rest1} = unmarked_before_body(type(Rest, Marks), Marks),
     case Rest1 of
         [{receiving, Position} | Rest2] ->
             %% Appendix A: a function type's `receiving` is its own, so the
@@ -627,12 +630,12 @@ optional_result_type([{':', _} | Rest]) ->
                 fail(Position, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after the type in parentheses,"
                      " `: ((A) -> B receiving M) receiving N`"),
-            {Effect, Rest3} = marked_before_body(type(Rest2)),
+            {Effect, Rest3} = unmarked_before_body(type(Rest2, Marks), Marks),
             {Type, Effect, Rest3};
         _ ->
             {Type, undefined, Rest1}
     end;
-optional_result_type(Tokens) ->
+optional_result_type(Tokens, _Marks) ->
     {undefined, undefined, Tokens}.
 
 %% Whether the type is a function type with a `receiving` of its own, written
@@ -647,7 +650,8 @@ is_bare_effectful_function(_) ->
 let_declaration([{'let', Position} | Rest], Doc, Export) ->
     {Name, Rest1} = let_name(Rest),
     {Annotation, Rest2} = case Rest1 of
-                              [{':', _} | AfterColon] -> marked_before_body(type(AfterColon));
+                              [{':', _} | AfterColon] ->
+                                  unmarked_before_body(type(AfterColon), plain);
                               _ -> {undefined, Rest1}
                           end,
     Rest3 = case Rest2 of
@@ -685,7 +689,7 @@ foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
                           _ -> separated(Rest2, ',', fun foreign_param/1)
                       end,
     Rest4 = expect_after_items(Rest3),
-    {ResultType, Effect, Rest5} = case optional_result_type(Rest4) of
+    {ResultType, Effect, Rest5} = case optional_result_type(Rest4, result) of
                                       {undefined, _, _} ->
                                           fail(ern_lexer:position(hd(Rest4)),
                                                "a foreign function declares its result type");
@@ -729,15 +733,16 @@ foreign_param(Tokens) ->
 %% Types
 %%
 
-%% A type, outside a foreign function's parameters, where an equality mark
-%% stands only for the checker to refuse (report §4.7).
+%% A type outside a foreign declaration, where a mark Appendix A derives,
+%% one in a list of types, stands for the checker to refuse (report §4.7).
 type(Tokens) ->
     type(Tokens, plain).
 
 %% Marks: `foreign` within a foreign function's parameter, where a type
 %% variable in a list of types may carry the equality mark (report §4.7),
-%% `plain` elsewhere; it chooses whether a mark in parentheses is refused
-%% here.
+%% `result` within a foreign function's result type and its mailbox type,
+%% and `plain` elsewhere; it chooses the words that refuse a mark in
+%% parentheses.
 type([{'(', Position} | Rest], Marks) ->
     {Types, Rest1} = case Rest of
                          [{')', _} | _] -> {[], Rest};
@@ -771,8 +776,7 @@ type([{typename, Position, _} | _] = Tokens, Marks) ->
 type([{ident, Position, Name}, {'+', MarkPosition} | _], _Marks) ->
     %% report §4.7, §3.9: the process-only mark is inferred, and never
     %% written in any annotation
-    fail(mark_span(ern_diagnostic:span(Position), MarkPosition),
-         "the process-only mark is never written", inferred_mark_help(Name));
+    refuse_mark(mark_span(ern_diagnostic:span(Position), MarkPosition), process_only, Name);
 type([{ident, Position, Name} | Rest], _Marks) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
 type([{fn, Position} | _], _Marks) ->
@@ -813,13 +817,18 @@ parenthesized(Position, Params, [{'->', _} | Rest], Marks) ->
     end;
 parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, foreign) ->
     %% report §3, §4.7: the mark stands in a list of types of a foreign
-    %% function's parameters, and the help names them; outside the
-    %% parameters a mark in parentheses is the checker's to refuse, as any
-    %% mark there is, parentheses making no node
+    %% function's parameters, and the help names them
     Text = atom_to_list(Name),
     fail(Span, "a type in parentheses takes no equality mark",
          "the mark stands in a list of types, as `List(" ++ Text ++ "=)` or `(" ++ Text
          ++ "=) -> Bool`");
+parenthesized(Position, [#t_var{name = Name, equality = true} = Variable], Rest, Marks) ->
+    %% report §3, §4.7, Appendix A's ParenType: parentheses hold a type, and
+    %% no type is a marked variable, so the mark is refused over the
+    %% parentheses in the words of where it stands, a foreign function's
+    %% result or any other annotation
+    {#t_var{span = Span}, _} = spanned({Variable#t_var{span = Position}, Rest}),
+    refuse_mark(Span, Marks, Name);
 parenthesized(Position, [Type], Rest, _Marks) ->
     %% report §11.5: a type in parentheses spans its parentheses, as a
     %% parenthesized expression does, so a diagnostic underlines it whole;
@@ -915,7 +924,7 @@ refuse_juxtaposition([Token | _]) ->
 
 lambda(Tokens, Position) ->
     {Params, Rest1} = params(Tokens),
-    {ResultType, Effect, Rest2} = optional_result_type(Rest1),
+    {ResultType, Effect, Rest2} = optional_result_type(Rest1, plain),
     case Rest2 of
         [{ident, NeedsPosition, needs} | _] ->
             %% report §4.9: a requirement is a `fn` declaration's
@@ -1381,7 +1390,8 @@ statement([{'let', Position} | Rest]) ->
     {Pattern, Rest1} = pattern(Rest),
     no_or_inside([Pattern], binding),
     {Annotation, Rest2} = case Rest1 of
-                              [{':', _} | AfterColon] -> marked_before_body(type(AfterColon));
+                              [{':', _} | AfterColon] ->
+                                  unmarked_before_body(type(AfterColon), plain);
                               _ -> {undefined, Rest1}
                           end,
     %% report §5.4, §11.5: the message names what may stand, an annotation's
