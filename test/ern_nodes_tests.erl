@@ -8536,9 +8536,9 @@ end_told_on_a_node(Base) ->
     {DeskOut, _} = ern_harness:said(Desk),
     {_, StoreErr} = ern_harness:said(Store),
     ern_harness:has(DeskOut, "asked: Some(3)"),
-    ern_harness:has(StoreErr, "the subscriber Keeper.main answered"),
-    %% the line as the deployment guide quotes it
-    ern_deployment_tests:cataloged(StoreErr, "7", "the end waits for", []).
+    %% the lines as the deployment guide quotes them
+    ern_deployment_tests:cataloged(StoreErr, "7", "the end waits for", []),
+    ern_deployment_tests:cataloged(StoreErr, "7", "subscriber Keeper.main answered", []).
 
 %% report §8.6, §11.2: a second termination ends the node at once, past a
 %% subscriber that does not answer, which the node says. Written after the

@@ -511,6 +511,33 @@ four_fifths() ->
                    " back\n">>, Said),
     cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
 
+%% guide/deployment.md, section 7; report §11.1, §11.2: `ern run` refuses
+%% to start a node from a compiled form another build of `ern` wrote, here
+%% the same version whose code changed, naming the file from the job's
+%% working directory, before the node holds its directory. It does not
+%% cover another release, which ern_cli_tests' another_build_refused
+%% covers by the same check. Its limit is the sum of its two waits, each
+%% bounded by the harness's time for one wait: the build and the run
+another_build_test_() ->
+    ern_harness:nodes_test({waits, 2}, fun another_build/1).
+
+another_build(Base) ->
+    ok = file:write_file(filename:join(Base, "stale.ern"),
+                         "// guide/deployment.md, section 7: a program built by another ern.\n"
+                         "\n"
+                         "export fn main() : Unit = Unit\n"),
+    ?assertEqual({0, "", ""}, job(Base, "build stale.ern")),
+    Program = filename:join(Base, "stale.erc"),
+    {ok, Beam} = file:read_file(Program),
+    Another = fun(Chunk) ->
+                  Chunk#{compiler => <<(ern_build:compiler_build())/binary, "+another">>}
+              end,
+    ok = file:write_file(Program, ern_helpers:forge(Beam, Another)),
+    Dir = ern_harness:made(Base, "s", none),
+    {1, "", Err} = job(Base, "run --config-dir s stale.erc"),
+    ?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))),
+    cataloged(Err, "7", "compiled by another build", [{"prog.erc", "stale.erc"}]).
+
 %% guide/deployment.md, sections 7 and 5: every line the guide quotes
 %% there is held to a node's or a shell's by a check that names it, beside
 %% the test that provokes the line, in this module or in ern_nodes_tests,
