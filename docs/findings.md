@@ -59,6 +59,8 @@ The mark `false` stands where a program shows a sentence of the report false, on
 
 ### `1`, fix: a document
 
+Made on 2026-11-26, by two writers whose diffs the session read and by the session, but four: *U2 20*'s row in the deployment guide's table, which a test keys on and the tests' builder makes with it; *E1 C2 (style files)*, made when the standard library's builder turns the order it quotes; and *E1 C7*, *E1 D5* and *E1 D3 (never None)*, the standard library's pages, which are its builder's. `release/README.md` had *N 9*'s bare number too and is mended with it.
+
 - **N 16 (:73), M18** `1` — `guide/language.md:73`: "One bound to a name the code never reads is not reported" has no near antecedent. Fix: "A failure bound to a name the code never reads is not reported". Owner: guide.
 - **U1 4** `1` — `guide/language.md:112`: "§9 lists each job's options", and `--verbose`, `--doc-root`, `--version` and `ern test`'s four options are named nowhere. Fix: "§9 lists the options a program first needs, and `ern <job> --help` the rest". Owner: guide.
 - **U1 10, N 4, N Leftovers (:147)** `1` — `guide/language.md:147` (§1.2): the session's number is cited to §9.3, which never mentions it; the fact is report §11.2's. Fix: point to "(§9.2, report §11.2)". Owner: guide.
@@ -121,6 +123,8 @@ The mark `false` stands where a program shows a sentence of the report false, on
 - **E1 D3 (never None)** `1` — `ordered_set.ern:261-279`, `ordered_map.ern:328-348`: `minimum` and `maximum` lack E.0 shape rule 6's "never `None`" sentence, which `List.minimum`'s page has; `ern_doc_tests.erl:247`'s `NeverNone` names none of the four. Fix: add "It is never `None` for a set (map) that is not empty" to each, and the four to `NeverNone`. Owner: stdlib+tests.
 
 ### `1r`, fix: the report
+
+Made on 2026-11-26 by the session, but *P1 17*, §4.2's word "reach", which waits for the family on a program's modules and namespaces, since its verdict rewrites that paragraph. The pages of *E1 D1* and *E1 C6* are the standard library's builder's.
 
 - **K 12, K Kept (§3.9 bullet)** `1r` — §3.9 `language.md:311`: asks for an annotation at "the mailbox type of a process spawned on a peer", where §3.11 (`:356`) makes an unfixed one `Never` and refuses only one that still holds a variable. Fix: "a mailbox type that still holds a type variable". Owner: report.
 - **P1 17** `1r` — §4.2 `language.md:412-414`: "A job's reach" takes the word §8.7 defines as a definition's reach; the glossary holds both and cites §8.7 alone. Fix: §4.2 says "the modules a job takes". Owner: report.

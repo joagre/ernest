@@ -308,7 +308,7 @@ Inference asks for an annotation at:
 - a fill whose record type leaves a requirement's variable undetermined (§5.6);
 - a path in a record update through a field whose type nothing fixes (§5.6).
 
-Inference asks for one too at `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), the mailbox type of a process spawned on a peer and the result type of a compute's function (§3.11), and an input at the prompt that binds a name its type does not settle (§11.2).
+Inference asks for one too at `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), the mailbox type of a process spawned on a peer and the result type of a compute's function, where either still holds a type variable (§3.11), and an input at the prompt that binds a name its type does not settle (§11.2).
 
 A function whose own body, outside its lambdas and local `fn`s, holds a `receive` that fixes no type for the message it takes, one whose patterns are wildcards or variables that nothing fixes, is *process-only* where nothing else fixes its mailbox type: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is, but for one that calls a process-only function (below): one that sends, spawns, answers, sleeps, prints, reads a file or calls only functions that receive nothing names no mailbox, and a call of it adds nothing to the caller's type.
 
@@ -546,7 +546,7 @@ A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.co
 
 A `fn` declaration may end in a *requirement*: `needs` and the members it names, after the result type and before `=`. `fn fromList(list : List(a)) : Set(a) needs a.compare = ...` names the member `compare` of the type `a` stands for (§4.5, §3.10); `needs a.+` names an operator, and a requirement names several with commas, `needs a.+, a.*`. A requirement names `compare`, `negate`, an operator of §2.6, or `show`, which is no member but `Io.show` (Appendix E.1), and nothing else: `needs a.zero` is an error at the requirement, `` `zero` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show` ``.
 
-The variable is a type variable of the signature that stands in a value position (§3.9); one in effect positions alone, and one the signature does not name, are errors at the requirement, `b is no type variable of the signature`. A variable that stands in the result type alone may carry one. A requirement names a variable's member once; naming it twice is an error at the second, with the first labeled, `the requirement names a.compare twice`. A type has one member of each name.
+The variable is a type variable of the signature that stands in a value position (§3.9); one the signature does not name is an error at the requirement, `b is no type variable of the signature`, and so is one in effect positions alone, `e is an effect variable, and a requirement names a type variable in a value position`. A variable that stands in the result type alone may carry one. A requirement names a variable's member once; naming it twice is an error at the second, with the first labeled, `the requirement names a.compare twice`. A type has one member of each name.
 
 In the body, a member the requirement names is reached as on a known type: an operator on `a` resolves to it (§4.8), `x < y` and `compare(x, y)` through `a.compare` (§3.10) and prefix `-` through `a.negate` (§5.1). The member has its shape at `a`: `a.compare` the type `(a, a) -> Ordering`, `a.negate` the type `(a) -> a`, and an operator `a.+` the type `(a, a) -> a`. Under `needs a.show`, `Io.show` applies to a value of the type `a` itself (Appendix E.1).
 
@@ -633,7 +633,7 @@ Strict, left to right, arguments before the call. A callee is evaluated before i
 
 ### 5.3 Lambda
 
-`fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level (Appendix A). A `{` that begins the body opens a block (§5.4), which is the body.
+`fn(x) = e` is an anonymous function. Its body is the longest `Expr` (Appendix A). A `{` that begins the body opens a block (§5.4), which is the body.
 
 ### 5.4 Blocks
 
@@ -949,7 +949,7 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Each cause is stated with its text in the section §7.4 names for it, the supervisor's in Appendix E.22. A process that is killed, or that ends with the program, has not faulted.
+A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Each cause is stated with its text in the section §7.4 names for it, the supervisor's in Appendix E.22. A process that is killed, or that ends with the program, has not faulted. A function that receives nothing can fault.
 
 A fault carries a trace, the host's stack where the fault was met, at the moment it was (Appendix E.21); the fault's report shows it (§11.2), and `Down` carries the cause alone.
 
@@ -961,7 +961,7 @@ A request a rule of this report refuses, which the program alone could have kept
 
 A failed read of standard input faults the process that asked for the line or the bytes (§12.1). A failure no request stands behind, keys that are not UTF-8 or a key that a full table of ports leaves no room to read (§12.1), faults the entry process; standard output or standard error that cannot be written, and keys the host can no longer read, end the program without a fault (§8.6, §12.1).
 
-A count or a duration below 0 is 0, but for a terminal's rows and columns (Appendix E.23), and a window below 1 is 1 (§6.9); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid. A function that receives nothing can fault.
+A count or a duration below 0 is 0, but for a terminal's rows and columns (Appendix E.23), and a window below 1 is 1 (§6.9); a duration has no upper bound, and a moment already past is now; no other value is corrected unsaid.
 
 A cause's text stands with its rule: an operator's in §3.1, a bitstring's in §5.11, a `callForever`'s in §6.6, a restart's in §6.9, the boundary's in §8.4 and §12.3, a deadlock's in §8.6, a load's and a shell's in §11.2, the terminal's and standard input's in §12.1, and a standard library function's in its section. `fault(c)`, which compiles at any type, faults with `Fault(c)`.
 
@@ -1121,7 +1121,7 @@ What one process sends another arrives in the order §6.4 gives. Between nodes a
 
 **Calls.** A loss ends a call as §6.6 says. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node.
 
-**A spawn.** `Peer.spawn(name, f, ms)` asks the peer named `name` to start a process and run `f()` in it, the values `f` captured (§3.11) crossing as they cross in a message, a reply among them answered by the spawned process as §6.6 says of `spawn`, and for `restarting(limit, g)` the limit and `g`; the peer records the spawn's site (§6.9) for the process as it records a local spawn's, and answers its address; what the spawn answers, and within what time, is Appendix E.27's.
+**A spawn.** `Peer.spawn(name, f, ms)` asks the peer named `name` to start a process and run `f()` in it, the values `f` captured (§3.11) crossing as they cross in a message, a reply among them (Appendix E.27), and for `restarting(limit, g)` the limit and `g`; the peer records the spawn's site (§6.9) for the process as it records a local spawn's, and answers its address; what the spawn answers, and within what time, is Appendix E.27's.
 
 A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where:
 
@@ -1465,7 +1465,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **compute** — `Peer.compute` or `Peer.computeAnywhere`: a function run in a process on a peer for its value. §6.7, §8.7, Appendix E.27.
 - **concat operator** — `<>`, resolved per type. §4.8.
 - **configuration directory** — the directory `--config-dir` names, which holds a node's `ernest.conf`, its key, its `ernest.pid` and its `startup` file. §12.5, §11.2, §11.3.
-- **connection** — what two nodes send each other over, at most one between them, opened by the first operation that needs it. §8.7.
+- **connection** — what two nodes send each other over, at most one between them, opened by the first operation that needs it (§8.7); also what a socket of TCP or TLS holds (Appendix E.18).
 - **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
 - **constant** — a top-level binding's initializer that is a literal, a negated number literal, a constructor of no fields, or a constructor, a tuple or a list of constants; the binding is not evaluated and always has its value. §4.6, §11.1.
 - **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
@@ -1505,7 +1505,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **group** — the processes a `Supervisor` restarts together, its children. Appendix E.22.
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.
-- **handshake** — the opening of a connection, in which each node proves its key and the floor before anything passes. §12.5.
+- **handshake** — the opening of a connection between two nodes, in which each node proves its key and the floor before anything passes (§12.5); also TLS's own (Appendix E.18).
 - **hangup** — the host's signal `SIGHUP`, a reload to a node and a termination to any other Ernest program. §8.6, §12.5, Appendix E.23.
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
 - **hide** — to be the one found where two share a namespace or a spelling: a module before a later root's, a module's declaration before the prelude's, a binding before a declaration's or the prelude's. §4.2, §11.1.
@@ -1579,7 +1579,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **runner** — what `ern run`, `ern test` and `ern shell` start: it starts the system processes and calls the entry point. §11.2.
 - **runtime** — the system that runs Ernest programs. §10.
 - **scrutinee** — the value a `match` matches. §5.9.
-- **segment** — a part of a qualified name between dots (§4.2), of a bitstring (§5.11), of a path (Appendix E.14), or of what TCP carries (Appendix E.18).
+- **segment** — a part of a qualified name between dots (§4.2), of a bitstring (§5.11), or of a path (Appendix E.14).
 - **selector** — `.f` after a value, selecting its field `f`. §3.5.
 - **`self`** — `self()`, the current process's own address. §6.2.
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
@@ -1589,13 +1589,13 @@ Every technical term this report introduces, with a gloss and the section that d
 - **service monitor** — `monitorService(p, wrap)`; a monitor that also sends `wrap(d)` with the reason `Restarted` at each restart of `p`, and stands until `p` dies. §6.9, §9.5.
 - **session** — a shell's run on a node: its declarations, their scope and its inputs' processes; a node has many at once, each with a number. §11.2.
 - **session's own process** — a process the shell runs to serve a session, the session's, its reader's, its screen's, its local half's or an input's, which `Process.live` leaves out. §11.2, Appendix E.21.
-- **shape rule** — one of the rules that give a function of the standard library its shape. Appendix E.0.
+- **shape rule** — one of the rules that give a function its shape, in the standard library and in every library. Appendix E.0.
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
 - **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
 - **`spawn`** — `spawn(f)`, starts a new process; `spawnMonitored(f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give; a session's under its namespace, `$Session2.input 3:1`. §6.9, §11.2.
-- **standard library** — the modules that ship with the compiler, on the load path by default; not the prelude. §9, Appendix E.
+- **standard library** — the modules of Appendix E, which ship with the compiler and are on the load path by default; not the prelude, and not a library (Appendix G). §9, Appendix E.
 - **start number** — the number the host gives each start of a node, carried in every address of its processes. §8.7.
 - **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
 - **statement** — a part of a block, an expression, a `let`, or a `fn`. §5.4.

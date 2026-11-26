@@ -220,7 +220,7 @@ Eleven *shape rules* give a function its shape. The shape rules hold in every li
      An example ends in its `// => v` line (§11.2); what the example itself prints comes before it and is not part of `v`.
 
      An example that does not end where the page's examples run, or whose value there differs from run to run, has no `// =>` line and is only compiled (§11.2): one whose value holds an address or a `Process`, or depends on the program's arguments, environment, input or terminal, on a file outside the example's own directory, or on a socket another program answers. One whose value holds a value of an abstract type the example's module cannot see into, which `Io.show` writes `<abstract>` (E.1), has none either.
-7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module. A prelude operation a module provides is listed in §9.6 and not in the module's section.
+7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module. A prelude operation a module provides is listed in §9 and not in the module's section.
 8. A function that waits on what is outside the runtime, a far end, a peer, a file's device, a started program, takes the milliseconds that bound that wait, last, and answers `Left(Timeout)` when they pass, unless it reads or writes the program's standard streams or the terminal (§12.1); named `Forever` it takes none. A wait for what a process of the runtime's own answers by itself takes none. `Tcp.close` takes no milliseconds: the runtime bounds its wait, and it answers `Unit` whether its bytes were sent or dropped (E.18).
 
    `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)` or a library's error that wraps it (shape rule 11). A call, whose one failure is no answer, answers `None` (§6.6).
@@ -263,7 +263,7 @@ Io.writeError : (Bytes) -> Unit // the bytes to standard error, as they are
 Io.debug : (a) -> a needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Main.Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix: ascending where the keys or the elements are `Int`, `Float`, `Char`, `String`, or `Bool`. A function prints as `<function>`, and a `Reply` as `<reply>`.
+`Io.show` writes each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Main.Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix: ascending where the keys or the elements are `Int`, `Float`, `Char`, `String`, or `Bool`. A function prints as `<function>`, and a `Reply` as `<reply>`.
 
 A `Process` prints as `<process.84>`, the number the host's for it on its node (E.21), and an address as the process behind it does, `<address.84>`. A process of another node prints its peer's name before the number, `<process.store.84>`, the name as this node's configuration lists it (§8.3), written as it stands there. A process of a node the configuration does not list prints the node's key's digest for the name (§12.5).
 
@@ -277,7 +277,7 @@ A constructor of the prelude's is written by its name alone, `Some`, `Down`; any
 
 `[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `mapFold` departs from Erlang's `lists:mapfoldl`, which answers the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step.
 
-`map`, `filter`, `partition`, `forEach`, `flatMap`, `any`, `all`, `find`, `findIndex` and `splitWhile` call their function on the elements in the list's order, once each, and `any`, `all`, `find`, `findIndex` and `splitWhile` on none after the one that decides.
+`map`, `filter`, `filterMap`, `partition`, `forEach`, `flatMap`, `any`, `all`, `find`, `findIndex` and `splitWhile` call their function on the elements in the list's order, once each, and `any`, `all`, `find`, `findIndex` and `splitWhile` on none after the one that decides.
 
 The primitives are `size`, `reverse`, `unique`, `unzip`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
@@ -489,7 +489,7 @@ Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving; a second belo
 Int.pow : (Int, Int) -> Optional(Int) // exact; None for a negative exponent; Int.pow(0, 0) is Some(1)
 Int.toString : (Int) -> String
 Int.toStringBase : (Int, Int) -> String // in that base, 2 to 36, with upper-case letters; a base outside faults with Fault("a base is from 2 to 36") (§7.4)
-Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
+Int.toFloat : (Int) -> Float // faults where it rounds to no finite Float, §3.1
 ```
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
@@ -524,6 +524,8 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
+The module is Ernest (E.0 rule 1).
+
 ```
 Optional.isSome : (Optional(a)) -> Bool
 Optional.isNone : (Optional(a)) -> Bool
@@ -533,6 +535,8 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) receiving e) -> Optional(b) 
 ```
 
 ### Appendix E.11. `either.ern` (namespace `Either`)
+
+The module is Ernest (E.0 rule 1).
 
 ```
 Either.isLeft : (Either(e, a)) -> Bool
@@ -906,7 +910,7 @@ The program's environment is what the command's `environment` says. `Inherited(v
 
 An echo comes among what the program writes, so the echo of a line written while the program writes may come in parts around it. The echo of a line the program exits on, writing nothing after it has taken the line, may not arrive.
 
-`resize(program, size)` sets the terminal's size and tells the program's foreground, as a terminal's window resized tells its shell; on a program `start` started it answers `Left(NotATerminal)`, whatever the size, and once the terminal is hung up or the program has exited it answers `Left(Closed)`, as `write` does. A count of rows or columns below 0 or above 65535 is one the host cannot take, and `startTerminal` and `resize` answer `Left(Invalid)` for it. `resize` answers in that order, `NotATerminal`, `Invalid`, `Closed`, the first two without asking the helper, and `Closed` alone on a program whose process has ended (below).
+`resize(program, size)` sets the terminal's size and tells the program's foreground, as a terminal's window resized tells its shell; on a program `start` started it answers `Left(NotATerminal)`, whatever the size, and once the terminal is hung up or the program has exited it answers `Left(Closed)`, as `write` does. A count of rows or columns below 0 or above 65535 is one the host cannot take, and `startTerminal` and `resize` answer `Left(Invalid)` for it. On a program whose process has ended `resize` answers `Left(Closed)`, before the others (below). On any other it answers in that order, `NotATerminal`, `Invalid`, `Closed`, the first two without asking the helper.
 
 `closeInput` on such a program hangs the terminal up, as closing a terminal's window does: the program is sent the hangup, input it has not taken is dropped, a write of it answering `Left(Closed)`, nothing more it writes arrives, and `read` answers `Exited(status)` once it has exited. A read of the terminal the program is waiting in ends before the hangup is sent, so a program that exits when its input ends may exit so and never take the hangup.
 
@@ -965,6 +969,8 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 ### Appendix E.24. `test.ern` (namespace `Test`)
 
 A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types, `Captured` below, and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4). Where the two texts begin alike and then differ, the failure says where, `expected [1, 2, 4], got [1, 2, 3], differing at character 8`, counting the graphemes of the texts as `Io.show` writes them, a string's quotes among them, from 1 to the first that differs or to the one past the shorter text's end.
+
+The primitives are the mark beneath `faults`, the two functions beneath `capture`, which begin a capture and end it, and the host's yield between the runs of a test that polls, each private to the module (E.0 rule 1); the rest is Ernest over them.
 
 `faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` as `Process.run` runs one, but marked, in a process of its own whose end it waits for without a limit and which is killed where the caller ends or restarts first (E.21), and reads the answer. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. Where another fault came, the case's line carries the trace of the first such fault beneath it, as a case's own fault does (§11.2).
 
@@ -1062,7 +1068,7 @@ OrderedMap.values : (Map(k, v)) -> List(v) // in the keys' order
 
 Over the runtime's record of the node's peers and of its offers (§8.7). The primitives are eleven of the twelve: `service`, a value the compiler makes, and `offer`, `find`, `spawn`, `spawnMonitored`, `compute`, `computeAnywhere`, `utilization`, `peers`, `utilizations` and `setUtilization`, which act through the runtime (E.0 rule 1); `name` reads a service.
 
-`service`, `offer`, `find`, `spawn`, `spawnMonitored`, `compute`, `computeAnywhere`, `utilization`, `utilizations` and `setUtilization` act as §8.7 and this section state, and answer as the listing gives. `name(service)` answers the name the service was made with. `spawn`, `spawnMonitored`, `compute` and `computeAnywhere` are forms, not values: each is called where it is named, and its type below is that of its call (§3.11).
+`name(service)` answers the name the service was made with. `spawn`, `spawnMonitored`, `compute` and `computeAnywhere` are forms, not values: each is called where it is named, and its type below is that of its call (§3.11).
 
 In a program that is no node an offer is accepted, and nothing finds it, and `setUtilization` is accepted, and no peer is told it. `setUtilization` with a value below 0.0 faults its caller with `Fault("a utilization is 0.0 or above")`. The utilization it sets holds until it is set again or the program's run ends, the node telling the run queue's measure (§12.8) before the first and between two runs (§11.2).
 
@@ -1159,7 +1165,7 @@ Code.running : (a) -> List(Address(m)) // a primitive, called where it is named 
 
 Informative, but for its list of libraries, which is what §11.1 and §11.2 put on the load path. The libraries this project writes, each a directory that is a source root of its own, whose build stands on the load path of every job (§11.1, §11.2); a program names none of them, and a program's module at the namespace of a library's module hides that module (§4.2): `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. The toolchain's own jobs call four of them, `Markdown`, `Ansi`, `Ets` and `Crypto`. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name.
 
-No library listed here is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere is used as a package (§11.9). It follows Appendix D and is not listed here.
+No library listed here is part of the language or of the standard library. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere is used as a package (§11.9). It follows Appendix D and is not listed here.
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
@@ -1361,7 +1367,9 @@ A line of the chunked coding ends as a head's does, in a line feed with or witho
 
 `renderResponse(response, body)` and `renderRequest(request, body)` write the head and the body: the first line, with the value's version, each header as `name: value`, `Content-Length` of the body's size where the headers carry none and no `Transfer-Encoding`, the status is no 1xx, 204 or 304, and, for a request, the body is not empty, an empty line, and the body.
 
-A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given. A response's status line carries the phrase `reason(status)` gives, the one IANA's registry of status codes gives the status, RFC 9110's among them, and `""` for a status the registry does not assign.
+A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given.
+
+A response's status line carries the phrase `reason(status)` gives, the one IANA's registry of status codes gives the status, RFC 9110's among them, and `""` for a status the registry does not assign, assigns for a time or has made obsolete.
 
 `chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 

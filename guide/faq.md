@@ -14,7 +14,7 @@ What is the same is the types, Hindley-Milner as ML has it, which Gleam made ord
 
 Gleam's `Result(value, error)` is `Either(e, a)`, its parameters the other way round: `Ok` is `Right` and `Error` is `Left`. Gleam's `Option` is `Optional`, `Nil` is `Unit`, and `Pid` is `Process` (report §9.1, §9.3).
 
-Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam has that Ernest lacks: a JavaScript target, a package manager, `gleam add` with hex behind it (the question on packages, below), labeled arguments on a function, `use`, type aliases, `gleam/otp`'s `actor`, which handles OTP's system messages for the host's debugging and tracing tools, a `Name` that a process registers under and a later process takes over, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
+Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. Among what Gleam has that Ernest lacks: a JavaScript target, a package manager, `gleam add` with hex behind it (the question on packages, below), labeled arguments on a function, `use`, type aliases, `gleam/otp`'s `actor`, which handles OTP's system messages for the host's debugging and tracing tools, a `Name` that a process registers under and a later process takes over, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
 
 ### Is this Unison on the Erlang runtime?
 
@@ -34,7 +34,7 @@ A process that must come back runs its function under `restarting`, which runs t
 
 Past its restart limit the process ends, and the binding names an ended process for the rest of the run; what a call to it answers then, and how a process that keeps something for the service hears of each restart, is the guide's §6.5.
 
-A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout. Nothing stands in for `terminate`: a child that must write what it keeps is sent a message of its own protocol before the group is stopped, and what a killed child kept, which the runtime does not own, is lost (the guide's §6.6).
+A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout. Nothing stands in for `terminate` where a child is killed: a child that must write what it keeps is sent a message of its own protocol before the group is stopped, and what a killed child kept, which the runtime does not own, is lost (the guide's §6.6); at the program's end a process that subscribed with `Os.subscribeTermination` is told and waited for (the guide's §8.2).
 
 When a sibling restarts, and what a call to the child that faulted answers meanwhile, is the guide's §6.6.
 
@@ -96,13 +96,13 @@ What nothing catches is `Address.callForever` on a callee that lives on and neve
 
 Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A function generic in `a` that needs it writes a requirement, `needs a.compare`, which names members of a closed set, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
 
-The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare` (report §4.9); what `show` is, which no type declares, is the guide's §7.3.
+The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare` (report §4.9, §4.5, §4.8); what `show` is, which no type declares, is the guide's §7.3.
 
 *Abstract types and requirements* in [Why Ernest](why.md) says what sets a requirement apart from a class and what its closed set rules out, and shows all three in code, with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
 
 ### What does "built for a WAN" mean?
 
-That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
+That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.7, §12.5, the guide's §8.1).
 
 A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own *carrier*, the host's distribution as a node runs it, finding a peer by its listed address, so there is no port mapper, which is also why a plain Erlang node, started without Ernest, cannot be a peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)). The cookie a node's command line carries is no secret and grants nothing (the deployment guide's §2.2), and how a fleet moves to a new floor is its §6.1.
 
@@ -112,7 +112,7 @@ A process replaces its own loop by a message in its type that carries the new fu
 
 A module reloaded in the shell gets a version beside its earlier ones, each named, so that a process still running the old version runs it to its end and a value of an old type prints as that version's (report §11.2). Nothing is purged: a version, once loaded, is held for the node's life, so the memory of a node that reloads without end grows with its versions, a limit the report states; the deployment guide's §4.2 says when a node is restarted.
 
-Across nodes a definition is known by the hash of its form, so two nodes agree on a function by its content and not by a module's name, which in Erlang stands for whichever of its two loaded versions is current (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
+Across nodes a definition is known by the hash of its form, which holds its name with its module's, so two nodes agree on a function by its content and not by a module's name alone, which in Erlang stands for whichever of its two loaded versions is current, and a moved or renamed module is new code (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
 
 ### Why does a function spawned on a peer read the peer's top-level bindings, and not the spawner's?
 

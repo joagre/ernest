@@ -6,7 +6,7 @@ Its parts come from elsewhere: Unison's small core and its code known by the has
 
 What Ernest adds is where the parts meet:
 
-- **Code travels.** Each function is known by a hash of its definition, not by the module it stands in, so it crosses to a node that lacks it, and a module keeps every version it has had.
+- **Code travels.** Each function is known by a hash of its definition, its name with its module's a part of it, so it crosses to a node that lacks it, and a module keeps every version it has had.
 - **The mailbox in the function's type.** A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches.
 - **Foreign code is checked, not trusted.** What foreign code answers, sends or passes to a program is checked against the type declared for it, so a wrong value is a fault where it crosses.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
@@ -136,7 +136,7 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). A bare `process.spawn` in Gleam answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a call makes is a `Reply`, which the caller hands over in its request (report §6.6). A bare `process.spawn` in Gleam answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
 
 No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject that another process made with `process.new_subject()`:
 
@@ -179,13 +179,13 @@ foreign fn systemTime() : Int =
     "erlang:system_time/0"
 ```
 
-Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String: is 1795614508141772086`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the function and the type (report §8.4).
+Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String: is 1795614508141772086`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the type, and for a return or an argument the function (report §8.4).
 
 So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.5). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
 ### A distribution built for a WAN
 
-A node is Ernest started from a configuration directory, with a program or with none. What passes between two nodes is the host's, Erlang's own distribution with its protocol and its way of finding a peer lost ([the questions](faq.md#what-does-built-for-a-wan-mean)). What is Ernest's is who connects, and when: a node's `ernest.conf` lists the peers it knows, each by a name, a public key and an address, a connection is accepted from a listed key alone, under the name listed beside that key, and the one connection to a peer is dialed over TLS when an operation first needs it:
+A node is Ernest started from a configuration directory, with a program or with none. What passes between two nodes is the host's, Erlang's own distribution with its protocol and its way of finding a peer lost ([the questions](faq.md#what-does-built-for-a-wan-mean)). What is Ernest's is who connects, and when: a node's `ernest.conf` lists the peers it knows, each by a name, a public key and an address, a connection is accepted from a listed key alone, under the name that key gives it, and the one connection to a peer is dialed over TLS when an operation first needs it:
 
 ```json
 {
@@ -203,7 +203,7 @@ A node is Ernest started from a configuration directory, with a program or with 
 
 `ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. A service is a process a node offers its peers under a name; a peer finds its address by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `Io.OtherType`. `services`, empty here, names for each service a program looks up the peers that may offer it.
 
-The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. What waits on a silent peer meanwhile, and that no setting shortens the window, is the deployment guide's §2.3. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
+The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent is found silent in 45 to 75 seconds, as the host's distribution finds a silence, and lost when the host closes the connection; the next operation towards it dials again. What waits on a silent peer meanwhile, and that no setting shortens the window, is the deployment guide's §2.3. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
@@ -293,7 +293,7 @@ Mutual.main faulted: deadlock
 
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
-Ernest can decide it because the runtime owns every source of a message but one, named below. A process is spawned by the runtime, which monitors it. The clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds. Foreign code is entered through a declaration, and a process inside it is read as able to be delivered to.
+Ernest can decide it because the runtime owns every source of a message but one, named below. A process is spawned by the runtime, which monitors it. The clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds. Foreign code is entered through a declaration, and a process inside it is read as able to deliver.
 
 So "nothing can deliver and everyone waits" is a question with an answer, and the runtime answers it by report §8.6's rule: no forward progress is possible when every process waits, no message is in flight, and nothing the runtime counts holds a timer, a pending I/O or a computation that would deliver one.
 
@@ -396,7 +396,7 @@ input 2:1:4: String is not a type declared in this module
 
 A member is also no value: `Int.compare` in an expression is refused, and `compare` reaches it (report §4.5).
 
-A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for the two things the session shows: its set is closed, and a member is declared in its type's own module (report §4.9). It stands in the signature, so what a call supplies is written where the function is declared (report §0, principle 3). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and the closed set is the whole of what a type can promise.
+A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for the two things the session shows: its set is closed, and a member is declared in its type's own module (report §4.9, §4.5, §4.8). It stands in the signature, so what a call supplies is written where the function is declared (report §0, principle 3). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and the closed set is the whole of what a type can promise.
 
 `show` is no member a type declares, and every value has it through `Io.show` (report §4.9); why a function generic in `a` writes `needs a.show` all the same is the guide's §7.3. The guide's §7 teaches requirements.
 
