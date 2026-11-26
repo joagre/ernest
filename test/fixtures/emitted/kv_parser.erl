@@ -47,7 +47,7 @@
 
 %% Kv_parser.keyOf
 '$4'(Chars_17) ->
-    {Letters_18, Rest_19} = ern@list:'$22'(Chars_17,
+    {Letters_18, Rest_19} = ern@list:'$24'(Chars_17,
                                            fun ern@char:'$9'/1),
     case not ern@list:'$3'(Letters_18) of
         true ->

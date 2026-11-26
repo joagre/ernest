@@ -239,27 +239,25 @@ release() {
 # title's source, as the toolchain that wrote it (report §11.4). That ern
 # takes src/stdlib in its own tree for the standard library's source root,
 # so the sources are copied there and the pages written from that tree, as
-# make writes them from the checkout's, each into a copy of its build root
-# under $1.pages, since `ern doc` reads a current .erc beside the pages it
-# writes. The sources and the copies go after.
+# make writes them from the checkout's, each from the archive's own build
+# root, which `ern doc` reads a current .erc from, into its doc root under
+# $1.pages, so that nothing is written in the archive's builds (report
+# §11.4). The sources and the pages go after.
 pages() {
     own=$(cd "$1/lib/ernest" && pwd -P)
-    copies=$(cd "$1/.." && pwd -P)/$(basename "$1").pages
-    rm -rf "$copies" "$own/src"
+    written=$(cd "$1/.." && pwd -P)/$(basename "$1").pages
+    rm -rf "$written" "$own/src"
     mkdir -p "$own/src"
     cp -Rp src/stdlib src/libs "$own/src/"
     for root in build/stdlib build/libs/*; do
-        mkdir -p "$copies/$root"
-        cp -Rp "$root/." "$copies/$root"
-        rm -f "$copies/$root"/*.3ern
         source=src/${root#build/}
-        (cd "$own" && bin/ern doc --man --source-root "$source" \
-             --build-root "$copies/$root" "$source" > /dev/null)
+        (cd "$own" && bin/ern doc --man --source-root "$source" --build-root "$root" \
+             --doc-root "$written/$root" "$source" > /dev/null)
     done
-    for f in "$copies"/build/stdlib/*.3ern "$copies"/build/libs/*/*.3ern; do
+    for f in "$written"/build/stdlib/*.3ern "$written"/build/libs/*/*.3ern; do
         cp "$f" "$1/share/man/man3/$(basename "$f")"
     done
-    rm -rf "$copies" "$own/src"
+    rm -rf "$written" "$own/src"
 }
 
 case $job in

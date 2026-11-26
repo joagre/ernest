@@ -1,5 +1,6 @@
 /// RFC 3986's URI reference read into its scheme, authority, path, query
-/// and fragment, and percent-encoded text read as its octets.
+/// and fragment and written from them, and octets read from their
+/// percent-encoding and written in it.
 ///
 /// Use it where a program reads a URL or a request's target: a client finds
 /// the host and the port it dials, and a server the path it serves. A server
@@ -18,6 +19,10 @@
 /// delimiters, a path at `/` and each segment decoded with `decode`, so
 /// that `%2F` is an octet inside a segment and no delimiter. The octets
 /// need not be UTF-8; `String.fromUtf8` reads them as text where they are.
+///
+/// **Writing.** A component is encoded with `encode` before it is joined
+/// to its delimiters, and `toString` writes a reference's components as they
+/// stand, encoding none of them.
 ///
 /// ## Examples
 ///
@@ -41,6 +46,19 @@
 ///     List.map(segments, fn(segment) = Optional.andThen(Uri.decode(segment), String.fromUtf8))
 /// }
 /// // => [Some(""), Some("a/b"), Some("café")]
+/// ```
+///
+/// A reference written from its components, a segment encoded first:
+///
+/// ```ernest
+/// Uri.toString(Uri.Reference(scheme = Some("https"),
+///                            authority = Some(Uri.Authority(userinfo = None,
+///                                                           host = "example.com",
+///                                                           port = None)),
+///                            path = "/" <> Uri.encode(String.toUtf8("a b")),
+///                            query = None,
+///                            fragment = None))
+/// // => "https://example.com/a%20b"
 /// ```
 ///
 /// ## See also
@@ -238,6 +256,109 @@ fn digit(byte : Int) : Optional(Int) =
         Some(byte - 0x61 + 10)
     else
         None
+
+/// The text that percent-encodes `bytes`: the octet of an unreserved
+/// character, a letter, a digit, `-`, `.`, `_` or `~`, as the character,
+/// and every other octet as `%` and two upper-case hexadecimal digits.
+///
+/// The text is one every component may hold, and `decode` reads it back as
+/// `bytes`. A component is encoded before it is joined to its delimiters, so
+/// that a `/` inside a segment is `%2F`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Uri.encode(String.toUtf8("a b/caf\u{e9}")), Uri.encode(<<0, 255>>))
+/// // => #("a%20b%2Fcaf%C3%A9", "%00%FF")
+/// ```
+///
+/// since 0.11.0
+export fn encode(bytes : Bytes) : String =
+    match String.fromUtf8(percentEncoded(bytes, <<>>)) {
+        Some(text) -> text
+      | None -> fault("a percent-encoding is ASCII")
+    }
+
+// Report Appendix G.12: the octets `acc` holds, then those of `bytes`,
+// each but an unreserved character's as `%` and two hexadecimal digits.
+fn percentEncoded(bytes : Bytes, acc : Bytes) : Bytes =
+    match bytes {
+        <<octet, rest:bytes>> ->
+            if isUnreserved(octet) then
+                percentEncoded(rest, <<acc:bytes, octet>>)
+            else
+                percentEncoded(rest,
+                               <<acc:bytes,
+                                 '%':utf8,
+                                 upperDigit(octet / 16),
+                                 upperDigit(octet % 16)>>)
+      | _ ->
+            acc
+    }
+
+// RFC 3986 §2.3: whether the octet is an unreserved character's, a letter,
+// a digit, `-`, `.`, `_` or `~`.
+fn isUnreserved(octet : Int) : Bool =
+    octet >= 0x41 && octet <= 0x5A
+        || octet >= 0x61 && octet <= 0x7A
+        || octet >= 0x30 && octet <= 0x39
+        || octet == 0x2D
+        || octet == 0x2E
+        || octet == 0x5F
+        || octet == 0x7E
+
+// The byte of the upper-case hexadecimal digit that writes a value from 0
+// to 15.
+fn upperDigit(value : Int) : Int =
+    if value < 10 then 0x30 + value else 0x41 + value - 10
+
+/// The text of `reference`, its components recomposed as RFC 3986, section
+/// 5.3, has it: each component that is there, as it stands, with its
+/// delimiter, `:` after the scheme, `//` before the authority, `?` before
+/// the query and `#` before the fragment.
+///
+/// An authority is its user information and `@`, its host, and `:` and its
+/// port, each that is there; a host that holds a `:`, an IPv6 address, is
+/// written between `[` and `]`. A reference `parse` answered is written as
+/// a text `parse` reads as that reference.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.map(Uri.parse("http://[::1]:8080/a?q#top"), Uri.toString)
+/// // => Some("http://[::1]:8080/a?q#top")
+/// ```
+///
+/// since 0.11.0
+export fn toString(reference : Reference) : String =
+    String.join([written(reference.scheme, fn(scheme) = scheme <> ":"),
+                 match reference.authority {
+                     Some(authority) -> "//" <> authorityText(authority)
+                   | None -> ""
+                 },
+                 reference.path,
+                 written(reference.query, fn(query) = "?" <> query),
+                 written(reference.fragment, fn(fragment) = "#" <> fragment)],
+                "")
+
+// Report Appendix G.12: an authority's text, its host in brackets where it
+// holds a `:`.
+fn authorityText(authority : Authority) : String = {
+    let host = if String.contains(authority.host, ":") then
+        "[" <> authority.host <> "]"
+    else
+        authority.host;
+    written(authority.userinfo, fn(userinfo) = userinfo <> "@")
+        <> host
+        <> written(Optional.map(authority.port, Int.toString), fn(port) = ":" <> port)
+}
+
+// A component's text with its delimiter, or none where it is not there.
+fn written(component : Optional(String), write : (String) -> String) : String =
+    match component {
+        Some(text) -> write(text)
+      | None -> ""
+    }
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are. They
@@ -526,3 +647,96 @@ let partedFirst =
               run = fn() =
                   Test.equal(List.map(String.split("/a%2Fb/c", "/"), decode),
                              [Some(<<>>), Some(<<97, 47, 98>>), Some(<<99>>)]))
+
+// report Appendix G.12: each octet of an unreserved character, RFC 3986
+// §2.3, is the character, and every other `%` and its two upper-case
+// hexadecimal digits.
+let encodedOctets =
+    Test.Case(name = "encode writes an unreserved character as itself and every other octet as %",
+              run = fn() = {
+                  let octets = List.range(0, 255);
+                  let #(kept, encoded) =
+                      List.partition(octets, fn(octet) = String.size(encode(<<octet>>)) == 1);
+                  Test.equal(#(String.fromList(List.filterMap(kept, Char.fromCodePoint)),
+                               List.all(encoded,
+                                        fn(octet) =
+                                            encode(<<octet>>)
+                                                == "%"
+                                                    <> String.toAsciiUpper(Bytes.toHex(<<octet>>))),
+                               List.map([<<>>,
+                                         String.toUtf8("a b/c?d#e%f"),
+                                         String.toUtf8("caf\u{e9}")],
+                                        encode)),
+                             #("-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~",
+                               true,
+                               ["", "a%20b%2Fc%3Fd%23e%25f", "caf%C3%A9"]))
+              })
+
+// report Appendix G.12: `decode` reads back what `encode` writes, every
+// octet among it.
+let encodeReadBack =
+    Test.Case(name = "decode reads what encode writes as the octets it was written from",
+              run = fn() = {
+                  let octets =
+                      List.foldLeft(List.range(0, 255),
+                                    <<>>,
+                                    fn(acc, octet) = <<acc:bytes, octet>>);
+                  Test.equal(decode(encode(octets)), Some(octets))
+              })
+
+// report Appendix G.12, RFC 3986 §5.3: each component that is there, with
+// its delimiter, an IPv6 address in brackets.
+let recomposed =
+    Test.Case(name = "toString writes each component that is there with its delimiter",
+              run = fn() =
+                  Test.equal(List.map([Reference(scheme = Some("https"),
+                                                 authority = Some(Authority(userinfo = Some("u:p"),
+                                                                            host = "example.com",
+                                                                            port = Some(8443))),
+                                                 path = "/a%20b",
+                                                 query = Some("q=1"),
+                                                 fragment = Some("top")),
+                                       Reference(scheme = None,
+                                                 authority = Some(hostAndPort("::1", Some(80))),
+                                                 path = "",
+                                                 query = None,
+                                                 fragment = None),
+                                       Reference(scheme = Some("mailto"),
+                                                 authority = None,
+                                                 path = "desk@example.com",
+                                                 query = None,
+                                                 fragment = None),
+                                       bare("")],
+                                      toString),
+                             ["https://u:p@example.com:8443/a%20b?q=1#top",
+                              "//[::1]:80",
+                              "mailto:desk@example.com",
+                              ""]))
+
+// report Appendix G.12: a reference `parse` answered is written as a text
+// `parse` reads as that reference, the text itself where it writes its
+// port without a zero before it and writes no empty one.
+let recomposedReadBack =
+    Test.Case(name = "parse reads what toString writes as the reference it was written from",
+              run = fn() = {
+                  let texts =
+                      ["foo://example.com:8042/over/there?name=ferret#nose",
+                       "ldap://[2001:db8::7]/c=GB?objectClass?one",
+                       "//[::FFFF:192.0.2.1]",
+                       "//u:p@h:1",
+                       "//@h",
+                       "http:///p",
+                       "/p?",
+                       "/p#",
+                       "?q",
+                       "#f",
+                       "./a:b",
+                       "",
+                       "HTTP://Example.COM/a/../b/%2e/%41",
+                       "//h:",
+                       "//h:08"];
+                  let references = List.filterMap(texts, parse);
+                  let written = List.map(references, toString);
+                  Test.equal(#(List.filterMap(written, parse), List.take(written, 13)),
+                             #(references, List.take(texts, 13)))
+              })

@@ -108,7 +108,8 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 
 %% Command is `Command(program, arguments, input, environment,
 %% workingDirectory)`, its fields in their declared order (report §3.5),
-%% and Kind `pipes`, or `{terminal, Size}` with Size `Terminal.Size(rows,
+%% its environment `Inherited(variables)` or `Only(variables)`, and Kind
+%% `pipes`, or `{terminal, Size}` with Size `Terminal.Size(rows,
 %% columns)`. Report Appendix E.23: what the host cannot take, and a count
 %% of rows or columns it cannot take, are `Left(Invalid)`. Report §12.5,
 %% §12, Appendix E.23: a host that holds as many ports as its limit, or as
@@ -120,7 +121,8 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 %% process cannot be made, the port closed.
 start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, Kind, Owner,
       Reply) ->
-    case is_taken(Program, Arguments, Environment, Directory) andalso is_size_taken(Kind) of
+    {_, Variables} = Environment,
+    case is_taken(Program, Arguments, Variables, Directory) andalso is_size_taken(Kind) of
         false ->
             ern_rt:end_source(Reply, {'Left', 'Invalid'});
         true ->
@@ -133,9 +135,8 @@ start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, 
                             %% the helper's command line, so that an argument
                             %% too long for the host is the program's failure
                             %% to start
-                            lists:foreach(fun({Name, Value}) ->
-                                              give(Writer, <<"v", Name/binary, "=", Value/binary>>)
-                                          end, Environment),
+                            lists:foreach(fun(Frame) -> give(Writer, Frame) end,
+                                          environment_frames(Environment)),
                             give(Writer, <<"p", Directory/binary>>),
                             Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
                             give(Writer, <<"c", Parts/binary>>),
@@ -158,12 +159,24 @@ start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, 
 %% name, each argument, each variable's value and the directory without
 %% U+0000, the directory besides not empty, and each variable's name not
 %% empty and without `=`.
-is_taken(Program, Arguments, Environment, Directory) ->
+is_taken(Program, Arguments, Variables, Directory) ->
     Directory =/= <<>> andalso lists:all(fun is_word/1, [Program, Directory | Arguments])
         andalso lists:all(fun({Name, Value}) ->
                               Name =/= <<>> andalso binary:match(Name, <<"=">>) =:= nomatch
                                   andalso is_word(Name) andalso is_word(Value)
-                          end, Environment).
+                          end, Variables).
+
+%% Report Appendix E.23: the helper's frames of the program's environment:
+%% under `Only` first the frame that empties the helper's own, which holds
+%% the environment `ern` was started in, and then a frame for each variable
+%% to set, in order, so that the last of two with one name stands.
+environment_frames({'Inherited', Variables}) ->
+    variable_frames(Variables);
+environment_frames({'Only', Variables}) ->
+    [<<"o">> | variable_frames(Variables)].
+
+variable_frames(Variables) ->
+    [<<"v", Name/binary, "=", Value/binary>> || {Name, Value} <- Variables].
 
 is_word(Word) ->
     binary:match(Word, <<0>>) =:= nomatch.

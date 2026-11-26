@@ -1113,14 +1113,14 @@ example.ern:1:10: unknown type Color
 ### A qualified type nothing declares (§4.2)
 
 ```ernest-rejected
-fn f(x : Shapes.Color) : Int = 0
+fn f(x : Io.Color) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:10: unknown type Shapes.Color
-1 | fn f(x : Shapes.Color) : Int = 0
-  |          ^^^^^^^^^^^^
+example.ern:1:10: unknown type Io.Color
+1 | fn f(x : Io.Color) : Int = 0
+  |          ^^^^^^^^
 ```
 
 ### A type another module keeps private (§4.2, §11.5)
@@ -1797,6 +1797,19 @@ example.ern:1:16: unknown name List.count
   |                ^^^^^^^^^^
 ```
 
+### A module found nowhere (§4.2, §11.5)
+
+```ernest-rejected
+fn f() : Int = Geo.origin()
+```
+
+```console
+$ ern build example.ern
+example.ern:1:16: no module Geo under the source root or on the load path
+1 | fn f() : Int = Geo.origin()
+  |                ^^^^^^^^^^
+```
+
 ### A root module a nearer namespace hides (§4.2, §11.5)
 
 ```ernest
@@ -1968,17 +1981,17 @@ example.ern:2:13: the prelude declares no constructor Red
 
 ```ernest-rejected
 fn f() : Int = {
-    let c = Colors.Red;
+    let c = Io.Red;
     1
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:13: unknown constructor Colors.Red
+example.ern:2:13: unknown constructor Io.Red
 1 | fn f() : Int = {
-2 |     let c = Colors.Red;
-  |             ^^^^^^^^^^
+2 |     let c = Io.Red;
+  |             ^^^^^^
 ```
 
 ### A constructor of a type another module keeps private (§4.2, §11.5)
@@ -3364,6 +3377,21 @@ example.ern:3:18: the argument does not fit g: expected Int, found String
 3 | fn f() : Int = g("one")
   |                - g : (Int) -> Int
   |                  ^^^^^
+```
+
+### An argument a constructor mends (§5.2, §11.5)
+
+```ernest-rejected
+fn f(name : String) : Either(Io.Error, Bytes) = Fs.read(name, 1000)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:57: the argument does not fit Fs.read: expected Path, found String
+1 | fn f(name : String) : Either(Io.Error, Bytes) = Fs.read(name, 1000)
+  |                                                 ------- Fs.read : (Path, Int) -> Either(Io.Error, Bytes)
+  |                                                         ^^^^
+  | = help: write `Path(...)`
 ```
 
 ### A call of a value that is no function (§5.2)

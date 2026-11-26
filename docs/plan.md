@@ -35,17 +35,15 @@ item's and 12 `dropped`, and seven of the session's own that the readers met on 
 The fixes are made: their sentences, a test for each, the pages of the declarations
 they touch and *Z15*'s mend of `ern doc --verbose` (the log's *The Plain Fixes' Tests*).
 
-**The `decide` lines are answered**, the 20 and feedback 281, which the user added: each
-under its line in the findings (the log's *The Applications' Lines Decided*).
+**The `decide` lines are answered and built**, the 20 and feedback 281, which the user
+added: each under its line in the findings (the log's *The Applications' Lines Decided*
+and *The Applications' Lines Built*). `make test` passes.
 
-**Next, their builds.** The report's sentences first, by the session. Then the code by
-agents, one to an owner: the runtime, *H39*, *H53* and *H58*; the checker, *E4* and
-*T16*; the cli and the builder, *H43*, *T1* and *T2*; the libraries and the standard
-library, *H38*, *H41*, *H51*, *T3*, feedback 281 and *H59*'s page. The session writes
-*H44*'s row of the deployment guide and *T9*'s sentence. When they are built, each
-session is answered by a message as `docs/clean_room.md`'s *The answer* says, with an
-archive made on the user's word. Then `docs/findings.md` goes, the review's entry is
-written with its counts, and item 4 closes.
+**Next, the close of item 4.** `make test-full`. Then each session is answered by a
+message as `docs/clean_room.md`'s *The answer* says, the answers drafted under the
+probes directory's `mvp44_item4/apps/messages/`, with an archive made on the user's
+word. Then `docs/findings.md` goes, the review's entry is written with its counts, and
+item 4 closes.
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The

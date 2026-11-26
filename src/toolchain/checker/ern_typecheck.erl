@@ -7971,7 +7971,7 @@ unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = E
         {error, Reason} ->
             Printing = ern_types:named_as_declared(Named, TypeState),
             Help = case RuleHelp of
-                       undefined -> differing_help(Reason, Expected, Actual, Printing);
+                       undefined -> mismatch_help(Reason, Expected, Actual, Printing, Env);
                        _ -> RuleHelp
                    end,
             fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken, Printing),
@@ -8030,6 +8030,14 @@ rigid_help(Rigid, TypeState) ->
             end
     end.
 
+%% Report §11.5: a mismatch's help line, the part in which the types
+%% differ, or, where they differ whole, the constructor that mends it.
+mismatch_help(Reason, Expected, Actual, Printing, Env) ->
+    case differing_help(Reason, Expected, Actual, Printing) of
+        undefined -> constructor_help(Reason, Expected, Actual, Env);
+        Help -> Help
+    end.
+
 %% The message shows the whole types; when they differ inside, the help
 %% line names the differing part, and none where the two parts print
 %% alike, as two variables printed apart both print `a`.
@@ -8044,6 +8052,56 @@ differing_help({mismatch, _, _}, Expected, Actual, TypeState) ->
         false -> "the types differ at " ++ ExpectedText ++ " and " ++ ActualText
     end;
 differing_help(_, _, _, _) -> undefined.
+
+%% Report §11.5: where the whole types differ, and the expected type has
+%% one constructor, visible where the mismatch stands, whose one positional
+%% field is of the found type, the help writes the constructor as the site
+%% would, write `Path(...)`: an abstract type's is its module's alone
+%% (§4.4), and a type no name in scope reaches, another module's private
+%% one, has none. The field is of the found type where it unifies with it
+%% at the type expected and binds no annotation's variable (§3.9).
+constructor_help({mismatch, _, _}, Expected, Actual,
+                 #env{type_state = TypeState, types = Types, local_types = LocalTypes,
+                      rigid = Rigid} = Env) ->
+    Whole = {ern_types:substitute(Expected, TypeState), ern_types:substitute(Actual, TypeState)},
+    case {ern_types:mismatch_pair(Expected, Actual, TypeState), Whole} of
+        {Whole, {{tcon, QualifiedName, _}, _}} ->
+            case maps:get(QualifiedName, Types, undefined) of
+                #type_info{constructors = [#constructor_info{fields = positional,
+                                                             scheme = Scheme} = Constructor],
+                           abstract = Abstract} ->
+                    IsVisible = not Abstract
+                        orelse maps:get(lists:last(QualifiedName), LocalTypes, undefined)
+                                   =:= QualifiedName,
+                    case IsVisible andalso is_wrapped(Scheme, Expected, Actual, Rigid, TypeState) of
+                        true -> "write `" ++ constructor_code(Constructor, Env) ++ "(...)`";
+                        false -> undefined
+                    end;
+                _ ->
+                    undefined
+            end;
+        _ ->
+            undefined
+    end;
+constructor_help(_, _, _, _) -> undefined.
+
+%% Whether the constructor of Scheme, a function of one field, makes the
+%% type Expected of a value of the type Actual.
+is_wrapped(Scheme, Expected, Actual, Rigid, TypeState) ->
+    case ern_types:instantiate(Scheme, TypeState) of
+        {{tfn, [Field], none, Result}, TypeState1} ->
+            case ern_types:unify(Result, Expected, TypeState1) of
+                {ok, TypeState2} ->
+                    case ern_types:unify(Field, Actual, TypeState2) of
+                        {ok, TypeState3} -> rigid_kept(Rigid, TypeState3);
+                        {error, _} -> false
+                    end;
+                {error, _} ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 unify_message(Rule, {mismatch, _, _}, Expected, Actual, Taken, TypeState) ->
     {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, Taken, TypeState),

@@ -41,6 +41,15 @@ list_test() ->
     ?assertEqual(true, List(contains)([1, 2], 2)),
     ?assertEqual({'Some', 2}, List(find)([1, 2, 3], fun(X) -> X > 1 end)),
     ?assertEqual('None', List(find)([1], fun(X) -> X > 1 end)),
+    %% report Appendix E.2, E.0 rule 2: findIndex, the index from 0 of the
+    %% first element that satisfies, the test called on the elements in
+    %% order and on none after it
+    put(seen, []),
+    Above = fun(X) -> put(seen, [X | get(seen)]), X > 1 end,
+    ?assertEqual({'Some', 1}, List(findIndex)([1, 2, 3, 2], Above)),
+    ?assertEqual([1, 2], lists:reverse(get(seen))),
+    ?assertEqual('None', List(findIndex)([1, 0], fun(X) -> X > 1 end)),
+    ?assertEqual('None', List(findIndex)([], fun(X) -> X > 1 end)),
     ?assertEqual(true, List(any)([1, 2], fun(X) -> X > 1 end)),
     ?assertEqual(false, List(all)([1, 2], fun(X) -> X > 1 end)),
     ?assertEqual([2, 4], List(map)([1, 2], fun(X) -> X * 2 end)),
@@ -1811,6 +1820,51 @@ tcp_ends_with_program_test() ->
              end,
     ?assertEqual(ok, ern_rt:run_main(Second, <<"second">>, #{})),
     ?assertEqual(['Right'], ern_helpers:taken(listened)).
+
+%% report Appendix E.18: `address` is the bytes of the address a text
+%% writes: 4 for an IPv4 address, 16 for an IPv6 address compressed, whole
+%% or ending in IPv4's numbers, in either case; `None` for another text, a
+%% short or an octal IPv4 form, brackets, a name, a space and U+0000 among
+%% them, and for each zone and sign the host reads: a link-local zone, one
+%% of digits the host folds into the address, an empty one, U+0000 in one,
+%% a `%` a combining mark follows, and a sign before an IPv4 number. E.0
+%% rule 1: the refusals are Ernest's, the host's reading beneath them
+%% exact. It reads what `remote` and `local` write, inet:ntoa/1. Written
+%% before the code, its zones and signs with the code that refuses them
+tcp_address_test() ->
+    Address = ern_named:function('ern@tcp', address),
+    ?assertEqual([{'Some', <<1, 2, 3, 4>>},
+                  {'Some', <<0:120, 1>>},
+                  {'Some', <<0:128>>},
+                  {'Some', <<1:16, 2:16, 3:16, 4:16, 5:16, 6:16, 7:16, 8:16>>},
+                  {'Some', <<0:80, 16#ffff:16, 1, 2, 3, 4>>},
+                  {'Some', <<16#fe80:16, 0:96, 16#ab:16>>}],
+                 [Address(Text) || Text <- [<<"1.2.3.4">>, <<"::1">>, <<"::">>,
+                                            <<"1:2:3:4:5:6:7:8">>, <<"::FFFF:1.2.3.4">>,
+                                            <<"FE80::aB">>]]),
+    Refused = [<<"127.1">>, <<"010.1.1.1">>, <<"1.2.3.256">>, <<"[::1]">>, <<"localhost">>,
+               <<"1.2.3.4 ">>, <<>>, <<"1::2::3">>, <<"1.2.3.4", 0>>],
+    Zoned = [<<"fe80::1%eth0">>, <<"ff02::1%eth0">>, <<"::1%eth0">>, <<"2001:db8::1%eth0">>,
+             <<"fe81::1%eth0">>, <<"ff05::1%eth0">>, <<"1:2:3:4:5:6:7:8%eth0">>,
+             <<"::ffff:1.2.3.4%eth0">>, <<"fe80::1%01">>, <<"ff02::1%02">>,
+             <<"fe80::1%065536">>, <<"fe80::1%">>, <<"fe80::1% x">>, <<"fe80::1%a", 0>>,
+             <<"fe80::1%", 16#cc, 16#81, "eth0">>],
+    Signed = [<<"+1.2.3.4">>, <<"1.+2.3.4">>, <<"-0.1.1.1">>, <<"1.2.3.-0">>, <<"::1.2.3.+4">>],
+    ?assertEqual([{Text, 'None'} || Text <- Refused ++ Zoned ++ Signed],
+                 [{Text, Address(Text)} || Text <- Refused ++ Zoned ++ Signed]),
+    ?assertEqual([{'Some', <<16#fe80:16, 0:96, 1:16>>}, {'Some', <<1, 2, 3, 4>>}],
+                 [ern_tcp:strict_address(Text) || Text <- [<<"fe80::1%eth0">>, <<"+1.2.3.4">>]]),
+    Written = [{127, 0, 0, 1}, {0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 1},
+               {0, 0, 0, 0, 0, 16#ffff, 16#c000, 16#0201}, {16#2001, 16#db8, 0, 0, 1, 0, 0, 1},
+               {16#fe80, 0, 0, 0, 16#a, 0, 0, 0}],
+    ?assertEqual([{'Some', address_bytes(IpAddress)} || IpAddress <- Written],
+                 [Address(unicode:characters_to_binary(inet:ntoa(IpAddress)))
+                  || IpAddress <- Written]).
+
+%% The bytes of an IP address as the host holds one: IPv4's four numbers a
+%% byte each, and IPv6's eight two bytes each.
+address_bytes({_, _, _, _} = IpAddress) -> list_to_binary(tuple_to_list(IpAddress));
+address_bytes(IpAddress) -> << <<Part:16>> || Part <- tuple_to_list(IpAddress) >>.
 
 %% report Appendix E.12, §3.8, §8.4, §12.2
 foreign_test() ->

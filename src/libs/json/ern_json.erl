@@ -13,7 +13,8 @@
 -type decoded() :: {'Decoded', value(), binary()} | 'EndMet'
                  | {'InvalidByte', byte(), non_neg_integer()}
                  | {'InvalidSequence', binary(), non_neg_integer()}
-                 | {'IntegerTooLong', binary()}.
+                 | {'IntegerTooLong', binary()}
+                 | {'NamedTwice', binary()}.
 
 %% Appendix G.6: the value the text writes and the text after it, or what
 %% the host raised and at which byte. `json:decode/3` raises the three
@@ -28,15 +29,19 @@
 %% hold is the decoder's own throw, with no offset: an integer longer than
 %% the host holds, on which `binary_to_integer/1` raises `system_limit`.
 %%
-%% An object keeps a name's last member, as `Map.fromList` keeps a later
-%% pair (Appendix E.3): the members, pushed in front, are put back in the
-%% text's order, and `maps:from_list/1` keeps a key's last.
+%% An object that names a member twice is refused, as the decoder's own
+%% throw: the map of its members is smaller than their count, which is
+%% compared once at the object's end, and only then are the members read for
+%% the name, the first the object names a second time (repeated/2). An
+%% object nested in another ends first, and the host gives its decoders no
+%% offset, so the name has no position.
 -spec decode(binary()) -> decoded().
 decode(Text) ->
     try json:decode(Text, ok, decoders()) of
         {Term, ok, Rest} -> {'Decoded', value(Term), Rest}
     catch
         throw:{too_long, Digits} -> {'IntegerTooLong', Digits};
+        throw:{repeated, Name} -> {'NamedTwice', Name};
         error:unexpected_end -> 'EndMet';
         error:{invalid_byte, Byte}:Trace -> {'InvalidByte', Byte, position(Trace)};
         error:{unexpected_sequence, Bytes}:Trace -> {'InvalidSequence', Bytes, position(Trace)}
@@ -46,12 +51,23 @@ decoders() ->
     #{array_push => fun(Element, Acc) -> [value(Element) | Acc] end,
       array_finish => fun(Acc, OldAcc) -> {{'Array', lists:reverse(Acc)}, OldAcc} end,
       object_push => fun(Name, Member, Acc) -> [{Name, value(Member)} | Acc] end,
-      object_finish => fun(Acc, OldAcc) ->
-                           {{'Object', maps:from_list(lists:reverse(Acc))}, OldAcc}
-                       end,
+      object_finish => fun object/2,
       integer => fun integer/1,
       float => fun(Digits) -> {'Real', binary_to_float(Digits)} end,
       null => 'Null'}.
+
+object(Acc, OldAcc) ->
+    Members = maps:from_list(Acc),
+    map_size(Members) =:= length(Acc) orelse throw({repeated, repeated(lists:reverse(Acc), #{})}),
+    {{'Object', Members}, OldAcc}.
+
+%% The first name of the members, in the text's order, that one before it
+%% holds.
+repeated([{Name, _} | Members], Seen) ->
+    case Seen of
+        #{Name := _} -> Name;
+        #{} -> repeated(Members, Seen#{Name => seen})
+    end.
 
 integer(Digits) ->
     try {'Integer', binary_to_integer(Digits)}

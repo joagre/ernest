@@ -18,21 +18,25 @@
  * frames of a 4-byte big-endian length followed by a tag byte and the
  * frame's data.
  *
- *   To the program: first a 'v' for each variable the command sets,
- *   NAME=VALUE, set over the helper's environment in their order, and 'p'
- *   the directory it runs in, which the helper enters before it finds the
- *   program, so that a relative name resolves there; without 'p' it runs
- *   where the helper does. Then 'c', the program and then each of its
- *   arguments, each ended by a NUL byte, as execvp takes them; they come
- *   here and not on the helper's own command line, so that an argument too
- *   long for the host is the program's failure to start, and not the
- *   helper's. Then 'i' bytes of its input, dropped after 'e', once the
- *   program has exited, or once no process holds its input open; 'e' the
- *   end of its input; 'n' a request for the next piece of its output; 'k'
- *   and a signal's number in one byte, the signal sent to the program
- *   alone, not its group. The end of fd 0 means the runtime has let go of
- *   the run: the program and its process group are killed, and the helper
- *   ends.
+ *   To the program: first 'o' where the program's environment is the
+ *   command's variables alone, which empties the helper's own; then a 'v'
+ *   for each variable the command sets, NAME=VALUE, set over the helper's
+ *   environment in their order, and 'p' the directory it runs in, which the
+ *   helper enters before it finds the program, so that a relative name
+ *   resolves there; without 'p' it runs where the helper does. The program
+ *   is found by the PATH of that environment, and where it has none in the
+ *   host's default directories, as execvp finds one. Then 'c', the program
+ *   and then each of its arguments, each ended by a NUL byte, as execvp
+ *   takes them; they come here and not on the helper's own command line, so
+ *   that an argument too long for the host is the program's failure to
+ *   start, and not the helper's.
+ *
+ *   Then 'i' bytes of its input, dropped after 'e', once the program has
+ *   exited, or once no process holds its input open; 'e' the end of its
+ *   input; 'n' a request for the next piece of its output; 'k' and a
+ *   signal's number in one byte, the signal sent to the program alone, not
+ *   its group. The end of fd 0 means the runtime has let go of the run: the
+ *   program and its process group are killed, and the helper ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
  *   start; 'p' and an error's name, the helper could not enter its
@@ -662,6 +666,12 @@ static char *read_frame(size_t *size)
     return body;
 }
 
+/* Report Appendix E.23: an environment of no variable, which an 'o' frame
+   makes the helper's own, as POSIX's exec lets a program replace its whole
+   environment, by pointing environ at another array; setenv then adds to
+   it. */
+static char *no_variables[] = {NULL};
+
 /* Report Appendix E.23: a 'v' frame's variable, NAME=VALUE, set over the
    helper's environment, so that the last of two with one name stands; 0
    where it is not one, its name empty or the frame holding a NUL byte. */
@@ -674,8 +684,9 @@ static int set_variable(char *variable, size_t size)
     return setenv(variable, equals + 1, 1) == 0;
 }
 
-/* The runtime's first frames (above): each 'v' set over the helper's
-   environment, the directory 'p' names kept, and last the command, 'c' and
+/* The runtime's first frames (above): 'o' emptying the helper's
+   environment, what given_environment gave back among it, each 'v' set
+   over it, the directory 'p' names kept, and last the command, 'c' and
    at least the program, each part ended by a NUL byte, as execvp takes
    it, held in `command`; 0 where they are not that, and 1 where they are.
    An empty program is one, which execvp finds nowhere (report Appendix
@@ -692,7 +703,10 @@ static int read_command(void)
             command_text = body;
             break;
         }
-        if (body[0] == 'v' && set_variable(body + 1, length - 1)) {
+        if (body[0] == 'o' && length == 1) {
+            environ = no_variables;
+            free(body);
+        } else if (body[0] == 'v' && set_variable(body + 1, length - 1)) {
             free(body);
         } else if (body[0] == 'p' && directory_text == NULL && strlen(body + 1) == length - 1) {
             directory_text = body;

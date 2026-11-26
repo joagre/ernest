@@ -5192,8 +5192,10 @@ load_answers_the_cause() ->
     ?assertEqual(nomatch, binary:match(Output, <<"no longer exists">>)).
 
 %% report §11.2, §11.5: where a source itself names a module found
-%% nowhere, its own diagnostic answers. A regression test, written after
-%% the code; it does not cover a source that also uses a module that failed
+%% nowhere, its own diagnostic answers, which names the module, and not
+%% the line of a compiled form's module found nowhere. A regression test,
+%% written after the code; it does not cover a source that also uses a
+%% module that failed
 load_a_source_naming_a_module_found_nowhere_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_a_source_naming_a_module_found_nowhere/0).
 
@@ -5202,8 +5204,9 @@ load_a_source_naming_a_module_found_nowhere() ->
     ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = Zed.z()\n"),
     {0, Output} = source_root_session(Dir, ":load A\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "a.ern"))/binary,
-                                                ":1:26: unknown name Zed.z\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"on the load path">>)),
+                                                ":1:26: no module Zed under the source root or"
+                                                " on the load path\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"no module Zed on the load path">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"is not loaded">>)).
 
 %% report §11.2, §11.1: a compiled form at the namespace of a library's
@@ -5948,8 +5951,10 @@ output_to_a_pipe() ->
 %% report §11.2: a qualified name of a module the session has not loaded
 %% but the source root holds, in an input and given to `:browse` and
 %% `:doc`, is answered with the `:load` that puts it in scope, and a name
-%% of no module there, or of one loaded, is answered without one. A
-%% regression test: the answer said the name was unknown and no more
+%% of no module there, or of one loaded, is answered without one. Report
+%% §11.5: an input's name whose first segment is found nowhere is refused
+%% by naming the module, as the build refuses it. A regression test: the
+%% answer said the name was unknown and no more
 load_help_test_() ->
     ern_harness:counted_test({waits, 1}, fun load_help/0).
 
@@ -5966,6 +5971,8 @@ load_help() ->
     ?assertMatch({_, _}, binary:match(Output, <<"no documentation for Greet.hello; ",
                                                 Help/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown type Greet.T">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<":1:1: no module Zz under the source root or on"
+                                                " the load path\n1 | Zz.f()\n  | ^^^^\n">>)),
     ?assertEqual(4, length(binary:matches(Output, Help))).
 
 %% report §4.2, §11.1, §11.2: `:load` refuses a module one of whose

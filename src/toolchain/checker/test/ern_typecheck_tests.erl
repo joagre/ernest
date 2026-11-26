@@ -5403,6 +5403,67 @@ differing_part_test() ->
     ?assertEqual("the types differ at Int and String", Diagnostic#diagnostic.help),
     ?assertEqual(undefined, (diagnostic("fn f() = 1 + \"x\"\n"))#diagnostic.help).
 
+%% report §11.5: where the whole types differ, and the expected type has
+%% one constructor, visible there, whose one positional field is of the
+%% found type, the help line writes the constructor, at each site a
+%% mismatch has: an argument, an annotation, a result, a field, a pattern,
+%% an element and an operand. It writes the constructor as the site
+%% would, the prelude's one the module hides as `Prelude.`, and a
+%% parameter of the type is of the type expected. None where the type has
+%% several constructors or a named field, where the field is of another
+%% type, where an annotation's variable would stand for one type, or where
+%% the types differ inside, whose part the help names
+constructor_mends_a_mismatch_test() ->
+    Help = fun(Text) -> element(2, refusal_and_help(Text)) end,
+    Path = "write `Path(...)`",
+    ?assertEqual({"the argument does not fit Fs.write: expected Path, found String", Path},
+                 refusal_and_help("fn f() : Either(Io.Error, Unit) = {\n"
+                                  "    let path = \"out.txt\";\n"
+                                  "    Fs.write(path, <<>>, 1000)\n}\n")),
+    [?assertEqual({Source, Path}, {Source, Help(Source)})
+     || Source <- ["fn takes(p : Path) : Int = 1\nfn f() : Int = takes(\"x\")\n",
+                   "fn f() : Int = { let p : Path = \"x\"; 1 }\n",
+                   "fn f() : Path = \"x\"\n",
+                   "type Request = Request(path : Path)\n"
+                   "fn f() : Request = Request(path = \"x\")\n",
+                   "fn f(p : Path) : Int = match p { \"x\" -> 1 | _ -> 2 }\n",
+                   "fn f() : List(Path) = [Path(\"a\"), \"b\"]\n",
+                   "fn f() : Path = Path(\"a\") <> \"b\"\n",
+                   "fn f(p : Path) : Bool = p == \"x\"\n"]],
+    ?assertEqual("write `Meters(...)`",
+                 Help("type Meters = Meters(Float)\nfn f() : Meters = 1.5\n")),
+    ?assertEqual("write `Box(...)`",
+                 Help("type Box(a) = Box(a)\nfn f() : Box(Int) = 1\n")),
+    ?assertEqual("write `Prelude.Path(...)`",
+                 Help("type Path = Path(Int)\nfn f() : Prelude.Path = \"x\"\n")),
+    [?assertEqual({Source, undefined}, {Source, Help(Source)})
+     || Source <- ["fn f() : Optional(Int) = 1\n",
+                   "type Meters = Meters(value : Float)\nfn f() : Meters = 1.5\n",
+                   "type Box(a) = Box(a)\nfn f() : Box(Int) = \"x\"\n",
+                   "type Box(a) = Box(a)\nfn f(x : Int) : Box(a) = x\n",
+                   "fn f(x : Int) : Path = x\n"]],
+    ?assertEqual("the types differ at Path and String",
+                 Help("fn many(ps : List(Path)) : Int = 1\nfn f() : Int = many([\"x\"])\n")).
+
+%% report §11.5, §4.4: the constructor the help writes is visible at the
+%% site: another module's in its qualified name, and an abstract type's
+%% from no module but its own
+constructor_help_of_another_module_test() ->
+    Checked = fun(Units) ->
+                  {ok, _, Interface, _} =
+                      ern_typecheck:check_string(['Units'],
+                                                 Units ++ "export fn size(m : Meters) : Int = 1\n"),
+                  {ok, Named} = ern_parser:parse_string("fn f() : Int = Units.size(1.5)\n"),
+                  {error, [#diagnostic{help = Help}]} =
+                      ern_typecheck:check(['M'], Named, [Interface]),
+                  Help
+              end,
+    ?assertEqual("write `Units.Meters(...)`", Checked("export type Meters = Meters(Float)\n")),
+    ?assertEqual(undefined, Checked("export abstract type Meters = Meters(Float)\n")),
+    ?assertEqual("write `Meters(...)`",
+                 element(2, refusal_and_help("export abstract type Meters = Meters(Float)\n"
+                                             "fn f() : Meters = 1.5\n"))).
+
 %% report §11.5: a help names the fix, and the span covers the error
 %% alone. A regression test (the log's *The Review's Fixes, First Round*),
 %% written after the code, where a help led back to the error it came

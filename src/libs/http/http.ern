@@ -1477,9 +1477,11 @@ fn encoding(char : Char) : Optional(#(Char, Char)) =
 /// It reads the text alone: a link under `root` may still lead out of it,
 /// which the file system decides (report Appendix E.14). It answers a name
 /// that begins with a dot, `/.git/config` among them, which is the server's
-/// to refuse. Its one `None` stands for a target of no form and for a path
-/// refused alike. A trailing `/` is dropped, so `/docs/` and `/docs` are one
-/// path.
+/// to refuse. It answers a path that holds a control character other than
+/// U+0000, which is the server's to refuse too. Its one `None` stands for a
+/// target of no form and for a path refused alike. A trailing `/` is
+/// dropped, so `/docs/` and `/docs` are one path. A server tells that a
+/// directory was asked by the path of `Http.target`, which ends in `/`.
 ///
 /// ### Examples
 ///
@@ -1855,21 +1857,25 @@ export fn writeChunk(socket : Address(Tcp.SocketMsg),
 fn sent(socket : Address(Tcp.SocketMsg), bytes : Bytes, ms : Int) : Either(SocketError, Unit) =
     Either.mapLeft(Tcp.write(socket, bytes, ms), Socket)
 
-/// RFC 9110's phrase for `status`, `Not Found` for 404, from its section 15;
-/// `""` for a status it does not name.
+/// The phrase IANA's registry of HTTP status codes gives `status`, `Not
+/// Found` for 404, RFC 9110's among them; `""` for a status the registry
+/// does not assign.
 ///
-/// 306 and 418, which the RFC keeps as unused, have none.
+/// 306 and 418, which the registry keeps as unused, have none, and neither
+/// do 104, which it assigns for a time, and 510, which it has made obsolete.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(Http.reason(404), Http.reason(299))
-/// // => #("Not Found", "")
+/// #(Http.reason(404), Http.reason(429), Http.reason(299))
+/// // => #("Not Found", "Too Many Requests", "")
 /// ```
 export fn reason(status : Int) : String =
     match status {
         100 -> "Continue"
       | 101 -> "Switching Protocols"
+      | 102 -> "Processing"
+      | 103 -> "Early Hints"
       | 200 -> "OK"
       | 201 -> "Created"
       | 202 -> "Accepted"
@@ -1877,6 +1883,9 @@ export fn reason(status : Int) : String =
       | 204 -> "No Content"
       | 205 -> "Reset Content"
       | 206 -> "Partial Content"
+      | 207 -> "Multi-Status"
+      | 208 -> "Already Reported"
+      | 226 -> "IM Used"
       | 300 -> "Multiple Choices"
       | 301 -> "Moved Permanently"
       | 302 -> "Found"
@@ -1905,13 +1914,24 @@ export fn reason(status : Int) : String =
       | 417 -> "Expectation Failed"
       | 421 -> "Misdirected Request"
       | 422 -> "Unprocessable Content"
+      | 423 -> "Locked"
+      | 424 -> "Failed Dependency"
+      | 425 -> "Too Early"
       | 426 -> "Upgrade Required"
+      | 428 -> "Precondition Required"
+      | 429 -> "Too Many Requests"
+      | 431 -> "Request Header Fields Too Large"
+      | 451 -> "Unavailable For Legal Reasons"
       | 500 -> "Internal Server Error"
       | 501 -> "Not Implemented"
       | 502 -> "Bad Gateway"
       | 503 -> "Service Unavailable"
       | 504 -> "Gateway Timeout"
       | 505 -> "HTTP Version Not Supported"
+      | 506 -> "Variant Also Negotiates"
+      | 507 -> "Insufficient Storage"
+      | 508 -> "Loop Detected"
+      | 511 -> "Network Authentication Required"
       | _ -> ""
     }
 
@@ -2020,8 +2040,7 @@ fn civilOf(year : Optional(Int),
            clockPart : String) : Optional(Time.Civil) = {
     let year <- year;
     let month <-
-        Optional.map(List.find(List.indexed(months), fn(#(_, name)) = name == monthPart),
-                     fn(#(index, _)) = index + 1);
+        Optional.map(List.findIndex(months, fn(name) = name == monthPart), fn(index) = index + 1);
     let day <- String.toInt(dayPart);
     let #(hour, minute, second) <- match List.map(String.split(clockPart, ":"), String.toInt) {
         [Some(hour), Some(minute), Some(second)] -> Some(#(hour, minute, second))
@@ -3069,24 +3088,79 @@ let readBack =
                                           rest = String.toUtf8("made"))))
               })
 
-// report Appendix G.11
+// report Appendix G.11: every status IANA's registry of status codes
+// assigns, with its phrase, RFC 9110's 44 among them, sixty in all.
+let registry =
+    [#(100, "Continue"),
+     #(101, "Switching Protocols"),
+     #(102, "Processing"),
+     #(103, "Early Hints"),
+     #(200, "OK"),
+     #(201, "Created"),
+     #(202, "Accepted"),
+     #(203, "Non-Authoritative Information"),
+     #(204, "No Content"),
+     #(205, "Reset Content"),
+     #(206, "Partial Content"),
+     #(207, "Multi-Status"),
+     #(208, "Already Reported"),
+     #(226, "IM Used"),
+     #(300, "Multiple Choices"),
+     #(301, "Moved Permanently"),
+     #(302, "Found"),
+     #(303, "See Other"),
+     #(304, "Not Modified"),
+     #(305, "Use Proxy"),
+     #(307, "Temporary Redirect"),
+     #(308, "Permanent Redirect"),
+     #(400, "Bad Request"),
+     #(401, "Unauthorized"),
+     #(402, "Payment Required"),
+     #(403, "Forbidden"),
+     #(404, "Not Found"),
+     #(405, "Method Not Allowed"),
+     #(406, "Not Acceptable"),
+     #(407, "Proxy Authentication Required"),
+     #(408, "Request Timeout"),
+     #(409, "Conflict"),
+     #(410, "Gone"),
+     #(411, "Length Required"),
+     #(412, "Precondition Failed"),
+     #(413, "Content Too Large"),
+     #(414, "URI Too Long"),
+     #(415, "Unsupported Media Type"),
+     #(416, "Range Not Satisfiable"),
+     #(417, "Expectation Failed"),
+     #(421, "Misdirected Request"),
+     #(422, "Unprocessable Content"),
+     #(423, "Locked"),
+     #(424, "Failed Dependency"),
+     #(425, "Too Early"),
+     #(426, "Upgrade Required"),
+     #(428, "Precondition Required"),
+     #(429, "Too Many Requests"),
+     #(431, "Request Header Fields Too Large"),
+     #(451, "Unavailable For Legal Reasons"),
+     #(500, "Internal Server Error"),
+     #(501, "Not Implemented"),
+     #(502, "Bad Gateway"),
+     #(503, "Service Unavailable"),
+     #(504, "Gateway Timeout"),
+     #(505, "HTTP Version Not Supported"),
+     #(506, "Variant Also Negotiates"),
+     #(507, "Insufficient Storage"),
+     #(508, "Loop Detected"),
+     #(511, "Network Authentication Required")]
+
+// report Appendix G.11: the registry's phrase for each status it assigns,
+// and none for a status it does not, keeps as unused, assigns for a time,
+// 104, or has made obsolete, 510.
 let reasons =
-    Test.Case(name = "RFC 9110's phrases, and none for a status it does not name",
+    Test.Case(name = "IANA's phrases, and none for a status it does not assign",
               run = fn() =
-                  Test.equal(List.map([100, 200, 204, 301, 404, 413, 422, 503, 306, 418, 599, 0],
-                                      reason),
-                             ["Continue",
-                              "OK",
-                              "No Content",
-                              "Moved Permanently",
-                              "Not Found",
-                              "Content Too Large",
-                              "Unprocessable Content",
-                              "Service Unavailable",
-                              "",
-                              "",
-                              "",
-                              ""]))
+                  Test.equal(#(List.map(registry, fn(#(status, _)) = #(status, reason(status))),
+                               List.map([104, 306, 418, 510, 599, 0, 99, 1000], reason)),
+                             #(registry, ["", "", "", "", "", "", "", ""])))
 
 // report Appendix G.11
 let dates =
@@ -4037,6 +4111,34 @@ let filePaths =
                               None,
                               Some("/srv"),
                               Some("/srv")])
+              })
+
+// report Appendix G.11: a segment that holds a control character other
+// than U+0000, a C0 one, U+007F or a C1 one, is answered, which is the
+// server's to refuse; and a directory asked is told by the path of
+// `target`, which ends in `/` where `filePath` drops it.
+let filePathLeft =
+    Test.Case(name = "a control character is placed, and a directory asked ends the target's path",
+              run = fn() = {
+                  let get =
+                      fn(text) =
+                          Request(method = "GET", target = text, version = http11, headers = []);
+                  let placed =
+                      fn(text) = Optional.map(filePath(get(text), Path("/srv")), Path.toString);
+                  let isDirectory =
+                      fn(text) =
+                          Optional.map(target(get(text)),
+                                       fn(reference) = String.endsWith(reference.path, "/"));
+                  Test.equal(#(List.map(["/a%01b", "/a%1F", "/a%7F", "/a%C2%85"], placed),
+                               List.map(["/docs/", "/docs", "/"],
+                                        fn(text) = #(placed(text), isDirectory(text)))),
+                             #([Some("/srv/a\u{1}b"),
+                                Some("/srv/a\u{1f}"),
+                                Some("/srv/a\u{7f}"),
+                                Some("/srv/a\u{85}")],
+                               [#(Some("/srv/docs"), Some(true)),
+                                #(Some("/srv/docs"), Some(false)),
+                                #(Some("/srv"), Some(true))]))
               })
 
 // report Appendix G.11: written with the code.

@@ -1505,7 +1505,7 @@ empty_working_directory_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Command = {'Command', <<"true">>, [], <<>>, [], {'Path', <<>>}},
+               Command = {'Command', <<"true">>, [], <<>>, {'Inherited', []}, {'Path', <<>>}},
                Self ! {started, started(Command)}
            end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual({'Left', 'Invalid'}, ern_waits:wait(started)).
@@ -2071,10 +2071,11 @@ start_terminal(Program, Arguments, Size) ->
                                                         Reply}
                                                    end).
 
-%% `Os.Command(program, arguments, <<>>, [], Os.workingDirectory)`, which
-%% sets no variable and runs where the test runs.
+%% `Os.Command(program, arguments, <<>>, Os.Inherited([]),
+%% Os.workingDirectory)`, which sets no variable over the environment it
+%% inherits and runs where the test runs.
 inheriting(Program, Arguments) ->
-    {'Command', Program, Arguments, <<>>, [], {'Path', ern_os:working_directory()}}.
+    {'Command', Program, Arguments, <<>>, {'Inherited', []}, {'Path', ern_os:working_directory()}}.
 
 %% Report Appendix E.23: Os's functions over a running program, as a
 %% program calls them, each answering `Left(Closed)` where the program's

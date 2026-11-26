@@ -164,7 +164,7 @@ fn report(response : Http.Response, body : Bytes) : Unit = {
     }
 }
 
-// The status and RFC 9110's phrase for it, where it names one.
+// The status and the phrase IANA's registry gives it, where it gives one.
 fn statusText(status : Int) : String =
     match Http.reason(status) {
         "" -> Int.toString(status)

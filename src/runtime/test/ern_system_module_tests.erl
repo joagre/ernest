@@ -415,7 +415,7 @@ os_read_time_limit_test() ->
 %% it did not run.
 ran() ->
     "fn ran(program : String, arguments : List(String),\n"
-    "       environment : List(#(String, String)), directory : Path) : String =\n"
+    "       environment : Os.Environment, directory : Path) : String =\n"
     "    match Os.run(Os.Command(..Os.command(program, arguments), =environment,\n"
     "                            workingDirectory = directory), 5000) {\n"
     "        Right(f) -> Int.toString(f.status) <> \" \"\n"
@@ -486,13 +486,44 @@ os_command_environment_test() ->
         [ran(),
          "export fn main() : Unit = {\n"
          "    Io.println(ran(\"sh\", [\"-c\", \"echo $A $B\"],\n"
-         "        [#(\"A\", \"1\"), #(\"B\", \"2\"), #(\"A\", \"3\")], Os.workingDirectory));\n"
-         "    Io.println(ran(\"sh\", [\"-c\", \"echo $HOME\"], [#(\"A\", \"1\")],\n"
+         "        Os.Inherited([#(\"A\", \"1\"), #(\"B\", \"2\"), #(\"A\", \"3\")]),\n"
          "        Os.workingDirectory));\n"
-         "    Io.println(ran(\"tool\", [], [#(\"PATH\", \"", Dir, "\")], Os.workingDirectory))\n"
+         "    Io.println(ran(\"sh\", [\"-c\", \"echo $HOME\"], Os.Inherited([#(\"A\", \"1\")]),\n"
+         "        Os.workingDirectory));\n"
+         "    Io.println(ran(\"tool\", [], Os.Inherited([#(\"PATH\", \"", Dir, "\")]),\n"
+         "        Os.workingDirectory))\n"
          "}\n"]),
     ok = file:del_dir_r(Dir),
     ?assertEqual(iolist_to_binary(["0 3 2\n0 ", os:getenv("HOME"), "\n0 tool\n"]), Output).
+
+%% Appendix E.23: under `Only` the program's environment is its variables
+%% and no other, the last of two with one name standing, so that `Only([])`
+%% gives it none, the variables the host's own start set among them; a
+%% name without `/` is found in the host's default directories where the
+%% program starts with no `PATH`, as `env` is here, and in the directories
+%% of the `PATH` it is given; and a program under a terminal starts with
+%% the command's environment as under `start`. Written before the code
+os_command_only_environment_test() ->
+    Dir = ern_program:scratch(),
+    script(filename:join(Dir, "tool"), "echo tool"),
+    {ok, Output} = ern_program:run(
+        [ran(), rest(),
+         "export fn main() : Unit = {\n"
+         "    Io.println(ran(\"env\", [], Os.Only([]), Os.workingDirectory));\n"
+         "    let repeated = [#(\"A\", \"1\"), #(\"B\", \"2\"), #(\"A\", \"3\")];\n"
+         "    Io.println(ran(\"env\", [], Os.Only(repeated), Os.workingDirectory));\n"
+         "    Io.println(ran(\"tool\", [], Os.Only([#(\"PATH\", \"", Dir, "\")]),\n"
+         "        Os.workingDirectory));\n"
+         "    let only = Os.Only([#(\"C\", \"4\")]);\n"
+         "    let command = Os.Command(..Os.command(\"env\", []), environment = only);\n"
+         "    let size = Terminal.Size(rows = 24, columns = 80);\n"
+         "    Io.println(match Os.startTerminal(command, size) {\n"
+         "        Right(p) -> rest(p, \"\")\n"
+         "      | Left(e) -> Io.show(e)\n"
+         "    })\n"
+         "}\n"]),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(<<"0 \n0 A=3\nB=2\n0 tool\nC=4\r\nexit 0\n">>, Output).
 
 %% Appendix E.23: the program runs in `workingDirectory`, a relative one
 %% resolved against `Os.workingDirectory`, and a relative name with `/` is
@@ -511,8 +542,8 @@ os_command_working_directory_test() ->
     {ok, Output} = ern_program:run(
         [ran(),
          "export fn main() : Unit = {\n"
-         "    Io.println(ran(\"pwd\", [\"-P\"], [], Path(\"", Relative, "\")));\n"
-         "    Io.println(ran(\"./tool\", [], [], Path(\"", Sub, "\")))\n"
+         "    Io.println(ran(\"pwd\", [\"-P\"], Os.Inherited([]), Path(\"", Relative, "\")));\n"
+         "    Io.println(ran(\"./tool\", [], Os.Inherited([]), Path(\"", Sub, "\")))\n"
          "}\n"]),
     Physical = string:trim(os:cmd("cd " ++ Sub ++ " && pwd -P")),
     ok = file:del_dir_r(Dir),
@@ -522,23 +553,27 @@ os_command_working_directory_test() ->
 %% answers Other, the directory and the answer Fs gives for its path on one
 %% line, before the program is looked for: NotFound for no directory and
 %% for a path through a file, NotAFile for a file. A variable whose name is
-%% empty or holds `=` or U+0000, or whose value holds U+0000, and a
-%% directory that holds U+0000 answer Invalid. A directory the program may
-%% not enter is not covered, since the superuser enters any
+%% empty or holds `=` or U+0000, or whose value holds U+0000, under either
+%% environment, and a directory that holds U+0000 answer Invalid. A
+%% directory the program may not enter is not covered, since the superuser
+%% enters any
 os_command_refusals_test() ->
     Dir = ern_program:scratch(),
     ok = file:write_file(filename:join(Dir, "file"), <<>>),
     {ok, Output} = ern_program:run(
         [ran(),
          "export fn main() : Unit = {\n"
-         "    Io.println(ran(\"no-such-program-ern\", [], [], Path(\"", Dir, "/none\")));\n"
-         "    Io.println(ran(\"true\", [], [], Path(\"", Dir, "/file\")));\n"
-         "    Io.println(ran(\"true\", [], [], Path(\"", Dir, "/file/x\")));\n"
-         "    Io.println(ran(\"true\", [], [#(\"\", \"x\")], Os.workingDirectory));\n"
-         "    Io.println(ran(\"true\", [], [#(\"A=B\", \"x\")], Os.workingDirectory));\n"
-         "    Io.println(ran(\"true\", [], [#(\"A\\u{0}\", \"x\")], Os.workingDirectory));\n"
-         "    Io.println(ran(\"true\", [], [#(\"A\", \"x\\u{0}\")], Os.workingDirectory));\n"
-         "    Io.println(ran(\"true\", [], [], Path(\"a\\u{0}b\")))\n"
+         "    Io.println(ran(\"no-such-program-ern\", [], Os.Inherited([]), Path(\"", Dir,
+         "/none\")));\n"
+         "    Io.println(ran(\"true\", [], Os.Inherited([]), Path(\"", Dir, "/file\")));\n"
+         "    Io.println(ran(\"true\", [], Os.Inherited([]), Path(\"", Dir, "/file/x\")));\n"
+         "    Io.println(ran(\"true\", [], Os.Inherited([#(\"\", \"x\")]), Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], Os.Only([#(\"A=B\", \"x\")]), Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], Os.Inherited([#(\"A\\u{0}\", \"x\")]),\n"
+         "        Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], Os.Only([#(\"A\", \"x\\u{0}\")]),\n"
+         "        Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], Os.Inherited([]), Path(\"a\\u{0}b\")))\n"
          "}\n"]),
     ok = file:del_dir_r(Dir),
     ?assertEqual(iolist_to_binary(["Io.Other(\"", Dir, "/none: NotFound\")\n"

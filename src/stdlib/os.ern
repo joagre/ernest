@@ -10,10 +10,11 @@
 /// that needs a terminal, a shell or an editor, whose size `resize` changes.
 ///
 /// **No shell.** A program is found as the host finds a command: a name without
-/// `/` is looked for in the directories of `PATH`, and a relative name with `/`
-/// is taken from the command's `workingDirectory`. Each argument reaches it as
-/// it is, so nothing is expanded or quoted; a program that wants a shell runs
-/// `sh` with `-c`.
+/// `/` is looked for in the directories of `PATH`, or in the host's default
+/// directories where the program starts with no `PATH`, and a relative name
+/// with `/` is taken from the command's `workingDirectory`. Each argument
+/// reaches it as it is, so nothing is expanded or quoted; a program that wants
+/// a shell runs `sh` with `-c`.
 ///
 /// **A running program is a process.** `start` and `startTerminal` answer its
 /// address, as `Tcp.connect` answers a socket's. `read` and `readForever`
@@ -43,10 +44,9 @@
 /// since 0.1.0
 
 /// A program to run: its name, its arguments, the bytes it reads first as its
-/// input, the variables set over the environment it inherits, and the
-/// directory it runs in. `Os.command` makes the command of a program and its
-/// arguments alone, which a command with input, with a variable set or in
-/// another directory updates.
+/// input, its environment, and the directory it runs in. `Os.command` makes
+/// the command of a program and its arguments alone, which a command with
+/// input, with another environment or in another directory updates.
 ///
 /// ### Examples
 ///
@@ -54,7 +54,7 @@
 /// Os.Command(program = "make",
 ///            arguments = ["test"],
 ///            input = <<>>,
-///            environment = [#("LC_ALL", "C")],
+///            environment = Os.Inherited([#("LC_ALL", "C")]),
 ///            workingDirectory = Path("build")).program
 /// // => "make"
 /// ```
@@ -62,8 +62,31 @@ export type Command =
     Command(program : String,
             arguments : List(String),
             input : Bytes,
-            environment : List(#(String, String)),
+            environment : Environment,
             workingDirectory : Path)
+
+/// The environment a program starts with: `Inherited(variables)`, the whole
+/// environment of the program that starts it with each of the variables set
+/// over it, or `Only(variables)`, those variables and no other. Of two
+/// variables with one name the last stands, and no variable is unset. A
+/// program that starts with no `PATH` is found in the host's default
+/// directories.
+///
+/// ### Examples
+///
+/// A program that sees one variable and no other:
+///
+/// ```ernest
+/// {
+///     let only = Os.Only([#("LANG", "C")]);
+///     let finished <- Os.run(Os.Command(..Os.command("env", []), environment = only), 5000);
+///     Right(String.fromUtf8(finished.stdout))
+/// }
+/// // => Right(Some("LANG=C\n"))
+/// ```
+///
+/// since 0.11.0
+export type Environment = Inherited(List(#(String, String))) | Only(List(#(String, String)))
 
 /// A piece of what a running program wrote, to its standard output or its
 /// standard error, and last its exit status. A program a signal ended has the
@@ -331,10 +354,10 @@ export fn subscribeTermination(wrap : (Reply(Unit)) -> m) : Unit receiving m =
 foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
     "ern_rt:termination/1"
 
-/// The command of `program` and its `arguments` alone: empty input, no variable
-/// set over the environment, and `Os.workingDirectory` as its directory. A
-/// command with input, with a variable set or in another directory updates it
-/// (report §5.6).
+/// The command of `program` and its `arguments` alone: empty input, the
+/// inherited environment with no variable set over it, and
+/// `Os.workingDirectory` as its directory. A command with input, with another
+/// environment or in another directory updates it (report §5.6).
 ///
 /// ### Examples
 ///
@@ -343,19 +366,22 @@ foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
 ///     let command = Os.command("make", ["test"]);
 ///     #(command.input, command.environment, command.workingDirectory == Os.workingDirectory)
 /// }
-/// // => #(<<>>, [], true)
+/// // => #(<<>>, Os.Inherited([]), true)
 /// ```
 ///
-/// A command with a variable set:
+/// A command with a variable set over the inherited environment:
 ///
 /// ```ernest
-/// Os.Command(..Os.command("sh", ["-c", "locale"]), environment = [#("LANG", "C")]).environment
-/// // => [#("LANG", "C")]
+/// {
+///     let inherited = Os.Inherited([#("LANG", "C")]);
+///     Os.Command(..Os.command("sh", ["-c", "locale"]), environment = inherited).environment
+/// }
+/// // => Os.Inherited([#("LANG", "C")])
 /// ```
 ///
 /// since 0.10.0
 export fn command(program : String, arguments : List(String)) : Command =
-    Command(=program, =arguments, input = <<>>, environment = [], =workingDirectory)
+    Command(=program, =arguments, input = <<>>, environment = Inherited([]), =workingDirectory)
 
 /// Starts the program and answers its address, or `Left` with why it could not
 /// start.
@@ -370,11 +396,11 @@ export fn command(program : String, arguments : List(String)) : Command =
 ///   on one line, `build: NotFound`; or another reason, in the host's words.
 ///
 /// The program runs in `command.workingDirectory`, a relative one taken from
-/// `Os.workingDirectory`. It inherits the environment of the program that
-/// started it, each variable of `command.environment` set over it, the last of
-/// two with one name standing. It reads `command.input`, then what `Os.write`
-/// gives it, until `Os.closeInput` ends its input, and never reads the standard
-/// input of the program that started it.
+/// `Os.workingDirectory`. Its environment is `command.environment`: that of the
+/// program that started it with the variables set over it, or the variables
+/// alone, the last of two with one name standing. It reads `command.input`,
+/// then what `Os.write` gives it, until `Os.closeInput` ends its input, and
+/// never reads the standard input of the program that started it.
 ///
 /// It runs until it exits, until a signal `Os.signal` sends ends it, until
 /// `kill` ends it, or until its owner dies: the process that started it, or the
@@ -423,8 +449,8 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
 /// ordinary mode, echoing its input, `command.input` and what `write` gives
 /// it, and giving the program a line at a time, which the program changes as
 /// it would any terminal's. The runtime sets no `TERM`, which
-/// `command.environment` gives: the program inherits the environment as under
-/// `start`.
+/// `command.environment` gives: the program's environment is the command's, as
+/// under `start`.
 ///
 /// Its standard output and standard error come merged through the terminal, so
 /// `read` answers `Stdout` alone, and a line feed the program writes arrives

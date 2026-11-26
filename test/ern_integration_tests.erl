@@ -1069,6 +1069,31 @@ given_environment() ->
              <<"/nonexistent">>, <<"2048">>],
     ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
 
+%% report Appendix E.23, §11: under `Only([])` a program's environment is
+%% empty under `ern` too: what the launcher keeps for the runtime's helper
+%% to give back, and the marks it keeps it under, reach no program that
+%% starts with the command's variables alone. Written before the code
+only_environment_test_() ->
+    ern_harness:counted_test({waits, 2}, fun only_environment/0).
+
+only_environment() ->
+    SourceRoot = "build/only/src",
+    ok = filelib:ensure_path(SourceRoot),
+    ok = file:write_file(
+           SourceRoot ++ "/only.ern",
+           ["export fn main() : Unit = {\n"
+            "    let command = Os.Command(..Os.command(\"env\", []), environment = Os.Only([]));\n"
+            "    match Os.run(command, ", ern_harness:wait_ms_text(), ") {\n"
+            "        Right(finished) ->\n"
+            "            Io.println(Io.show(String.fromUtf8(finished.stdout)))\n"
+            "      | Left(error) -> Io.println(Io.show(error))\n"
+            "    }\n"
+            "}\n"]),
+    0 = build("--source-root build/only/src --build-root build/only build/only/src"),
+    %% under a shell of its own, as given_environment/0 runs one
+    {0, Output} = sh("sh -c 'BINDIR=mine ERL_LIBS=/given ../bin/ern run build/only/only.erc'"),
+    ?assertEqual(<<"Some(\"\")\n">>, Output).
+
 %% report §11, §12.5: `ern` starts the host without the limit of ports the
 %% environment would give it, so that a run's host holds the host's own
 %% limit, a bare `erl`'s, with ERL_MAX_PORTS set. The program prints the

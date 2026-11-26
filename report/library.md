@@ -155,7 +155,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A container provides the container operations of the vocabulary below, or says in its section which it lacks and what stands in its place. Text and octets are containers read through `toList`, and provide the container operations their sections list.
 
-   A sequence adds order and position: `reverse`, `sort`, `minimum`, `maximum`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `splitWhile`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail. Where a sequence's vocabulary has `sort`, it has `minimum` and `maximum`.
+   A sequence adds order and position: `reverse`, `sort`, `minimum`, `maximum`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `splitWhile`, `partition`, `unique`, `indexed`, `findIndex`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail. Where a sequence's vocabulary has `sort`, it has `minimum` and `maximum`.
 
    Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, `toAsciiLower`, `toAsciiUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`, `toAsciiLower`, `toAsciiUpper`. Text has, over the whole, each case mapping its `Char` has.
 
@@ -277,7 +277,7 @@ A constructor of the prelude's is written by its name alone, `Some`, `Down`; any
 
 `[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `mapFold` departs from Erlang's `lists:mapfoldl`, which answers the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step.
 
-`map`, `filter`, `partition`, `forEach`, `flatMap`, `any`, `all` and `splitWhile` call their function on the elements in the list's order, once each, and `any`, `all` and `splitWhile` on none after the one that decides.
+`map`, `filter`, `partition`, `forEach`, `flatMap`, `any`, `all`, `find`, `findIndex` and `splitWhile` call their function on the elements in the list's order, once each, and `any`, `all`, `find`, `findIndex` and `splitWhile` on none after the one that decides.
 
 The primitives are `size`, `reverse`, `unique`, `unzip`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
@@ -297,6 +297,7 @@ List.forEach : (List(a), (a) -> Unit receiving e) -> Unit receiving e
 List.any : (List(a), (a) -> Bool receiving e) -> Bool receiving e
 List.all : (List(a), (a) -> Bool receiving e) -> Bool receiving e
 List.find : (List(a), (a) -> Bool receiving e) -> Optional(a) receiving e // the first that satisfies
+List.findIndex : (List(a), (a) -> Bool receiving e) -> Optional(Int) receiving e // the index of the first that satisfies, from 0
 List.last : (List(a)) -> Optional(a)
 List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewer; n below 0 is 0
 List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
@@ -681,7 +682,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, and `accept`, `read`, `write`, `port`, `remote`, `local`, `close` and `closeListener`, which reach the process of the listener or the socket they are given, each through a call private to the module (E.0 rule 1). A call of `connect`, `connectTls`, `accept`, `read` or `write` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21); one of `port`, `remote` or `local` takes no time, and its wait is not limited. `close` and `closeListener` answer `Unit` once their callee has ended, however it ends, and at once where it has ended already, and on a socket as `close` says (below). `acceptForever`, `readForever` and `give` are Ernest over the prelude's sends and calls.
+Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, and `accept`, `read`, `write`, `port`, `remote`, `local`, `close` and `closeListener`, which reach the process of the listener or the socket they are given, each through a call private to the module, and one beneath `address` (E.0 rule 1). A call of `connect`, `connectTls`, `accept`, `read` or `write` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21); one of `port`, `remote` or `local` takes no time, and its wait is not limited. `close` and `closeListener` answer `Unit` once their callee has ended, however it ends, and at once where it has ended already, and on a socket as `close` says (below). `acceptForever`, `readForever` and `give` are Ernest over the prelude's sends and calls.
 
 A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.subscribeFaults` include them.
 
@@ -698,6 +699,10 @@ At the limit of open files (§12) `accept` answers `Left(Other("too many open fi
 At the limit of open files (§12) the host gives a file of its own that it could not read as one not found, `Other("{ssl,{\"no such file or directory\",\"ssl.app\"}}")`, and a handshake that needs code the host has not loaded fails: on a socket `accept` answered, as one the far end closes, the read or write waiting answering `Left(Closed)`, and in `connectTls` with the host's reason, `Left(Other("undef"))`. At a full table of processes (§12.5) the host's start may end the run, with status 1 where the host ends itself and 70 where it ends a process of its own that `ern` needs (§11.8), or never answer, its milliseconds notwithstanding, and hold every later request that reaches TCP's process.
 
 With `Verified(caFile)` the far end's certificate is checked against the certificates in the file, which is in PEM, passing where its chain leads to a certificate the file holds or where the file holds the far end's own certificate, self-signed or not, and for naming `host`, a name the certificate gives by a wildcard among them, as a browser matches one, or an address the certificate gives where `host` is an address, and the handshake fails where either check does; with `Unverified` it is not checked. A name is sent to the far end as the server name; an address is not. The versions and the ciphers are the host's own, TLS 1.2 and 1.3.
+
+A renegotiation that a client asks for over TLS 1.2 is refused, and the connection goes on unless the client ends it, so a connection's parameters are its handshake's over both versions.
+
+`address(text)` is the bytes of the address a text writes, as the host reads one: 4 for an IPv4 address written as four decimal numbers, and 16 for an IPv6 address in any of its forms and either case of its letters. It answers `None` for another text, a host's name, a number with a sign and an address with a zone among them. It reads what `remote` and `local` write.
 
 The host's process of a connection over TLS hibernates after a millisecond's wait, by the host's own `hibernate_after`.
 
@@ -757,6 +762,7 @@ Tcp.give : (Address(SocketMsg), Process) -> Unit // makes the process the socket
 Tcp.closeListener : (Address(ListenerMsg)) -> Unit // stops listening
 Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's far end, its host the address as the host writes one: an IPv6 address in lower case with its longest run of zero groups as `::`, an IPv4-mapped one's last 32 bits dotted, and no zone
 Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's near end
+Tcp.address : (String) -> Optional(Bytes) // the bytes of the address the text writes, 4 or 16; None for another text
 ```
 
 ### Appendix E.19. Unused
@@ -882,7 +888,7 @@ Supervisor.child : (Address(GroupMsg), () -> Unit receiving m) -> () -> Unit rec
 
 Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `subscribeTermination`, which subscribes to the program's end, `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `read`, `write`, `resize`, `signal` and `closeInput`, which reach a running program's process through a call private to the module (E.0 rule 1). A call of `read` or `write` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21); one of `resize`, `signal` or `closeInput` takes no time, and its wait is not limited. `readForever` and `give` are Ernest over the prelude's sends and calls, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
 
-`command(program, arguments)` is the command of a program and its arguments alone: empty input, no variable set and `Os.workingDirectory`. A command with input, with a variable set or in another directory updates it (§5.6): `Os.Command(..Os.command("sh", arguments), environment = [#("LANG", "C")])`.
+`command(program, arguments)` is the command of a program and its arguments alone: empty input, the inherited environment and `Os.workingDirectory`. A command with input, with another environment or in another directory updates it (§5.6): `Os.Command(..Os.command("sh", arguments), environment = Os.Inherited([#("LANG", "C")]))`.
 
 `arguments` is the list of the words after the module on `ern run`'s command line (§11.2), `workingDirectory` is the absolute path of the directory the program was started in, and `user` is the host's number for the user the program runs as, which an entry of `Fs` is compared with (E.17), each bound when the program starts. Nothing in Ernest changes the working directory. A relative path given to `Fs`, or as a command's `workingDirectory`, is resolved against it; a program's name is resolved against the command's `workingDirectory`. A working directory the host can no longer read as the program starts, one removed since, faults `workingDirectory`'s initializer with `Fault("the working directory cannot be read: r")`, `r` the host's reason, which ends the program before `main` runs (§8.5).
 
@@ -892,9 +898,11 @@ Over Os's system reference (§8.2). The primitives are `start` and `startTermina
 
 `start(command)` starts a program of the host and answers its address. A running program is a process, as a `Tcp` socket is: `kill` stops it and `monitor` watches it, and its site is `Os.start` or `Os.startTerminal`, the function that started it (§6.9). It is bound to its node, as a socket is (§3.11).
 
-The program is found as the host finds a command: a name without `/` in the directories of `PATH` in the environment it starts with, and a name with `/` as the path it is; a relative path, the name's or a directory's of `PATH`, is resolved against the command's `workingDirectory`. Each argument reaches the program as it is, with no shell between. The program runs in `workingDirectory`, a relative one resolved against `Os.workingDirectory`. It inherits the program's whole environment, with each variable of `environment` set over it, the last of two with one name standing; no variable is unset. It starts with every signal as the host first gives it, none ignored and none blocked. It does not share the runtime's standard input: its standard input is `input`, then what `write` gives it, until `closeInput` ends it.
+The program is found as the host finds a command: a name without `/` in the directories of `PATH` in the environment it starts with, or in the host's default directories where it starts with no `PATH`, and a name with `/` as the path it is; a relative path, the name's or a directory's of `PATH`, is resolved against the command's `workingDirectory`. Each argument reaches the program as it is, with no shell between. The program runs in `workingDirectory`, a relative one resolved against `Os.workingDirectory`. It starts with every signal as the host first gives it, none ignored and none blocked. It does not share the runtime's standard input: its standard input is `input`, then what `write` gives it, until `closeInput` ends it.
 
-`startTerminal(command, size)` starts the program as `start` does, under a pseudo-terminal of `size` rows and columns, which is its standard input, its standard output and its standard error, the program its session's leader and in its foreground, as a shell a terminal starts is. The terminal begins in the host's ordinary mode, echoing what is written to it and giving the program a line at a time, which the program changes as it would any terminal's; the runtime sets no `TERM`, which `environment` gives, the environment being inherited as under `start`. The program's standard output and standard error come merged through the terminal, so `read` answers `Stdout(bytes)` alone and last `Exited(status)`, and a line feed the program writes arrives as a carriage return and a line feed, as the terminal's mode writes it.
+The program's environment is what the command's `environment` says. `Inherited(variables)` is the Ernest program's whole environment with each of the variables set over it. `Only(variables)` is those variables and no other. The last of two with one name stands, and no variable is unset.
+
+`startTerminal(command, size)` starts the program as `start` does, under a pseudo-terminal of `size` rows and columns, which is its standard input, its standard output and its standard error, the program its session's leader and in its foreground, as a shell a terminal starts is. The terminal begins in the host's ordinary mode, echoing what is written to it and giving the program a line at a time, which the program changes as it would any terminal's; the runtime sets no `TERM`, which `environment` gives, the environment being the command's as under `start`. The program's standard output and standard error come merged through the terminal, so `read` answers `Stdout(bytes)` alone and last `Exited(status)`, and a line feed the program writes arrives as a carriage return and a line feed, as the terminal's mode writes it.
 
 An echo comes among what the program writes, so the echo of a line written while the program writes may come in parts around it. The echo of a line the program exits on, writing nothing after it has taken the line, may not arrive.
 
@@ -929,7 +937,8 @@ Where the runtime's helper fails, as the program starts or later, the failure is
 `run(command, ms)` starts the program, ends its input after `input`, and reads it to its end within `ms` milliseconds of the start: it answers the exit status and all the program wrote to its standard output and to its standard error, the `Left` that `start` or a read answered, or `Left(Timeout)` when the milliseconds pass, the program killed then; it kills the program's process once it has read `Exited`, and leaves no process behind.
 
 ```
-type Command = Command(program : String, arguments : List(String), input : Bytes, environment : List(#(String, String)), workingDirectory : Path)
+type Command = Command(program : String, arguments : List(String), input : Bytes, environment : Environment, workingDirectory : Path)
+type Environment = Inherited(List(#(String, String))) | Only(List(#(String, String))) // the variables set over the program's environment, or the variables alone
 type Signal = Termination | Hangup | Interrupt // the host's signal, §8.6
 type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
 type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
@@ -940,7 +949,7 @@ Os.workingDirectory : Path
 Os.user : Int // the host's number for the user the program runs as
 Os.exit : (Int) -> a
 Os.subscribeTermination : ((Reply(Unit)) -> m) -> Unit receiving m // the program's end, wrapped, in the caller's mailbox
-Os.command : (String, List(String)) -> Command // the program and its arguments, with empty input, no variable set and Os.workingDirectory
+Os.command : (String, List(String)) -> Command // the program and its arguments, with empty input, the inherited environment and Os.workingDirectory
 Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg))
 Os.startTerminal : (Command, Terminal.Size) -> Either(Io.Error, Address(ProgramMsg)) // under a pseudo-terminal of the size, in the host's ordinary mode
 Os.resize : (Address(ProgramMsg), Terminal.Size) -> Either(Io.Error, Unit) // the terminal's new size, its foreground told; Left(NotATerminal) on a program start started
@@ -1245,9 +1254,11 @@ Utilization.disk : () -> Optional(Float)
 
 JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. `format` and `encode` are primitives written in the host's language (E.0 rule 1). `parse` is Ernest around a primitive that answers the host's value and the text after it, or what the host raised and at which byte; the white space after the value, a position, and an error this section names where the host names another are Ernest's.
 
-`parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and where a text names a member twice the last is kept, as `Map.fromList` keeps a later pair (E.3).
+`parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and a text that names a member twice in one object is an error.
 
 An error says what the host found and where: `UnexpectedEnd` is a text that ends inside its value or holds none; `UnexpectedByte` is a byte that cannot stand where it is, the first of its character's, or the first that differs from the `true`, `false` or `null` the text breaks off, with its position; and `UnexpectedSequence` is an escape that writes no character, a surrogate's escape without its pair's and one broken off before its digits end among them, as the text writes it up to the byte that breaks it, or a number the host cannot hold, an integer too long or a real larger than a `Float` can hold, in the host's spelling of it, with its position. A position is the line and the column the byte or the sequence begins at, counted as a diagnostic's are (§11.5).
+
+`RepeatedMember` is an object that names a member twice, with the member's name and no position, which the host's reader gives none of. A repeat is found where its object ends: an error the text holds before that end is answered in its place, and of two repeats the one whose object ends first, by the first name that object names a second time.
 
 `format` lays a value out over lines as the host's `json:format` does, two spaces to a level, and ends it with a line feed; it writes an object's members in the order of their names' code points, an order of the library's own, which the host's leaves to its caller. `encode` writes a value on one line as the host's `json:encode` does, with no white space between its parts and no line feed after it, an object's members in `format`'s order. `parse` reads what `format` and `encode` write as the value it was written from.
 
@@ -1258,7 +1269,7 @@ type Value = Null | Boolean(Bool) | Integer(Int) | Real(Float) | Text(String)
   | Array(List(Value)) | Object(Map(String, Value))
 type Position = Position(line : Int, column : Int)
 type Error = UnexpectedEnd | UnexpectedByte(byte : Int, at : Position)
-  | UnexpectedSequence(text : String, at : Position)
+  | UnexpectedSequence(text : String, at : Position) | RepeatedMember(name : String)
 Json.parse : (String) -> Either(Error, Value)
 Json.format : (Value) -> String
 Json.encode : (Value) -> String
@@ -1291,12 +1302,13 @@ Base64.decode : (String) -> Optional(Bytes) // None for a text encode does not w
 
 ### Appendix G.9. `libs/crypto` (namespace `Crypto`)
 
-Three shims over the host's `crypto` (E.0 rule 1). `sha1` is the SHA-1 digest of the bytes, 20 bytes, and `sha256` their SHA-256 digest, 32 bytes, each as FIPS 180-4 defines it. `randomBytes(count)` is `count` bytes from the host's strong random source, the one a key or a cookie is drawn from; a count below 0 is 0, and where the host's source cannot give the bytes the caller faults with the host's reason (§7.4).
+Four shims over the host's `crypto` (E.0 rule 1). `sha1` is the SHA-1 digest of the bytes, 20 bytes, and `sha256` their SHA-256 digest, 32 bytes, each as FIPS 180-4 defines it. `randomBytes(count)` is `count` bytes from the host's strong random source, the one a key or a cookie is drawn from; a count below 0 is 0, and where the host's source cannot give the bytes the caller faults with the host's reason (§7.4). `bitXor(left, right)` is the exclusive or of two byte strings of one size, octet by octet; two of different sizes fault the caller (§7.4).
 
 ```
 Crypto.sha1 : (Bytes) -> Bytes // the digest, 20 bytes
 Crypto.sha256 : (Bytes) -> Bytes // the digest, 32 bytes
 Crypto.randomBytes : (Int) -> Bytes // from the host's strong random source
+Crypto.bitXor : (Bytes, Bytes) -> Bytes // the exclusive or of two byte strings of one size
 ```
 
 ### Appendix G.10. `libs/time` (namespace `Time`)
@@ -1349,7 +1361,7 @@ A line of the chunked coding ends as a head's does, in a line feed with or witho
 
 `renderResponse(response, body)` and `renderRequest(request, body)` write the head and the body: the first line, with the value's version, each header as `name: value`, `Content-Length` of the body's size where the headers carry none and no `Transfer-Encoding`, the status is no 1xx, 204 or 304, and, for a request, the body is not empty, an empty line, and the body.
 
-A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given. A response's status line carries the phrase `reason(status)` gives, RFC 9110's for a status it names and `""` for another.
+A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given. A response's status line carries the phrase `reason(status)` gives, the one IANA's registry of status codes gives the status, RFC 9110's among them, and `""` for a status the registry does not assign.
 
 `chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
@@ -1382,7 +1394,7 @@ Http.headers : (List(Header), String) -> List(String) // every value under the n
 Http.elements : (List(Header), String) -> List(String) // every element of the values under the name, parted at commas, in order
 Http.renderResponse : (Response, Bytes) -> Bytes // the head and the body
 Http.renderRequest : (Request, Bytes) -> Bytes // the head and the body
-Http.reason : (Int) -> String // RFC 9110's phrase; "" for a status it does not name
+Http.reason : (Int) -> String // the phrase of IANA's registry of status codes, RFC 9110's among them; "" for a status it does not assign, or assigns for a time or has made obsolete
 Http.date : (Int) -> String // IMF-fixdate, in UTC; a time before the year 0 faults with Fault("the time is before the year 0"), and one past the year 9999 with Fault("the time is past the year 9999") (§7.4)
 Http.parseDate : (String) -> Optional(Int) // IMF-fixdate, RFC 850's or asctime's form; None for another
 Http.target : (Request) -> Optional(Uri.Reference) // the target read in its form, by the method; None for one of no form
@@ -1394,13 +1406,17 @@ Http.chunk : (Bytes) -> Bytes // one chunk of the chunked coding; empty bytes th
 
 ### Appendix G.12. `libs/uri` (namespace `Uri`)
 
-RFC 3986's URI reference read into its components, and percent-decoding. `parse(text)` reads a URI reference, a URI or a relative reference, into its scheme, its authority, its path, its query and its fragment, each as written and still percent-encoded. It answers `None` where the text is not one: a character outside those the RFC writes a reference in, a space, a `|`, a control character and one outside ASCII among them; a second `#`; a `%` not followed by two hexadecimal digits; a port that is not digits alone; and a port of more than five digits, an IPvFuture literal or RFC 6874's zone id in an IP literal, which this library does not read. It is a primitive over the host's `uri_string:parse`, written in the host's language (E.0 rule 1), the check of each `%` being Ernest around it.
+RFC 3986's URI reference read into its components and written from them, and percent-encoding read and written. `parse(text)` reads a URI reference, a URI or a relative reference, into its scheme, its authority, its path, its query and its fragment, each as written and still percent-encoded. It answers `None` where the text is not one: a character outside those the RFC writes a reference in, a space, a `|`, a control character and one outside ASCII among them; a second `#`; a `%` not followed by two hexadecimal digits; a port that is not digits alone; and a port of more than five digits, an IPvFuture literal or RFC 6874's zone id in an IP literal, which this library does not read. It is a primitive over the host's `uri_string:parse`, written in the host's language (E.0 rule 1), the check of each `%` being Ernest around it.
 
 An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, the literal without its brackets, as `Tcp.connect` takes a host (E.18), and may be empty. `port` is its digits' number, and `None` where the port is absent or empty, `host:`; the library gives no scheme's default. A component is read as written: a scheme's or a host's case is kept, and no `.` or `..` segment is removed. Normalization, RFC 3986 §6, and resolving a relative reference, §5, are not this library's.
 
 `parseAuthority(text)` reads an authority alone, `host`, `host:port` or either with `userinfo@` before it, as RFC 9112's `CONNECT` target and RFC 9110's `Host` header write one, and answers `None` for another text. It is Ernest over `parse`, the relative reference `//` and the text, refused where it has a path, a query or a fragment.
 
 `decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5). The decode of a segment of the path `Http.target` gives (G.11) is never `None`, each `%` there beginning an encoding.
+
+`encode(bytes)` is the text that percent-encodes the octets: the octet of an unreserved character, a letter, a digit, `-`, `.`, `_` or `~`, as the character, and every other as `%` and two upper-case hexadecimal digits, a form every component takes. `decode` reads it back as the octets. A component is encoded before it is joined to its delimiters, as it is decoded after it is parted. It is Ernest alone.
+
+`toString(reference)` is the reference recomposed as RFC 3986 §5.3 has it: each component that is there, as it stands, with its delimiter, and a host that holds a `:` between `[` and `]`. A reference `parse` answered is written as a text `parse` reads as that reference. It is Ernest alone.
 
 ```
 type Reference = Reference(scheme : Optional(String), authority : Optional(Authority), path : String,
@@ -1409,4 +1425,6 @@ type Authority = Authority(userinfo : Optional(String), host : String, port : Op
 Uri.parse : (String) -> Optional(Reference) // the components as written; None for a text that is no URI reference
 Uri.parseAuthority : (String) -> Optional(Authority) // host, host:port, or either after userinfo@; None for another text
 Uri.decode : (String) -> Optional(Bytes) // the percent-encoded octets; None for a % without two hexadecimal digits
+Uri.encode : (Bytes) -> String // each octet but an unreserved character's as % and two upper-case hexadecimal digits
+Uri.toString : (Reference) -> String // the reference recomposed, each component as it stands
 ```

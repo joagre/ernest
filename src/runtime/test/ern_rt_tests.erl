@@ -278,7 +278,7 @@ reads_limited_test() ->
                {'Right', Listener} = (Tcp(listen))(<<"127.0.0.1">>, 0),
                {'Right', Port} = (Tcp(port))(Listener),
                {'Right', Socket} = (Tcp(connect))(<<"127.0.0.1">>, Port, 5000),
-               {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
+               {'Right', Cat} = (Os(start))(command(<<"cat">>)),
                Readers = [ern_rt:spawn(fun() -> (Tcp(read))(Socket, 600000) end, <<"M.tcp:1">>),
                           ern_rt:spawn(fun() -> (Os(read))(Cat, 600000) end, <<"M.os:2">>)],
                ern_rt:timed(),
@@ -313,7 +313,7 @@ waits_without_a_time_not_limited_test() ->
                {'Right', Port} = (Tcp(port))(Listener),
                {'Right', _} = (Tcp(connect))(<<"127.0.0.1">>, Port, 5000),
                {'Right', Socket} = (Tcp(acceptForever))(Listener),
-               {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
+               {'Right', Cat} = (Os(start))(command(<<"cat">>)),
                Waiters = [ern_rt:spawn(fun() -> (Tcp(acceptForever))(Listener) end,
                                        <<"M.accept:1">>),
                           ern_rt:spawn(fun() -> (Tcp(readForever))(Socket) end, <<"M.tcp:2">>),
@@ -857,7 +857,7 @@ evaluator_ends_with_what_it_owns_test() ->
                                                             <<"S.load:1">>, none),
                    Listener = ern_waits:wait(listener),
                    MonitorRef = erlang:monitor(process, Evaluator),
-                   {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
+                   {'Right', Cat} = (Os(start))(command(<<"cat">>)),
                    'Unit' = (Os(give))(Cat, Evaluator),
                    ok = ern_waits:watching(Cat, Evaluator),
                    'Unit' = ((ern_named:functions('ern@tcp'))(closeListener))(Listener),
@@ -1053,13 +1053,14 @@ ended_proxy() ->
 -spec ran_program() -> ok.
 ran_program() ->
     Run = ern_named:function('ern@os', run),
-    {'Right', _} = Run({'Command', <<"true">>, [], <<>>, [], here()}, 5000),
+    {'Right', _} = Run(command(<<"true">>), 5000),
     ok.
 
-%% Report Appendix E.23: the working directory of a command that inherits
-%% it, `Os.workingDirectory`.
-here() ->
-    {'Path', ern_os:working_directory()}.
+%% Report Appendix E.23: the command of Program alone, as `Os.command`
+%% gives it with no argument: empty input, the inherited environment and
+%% `Os.workingDirectory`.
+command(Program) ->
+    {'Command', Program, [], <<>>, {'Inherited', []}, {'Path', ern_os:working_directory()}}.
 
 -spec closed_listener() -> ok.
 closed_listener() ->
@@ -1082,7 +1083,7 @@ kept_listener() ->
 -spec exited_program() -> ok.
 exited_program() ->
     Os = ern_named:functions('ern@os'),
-    {'Right', True} = (Os(start))({'Command', <<"true">>, [], <<>>, [], here()}),
+    {'Right', True} = (Os(start))(command(<<"true">>)),
     {'Right', {'Exited', 0}} = (Os(read))(True, 5000),
     ern_rt_tests_main ! {owned, True},
     ok.

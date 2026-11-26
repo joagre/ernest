@@ -133,13 +133,14 @@ fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
 }
 
 // What a host is told in its environment, as ern_flakes reads it, and
-// where the host, which is erl, writes a crash dump.
-fn told(part : Part, records : Path, until : Int, rounds : Path) : List(#(String, String)) =
-    [#("ERN_FLAKES_PART", part.name),
-     #("ERN_FLAKES_RECORDS", Path.toString(records)),
-     #("ERN_FLAKES_UNTIL", Int.toString(until)),
-     #("ERN_FLAKES_ROUNDS", Path.toString(rounds)),
-     #("ERL_CRASH_DUMP", Path.toString(partFile(records, part, CrashDump)))]
+// where the host, which is erl, writes a crash dump, each set over the
+// environment the hunt inherited.
+fn told(part : Part, records : Path, until : Int, rounds : Path) : Os.Environment =
+    Os.Inherited([#("ERN_FLAKES_PART", part.name),
+                  #("ERN_FLAKES_RECORDS", Path.toString(records)),
+                  #("ERN_FLAKES_UNTIL", Int.toString(until)),
+                  #("ERN_FLAKES_ROUNDS", Path.toString(rounds)),
+                  #("ERL_CRASH_DUMP", Path.toString(partFile(records, part, CrashDump)))])
 
 // The outcome of each host by its part's name, once every host has ended.
 // At the program's end the hosts are ended and the rounds' directory
@@ -168,7 +169,7 @@ fn waited(hosts : List(Process),
 // The part's host, started and read until it has exited; then the hunt is
 // told how it ended.
 fn relayed(part : Part,
-           environment : List(#(String, String)),
+           environment : Os.Environment,
            records : Path,
            hunter : Address(HuntMsg)) : Unit = {
     let command = Os.Command(..Os.command(part.program, part.arguments), =environment);

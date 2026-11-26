@@ -17,10 +17,10 @@
          bytes_text/1, control_free/1, is_control/1, module_of/2, module_of/3, shape/2,
          compile_order/3, parse_all/3, order/1,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
-         source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
-         library_hidden/2, stdlib_hash/0, dependency_interfaces/6, changed_since/3,
-         changed_cause/2, gone_since/2, load_path/1, load_path_of/1, set_load_path/1,
-         load_path/0, with_root/2,
+         source_root/3, build_root/2, doc_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
+         library_hidden/2, found_nowhere/2, at_root/3, stdlib_hash/0, dependency_interfaces/6,
+         changed_since/3, changed_cause/2, gone_since/2, load_path/1, load_path_of/1,
+         set_load_path/1, load_path/0, with_root/2,
          directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, regular_bytes/1, reason/1, sweep_pages/5, compile_source/5,
          compile_source/6, absolute/1, relative/2, root_of/2, write_whole/2, write_output/2,
@@ -144,11 +144,13 @@ said_roots(SourceRoot, BuildRoot, Say) ->
     Say(["build root ", shown(BuildRoot)]).
 
 %% Report §11.4, §11.1, §11.9: --verbose's first lines of `ern doc` over a
-%% source, the roots it took and then the root package, in `ern build`'s
-%% order, which a directory's job says also where it compiles nothing.
+%% source, the roots it took, the doc root after them where `--doc-root`
+%% names one, and then the root package, in `ern build`'s order, which a
+%% directory's job says also where it compiles nothing.
 -spec started_said([term()], file:filename(), file:filename(), fun((iodata()) -> ok)) -> ok.
 started_said(Options, SourceRoot, BuildRoot, Say) ->
     said_roots(SourceRoot, BuildRoot, Say),
+    [Say(["doc root ", shown(absolute(DocRoot))]) || {doc_root, DocRoot} <- Options],
     package_said(Options, Say).
 
 %% Report §11.9: each named package built as a directory is (§11.1), its
@@ -824,8 +826,10 @@ report_errors(File, Diagnostics, ErrorDevice) ->
                   end, Diagnostics),
     1.
 
-%% A file named from the working directory where it lies under it, the
-%% operator's for a shell's load (read_through/2).
+%% Report §11.5: a file named from the working directory, the operator's
+%% for a shell's load (read_through/2), where it lies under it, and by its
+%% absolute path where it lies outside or the working directory is the
+%% root, from which a path without its leading `/` would read as relative.
 -spec shown(file:filename()) -> file:filename().
 shown(File) ->
     Cwd = case get(?SOURCES) of
@@ -835,7 +839,8 @@ shown(File) ->
                   {ok, Own} = file:get_cwd(),
                   Own
           end,
-    case relative(File, Cwd) of
+    case absolute(Cwd) =/= "/" andalso relative(File, Cwd) of
+        false -> absolute(File);
         outside -> absolute(File);
         Relative -> Relative
     end.
@@ -1609,6 +1614,15 @@ build_root(Options, SourceRoot) ->
         Given -> absolute(Given)
     end.
 
+%% Report §11.4: the root `ern doc` writes its documents or its pages under,
+%% --doc-root, and BuildRoot without it.
+-spec doc_root([term()], file:filename()) -> file:filename().
+doc_root(Options, BuildRoot) ->
+    case proplists:get_value(doc_root, Options) of
+        undefined -> BuildRoot;
+        Given -> absolute(Given)
+    end.
+
 %% Report §11.9: the root package's `src` and `build`, absolute, where the
 %% job read a root package; none otherwise.
 package_roots(Options) ->
@@ -1780,10 +1794,12 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
 %% written longer than its shortest form an error beside the checker's,
 %% which checks it as resolved all the same. A name unknown where a nearer
 %% namespace hid one at the root, under SourceRoot or a root of the load
-%% path, DependencyRoots, is helped so (ern_resolve:out_of_reach/4). The
-%% code a diagnostic writes names another module's name in its shortest
-%% form from the module, which the namespaces looked for as the parse's
-%% resolution looked for them say, asked only where a diagnostic is made.
+%% path, DependencyRoots, is helped so (ern_resolve:out_of_reach/4), and
+%% one whose first segment is found nowhere names the module
+%% (found_nowhere/2). The code a diagnostic writes names another module's
+%% name in its shortest form from the module, which the namespaces looked
+%% for as the parse's resolution looked for them say, asked only where a
+%% diagnostic is made.
 -spec checked(#build_module{}, [#interface{}], file:filename() | none, load_path()) ->
           {ok, [tuple()], #interface{}, ern_typecheck:env()}
           | {error, [ern_diagnostic:diagnostic()]}.
@@ -1798,8 +1814,9 @@ checked(#build_module{namespace = Namespace, declarations = Declarations, shorte
         {error, Diagnostics} ->
             AtRoot = fun(Segment) -> at_root(Segment, SourceRoot, DependencyRoots) end,
             Took = fun(Root) -> module_taken(Root, SourceRoot, DependencyRoots) end,
-            {error, [library_hidden(ern_resolve:out_of_reach(Diagnostic, Namespace, Resolved,
-                                                             AtRoot), Took)
+            {error, [found_nowhere(library_hidden(ern_resolve:out_of_reach(Diagnostic, Namespace,
+                                                                           Resolved, AtRoot),
+                                                  Took), AtRoot)
                      || Diagnostic <- Diagnostics]};
         Checked ->
             Checked
@@ -1835,6 +1852,26 @@ library_hidden(#diagnostic{unknown_namespace = [First | _], help = undefined} = 
             Diagnostic
     end;
 library_hidden(Diagnostic, _Took) ->
+    Diagnostic.
+
+%% Report §11.5, §4.2: Diagnostic, a qualified name unknown under a
+%% namespace whose first segment is found nowhere, neither one of the
+%% prelude's or the standard library's nor a module's at the root, which
+%% IsFound answers, refused by naming the module; any other as it is. A
+%% namespace the climb found nearer than the root begins with the writer's
+%% own first segment, which is found, so the first segment of the namespace
+%% a name resolved to is the one written wherever it is found nowhere.
+-spec found_nowhere(ern_diagnostic:diagnostic(), fun((atom()) -> boolean())) ->
+          ern_diagnostic:diagnostic().
+found_nowhere(#diagnostic{unknown_namespace = [First | _]} = Diagnostic, IsFound) ->
+    case lists:member(First, given_namespaces()) orelse IsFound(First) of
+        true ->
+            Diagnostic;
+        false ->
+            Diagnostic#diagnostic{message = "no module " ++ ern_namespace:text([First])
+                                            ++ " under the source root or on the load path"}
+    end;
+found_nowhere(Diagnostic, _IsFound) ->
     Diagnostic.
 
 %% The file a build takes for the module Root at the root: its source under
@@ -1874,6 +1911,7 @@ compiled_taken(Root, LoadPath, SourceRoot, Libraries) ->
 %% Segment, a source under SourceRoot or a compiled module under a root of
 %% the load path, at its path or in its directory, each looked for where
 %% §11.9 says, as namespace_test/3 answers below the root.
+-spec at_root(atom(), file:filename() | none, load_path()) -> boolean().
 at_root(Segment, GivenRoot, LoadPath) ->
     Path = ern_namespace:module_path([Segment]),
     {SourceRoot, DependencyRoots} = looked_in(Path, GivenRoot, LoadPath),
@@ -2525,29 +2563,29 @@ outputs(Dir, Extension) ->
     end.
 
 %% Report §11.4: remove every document and every manual page `ern doc`
-%% wrote under the mirror of the documented subtree whose module is not
-%% among Kept, whichever kind the run writes, each said by Say, with the
-%% flag or without, and each directory the removals leave empty. A page names its module in
-%% its title and stands at the module's place; a file that does not is no
-%% page of `ern doc`'s, and is kept.
+%% wrote under DocRoot, in the mirror of the documented subtree, whose
+%% module is not among Kept, whichever kind the run writes, each said by
+%% Say, with the flag or without, and each directory the removals leave
+%% empty. A page names its module in its title and stands at the module's
+%% place; a file that does not is no page of `ern doc`'s, and is kept.
 -spec sweep_pages(file:filename(), file:filename(), file:filename(), [[atom()]],
                   fun((iodata()) -> ok)) -> ok.
-sweep_pages(Dir, SourceRoot, BuildRoot, Kept, Say) ->
-    Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
+sweep_pages(Dir, SourceRoot, DocRoot, Kept, Say) ->
+    Mirror = absolute(filename:join(DocRoot, relative(Dir, SourceRoot))),
     Names = [[atom_to_list(Segment) || Segment <- Namespace] || Namespace <- Kept],
     lists:foreach(fun(Page) ->
                       ok = delete(Page),
                       Say(["removed ", shown(Page)]),
-                      remove_emptied(filename:dirname(Page), Mirror, BuildRoot)
+                      remove_emptied(filename:dirname(Page), Mirror, DocRoot)
                   end, [Page || {Kind, Extension} <- [{markdown, ".md"}, {man, ".3ern"}],
                                 Page <- outputs(Mirror, Extension),
-                                {ok, Segments} <- [page_of(Kind, Page, BuildRoot)],
+                                {ok, Segments} <- [page_of(Kind, Page, DocRoot)],
                                 not lists:member(Segments, Names)]).
 
 %% The segments of the module a page documents, by its title, where the
 %% page stands at that module's place. A title is no module's name until
 %% the place agrees, so it is read as text.
-page_of(Kind, Page, BuildRoot) ->
+page_of(Kind, Page, DocRoot) ->
     Title = case {Kind, binary:split(read(Page), <<"\n">>, [global])} of
                 {markdown, [<<"# Ernest module ", NamespaceText/binary>> | _]} ->
                     title(NamespaceText);
@@ -2568,7 +2606,7 @@ page_of(Kind, Page, BuildRoot) ->
                         {man, "."} -> "Ernest." ++ Title ++ ".3ern";
                         {man, Directory} -> filename:join(Directory, "Ernest." ++ Title ++ ".3ern")
                     end,
-            case relative(Page, BuildRoot) =:= Place of
+            case relative(Page, DocRoot) =:= Place of
                 true -> {ok, Segments};
                 false -> none
             end
@@ -2581,11 +2619,11 @@ title(Text) ->
     end.
 
 %% A directory the sweep emptied, and each above it that it empties in turn,
-%% up to the top of the swept subtree and never the build root; del_dir
+%% up to the top of the swept subtree and never the root, Root; del_dir
 %% removes a directory only when it is empty.
-remove_emptied(Dir, Mirror, BuildRoot) ->
-    case Dir =/= BuildRoot andalso relative(Dir, Mirror) =/= outside andalso file:del_dir(Dir) of
-        ok -> remove_emptied(filename:dirname(Dir), Mirror, BuildRoot);
+remove_emptied(Dir, Mirror, Root) ->
+    case Dir =/= Root andalso relative(Dir, Mirror) =/= outside andalso file:del_dir(Dir) of
+        ok -> remove_emptied(filename:dirname(Dir), Mirror, Root);
         _ -> ok
     end.
 

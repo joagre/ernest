@@ -372,22 +372,23 @@ reads_manifest(Job) ->
 %% Report §11.9: Options with the root package Dir, Place being the
 %% `working_directory` or the `package_dir` `--package-dir` names, read
 %% where Dir holds the name `package.conf`, whatever it reaches, by the job
-%% Job given the paths Arguments and its `--build-root`: the package's
-%% directory, whose `src` and `build` are default roots (§11.1, §11.2), its
-%% own `ebin` where the job runs code and it is there, its named packages,
-%% as the load path holds them (ern_build:load_path/1), under `ern build` the order
-%% it builds them in, under `ern unpack` the entries with their `url` and
-%% their `sha256`, and, where `--verbose` asks, what it says of them, as
-%% data, since the build, which is in the compiler's hash, calls no module
-%% of the package's (ern_build:load_path/1). A Dir `--package-dir` names
-%% that holds none is refused, and so is one whose name cannot be looked
-%% for.
+%% Job given the paths Arguments, its `--build-root` and its `--doc-root`:
+%% the package's directory, whose `src` and `build` are default roots
+%% (§11.1, §11.2), its own `ebin` where the job runs code and it is there,
+%% its named packages, as the load path holds them (ern_build:load_path/1),
+%% under `ern build` the order it builds them in, under `ern unpack` the
+%% entries with their `url` and their `sha256`, and, where `--verbose`
+%% asks, what it says of them, as data, since the build, which is in the
+%% compiler's hash, calls no module of the package's
+%% (ern_build:load_path/1). A Dir `--package-dir` names that holds none is
+%% refused, and so is one whose name cannot be looked for.
 packaged(Options, Dir, Place, Job, Arguments) ->
     Manifest = filename:join(Dir, "package.conf"),
     case {file:read_link_info(Manifest, [raw]), Place} of
         {{ok, _}, _} ->
             Given = [{argument, Path} || Path <- Arguments]
-                ++ [{build_root, Path} || {build_root, Path} <- Options],
+                ++ [{Key, Path} || {Key, Path} <- Options,
+                                   Key =:= build_root orelse Key =:= doc_root],
             Package = ern_package:read(Dir, Place, Job, Given),
             Root = ern_build:absolute(Dir),
             Options ++ [{root_package, Root}]
@@ -438,9 +439,9 @@ listed(Words) -> lists:join(", ", lists:droplast(Words)) ++ " and " ++ lists:las
 %% names it so. A word after `ern run`'s file is the program's, and is no
 %% path; `ern format`'s `-` is standard input, which a file named `-`,
 %% `./-`, is not. An option's empty value is refused before (given_once/2).
-resolved_option({Key, Path}) when Key =:= source_root; Key =:= build_root; Key =:= load_path;
-                                  Key =:= libs_dir; Key =:= package_dir; Key =:= config_dir;
-                                  Key =:= peer_dir ->
+resolved_option({Key, Path}) when Key =:= source_root; Key =:= build_root; Key =:= doc_root;
+                                  Key =:= load_path; Key =:= libs_dir; Key =:= package_dir;
+                                  Key =:= config_dir; Key =:= peer_dir ->
     {Key, resolved_path(Path)};
 resolved_option(Option) ->
     Option.
@@ -612,6 +613,7 @@ option_synopsis({Key, _, Long, _, _}) ->
 
 metavariable(source_root) -> "src-root";
 metavariable(build_root) -> "build-root";
+metavariable(doc_root) -> "doc-root";
 metavariable(load_path) -> "dir";
 metavariable(libs_dir) -> "dir";
 metavariable(package_dir) -> "dir";
@@ -647,18 +649,22 @@ build_options() ->
      help_option()].
 
 %% Report §11.4, §11.7: `ern doc` takes the build's options but
-%% `--emit-erl`, which is the build's alone; its `--build-root` is where
-%% the documents go and where a current `.erc` is read from.
+%% `--emit-erl`, which is the build's alone; its `--build-root` is where a
+%% current `.erc` is read from, and its own `--doc-root` where the
+%% documents go, the build root where it is not given.
 doc_options() ->
     [{man, undefined, "man", undefined, "write manual pages in roff instead of CommonMark"}
-     | [case Key of
-            build_root ->
-                {build_root, undefined, "build-root", string,
-                 "where the documents go, and where a current .erc is read from; default: the"
-                 " source root, or the root package's build where that is its src"};
-            _ ->
-                Option
-        end || {Key, _, _, _, _} = Option <- build_options(), Key =/= emit_erl]].
+     | lists:append(
+         [case Key of
+              build_root ->
+                  [{build_root, undefined, "build-root", string,
+                    "where a current .erc is read from; default: the source root, or the root"
+                    " package's build where that is its src"},
+                   {doc_root, undefined, "doc-root", string,
+                    "where the documents or the pages go; default: the build root"}];
+              _ ->
+                  [Option]
+          end || {Key, _, _, _, _} = Option <- build_options(), Key =/= emit_erl])].
 
 build(Options, [Path], ErrorDevice) ->
     ern_build:compile("ern build", Options, Path, ErrorDevice).
@@ -680,8 +686,8 @@ none_taken(Rest) ->
     io_lib:format("no argument is taken, and ~B were given", [length(Rest)]).
 
 %% Report §11.4: a file's documentation to stdout, a directory's into the
-%% build directory, one document per module and an index, or with --man one
-%% manual page per module and no index.
+%% doc root, one document per module and an index, or with --man one manual
+%% page per module and no index.
 doc(Options, [Path], ErrorDevice) ->
     try doc_path(Options, Path, ErrorDevice)
     catch
@@ -789,10 +795,11 @@ in_runtime(Compute, ErrorDevice) ->
     end.
 
 %% Report §11.4: a directory's documents, or with --man its manual pages,
-%% each written where it is not current. A page is made from its module
-%% compiled, so that every page is of a module that type-checks: a module
-%% whose .erc in build-root is as new as its source is read from it, and
-%% the rest are compiled as `ern build` compiles them, writing nothing.
+%% each written under the doc root where it is not current. A page is made
+%% from its module compiled, so that every page is of a module that
+%% type-checks: a module whose .erc in build-root is as new as its source is
+%% read from it, wherever the pages go, and the rest are compiled as `ern
+%% build` compiles them, writing nothing.
 %% Where every page is current, nothing is compiled, but where a module
 %% hides a library's, which the build tests by the job's reach (§11.1,
 %% §4.2). A file whose path is no module's fails as a module that does not
@@ -806,6 +813,7 @@ in_runtime(Compute, ErrorDevice) ->
 doc_dir(Options, Path, ErrorDevice) ->
     SourceRoot = ern_build:source_root(Options, Path, Path),
     BuildRoot = ern_build:build_root(Options, SourceRoot),
+    DocRoot = ern_build:doc_root(Options, BuildRoot),
     %% the modules by their files and namespaces, which is all that tells
     %% whether a page is current, so no source is parsed to tell it
     Sources = ern_build:sources(Path),
@@ -817,10 +825,12 @@ doc_dir(Options, Path, ErrorDevice) ->
                true -> man;
                false -> markdown
            end,
+    no_index_module(Kind, Modules),
     %% report §11.4: --verbose says each module read or compiled, and each
     %% document or page written or removed
     Say = ern_build:verbose(Options, ErrorDevice),
-    Outdated = outdated(pages(Kind, Modules, IsStdlib, BuildRoot), code_modified(Kind)),
+    Outdated = outdated(pages(Kind, Modules, IsStdlib, BuildRoot, DocRoot),
+                        code_modified(Kind)),
     Libraries = ern_tree:libraries(),
     Hiding = [Module || #build_module{namespace = Namespace, file = File} = Module <- Modules,
                         ern_build:hidden_library(Namespace, File, Libraries) =/= none],
@@ -845,12 +855,25 @@ doc_dir(Options, Path, ErrorDevice) ->
     %% .erc, after a run in which every module compiled, each said with the
     %% flag or without
     Status =:= 0
-        andalso ern_build:sweep_pages(Path, SourceRoot, BuildRoot,
+        andalso ern_build:sweep_pages(Path, SourceRoot, DocRoot,
                                       [Namespace || #build_module{namespace = Namespace} <- Modules]
                                           ++ [['Prelude'] || IsStdlib],
                                       ern_build:saying(ErrorDevice)),
-    write_index(Kind, directory_namespaces(Sources, SourceRoot), IsStdlib, BuildRoot),
+    write_index(Kind, directory_namespaces(Sources, SourceRoot), IsStdlib, DocRoot),
     Status.
+
+%% Report §11.4: without --man, a module `Index` at the directory's root is
+%% refused before anything is written, since its document would be the
+%% listing's, index.md; `Net.Index`'s is `net/index.md`, and is none.
+no_index_module(man, _Modules) ->
+    ok;
+no_index_module(markdown, Modules) ->
+    case [File || #build_module{namespace = ['Index'], file = File} <- Modules] of
+        [] -> ok;
+        [File | _] ->
+            ern_build:fail(ern_build:path_text(File) ++ ": the module Index's document would be"
+                           " index.md, which lists the modules; ern doc --man writes its page")
+    end.
 
 %% Report §11.4, §11.1: the namespaces of the directory's modules, Sources,
 %% in order, each source whose path is a module's, one that failed among
@@ -866,26 +889,27 @@ namespace_of(Source, SourceRoot) ->
     end.
 
 %% Report §11.4: each module's page, with what makes it from the compiled
-%% modules, the times of what it is made from of its own, and whose it is,
-%% the module's namespace or `prelude`: in CommonMark where `ern build`
-%% writes its .erc with `.md` for `.erc`, or a manual page in that
-%% directory in a file named as `man` finds it, `Ernest.Net.Http.3ern`.
-%% The standard library's own source root also has the prelude's page, at
-%% the top of its build root, first in the index.
-pages(markdown, Modules, IsStdlib, BuildRoot) ->
-    [{filename:join(BuildRoot, "prelude.md"), fun(_) -> ern_page:prelude_page() end, [], prelude}
+%% modules, the times of what it is made from of its own, its .erc's in
+%% BuildRoot among them, and whose it is, the module's namespace or
+%% `prelude`: under DocRoot, in CommonMark at the place `ern build` writes
+%% its .erc under BuildRoot, with `.md` for `.erc`, or a manual page in
+%% that directory in a file named as `man` finds it,
+%% `Ernest.Net.Http.3ern`. The standard library's own source root also has
+%% the prelude's page, at the top of DocRoot, first in the index.
+pages(markdown, Modules, IsStdlib, BuildRoot, DocRoot) ->
+    [{filename:join(DocRoot, "prelude.md"), fun(_) -> ern_page:prelude_page() end, [], prelude}
      || IsStdlib]
-        ++ [{filename:join(BuildRoot, ern_namespace:module_path(Namespace) ++ ".md"),
+        ++ [{filename:join(DocRoot, ern_namespace:module_path(Namespace) ++ ".md"),
              fun(Compiled) -> ern_page:page(maps:get(Namespace, Compiled), ern_build:shown(File))
              end,
              module_modified(Module, BuildRoot), Namespace}
             || #build_module{namespace = Namespace, file = File} = Module <- Modules];
-pages(man, Modules, IsStdlib, BuildRoot) ->
-    [{man_page(BuildRoot, Namespace),
+pages(man, Modules, IsStdlib, BuildRoot, DocRoot) ->
+    [{man_page(DocRoot, Namespace),
       fun(Compiled) -> ern_page:manual(maps:get(Namespace, Compiled), ern_build:shown(File)) end,
       module_modified(Module, BuildRoot), Namespace}
      || #build_module{namespace = Namespace, file = File} = Module <- Modules]
-        ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"),
+        ++ [{filename:join(DocRoot, "Ernest.Prelude.3ern"),
              fun(_) -> ern_page:prelude_manual() end, [], prelude}
             || IsStdlib].
 
@@ -943,14 +967,14 @@ write_outdated(man, Outdated, Compiled, ErrorDevice, Say) ->
 %% regular file itself, a link among them, is none (§11.4): at the index's
 %% place it is not opened, and a run of `--man` leaves it, and any other
 %% run replaces it.
-write_index(Kind, Namespaces, IsStdlib, BuildRoot) ->
-    Index = filename:join(BuildRoot, "index.md"),
+write_index(Kind, Namespaces, IsStdlib, DocRoot) ->
+    Index = filename:join(DocRoot, "index.md"),
     Listed = [{Name, Document}
               || {Name, Document} <- [{"Prelude", "prelude.md"} || IsStdlib]
                      ++ [{ern_namespace:text(Namespace),
                           ern_namespace:module_path(Namespace) ++ ".md"}
                          || Namespace <- Namespaces],
-                 is_regular_file(filename:join(BuildRoot, Document))],
+                 is_regular_file(filename:join(DocRoot, Document))],
     Text = unicode:characters_to_binary(["# Modules\n\n",
                                          [["- [", Name, "](", Document, ")\n"]
                                           || {Name, Document} <- Listed]]),
@@ -964,9 +988,10 @@ write_index(Kind, Namespaces, IsStdlib, BuildRoot) ->
         _ -> ern_build:write_output(Index, Text)
     end.
 
-%% A module's manual page, in the directory of its .erc.
-man_page(BuildRoot, Namespace) ->
-    Directory = filename:dirname(filename:join(BuildRoot, ern_namespace:module_path(Namespace))),
+%% A module's manual page, under DocRoot in the directory its .erc has
+%% under the build root.
+man_page(DocRoot, Namespace) ->
+    Directory = filename:dirname(filename:join(DocRoot, ern_namespace:module_path(Namespace))),
     filename:join(Directory, "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern").
 
 %% Each page written to its file whole, as UTF-8, and said by Say.

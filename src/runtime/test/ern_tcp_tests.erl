@@ -2224,6 +2224,51 @@ tls_read_before_the_close_test() ->
     {Pieces, Last} = ern_waits:wait(reads),
     ?assertEqual({true, {'Left', 'Closed'}}, {iolist_to_binary(Pieces) =:= Written, Last}).
 
+%% Appendix E.18: a renegotiation that a client asks for over TLS 1.2 is
+%% refused, and the connection goes on as its handshake made it: the
+%% host's own client over TLS 1.2 that asks, once a piece has passed, is
+%% answered `renegotiation_rejected`, the listener's warning that it will
+%% not renegotiate, and bytes pass both ways after it. The socket's read
+%% waits as the client asks, since the host's process of the connection
+%% takes what arrives for a read alone (`internal_active_n`, the known
+%% issues' line). Written before the listener's option, without which the
+%% host renegotiated
+tls_renegotiation_refused_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               EntryProcess = self(),
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               FarEnd = spawn(fun() ->
+                                  {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                                [binary, {active, false},
+                                                                 {verify, verify_none},
+                                                                 {versions, ['tlsv1.2']}]),
+                                  ok = ssl:send(Connected, <<"before">>),
+                                  receive renegotiate -> ok end,
+                                  Renegotiated = ssl:renegotiate(Connected),
+                                  ok = ssl:send(Connected, <<"after">>),
+                                  EntryProcess ! {renegotiated, Renegotiated},
+                                  EntryProcess ! {back, ssl:recv(Connected, 0, 5000)},
+                                  receive done -> ssl:close(Connected) end
+                              end),
+               {'Right', Socket} = accept(Listener, 5000),
+               Before = read(Socket, 5000),
+               FarEnd ! renegotiate,
+               After = read(Socket, 5000),
+               Wrote = write(Socket, <<"back">>),
+               %% waits in a test's code, the host's to the deadlock detector
+               Renegotiated = receive {renegotiated, Answer} -> Answer end,
+               Back = receive {back, Taken} -> Taken end,
+               Self ! {renegotiation, {Before, Renegotiated, After, Wrote, Back}},
+               FarEnd ! done
+           end),
+    ?assertEqual({{'Right', <<"before">>}, {error, renegotiation_rejected}, {'Right', <<"after">>},
+                  {'Right', 'Unit'}, {ok, <<"back">>}},
+                 ern_waits:wait(renegotiation)).
+
 %% Appendix E.18: over TLS the host takes one piece ahead of the reads,
 %% which its process of the connection holds, and no more: of a connection
 %% nobody reads, once the far end is held, that process holds one piece,

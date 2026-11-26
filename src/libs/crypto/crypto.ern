@@ -1,12 +1,14 @@
-/// The SHA-1 and SHA-256 digests of bytes, and bytes from the host's strong
-/// random source.
+/// The SHA-1 and SHA-256 digests of bytes, bytes from the host's strong
+/// random source, and the exclusive or of two byte strings.
 ///
 /// Use `sha256` for a digest that a forger must not match, a downloaded
 /// file's checksum among them. Use `sha1` only where a protocol names SHA-1,
 /// as WebSocket's opening handshake does (RFC 6455), since two inputs with one
 /// SHA-1 digest have been found. Use `randomBytes` for what must not be
 /// guessed, a key, a token or a cookie; numbers a program draws for a
-/// simulation or a test, which a seed repeats, are `Random`'s.
+/// simulation or a test, which a seed repeats, are `Random`'s. Use `bitXor`
+/// where a protocol masks bytes with others, as a WebSocket frame's mask
+/// does (RFC 6455).
 ///
 /// The library stands on every job's load path, so a program names it with
 /// no option (report Appendix G).
@@ -36,6 +38,13 @@
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.randomBytes(16))
+/// ```
+///
+/// Two byte strings of one size combined by exclusive or:
+///
+/// ```ernest
+/// Crypto.bitXor(<<0x0F, 0xAA>>, <<0xFF, 0x55>>)
+/// // => <<240, 255>>
 /// ```
 ///
 /// ## See also
@@ -90,6 +99,38 @@ export fn sha256(bytes : Bytes) : Bytes =
 export fn randomBytes(count : Int) : Bytes =
     strongBytes(Int.max(count, 0))
 
+/// The exclusive or of `left` and `right`, two byte strings of one size,
+/// octet by octet: each octet of the bytes it answers is the exclusive or
+/// of the two at its index. Empty bytes answer empty bytes.
+///
+/// ### Errors
+///
+/// Faults where `left` and `right` are of different sizes, a request the
+/// caller alone could have kept (report §7.4), with the cause `the byte
+/// strings are of different sizes, 1 and 2 bytes`, the sizes of `left` and
+/// `right`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Crypto.bitXor(<<0b1100>>, <<0b1010>>), Crypto.bitXor(<<>>, <<>>))
+/// // => #(<<6>>, <<>>)
+/// ```
+///
+/// since 0.11.0
+export fn bitXor(left : Bytes, right : Bytes) : Bytes = {
+    let leftSize = Bytes.size(left);
+    let rightSize = Bytes.size(right);
+    if leftSize == rightSize then
+        exclusiveOr(left, right)
+    else
+        fault("the byte strings are of different sizes, "
+                  <> Int.toString(leftSize)
+                  <> " and "
+                  <> Int.toString(rightSize)
+                  <> " bytes")
+}
+
 //
 // The tests (report §9.3), run by `ern test` as every library's are, each
 // written with the code (report Appendix G.9).
@@ -135,6 +176,27 @@ let noCount =
     Test.Case(name = "a count of 0 or below draws no bytes",
               run = fn() = Test.equal(#(randomBytes(0), randomBytes(-1)), #(<<>>, <<>>)))
 
+// Report Appendix G.9: each octet answered is the exclusive or of the two
+// at its index, RFC 6455's masked `Hello` of section 5.7 among them, and no
+// bytes answer no bytes.
+let ofOneSize =
+    Test.Case(name = "the exclusive or of two byte strings of one size, octet by octet",
+              run = fn() =
+                  Test.equal(#(bitXor(<<0x0F, 0xF0, 0xAA, 0x00>>, <<0xFF, 0xFF, 0x55, 0x00>>),
+                               bitXor(String.toUtf8("Hello"), <<0x37, 0xFA, 0x21, 0x3D, 0x37>>),
+                               bitXor(<<>>, <<>>)),
+                             #(<<0xF0, 0x0F, 0xFF, 0x00>>, <<0x7F, 0x9F, 0x4D, 0x51, 0x58>>, <<>>)))
+
+// Report Appendix G.9, §7.4: two byte strings of different sizes fault
+// the caller, either the shorter.
+let differentSizes =
+    Test.Case(name = "two byte strings of different sizes fault the caller", run = fn() = {
+        let cause = "the byte strings are of different sizes, ";
+        Test.equal([Test.faults(fn() = bitXor(<<1>>, <<1, 2>>), cause <> "1 and 2 bytes"),
+                    Test.faults(fn() = bitXor(<<1, 2, 3>>, <<>>), cause <> "3 and 0 bytes")],
+                   [Test.Passed, Test.Passed])
+    })
+
 //
 // The host's functions
 //
@@ -144,3 +206,6 @@ foreign fn hash(algorithm : Foreign.Term, bytes : Bytes) : Bytes =
 
 foreign fn strongBytes(count : Int) : Bytes =
     "crypto:strong_rand_bytes/1"
+
+foreign fn exclusiveOr(left : Bytes, right : Bytes) : Bytes =
+    "crypto:exor/2"

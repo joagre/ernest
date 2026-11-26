@@ -5,7 +5,7 @@
 /// TLS. `read`, `readForever` and `write` move bytes over a connection, and
 /// `close` ends it, over TLS or not. A connection carries bytes, and a program
 /// frames its messages with bitstrings (report §5.11); there are no socket
-/// options.
+/// options. `address` reads an address's text into its bytes.
 ///
 /// **A socket is a process.** `accept`, `acceptForever`, `connect` and
 /// `connectTls` answer a socket's address.
@@ -41,7 +41,8 @@
 /// A socket `accept` or `acceptForever` answers on it shakes hands as it is
 /// first read or written, and one `connectTls` answers has shaken hands, the
 /// far end's certificate checked where `Verified` asks it. The versions and the
-/// ciphers are the host's own, TLS 1.2 and 1.3 (report Appendix E.18).
+/// ciphers are the host's own, TLS 1.2 and 1.3, and a listener refuses a
+/// client's renegotiation over TLS 1.2 (report Appendix E.18).
 ///
 /// ## Examples
 ///
@@ -358,6 +359,9 @@ export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Addres
 /// `key.pem: not one key`. Otherwise it answers as `listen` does. A key that
 /// is not the certificate's is not refused here, and fails each handshake.
 ///
+/// A renegotiation that a client asks for over TLS 1.2 is refused, so a
+/// connection's parameters are its handshake's over both versions.
+///
 /// ### Examples
 ///
 /// A server over TLS that greets the first connection and closes it:
@@ -593,3 +597,45 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// ```
 export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
     closed(callUnlimited(socket, Local))
+
+/// The bytes of the address `text` writes, as the host reads one: 4 for an
+/// IPv4 address written as four decimal numbers, and 16 for an IPv6 address in
+/// any of its forms and either case of its letters. It answers `None` for
+/// another text, a host's name, a number with a sign and an address with a zone
+/// among them. It reads the host of each `Endpoint` that `remote` and `local`
+/// answer.
+///
+/// ### Examples
+///
+/// An IPv4 address, an IPv6 one's first 64 bits, and a name, which is no
+/// address:
+///
+/// ```ernest
+/// #(Tcp.address("192.0.2.1"),
+///   Optional.map(Tcp.address("2001:DB8::1"), fn(bytes) = Bytes.slice(bytes, 0, 8)),
+///   Tcp.address("localhost"))
+/// // => #(Some(<<192, 0, 2, 1>>), Some(<<32, 1, 13, 184, 0, 0, 0, 0>>), None)
+/// ```
+///
+/// A zone and a sign, which the host would read:
+///
+/// ```ernest
+/// #(Tcp.address("fe80::1%eth0"), Tcp.address("+192.0.2.1"))
+/// // => #(None, None)
+/// ```
+///
+/// since 0.11.0
+export fn address(text : String) : Optional(Bytes) = {
+    let bytes = String.toUtf8(text);
+    if List.any(["%", "+", "-"], fn(mark) = Bytes.contains(bytes, String.toUtf8(mark))) then
+        None
+    else
+        strictAddress(text)
+}
+
+// The host's reading of an address, which takes a zone after `%` and a sign
+// before an IPv4 address's number. `address` finds those marks in the text's
+// bytes, since a search of a string matches whole graphemes, and a mark that a
+// combining mark follows is none.
+foreign fn strictAddress(text : String) : Optional(Bytes) =
+    "ern_tcp:strict_address/1"

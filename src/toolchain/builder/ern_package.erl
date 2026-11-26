@@ -65,8 +65,9 @@
 %% where it is, the `working_directory` the job was started in or the
 %% `package_dir` its `--package-dir` names, read by the job Job, `"build"`,
 %% `"doc"`, `"run"`, `"test"`, `"shell"` or `"unpack"`, given the paths
-%% Given, as resolved (§11), each an `{argument, Path}` or the `{build_root,
-%% Path}` its `--build-root` names. The job's load path takes each named
+%% Given, as resolved (§11), each an `{argument, Path}`, the `{build_root,
+%% Path}` its `--build-root` names or the `{doc_root, Path}` its
+%% `--doc-root` names. The job's load path takes each named
 %% package's build, and its `ebin` too where the job runs code.
 %%
 %% `ern unpack` refuses no named package that is not under `lib`, which it
@@ -77,7 +78,7 @@
 %% which the job writes after its name, each holding no control character
 %% (ern_build:control_free/1).
 -spec read(file:filename(), working_directory | package_dir, string(),
-           [{argument, file:filename()} | {build_root, file:filename()}]) -> package().
+           [{argument | build_root | doc_root, file:filename()}]) -> package().
 read(Dir, Place, Job, Given) ->
     Manifest = filename:join(Dir, "package.conf"),
     Lib = filename:join(Dir, "lib"),
@@ -478,12 +479,12 @@ taken(Named, Shown) ->
 %%
 
 %% Report §11.9, §11: the refusal of Path, a path the job was given, an
-%% argument or its `--build-root`, as resolved, where it is the root
-%% package's `lib`, a named package's directory or a path under one,
-%% compared by its segments: `ern build` refuses every such path, and `ern
-%% doc` every one but a compiled module given as its argument, which it
-%% reads (§11.4). A path under `lib` and under no named package's directory
-%% has the text of `lib`.
+%% argument, its `--build-root` or its `--doc-root`, as resolved, where it
+%% is the root package's `lib`, a named package's directory or a path under
+%% one, compared by its segments: `ern build` refuses every such path, and
+%% `ern doc` every one but a compiled module given as its argument, which
+%% it reads (§11.4). A path under `lib` and under no named package's
+%% directory has the text of `lib`.
 given_under_lib(Job, {How, Path}, Lib, Named) ->
     case ern_build:relative(Path, Lib) of
         outside ->

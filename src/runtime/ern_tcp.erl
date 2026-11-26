@@ -18,7 +18,7 @@
 %% module that carries it out (docs/design/runtime.md).
 -module(ern_tcp).
 
--export([loop/0]).
+-export([loop/0, strict_address/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -279,7 +279,9 @@ held_open(Open, Transport, Socket) ->
 
 %% Report Appendix E.18: what a listener's kind adds, its transport, its
 %% site and, over TLS, the server's certificate, its chain after it, and
-%% its key.
+%% its key, and the refusal of a renegotiation a client asks for over TLS
+%% 1.2, so that a connection's parameters are its handshake's over both
+%% versions.
 listening(plain) ->
     {gen_tcp, <<"Tcp.listen">>, []};
 listening({tls, {'Path', Certificate}, {'Path', Key}}) ->
@@ -288,7 +290,8 @@ listening({tls, {'Path', Certificate}, {'Path', Key}}) ->
         {_, {error, Error}} -> {error, Error};
         {{ok, CertificateFile}, {ok, KeyFile}} ->
             {ssl, <<"Tcp.listenTls">>,
-             [{certfile, CertificateFile}, {keyfile, KeyFile} | ?TLS_HIBERNATION]}
+             [{certfile, CertificateFile}, {keyfile, KeyFile}, {client_renegotiation, false}
+              | ?TLS_HIBERNATION]}
     end.
 
 %% Report Appendix E.18, E.17: a file of a listener's or a check's, by the
@@ -1296,6 +1299,24 @@ endpoint(_, Ask) ->
         {error, _} ->
             {'Left', 'Closed'}
     end.
+
+%% Report Appendix E.18: the primitive beneath `Tcp.address`, the host's
+%% inet:parse_strict_address/1 exactly, which reads what endpoint/2 writes,
+%% the host's inet:ntoa/1: the bytes of the address Text writes, and `None`
+%% for a text the host refuses. The host takes a list of characters and
+%% answers a tuple of four numbers or of eight, which no Ernest type
+%% describes (E.0 rule 1).
+-spec strict_address(binary()) -> {'Some', binary()} | 'None'.
+strict_address(Text) ->
+    case inet:parse_strict_address(unicode:characters_to_list(Text)) of
+        {ok, IpAddress} -> {'Some', address_bytes(IpAddress)};
+        {error, einval} -> 'None'
+    end.
+
+%% An IP address as the host holds one as its bytes in network order:
+%% IPv4's four numbers a byte each, and IPv6's eight two bytes each.
+address_bytes({_, _, _, _} = IpAddress) -> list_to_binary(tuple_to_list(IpAddress));
+address_bytes(IpAddress) -> << <<Part:16>> || Part <- tuple_to_list(IpAddress) >>.
 
 %% Report Appendix E.1, E.18: Io.Error for what the host's sockets answer, a
 %% code by its constructor or in the host's words, and for what the host's

@@ -3024,15 +3024,31 @@ read_beam(File) ->
 %% the session could load, has the `:load` that puts it there as its help.
 %% Report §4.2: where it has none, one under a namespace whose first
 %% segment's module, which the session loaded, hides a library's has the
-%% help that names the two (ern_build:library_hidden/2).
+%% help that names the two (ern_build:library_hidden/2). Report §11.5: one
+%% whose first segment is found nowhere names the module, as the build
+%% names it (ern_build:found_nowhere/2).
 load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
                                  help = undefined} = Diagnostic) ->
     case load_help(Session, [atom_to_list(Segment) || Segment <- Namespace]) of
-        {ok, Help} -> Diagnostic#diagnostic{help = unicode:characters_to_list(Help)};
-        none -> ern_build:library_hidden(Diagnostic, fun(Root) -> took(Session, Root) end)
+        {ok, Help} ->
+            Diagnostic#diagnostic{help = unicode:characters_to_list(Help)};
+        none ->
+            Hidden = ern_build:library_hidden(Diagnostic, fun(Root) -> took(Session, Root) end),
+            ern_build:found_nowhere(Hidden, fun(Segment) -> is_found(Session, Segment) end)
     end;
 load_hinted(_Session, Diagnostic) ->
     Diagnostic.
+
+%% Report §4.2, §11.5: whether a first segment is found: a module the
+%% session loaded under it, or one the source root or the load path holds
+%% at its path or in its directory, the source root's read through the
+%% session's local half (source_access/1).
+is_found(#session{interfaces = Interfaces, source_root = SourceRoot} = Session, Segment) ->
+    [Loaded || #interface{namespace = [First | _]} = Loaded <- Interfaces, First =:= Segment] =/= []
+        orelse ern_build:read_through(source_access(Session),
+                                      fun() ->
+                                          ern_build:at_root(Segment, SourceRoot, load_path(Session))
+                                      end).
 
 %% Report §4.2: the file the session took for the module Root, where it has
 %% loaded one: its source under the source root, where it compiled it from

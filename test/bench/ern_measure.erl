@@ -791,10 +791,11 @@ os_scenarios(Bytes) ->
     %% report Appendix E.23: commands that inherit the environment and the
     %% working directory
     Here = {'Path', ern_os:working_directory()},
-    True = {'Command', <<"true">>, [], <<>>, [], Here},
-    Cat = {'Command', <<"cat">>, [], <<>>, [], Here},
-    Deaf = {'Command', <<"sh">>, [<<"-c">>, <<"trap '' HUP; echo ready; exec cat">>], <<>>, [],
-            Here},
+    Inherited = {'Inherited', []},
+    True = {'Command', <<"true">>, [], <<>>, Inherited, Here},
+    Cat = {'Command', <<"cat">>, [], <<>>, Inherited, Here},
+    Deaf = {'Command', <<"sh">>, [<<"-c">>, <<"trap '' HUP; echo ready; exec cat">>], <<>>,
+            Inherited, Here},
     %% report Appendix E.23: a program read to its exit status, and its
     %% process, which lives on after the exit, then killed, as Os.run kills
     %% the one it ran, so that the rows' runs leave none behind

@@ -1816,9 +1816,10 @@ libs_dir_refused_test() ->
                   " shell take it">>}],
     [?assertMatch({_, 1, {_, _}}, said_holding(Args, Text)) || {Args, Text} <- Refused].
 
-%% report §11.1: without the root that holds a module's dependency, the
-%% dependency is an unknown name: a module of no library's name, since the
-%% build of each library of the toolchain's own ends the load path
+%% report §11.1, §11.5: without the root that holds a module's dependency,
+%% the dependency's module is found nowhere, which the error names: a
+%% module of no library's name, since the build of each library of the
+%% toolchain's own ends the load path
 load_path_needed_test() ->
     Dir = tmp(),
     write(Dir, "lib/tally.ern", "export fn one() : Int = 1\n"),
@@ -1826,7 +1827,8 @@ load_path_needed_test() ->
           "export fn main() : Unit = Io.println(Int.toString(Tally.one()))\n"),
     ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build/lib", Dir ++ "/lib"])),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build/src", Dir ++ "/src"])),
-    ?assertMatch({_, _}, said_text(<<"unknown name Tally.one">>)).
+    ?assertMatch({_, _}, said_text(<<"no module Tally under the source root or on the load"
+                                      " path">>)).
 
 %%
 %% Namespaces, report §4.2
@@ -2389,6 +2391,62 @@ hidden_name_help_test() ->
              {[{"top/shell/util.ern", "export fn f() : Int = 2\n"},
                {"top/shell.ern", Calls}],
               <<"shell.ern:1:51: unknown name Top.Shell.Util.g\n">>, none}]].
+
+%% report §11.5, §4.2: a qualified name whose first segment is found
+%% nowhere, neither under the source root nor on the load path, is refused
+%% by naming the module, for a type, a name and a constructor alike, and
+%% a pattern's constructor among them. A name that a module found does not
+%% hold is unknown, and so is one under a namespace found that is no
+%% module, `Geo.Shape` beside `geo/a.ern`. A directory that holds no
+%% module is passed over, so its namespace is found nowhere
+module_found_nowhere_named_test() ->
+    Nowhere = fun(Segment) -> <<"no module ", Segment/binary,
+                                " under the source root or on the load path\n">>
+              end,
+    [begin
+         Dir = tmp(),
+         [write(Dir, "src/" ++ File, Text) || {File, Text} <- Files],
+         {1, Said} = said(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"]),
+         ?assertMatch({Files, []},
+                      {Files, [Line || Line <- Lines, binary:match(Said, Line) =:= nomatch]}),
+         ?assertMatch({Files, nomatch}, {Files, binary:match(Said, <<"help:">>)})
+     end
+     || {Files, Lines} <-
+            [{[{"typed.ern", "fn sum(point : Geo.Point) : Int =\n    point.x + point.y\n\n"
+                             "export fn main() : Unit =\n"
+                             "    Io.println(Int.toString(sum(Geo.origin())))\n"}],
+              [<<"typed.ern:1:16: ", (Nowhere(<<"Geo">>))/binary>>,
+               <<"typed.ern:5:33: ", (Nowhere(<<"Geo">>))/binary>>]},
+             {[{"made.ern", "fn made() : Int = {\n    let p = Geo.Point(1, 2);\n    0\n}\n\n"
+                            "fn matched(n : Int) : Int = match n { Geo.Origin -> 0 | _ -> 1 }\n"}],
+              [<<"made.ern:2:13: ", (Nowhere(<<"Geo">>))/binary>>,
+               <<"made.ern:6:39: ", (Nowhere(<<"Geo">>))/binary>>]},
+             {[{"listed.ern",
+                "export fn main() : Unit = Io.println(Int.toString(Lsit.size([1])))\n"}],
+              [<<"listed.ern:1:51: ", (Nowhere(<<"Lsit">>))/binary>>]},
+             {[{"geo/notes.txt", "no module\n"},
+               {"named.ern", "export fn main() : Unit = Io.println(Geo.Shape.area())\n"}],
+              [<<"named.ern:1:38: ", (Nowhere(<<"Geo">>))/binary>>]},
+             {[{"geo/a.ern", "export fn a() : Int = 1\n"},
+               {"named.ern", "export fn main() : Unit = Io.println(Geo.Shape.area())\n"}],
+              [<<"named.ern:1:38: unknown name Geo.Shape.area\n">>]},
+             {[{"listed.ern",
+                "export fn main() : Unit = Io.println(Int.toString(List.foo([1])))\n"}],
+              [<<"listed.ern:1:51: unknown name List.foo\n">>]},
+             {[{"geo.ern", "export fn origin() : Int = 0\n"},
+               {"typed.ern", "fn sum(point : Geo.Point) : Int = 0\n\n"
+                             "export fn main() : Unit = Io.println(Int.toString(Geo.width()))\n"}],
+              [<<"typed.ern:1:16: unknown type Geo.Point\n">>,
+               <<"typed.ern:3:51: unknown name Geo.width\n">>]}]],
+    %% a module on the load path is found there
+    LoadDir = tmp(),
+    write(LoadDir, "geo_lib/geo.ern", "export fn origin() : Int = 0\n"),
+    write(LoadDir, "src/named.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Geo.width()))\n"),
+    ?assertEqual(0, ern(["build", "--build-root", LoadDir ++ "/libs", LoadDir ++ "/geo_lib"])),
+    {1, Loaded} = said(["build", "--load-path", LoadDir ++ "/libs", "--build-root",
+                        LoadDir ++ "/build", LoadDir ++ "/src"]),
+    ?assertMatch({_, _}, binary:match(Loaded, <<"named.ern:1:51: unknown name Geo.width\n">>)).
 
 %% report §4.2: the climb finds a module namespace and never a type's, and
 %% a namespace holds a module at some depth. In `Top.User`, beside `Top`'s
@@ -4227,9 +4285,11 @@ doc_example_names_a_module_on_the_load_path_test() ->
                    "1 case, 1 failed\n">>,
                  captured()).
 
-%% report §11.2: a qualified name in a doc example that no module of the
-%% build root or the load path holds fails the example with `unknown name`,
-%% and the next example runs. A regression test, written after the code
+%% report §11.2, §11.5: a qualified name in a doc example that no module of
+%% the build root or the load path holds fails the example, naming the
+%% module where its first segment is found nowhere and with `unknown name`
+%% under a module found, and the next example runs. A regression test,
+%% written after the code
 doc_example_names_no_module_test() ->
     Dir = tmp(),
     write(Dir, "src/top.ern",
@@ -4250,7 +4310,8 @@ doc_example_names_no_module_test() ->
           "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern(["test", Dir ++ "/build/top.erc"])),
-    ?assertEqual(<<"Top.one example 1: failed: unknown name Nowhere.thing\n"
+    ?assertEqual(<<"Top.one example 1: failed: no module Nowhere under the source root or on the"
+                   " load path\n"
                    "Top.one example 2: failed: unknown name Top.Nowhere.thing\n"
                    "Top.one example 3: passed\n"
                    "3 cases, 2 failed\n">>,
@@ -6391,6 +6452,103 @@ doc_man_dir_test() ->
     {ok, Page} = file:read_file(filename:join(BuildRoot, "net/Ernest.Net.Http.3ern")),
     ?assertMatch({_, _}, binary:match(Page, <<".TH \"Ernest.Net.Http\" \"3ern\"">>)).
 
+%% report §11.4: over a directory, without `--man`, a module `Index` at
+%% the directory's root is refused before anything is written, its
+%% document's name being the listing's; with `--man` its page is written as
+%% any other, and `Net.Index`, whose document is `net/index.md`, is refused
+%% nowhere. Written before the code: the module's document was written and
+%% the listing over it, with status 0
+doc_index_module_test() ->
+    in_directory(tmp(), fun() ->
+        write(".", "src/index.ern", "export fn one() : Int =\n    1\n"),
+        write(".", "src/net/index.ern", "export fn two() : Int =\n    2\n"),
+        ?assertEqual(refusal("doc", "src/index.ern: the module Index's document would be"
+                                    " index.md, which lists the modules; ern doc --man writes"
+                                    " its page"),
+                     said(["doc", "--build-root", "build", "src"])),
+        ?assertNot(filelib:is_file("build")),
+        ?assertEqual({0, <<>>}, said(["doc", "--man", "--build-root", "build", "src"])),
+        ?assert(filelib:is_regular("build/Ernest.Index.3ern")),
+        ?assert(filelib:is_regular("build/net/Ernest.Net.Index.3ern")),
+        ok = file:delete("src/index.ern"),
+        ?assertEqual({0, <<"removed build/Ernest.Index.3ern\n">>},
+                     said(["doc", "--build-root", "build", "src"])),
+        ?assert(filelib:is_regular("build/net/index.md")),
+        ?assertEqual({ok, <<"# Modules\n\n- [Net.Index](net/index.md)\n">>},
+                     file:read_file("build/index.md"))
+    end).
+
+%% report §11.4, §11.7: `--doc-root` names where the documents, the pages
+%% of `--man` and index.md go, each at the place its module's .erc has under
+%% the build root, which keeps nothing of them; a module whose .erc there is
+%% current is read from it, and `--verbose` says the doc root after the
+%% build root. Written before the option
+doc_root_test() ->
+    in_directory(pair(tmp()), fun() ->
+        ?assertEqual({0, <<>>}, said(["build", "--build-root", "build", "src"])),
+        ?assertEqual({lines(["source root src", "build root build", "doc root docs",
+                             "read Main from build/main.erc",
+                             "read Net.Http from build/net/http.erc",
+                             "wrote docs/main.md", "wrote docs/net/http.md"]), 0},
+                     standard_error_of(["doc", "--verbose", "--build-root", "build",
+                                        "--doc-root", "docs", "src"])),
+        ?assertEqual({0, <<>>}, said(["doc", "--man", "--build-root", "build",
+                                      "--doc-root", "docs", "src"])),
+        ?assertEqual(["docs/Ernest.Main.3ern", "docs/index.md", "docs/main.md",
+                      "docs/net/Ernest.Net.Http.3ern", "docs/net/http.md"],
+                     lists:sort(filelib:wildcard("docs/**/*.*"))),
+        ?assertEqual(["build/main.erc", "build/net/http.erc"],
+                     lists:sort(filelib:wildcard("build/**/*.*"))),
+        ?assertEqual({ok, <<"# Modules\n\n- [Main](main.md)\n- [Net.Http](net/http.md)\n">>},
+                     file:read_file("docs/index.md")),
+        %% without the option the documents go under the build root, as before
+        ?assertEqual({0, <<>>}, said(["doc", "--build-root", "build", "src"])),
+        ?assert(filelib:is_regular("build/net/http.md"))
+    end).
+
+%% report §11.4: a document and a page of a module whose source is gone is
+%% removed under the doc root, and the build root's are left to a run
+%% that writes there
+doc_root_sweeps_test() ->
+    in_directory(pair(tmp()), fun() ->
+        write(".", "src/net/extra.ern", "export fn two() : Int =\n    2\n"),
+        Document = fun(Args) ->
+                       said(["doc" | Args] ++ ["--build-root", "build", "--doc-root", "docs",
+                                                "src"])
+                   end,
+        ?assertEqual({0, <<>>}, Document([])),
+        ?assertEqual({0, <<>>}, Document(["--man"])),
+        ?assertEqual({0, <<>>}, said(["doc", "--build-root", "build", "src"])),
+        ok = file:delete("src/net/extra.ern"),
+        ?assertEqual({0, <<"removed docs/net/extra.md\n"
+                           "removed docs/net/Ernest.Net.Extra.3ern\n">>},
+                     Document([])),
+        ?assert(filelib:is_regular("build/net/extra.md")),
+        ?assertEqual({ok, <<"# Modules\n\n- [Main](main.md)\n- [Net.Http](net/http.md)\n">>},
+                     file:read_file("docs/index.md"))
+    end).
+
+%% report §11.4, §11: `--doc-root` is taken as `--build-root` is: with a
+%% single file, whose document goes to standard output, it is said under
+%% `--verbose` and nothing is written there; a doc root that is not there
+%% is made; and one that is a file, or under one, is refused as a document
+%% is written there
+doc_root_cases_test() ->
+    in_directory(pair(tmp()), fun() ->
+        ?assertEqual({lines(["source root src", "build root src", "doc root docs",
+                             "compiled Net.Http from src/net/http.ern"]), 0},
+                     standard_error_of(["doc", "--verbose", "--source-root", "src",
+                                        "--doc-root", "docs", "src/net/http.ern"])),
+        ?assertNot(filelib:is_file("docs")),
+        ?assertEqual({0, <<>>}, said(["doc", "--doc-root", "made/docs", "src"])),
+        ?assert(filelib:is_regular("made/docs/net/http.md")),
+        write(".", "file", ""),
+        ?assertEqual(refusal("doc", "file: file already exists"),
+                     said(["doc", "--doc-root", "file", "src"])),
+        ?assertEqual(refusal("doc", "file/docs: not a directory"),
+                     said(["doc", "--doc-root", "file/docs", "src"]))
+    end).
+
 %% report §11.4: a page `ern doc` wrote of a module whose source is gone is
 %% removed, as the build removes its .erc, and a file it did not write is
 %% kept. A regression test: the page stayed, out of the index; and the
@@ -7080,11 +7238,12 @@ synopses_are_the_reports_test_() ->
 %% package's `src` for `ern build` and `ern doc`, and the root package's
 %% `src` or the working directory for `ern shell`; and the build root's,
 %% the source root or the root package's `build` where the source root is
-%% its `src`, for `ern build` and `ern doc`. A regression test, written
-%% after the code, of the source root's text, which the build's and the
-%% doc's said none of, and of the build's build root; the doc's build root
-%% was held before its code. It does not cover the defaults themselves,
-%% which §11.1's and §11.9's tests hold
+%% its `src`, for `ern build` and `ern doc`; and the doc root's, the build
+%% root, for `ern doc` (§11.7). A regression test, written after the code,
+%% of the source root's text, which the build's and the doc's said none
+%% of, and of the build's build root; the doc's build root was held before
+%% its code. It does not cover the defaults themselves, which §11.1's,
+%% §11.4's and §11.9's tests hold
 source_root_default_said_test_() ->
     SourceRoot = "the directory whose layout yields namespaces;"
         " default: the working directory, or src-dir, or the root package's src"
@@ -7102,8 +7261,9 @@ source_root_default_said_test_() ->
                                         " default: the root package's src, or the working"
                                         " directory"},
              {"build", "--build-root", "where the compiled tree goes; " ++ Build},
-             {"doc", "--build-root", "where the documents go, and where a current .erc is read"
-                                     " from; " ++ Build}]].
+             {"doc", "--build-root", "where a current .erc is read from; " ++ Build},
+             {"doc", "--doc-root", "where the documents or the pages go; default: the build"
+                                   " root"}]].
 
 %% A job's help as it prints it, and its status.
 help_of(Job) ->
@@ -7153,6 +7313,8 @@ job_words_test() ->
                 ["ern build: --build-root takes a value: --build-root build-root", Help("build")]},
                {["build", "--check", "x.ern"],
                 <<"ern build: --check is not an option of ern build; ern format takes it\n">>},
+               {["build", "--doc-root", "docs", "x.ern"],
+                <<"ern build: --doc-root is not an option of ern build; ern doc takes it\n">>},
                {["build", "a.ern", "b.ern"],
                 ["ern build: one file or directory is taken, and 2 were given", Help("build")]},
                {["test", "a.erc", "b.erc"],
@@ -8585,6 +8747,24 @@ given_path_refusal_names_resolved_test() ->
                                   said(["run", "../x.erc"]))
                  end).
 
+%% report §11.5: from the root directory a path is written absolute, a
+%% given path's in a refusal, the root itself, and a diagnostic's file;
+%% nothing is written there, each job refused
+given_path_from_root_test() ->
+    Dir = ern_build:absolute(tmp()),
+    write(Dir, "bad.ern", "export fn main() : Unit = Io.println(1)\n"),
+    {ok, Before} = file:list_dir("/"),
+    in_directory("/",
+                 fun() ->
+                     ?assertEqual(refusal("run", "/tmp/nosuch.erc: no such file or directory"),
+                                  said(["run", "/tmp/nosuch.erc"])),
+                     ?assertEqual(refusal("run", "/: is no regular file"), said(["run", "/"])),
+                     {1, Said} = said(["build", "--source-root", Dir, Dir ++ "/bad.ern"]),
+                     Line = unicode:characters_to_binary(Dir ++ "/bad.ern:1:38: "),
+                     ?assertEqual(Line, binary:part(Said, 0, byte_size(Line)))
+                 end),
+    ?assertEqual({ok, Before}, file:list_dir("/")).
+
 %% report §11: a `..` at the root names the root, in the resolver and in a
 %% path a job is given
 given_path_root_test() ->
@@ -8778,7 +8958,8 @@ erc_unopened_lookup_test() ->
                      write(".", "main.ern",
                            "export fn main() : Unit =\n    Io.println(Int.toString(Dep.one()))\n"),
                      {1, Said} = said(["build", "--load-path", "lp", "main.ern"]),
-                     ?assertMatch({_, _}, binary:match(Said, <<"unknown name Dep.one">>))
+                     ?assertMatch({_, _}, binary:match(Said, <<"no module Dep under the source"
+                                                               " root or on the load path">>))
                  end).
 
 %% Under the working directory, the module `src/ok.ern`, and beside it a
@@ -10714,12 +10895,13 @@ package_load_path_of_a_build() ->
     write(".", "src/lb_main.ern",
           "export fn main() : Unit =\n"
           "    Io.println(LbMid.word() <> LbCodec.word() <> LbExtra.word())\n"),
-    Unknown = fun(File, Name) ->
-                  ["lib/lb_mid/src/lb_mid/", File, ".ern:2:5: unknown name ", Name, ".word\n"
+    Nowhere = fun(File, Name) ->
+                  ["lib/lb_mid/src/lb_mid/", File, ".ern:2:5: no module ", Name,
+                   " under the source root or on the load path\n"
                    "1 | export fn word() : String =\n2 |     ", Name, ".word()\n"
                    "  |     ^^^^^^^^^^^^\n\n"]
               end,
-    ?assertEqual({1, iolist_to_binary([Unknown("coded", "LbCodec"), Unknown("extra", "LbExtra")])},
+    ?assertEqual({1, iolist_to_binary([Nowhere("coded", "LbCodec"), Nowhere("extra", "LbExtra")])},
                  said(["build", "--load-path", Extra, "src/lb_main.ern"])),
     ?assert(filelib:is_regular("lib/lb_mid/build/lb_mid.erc")),
     ?assertEqual({0, <<"midcodecextra\n">>},
@@ -10904,10 +11086,11 @@ package_doc_builds_none() ->
     ?assertEqual({0, <<>>}, said(["doc", "src"])),
     ?assertEqual({ok, Before}, file:read_file("lib/dn_leaf/build/dn_leaf.erc")).
 
-%% report §11.9: `ern build` and `ern doc` refuse a `--build-root` that is
-%% the root package's `lib`, a named package's directory or a path under
-%% one, as they refuse a path given there, in the same words and in the same
-%% group of refusals, the argument's line first; nothing is written
+%% report §11.9, §11.4: `ern build` and `ern doc` refuse a `--build-root`
+%% that is the root package's `lib`, a named package's directory or a path
+%% under one, as they refuse a path given there, in the same words and in
+%% the same group of refusals, the argument's line first, and `ern doc` a
+%% `--doc-root` there so, after the build root's; nothing is written
 package_build_root_under_lib_test_() ->
     {timeout, 60, fun() -> in_directory(tmp(), fun package_build_root_under_lib/0) end}.
 
@@ -10927,11 +11110,21 @@ package_build_root_under_lib() ->
     [?assertEqual(refused_lines(Job, [Bad, Leaf("lib/ul_leaf/src/ul_leaf.ern"), Lib]),
                   said([Job, "--build-root", "lib/other", "lib/ul_leaf/src/ul_leaf.ern"]))
      || Job <- ["build", "doc"]],
+    [?assertEqual(refused_lines("doc", [Bad, Line]),
+                  said(["doc", "--doc-root", Root, "src"]))
+     || {Root, Line} <- [{"lib/ul_leaf/docs", Leaf("lib/ul_leaf/docs")}, {"lib", Lib},
+                         {"lib/elsewhere", Lib}]],
+    ?assertEqual(refused_lines("doc", [Bad, Lib, Leaf("lib/ul_leaf/docs")]),
+                 said(["doc", "--build-root", "lib/b", "--doc-root", "lib/ul_leaf/docs", "src"])),
     write(".", "package.conf", manifest_of([{"ul_leaf", "1.0.0"}])),
     ?assertEqual(refusal("build", Leaf("lib/ul_leaf/build")),
                  said(["build", "--build-root", "lib/ul_leaf/build", "src/ul_main.ern"])),
+    ?assertEqual(refusal("doc", Leaf("lib/ul_leaf/docs")),
+                 said(["doc", "--doc-root", "lib/ul_leaf/docs", "src"])),
     ?assertEqual([], filelib:wildcard("lib/**/*.erc")),
-    ?assertNot(filelib:is_file("lib/other")).
+    ?assertEqual([], filelib:wildcard("lib/**/*.md")),
+    ?assertNot(filelib:is_file("lib/other")),
+    ?assertNot(filelib:is_file("lib/ul_leaf/docs")).
 
 %% report §11.1, §11.9, §4.2: a module of the root package at the namespace
 %% of a library's module on which a named package's module depends is

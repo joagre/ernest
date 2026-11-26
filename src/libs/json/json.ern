@@ -17,16 +17,17 @@
 /// read.
 ///
 /// **Objects.** An object is a `Map` from its members' names to their
-/// values. Where a text names a member twice, the last is kept, as
-/// `Map.fromList` keeps a later pair. `format` and `encode` write the
-/// members in the order of their names' code points, an order of this
-/// library's, which the host's `json` module leaves to its caller.
+/// values, and a text that names a member twice in one object is an
+/// `Error`. `format` and `encode` write the members in the order of their
+/// names' code points, an order of this library's, which the host's `json`
+/// module leaves to its caller.
 ///
 /// **Errors.** A text that holds no value is an `Error`: the text ends
-/// inside its value, a byte stands where none may, or a sequence writes no
-/// character or a number the host cannot hold. A byte and a sequence carry
-/// their `Position`, the line and the column they begin at, counted as a
-/// diagnostic counts them (report §11.5).
+/// inside its value, a byte stands where none may, a sequence writes no
+/// character or a number the host cannot hold, or an object names a member
+/// twice. A byte and a sequence carry their `Position`, the line and the
+/// column they begin at, counted as a diagnostic counts them (report
+/// §11.5); a member named twice carries its name and no position.
 ///
 /// **Reading back.** `parse` reads what `format` and `encode` write as the
 /// value it was written from.
@@ -114,6 +115,11 @@ export type Position = Position(line : Int, column : Int)
 /// real with an exponent and no fraction with `.0` before the exponent and
 /// its `e` in lower case, `1.0e400` for `1E400`.
 ///
+/// `RepeatedMember` is an object that names a member twice, a name being
+/// the text its escapes write, and the name: of the first object to end
+/// that names one twice, the first name it names a second time. It has no
+/// position, which the host's reader gives none of.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -127,10 +133,18 @@ export type Position = Position(line : Int, column : Int)
 /// Json.parse("[1E400]")
 /// // => Left(Json.UnexpectedSequence(text = "1.0e400", at = Json.Position(line = 1, column = 2)))
 /// ```
+///
+/// A member named twice:
+///
+/// ```ernest
+/// Json.parse("{\"port\": 4001, \"port\": 4002}")
+/// // => Left(Json.RepeatedMember(name = "port"))
+/// ```
 export type Error =
     UnexpectedEnd
   | UnexpectedByte(byte : Int, at : Position)
   | UnexpectedSequence(text : String, at : Position)
+  | RepeatedMember(name : String)
 
 /// The value `text` writes, or why it writes none. White space may stand
 /// before the value and after it, and nothing else may. A text the host's
@@ -184,6 +198,8 @@ export fn parse(text : String) : Either(Error, Value) = {
                             UnexpectedByte(=byte, at = position(bytes, index))
                     }
             })
+      | NamedTwice(=name) ->
+            Left(RepeatedMember(=name))
       | InvalidSequence(text = sequence, =index) ->
             Left(match firstBroken(bytes, bytes) {
                 Some(broken) when broken.kind == Escape
@@ -196,14 +212,15 @@ export fn parse(text : String) : Either(Error, Value) = {
 
 // The host's reading of a text: the value and the text after it, white
 // space among it; or what the host raised, and the index of the byte or
-// the sequence it raised at. An integer longer than the host holds is
-// raised with no index.
+// the sequence it raised at. An integer longer than the host holds, and an
+// object's member named twice, are raised with no index.
 type Decoded =
     Decoded(value : Value, rest : Bytes)
   | EndMet
   | InvalidByte(byte : Int, index : Int)
   | InvalidSequence(text : String, index : Int)
   | IntegerTooLong(digits : String)
+  | NamedTwice(name : String)
 
 // Report Appendix G.6: the host's `json:decode`, which raises on a text it
 // cannot read and builds terms no Ernest type describes.
@@ -520,14 +537,26 @@ export foreign fn encode(value : Value) : String =
 // the host showed of the edges it does not state.
 //
 
-// report Appendix G.6: a regression test: the first was kept, where every
-// `fromList` keeps the last; the three members show that the last wins
-// wherever the others stand.
-let duplicateName =
-    Test.Case(name = "a member named twice keeps the last, as Map.fromList does",
+// report Appendix G.6: a name is the text its escapes write, and the name
+// answered is the first that the first object to end names a second time,
+// an object nested in another ending before it; one name in two objects is
+// no repeat.
+let repeatedMember =
+    Test.Case(name = "a text that names a member twice in one object is refused",
               run = fn() =
-                  Test.equal(parse("{\"a\": 1, \"b\": 0, \"a\": 2}"),
-                             Right(Object(Map.fromList([#("a", Integer(2)), #("b", Integer(0))])))))
+                  Test.equal([parse("{\"a\": 1, \"b\": 0, \"a\": 2}"),
+                              parse("{\"a\": 1, \"b\": 2, \"b\": 3, \"a\": 4}"),
+                              parse("{\"a\": 1, \"\\u0061\": 2}"),
+                              parse("[{\"a\": {\"b\": 1, \"b\": 2}}]"),
+                              parse("{\"a\": 1, \"a\": 2, \"b\": {\"c\": 1, \"c\": 2}}"),
+                              parse("[{\"a\": 1}, {\"a\": 2}]")],
+                             [Left(RepeatedMember(name = "a")),
+                              Left(RepeatedMember(name = "b")),
+                              Left(RepeatedMember(name = "a")),
+                              Left(RepeatedMember(name = "b")),
+                              Left(RepeatedMember(name = "c")),
+                              Right(Array([Object(Map.fromList([#("a", Integer(1))])),
+                                           Object(Map.fromList([#("a", Integer(2))]))]))]))
 
 // report Appendix G.6
 let numbers =

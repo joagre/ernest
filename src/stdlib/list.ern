@@ -319,6 +319,30 @@ export fn find(list : List(a), test : (a) -> Bool receiving e) : Optional(a) rec
       | head :: rest -> if test(head) then Some(head) else find(rest, test)
     }
 
+/// The index of the first element `test` holds for, counting from 0, or
+/// `None` where there is none. `test` is not called after the first element
+/// it holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.findIndex(["Jan", "Feb", "Mar"], fn(name) = name == "Feb"),
+///   List.findIndex([1, 2], fn(n) = n > 2))
+/// // => #(Some(1), None)
+/// ```
+///
+/// since 0.11.0
+export fn findIndex(list : List(a), test : (a) -> Bool receiving e) : Optional(Int) receiving e =
+    indexFrom(list, test, 0)
+
+fn indexFrom(list : List(a),
+             test : (a) -> Bool receiving e,
+             index : Int) : Optional(Int) receiving e =
+    match list {
+        [] -> None
+      | head :: rest -> if test(head) then Some(index) else indexFrom(rest, test, index + 1)
+    }
+
 /// The last element, or `None` for the empty list. It is never `None` for a
 /// list that is not empty. The whole list is walked to reach it.
 ///
