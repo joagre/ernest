@@ -1257,6 +1257,44 @@ listen_of_one_family_test() ->
           ?assertEqual('Right', ern_waits:wait(six_second))
       end).
 
+%% Appendix E.18: `remote` writes its host as the host writes an address,
+%% however it was dialed: an IPv6 address in lower case with its longest
+%% run of zero groups as `::`, and an IPv4-mapped one's last 32 bits
+%% dotted. Written after the code. The loopback's addresses alone are
+%% dialed, so a run of zero groups shorter than another, and a zone, which
+%% a link-local address alone carries, are not covered, nor a machine
+%% without IPv6, where it says so
+remote_writes_the_hosts_address_test() ->
+    with_ipv6_loopback(
+      fun() ->
+          Self = self(),
+          ok = ern_rt:run_main(
+                 fun() ->
+                     Self ! {remotes,
+                             [remote_dialed(Listening, Dialed)
+                              || {Listening, Dialed} <- [{<<"::1">>, <<"0:0:0:0:0:0:0:1">>},
+                                                         {<<"::1">>, <<"0000::0001">>},
+                                                         {<<"127.0.0.1">>,
+                                                          <<"0:0:0:0:0:FFFF:7F00:1">>},
+                                                         {<<"127.0.0.1">>,
+                                                          <<"::FFFF:127.0.0.1">>}]]}
+                 end, <<"main">>, ern_helpers:quiet()),
+          ?assertEqual([<<"::1">>, <<"::1">>, <<"::ffff:127.0.0.1">>, <<"::ffff:127.0.0.1">>],
+                       ern_waits:wait(remotes))
+      end).
+
+%% The host `remote` reads of a connection to a listener on Listening,
+%% dialed as Dialed.
+remote_dialed(Listening, Dialed) ->
+    {'Right', Listener} = listen(Listening, 0),
+    {'Right', Port} = port(Listener),
+    {'Right', Client} = connect(Dialed, Port, 2000),
+    {'Right', Server} = accept(Listener, 2000),
+    {'Right', {'Endpoint', Host, Port}} = remote(Client),
+    [close(Socket) || Socket <- [Client, Server]],
+    close_listener(Listener),
+    Host.
+
 %% Appendix E.18: a listener on First at the port the host gives it and
 %% one on Second at that port, with the port; or the refusal of the second
 %% where a listener on "::" takes an IPv4 connection. A port in use where

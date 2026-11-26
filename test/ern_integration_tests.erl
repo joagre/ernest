@@ -1153,6 +1153,168 @@ terminal_program() ->
                        "Left(Io.NotATerminal)\nIo.Invalid\n">>},
                  sh("../bin/ern run build/sized/sized.erc")).
 
+%% report Appendix E.23: a program is killed by the host's kill signal, sent
+%% to it and to its process group at once with no signal before it, at each
+%% way it is killed: by `kill`, by its owner's end, and by the Ernest
+%% program's end, by main's return, by a termination and by the runtime's
+%% own kill by the host, under pipes and under a terminal.
+%%
+%% The program is a shell that writes a line to a log at each hangup,
+%% interrupt and termination, with a shell of its group that does so at each
+%% hangup and termination, a background child of a shell being unable to
+%% take the interrupt; each holds a named pipe the test reads, whose end shows
+%% that the group has ended, and the log is then empty. A signal the shells
+%% do not handle, which no line would show, is not covered. Written after
+%% the code. Its steps: the build, and for each of the ten runs its line,
+%% the group's end and the run's end
+killed_by_the_kill_signal_test_() ->
+    ern_harness:counted_test({waits, 31}, fun killed_by_the_kill_signal/0).
+
+killed_by_the_kill_signal() ->
+    Dir = filename:absname("build/killed"),
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(
+           filename:join(Dir, "killed.ern"),
+           ["type Msg = Ended(Down)\n"
+            "\n"
+            "export fn main() : Unit receiving Msg =\n"
+            "    match Os.arguments {\n"
+            "        [kind, way, script, fifo, log] -> {\n"
+            "            let command = Os.command(\"sh\", [script, fifo, log]);\n"
+            "            match way {\n"
+            "                \"kill\" -> {\n"
+            "                    kill(Process.fromAddress(started(kind, command)));\n"
+            "                    held()\n"
+            "                }\n"
+            "              | \"owner\" -> {\n"
+            "                    let _ = spawnMonitored(fn() = {\n"
+            "                        let _ = started(kind, command);\n"
+            "                        Unit\n"
+            "                    }, Ended);\n"
+            "                    receive {\n"
+            "                        Ended(_) -> held()\n"
+            "                    }\n"
+            "                }\n"
+            "              | \"return\" -> {\n"
+            "                    let _ = started(kind, command);\n"
+            "                    Unit\n"
+            "                }\n"
+            "              | _ -> {\n"
+            "                    let _ = started(kind, command);\n"
+            "                    held()\n"
+            "                }\n"
+            "            }\n"
+            "        }\n"
+            "      | _ -> Unit\n"
+            "    }\n"
+            "\n"
+            "fn started(kind : String, command : Os.Command) : Address(Os.ProgramMsg) = {\n"
+            "    let result = if kind == \"terminal\" then\n"
+            "        Os.startTerminal(command, Terminal.Size(rows = 24, columns = 80))\n"
+            "    else\n"
+            "        Os.start(command);\n"
+            "    match result {\n"
+            "        Right(program) -> {\n"
+            "            awaited(program, \"\");\n"
+            "            program\n"
+            "        }\n"
+            "      | Left(error) -> fault(\"not started: \" <> Io.show(error))\n"
+            "    }\n"
+            "}\n"
+            "\n"
+            "// Until both shells have said they handle their signals.\n"
+            "fn awaited(program : Address(Os.ProgramMsg), seen : String) : Unit =\n"
+            "    if String.contains(seen, \"parent\") && String.contains(seen, \"child\") then\n"
+            "        Io.println(\"started\")\n"
+            "    else\n"
+            "        match Os.read(program, ", ern_harness:wait_ms_text(), ") {\n"
+            "            Right(Os.Stdout(bytes)) ->\n"
+            "                awaited(program, seen <> String.fromUtf8Lossy(bytes))\n"
+            "          | other -> fault(\"before the start: \" <> Io.show(other))\n"
+            "        }\n"
+            "\n"
+            "// Until the test gives a line or ends the input.\n"
+            "fn held() : Unit = {\n"
+            "    let _ = Io.readLine();\n"
+            "    Unit\n"
+            "}\n"]),
+    %% the group's number is written apart from the log, for the cleanup
+    ok = file:write_file(
+           filename:join(Dir, "group.sh"),
+           "exec 3> \"$1\"\n"
+           "log=$2\n"
+           "echo $$ > \"$log.group\"\n"
+           "trap 'echo parent HUP >> \"$log\"' HUP\n"
+           "trap 'echo parent INT >> \"$log\"' INT\n"
+           "trap 'echo parent TERM >> \"$log\"' TERM\n"
+           "sh -c 'trap \"echo child HUP >> \\\"$1\\\"\" HUP;"
+           " trap \"echo child TERM >> \\\"$1\\\"\" TERM; echo child; sleep 1000 & wait'"
+           " child \"$log\" &\n"
+           "echo parent\n"
+           "wait\n"),
+    0 = build("--source-root " ++ Dir ++ " --build-root " ++ Dir ++ " " ++ Dir),
+    Ways = [{"kill", none, 0}, {"owner", none, 0}, {"return", none, 0},
+            {"termination", "TERM", 143}, {"wait", "KILL", 137}],
+    [?assertEqual({Kind, Way, ended, <<>>}, {Kind, Way, Ended, Logged})
+     || Kind <- ["pipes", "terminal"],
+        {Way, Signal, Status} <- Ways,
+        {Ended, Logged} <- [killed_run(Dir, Kind, Way, Signal, Status)]].
+
+%% A run of the program of killed_by_the_kill_signal/0 that starts Kind of
+%% program and ends it Way, Signal sent to the run where it is one and the
+%% run's own status checked against Status: whether the group ended, and
+%% what the log holds.
+killed_run(Dir, Kind, Way, Signal, Status) ->
+    Fifo = fifo(filename:join(Dir, "held")),
+    Log = filename:join(Dir, Kind ++ "_" ++ Way ++ ".log"),
+    _ = file:delete(Log),
+    Reader = open_port({spawn_executable, os:find_executable("cat")},
+                       [{args, [Fifo]}, exit_status, binary]),
+    Run = open_port({spawn_executable, filename:absname("../bin/ern")},
+                    [{args, ["run", filename:join(Dir, "killed.erc"), Kind, Way,
+                             filename:join(Dir, "group.sh"), Fifo, Log]},
+                     exit_status, stderr_to_stdout, binary]),
+    {os_pid, RunNumber} = erlang:port_info(Run, os_pid),
+    try
+        ?assertEqual(ok, said_line(Run, <<"started\n">>)),
+        case Signal of
+            none -> ok;
+            _ -> [] = os:cmd("kill -" ++ Signal ++ " " ++ integer_to_list(RunNumber))
+        end,
+        ern_harness:step({ended, Reader}),
+        Ended = receive
+                    {Reader, {exit_status, 0}} -> ended
+                after ern_harness:wait_ms() -> running
+                end,
+        %% the run holds until the test has seen the group end
+        case {Signal, Way} of
+            {none, "return"} -> ok;
+            {none, _} -> true = port_command(Run, "\n");
+            _ -> ok
+        end,
+        ern_harness:step({ended, Run}),
+        ?assertEqual({Way, Status},
+                     {Way, receive {Run, {exit_status, RunStatus}} -> RunStatus
+                           after ern_harness:wait_ms() -> running
+                           end}),
+        {Ended, case file:read_file(Log) of
+                    {ok, Bytes} -> Bytes;
+                    {error, enoent} -> <<>>
+                end}
+    after
+        %% a run or a group a failed step left is killed by its number
+        case erlang:port_info(Run, os_pid) of
+            {os_pid, _} -> os:cmd("kill -KILL " ++ integer_to_list(RunNumber));
+            undefined -> ok
+        end,
+        case file:read_file(Log ++ ".group") of
+            {ok, Group} -> os:cmd("kill -KILL -- -" ++ string:trim(binary_to_list(Group)));
+            {error, _} -> ok
+        end,
+        [port_close(Port) || Port <- [Reader, Run], erlang:port_info(Port) =/= undefined]
+    end.
+
 %% report §11, Appendix E.23: `PWD` reaches a program as the launcher's
 %% shell leaves it, naming the working directory, where it was given so,
 %% unset, or naming another. Written after the code, which the shell

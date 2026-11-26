@@ -550,7 +550,10 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit =
     callUntilEnded(listener, CloseListener)
 
 /// The far end of the connection, or `Left(Closed)` once the connection has
-/// closed or the socket has ended, however it ended.
+/// closed or the socket has ended, however it ended. Its host is the address
+/// as the host writes one: an IPv6 address in lower case with its longest
+/// run of zero groups as `::`, an IPv4-mapped one with its last 32 bits
+/// dotted, and no zone.
 ///
 /// ### Examples
 ///

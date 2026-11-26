@@ -1314,6 +1314,36 @@ libs_dir_test() ->
     ?assertEqual([Libs ++ "/helper-1.0/ebin", Libs ++ "/other/ebin" | ern_tree:libraries()],
                  ern_build:directories(ern_build:load_path([{libs_dir, Libs}]))).
 
+%% report §11.2: the host finds an application's `priv` beside its `ebin`
+%% under `--libs-dir`, and beside a directory named `ebin` that
+%% `--load-path` names, the application named by the directory that holds
+%% it; a `--load-path` directory of another name has none. A foreign
+%% function of each application's asks the host for its `priv`, an
+%% application's name apart for each, since the host holds a job's path
+%% while it runs. Written after the code
+priv_beside_ebin_test() ->
+    Dir = tmp(),
+    Applications = [{"apple", "lib/apple-1.0/ebin", ["--libs-dir", Dir ++ "/lib"]},
+                    {"pear", "pear/ebin", ["--load-path", Dir ++ "/pear/ebin"]},
+                    {"quince", "quince/beams", ["--load-path", Dir ++ "/quince/beams"]}],
+    [begin
+         Ebin = filename:join(Dir, Beams),
+         compiled_erlang(Ebin, "ern_cli_priv_" ++ Name, "dir/0",
+                         ["dir() ->\n    case code:priv_dir(", Name, ") of\n"
+                          "        {error, Error} -> atom_to_binary(Error);\n"
+                          "        Priv -> list_to_binary(Priv)\n    end."]),
+         ok = filelib:ensure_path(filename:join(filename:dirname(Ebin), "priv")),
+         write(Dir, "src/" ++ Name ++ ".ern",
+               ["foreign fn dir() : String = \"ern_cli_priv_", Name, ":dir/0\"\n"
+                "export fn main() : Unit = Io.println(dir())\n"])
+     end || {Name, Beams, _} <- Applications],
+    ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual([{0, iolist_to_binary([Dir, "/lib/apple-1.0/priv\n"])},
+                  {0, iolist_to_binary([Dir, "/pear/priv\n"])},
+                  {0, <<"bad_name\n">>}],
+                 [said(["run" | Option] ++ [Dir ++ "/build/" ++ Name ++ ".erc"])
+                  || {Name, _, Option} <- Applications]).
+
 %% report §11.1, §11.2, Appendix G: the build of each library of the
 %% toolchain's own ends the load path, so that a program using
 %% `Markdown`, which uses `Ansi`, is built, run and tested with no
@@ -5807,6 +5837,35 @@ verbose_doc_test() ->
                                         "--load-path", "lib", "src"]))
     end).
 
+%% report §11.4, §11.1, §11.9: `ern doc --verbose` over a directory says
+%% the source root and the build root it took also where every document is
+%% current and nothing is compiled, and in a root package says them before
+%% the manifest and the named packages, as `ern build --verbose` does. A
+%% regression test, written before the code: a run that compiled nothing
+%% said neither root, and the manifest's line came before the roots
+verbose_doc_roots_test_() ->
+    {timeout, 60, fun verbose_doc_roots/0}.
+
+verbose_doc_roots() ->
+    Dir = verbose_tree(tmp()),
+    in_directory(Dir, fun() ->
+        ?assertEqual(0, ern_err(["doc", "--build-root", "build", "--load-path", "lib", "src"])),
+        ?assertEqual({lines(["source root src", "build root build"]), 0},
+                     standard_error_of(["doc", "--verbose", "--build-root", "build",
+                                        "--load-path", "lib", "src"]))
+    end),
+    in_directory(tmp(), fun() ->
+        named_package(".", "vd_leaf", "1.0.0", "leaf"),
+        write(".", "package.conf", manifest_of([{"vd_leaf", "1.0.0"}])),
+        write(".", "src/main.ern", "export fn main() : Unit =\n    Io.println(VdLeaf.hello())\n"),
+        Started = ["source root src", "build root build", "manifest package.conf",
+                   "package vd_leaf 1.0.0"],
+        {Compiled, 0} = standard_error_of(["doc", "--verbose", "--build-root", "build", "src"]),
+        ?assertEqual(lines(Started), lists:sublist(Compiled, length(lines(Started)))),
+        ?assertEqual({lines(Started), 0},
+                     standard_error_of(["doc", "--verbose", "--build-root", "build", "src"]))
+    end).
+
 %% A library under lib/, built there, and under src/ a program whose two
 %% modules use it and a module of tests that uses it.
 verbose_tree(Dir) ->
@@ -9686,9 +9745,9 @@ package_load_path_in() ->
                  ern_build:directories(ern_build:load_path([{named_package, Package}
                                                             || Package <- Packages]))).
 
-%% report §11.9, §11.1, §11.2, §11.4: `--verbose` of `ern build`, after the
-%% build root, and of `ern run`, `ern test` and `ern doc`, before anything
-%% else, names the manifest read and each named package put on the load
+%% report §11.9, §11.1, §11.2, §11.4: `--verbose` of `ern build` and of
+%% `ern doc` over a source, after the build root, and of `ern run` and `ern
+%% test`, before anything else, names the manifest read and each named package put on the load
 %% path, with the version its `VERSION` holds, or `no version` where it is
 %% not of its form or not there, and, where `lib/<name>` is a link, its
 %% target taken from `lib` and written as §11.5 writes a path, absolute
@@ -9727,7 +9786,8 @@ package_verbose_in(Elsewhere) ->
                   "package vb_rel no version at rel/lib/vb_rel"]),
     Prefixed(Said, said(["run", "--verbose", "vb_main.erc"])),
     Prefixed(Said, said(["test", "--verbose", "vb_main.erc"])),
-    Prefixed(Said, said(["doc", "--verbose", "vb_main.ern"])).
+    Prefixed(lines(["source root .", "build root ."]) ++ Said,
+             said(["doc", "--verbose", "vb_main.ern"])).
 
 %% report §11.9, §11.1, §11.5: `--verbose` writes a link's target that is
 %% not UTF-8 with each byte past ASCII as `\xHH`, and then as a path is

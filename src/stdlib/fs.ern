@@ -78,6 +78,9 @@ export type Kind = File | Directory | Link | Other
 /// bits, as `Fs.setMode` takes them, and the host's number for the user it
 /// belongs to, as `Os.user` is the program's (report Appendix E.17).
 ///
+/// A modification time before the year 1902 or past the year 9999 is read
+/// as the first second of 1902 or the last of 9999, as the host reads it.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -224,7 +227,8 @@ export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) =
     asked(fn(reply) = MakeDir(=path, =reply), ms)
 
 /// Removes a file, a link, or an empty directory; a link is removed, not
-/// what it leads to.
+/// what it leads to. A directory that is not empty answers `Left(Exists)`,
+/// and nothing of it is removed.
 ///
 /// ### Examples
 ///

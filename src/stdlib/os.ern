@@ -378,10 +378,14 @@ export fn command(program : String, arguments : List(String)) : Command =
 ///
 /// It runs until it exits, until a signal `Os.signal` sends ends it, until
 /// `kill` ends it, or until its owner dies: the process that started it, or the
-/// one it was given to with `give`. Its owner's
-/// death kills it, and with it the programs it started in turn that are still
-/// in its Unix process group. To limit how long it runs, set a `Clock.alarm`
-/// and `kill` it when the alarm comes; `Os.run` takes a limit of its own.
+/// one it was given to with `give`. Its owner's death kills it, and with it the
+/// programs it started in turn that are still in its Unix process group. A kill
+/// is the host's kill signal, which no program handles, sent to the program and
+/// to its process group at once, with no signal before it, and the program is
+/// killed so when the Ernest program ends too, however that ends, the
+/// runtime's own kill by the host among the ways. To limit how long it runs,
+/// set a `Clock.alarm` and `kill` it when the alarm comes; `Os.run` takes a
+/// limit of its own.
 ///
 /// Its process lives on after the program has exited, answering each `read`
 /// with the exit status again, until it is killed or its owner dies: once

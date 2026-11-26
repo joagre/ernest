@@ -9,8 +9,8 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, path_kind/1, given_refused/2, held_another/4, verbose/2,
-         saying/1, package_said/2, modules_of/4,
+-export([compile/4, compile_in_memory/5, path_kind/1, given_refused/2, started_said/4,
+         held_another/4, verbose/2, saying/1, package_said/2, modules_of/4,
          hiding/5, hidden_library/3, form_hiding/4, hiding_found/5, outside_package/3,
          form_out_of_place/3, library_name/1, compiled_in_order/3,
          shown/1, path_text/1, sources/1, found_path/1, compiled_under/1,
@@ -65,7 +65,8 @@ compile(Job, Options, Path, ErrorDevice) ->
 %% answers, each the compiled module `ern doc` read from its .erc, which is
 %% not compiled again, and the compiled modules, those read among them, are
 %% answered with the status. Reading is given the --verbose Say once the
-%% roots are said, so that each module read is said after them (§11.1).
+%% roots and the root package are said, so that each module read is said
+%% after them (§11.1).
 -spec compile_in_memory(string(), [term()], file:filename(), io:device(),
                         fun((fun((iodata()) -> ok)) -> #{[atom()] => binary()})) ->
           {0 | 1, #{[atom()] => binary()}}.
@@ -82,23 +83,24 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                                                 true -> Path;
                                                 false -> "."
                                             end),
-    Roots = {SourceRoot, build_root(Options, SourceRoot),
-             proplists:is_defined(source_root, Options)},
-    said_roots(Roots, Say),
+    BuildRoot = build_root(Options, SourceRoot),
+    Roots = {SourceRoot, BuildRoot, proplists:is_defined(source_root, Options)},
     case Emit of
         {memory, Reading} ->
+            started_said(Options, SourceRoot, BuildRoot, Say),
             {Status, Compiled, _} = built_tree(Job, Path, Roots, load_path(Options),
                                                {memory, Reading(Say)}, ErrorDevice, Say),
             {Status, Compiled};
         _ ->
+            said_roots(SourceRoot, BuildRoot, Say),
             %% report §11.9: `ern build` refuses the file it is given, a name
             %% that is no module's or a path that breaks the rule of its
             %% shape, before it builds a named package, and then builds none
             IsDirectory orelse module_of(absolute(Path), SourceRoot, file),
             %% report §11.1, §11.9: `ern build` says the root package after
-            %% the build root, and `ern doc` before anything (ern_cli:doc/3);
-            %% then each named package's build, and the root package's
-            %% modules are compiled against them as built
+            %% the build root, as `ern doc` does (started_said/4); then each
+            %% named package's build, and the root package's modules are
+            %% compiled against them as built
             package_said(Options, Say),
             {PackagesStatus, Built} = packages_built(Job, Options, ErrorDevice, Say),
             {Status, Compiled, _} = built_tree(Job, Path, Roots,
@@ -137,9 +139,17 @@ given_refused(Path, _) ->
 
 %% Report §11.1: --verbose's lines of the source root and the build root a
 %% build took.
-said_roots({SourceRoot, BuildRoot, _}, Say) ->
+said_roots(SourceRoot, BuildRoot, Say) ->
     Say(["source root ", shown(SourceRoot)]),
     Say(["build root ", shown(BuildRoot)]).
+
+%% Report §11.4, §11.1, §11.9: --verbose's first lines of `ern doc` over a
+%% source, the roots it took and then the root package, in `ern build`'s
+%% order, which a directory's job says also where it compiles nothing.
+-spec started_said([term()], file:filename(), file:filename(), fun((iodata()) -> ok)) -> ok.
+started_said(Options, SourceRoot, BuildRoot, Say) ->
+    said_roots(SourceRoot, BuildRoot, Say),
+    package_said(Options, Say).
 
 %% Report §11.9: each named package built as a directory is (§11.1), its
 %% `src` into its build, its cleanup with it, after the packages its
@@ -162,9 +172,10 @@ packages_built(Job, Options, ErrorDevice, Say) ->
                             true ->
                                 LoadPath = load_path([{named_package, maps:get(Used, Built)}
                                                       || Used <- Uses]),
-                                Roots = {Src, Build, true},
-                                said_roots(Roots, Say),
-                                {PackageStatus, _, Failed} = built_tree(Job, Src, Roots, LoadPath,
+                                said_roots(Src, Build, Say),
+                                {PackageStatus, _, Failed} = built_tree(Job, Src,
+                                                                        {Src, Build, true},
+                                                                        LoadPath,
                                                                         erc, ErrorDevice, Say),
                                 {max(Status, PackageStatus),
                                  Built#{Name => Package#named_package{failed = Failed}}}

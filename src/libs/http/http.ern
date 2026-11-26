@@ -721,7 +721,8 @@ fn isTarget(bytes : Bytes) : Bool =
 /// milliseconds passed before the head ended, `Socket(Closed)` the
 /// connection closed before it, and `Protocol(error)` the head refused, as
 /// `parseRequest` refuses it, at the bytes that pass the limits, though no
-/// line feed comes after them.
+/// line feed comes after them. It never answers `Protocol(BodyTooLarge)`,
+/// which a body's read alone finds.
 ///
 /// ### Examples
 ///
@@ -751,7 +752,8 @@ export fn readRequest(socket : Address(Tcp.SocketMsg),
 
 /// The response whose head `socket` sends after the bytes `carried`, read
 /// within `ms` milliseconds, and the bytes read after its head, as
-/// `readRequest` reads a request's.
+/// `readRequest` reads a request's. It never answers
+/// `Protocol(BodyTooLarge)`, which a body's read alone finds.
 ///
 /// A response of status 1xx is an interim one, which a server may send
 /// before its final response: a client that reads one reads again, given
@@ -913,7 +915,9 @@ fn received(socket : Address(Tcp.SocketMsg),
 /// `limit` counts the body's bytes as they come, the chunks' sizes, their
 /// extensions and the trailers among them. A body past it is
 /// `Protocol(BodyTooLarge)`, found at the bytes that pass it, or at once
-/// where `Content-Length` or a chunk's size passes it.
+/// where `Content-Length` or a chunk's size passes it. It answers neither
+/// `Protocol(LineTooLong)` nor `Protocol(HeadersTooLarge)`, which a head's
+/// read alone finds.
 ///
 /// ### Examples
 ///
@@ -939,7 +943,9 @@ export fn readRequestBody(socket : Address(Tcp.SocketMsg),
 
 /// The body of `response`, which `socket` sends after the bytes `carried`,
 /// read within `ms` milliseconds, and the bytes read after it; at most
-/// `limit` bytes, read as `readRequestBody` reads a request's.
+/// `limit` bytes, read as `readRequestBody` reads a request's. It answers
+/// neither `Protocol(LineTooLong)` nor `Protocol(HeadersTooLarge)`, which a
+/// head's read alone finds.
 ///
 /// A response of status 1xx, 204 or 304 has no body, whatever its headers:
 /// the answer is an empty body and `carried` as it was, and the socket is
@@ -1311,10 +1317,11 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// `#` is encoded, `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and
 /// `}`, some of which a browser sends raw, and so is a `%` before no two
 /// hexadecimal digits, as `%25`. `Uri.decode` gives each back, and the
-/// request keeps its target as written. A scheme and an authority are read
-/// as written, an IP literal's brackets among them. RFC 9112, section 3.2
-/// has a server answer such a target with a 400 or a redirect, and `target`
-/// reads it instead.
+/// request keeps its target as written. `Uri.decode` of a segment of the
+/// path it answers is never `None`, each `%` there beginning an encoding.
+/// A scheme and an authority are read as written, an IP literal's brackets
+/// among them. RFC 9112, section 3.2 has a server answer such a target with
+/// a 400 or a redirect, and `target` reads it instead.
 ///
 /// Whether the scheme and the `Host` header name the server is the
 /// server's to decide.
@@ -2352,6 +2359,26 @@ let lonePercent =
                               Some(#("/%254g", None)),
                               Some(#("/%7b%7B", None)),
                               Some(#("/%25%41", None))]))
+
+// report Appendix G.12, G.11: each segment of the path a target is read
+// with decodes, since each `%` there begins an encoding; written after the
+// code.
+let segmentsDecode = Test.Case(name = "each segment of a target's path decodes", run = fn() = {
+    let segments =
+        fn(text) =
+            Optional.map(pathAndQueryOf(text),
+                         fn(#(path, _)) = List.map(String.split(path, "/"), Uri.decode));
+    Test.equal(List.map(["/100%/%zz", "/%4/%%41/a%", "/%2/%%/caf%C3%A9"], segments),
+               [Some([Some(<<>>), Some(String.toUtf8("100%")), Some(String.toUtf8("%zz"))]),
+                Some([Some(<<>>),
+                      Some(String.toUtf8("%4")),
+                      Some(String.toUtf8("%A")),
+                      Some(String.toUtf8("a%"))]),
+                Some([Some(<<>>),
+                      Some(String.toUtf8("%2")),
+                      Some(String.toUtf8("%%")),
+                      Some(String.toUtf8("café"))])])
+})
 
 // report Appendix G.11
 let lineFeeds =
@@ -3668,6 +3695,54 @@ let bodyTooLarge =
                      Right(Left(Protocol(BodyTooLarge))),
                      Right(Left(Protocol(BodyTooLarge)))))
     })
+
+// report Appendix G.11: a head's read leaves the body to a body's read, so
+// a head whose framing names a body past any limit, with bytes after it
+// past the head's limits, is read; written after the code.
+let headReadsNoBody =
+    Test.Case(name = "a head's read judges no body, whatever its framing names", run = fn() = {
+        let head = "POST / HTTP/1.1\r\nContent-Length: 99999999999999999999\r\n\r\n";
+        let carried = String.toUtf8(head <> String.repeat("a", 5000));
+        let limits = Limits(line = 100, headers = 200);
+        Test.equal(served([],
+                          StaysOpen,
+                          fn(socket) =
+                              Either.map(readRequest(socket, carried, limits, 0),
+                                         fn(#(_, rest)) = Bytes.size(rest))),
+                   Right(Right(5000)))
+    })
+
+// report Appendix G.11: a body's read has no line and no head, so a body of
+// one line longer than the default limits' line, a chunk's extension
+// longer than it and a trailer larger than their headers are read within
+// the body's own limit; written after the code.
+let bodyReadsNoLine = Test.Case(name = "a body's read meets no limit of a head's", run = fn() = {
+    let line = String.repeat("a", 20000);
+    let chunked = transferCoded(["chunked"]);
+    let extended = "1;" <> String.repeat("e", 20000) <> "\r\na\r\n0\r\n\r\nrest";
+    let trailed = "1\r\na\r\n0\r\nX: " <> String.repeat("y", 70000) <> "\r\n\r\nrest";
+    Test.equal(served([],
+                      StaysOpen,
+                      fn(socket) =
+                          [readRequestBody(socket,
+                                           String.toUtf8(line),
+                                           asked(sized("20000")),
+                                           20000,
+                                           0),
+                           readRequestBody(socket,
+                                           String.toUtf8(extended),
+                                           asked(chunked),
+                                           100000,
+                                           0),
+                           readRequestBody(socket,
+                                           String.toUtf8(trailed),
+                                           asked(chunked),
+                                           100000,
+                                           0)]),
+               Right([Right(#(String.toUtf8(line), <<>>)),
+                      Right(#(String.toUtf8("a"), String.toUtf8("rest"))),
+                      Right(#(String.toUtf8("a"), String.toUtf8("rest")))]))
+})
 
 // report Appendix G.11
 let malformedBody =

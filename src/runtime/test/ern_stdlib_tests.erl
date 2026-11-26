@@ -1710,6 +1710,65 @@ fs_set_modified_past_the_host_test() ->
         ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs))
     end).
 
+%% report Appendix E.17: an entry's `modified` before the year 1902 or past
+%% the year 9999 reads as the first second of 1902 or the last of 9999, as
+%% the host reads it, at a time just past each bound and at one far past
+%% it, each set by `setModified`, and the times at the bounds as they are.
+%% What the file system holds is read apart, by `stat(1)`, and is what the
+%% bound is applied to: a file system that keeps a time within its own
+%% range, as ext4 keeps one past the year 2446, leaves that time within
+%% the bounds, and the test then holds that `stat` reads it as it is. The
+%% temporary directory of `make test` is tmpfs on Linux, which holds every
+%% time here. Written after the code
+fs_modified_within_the_hosts_bounds_test() ->
+    Self = self(),
+    Fs = ern_named:functions('ern@fs'),
+    First = -2145916800,
+    Last = 253402300799,
+    Times = [-5364662400, First - 1, First, Last, Last + 1, 300000000000],
+    scratch("ern_fs7_", fun(Dir) ->
+        Files = [{Time, filename:join(Dir, integer_to_list(Time))} || Time <- Times],
+        [ok = file:write_file(File, <<>>) || {_, File} <- Files],
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               [begin
+                                    Path = {'Path', unicode:characters_to_binary(File)},
+                                    {'Right', 'Unit'} = Fs(setModified)(Path, Time * 1000, 1000),
+                                    {'Right', {'Entry', _, Modified, _, _, _, _}} =
+                                        Fs(stat)(Path, 1000),
+                                    Self ! {fs, Modified}
+                                end || {Time, File} <- Files]
+                           end, <<"fs_modified_within_the_hosts_bounds_test">>, #{})),
+        Held = [list_to_integer(string:trim(os:cmd("stat -c %Y " ++ File)))
+                || {_, File} <- Files],
+        ?assertEqual([{Time, min(max(Kept, First), Last) * 1000}
+                      || {Time, Kept} <- lists:zip(Times, Held)],
+                     lists:zip(Times, ern_helpers:taken(fs)))
+    end).
+
+%% report Appendix E.17: `remove` answers `Left(Exists)` for a directory
+%% that is not empty, and removes nothing of it; an empty one it removes.
+%% Written after the code
+fs_remove_a_directory_not_empty_test() ->
+    Self = self(),
+    Fs = ern_named:functions('ern@fs'),
+    scratch("ern_fs8_", fun(Dir) ->
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        ok = file:make_dir(filename:join(Dir, "full")),
+        ok = file:write_file(filename:join(Dir, "full/kept"), <<"k">>),
+        ok = file:make_dir(filename:join(Dir, "empty")),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(remove)(InDir("full"), 1000)},
+                               Self ! {fs, Fs(read)(InDir("full/kept"), 1000)},
+                               Self ! {fs, Fs(remove)(InDir("empty"), 1000)},
+                               Self ! {fs, Fs(stat)(InDir("empty"), 1000)}
+                           end, <<"fs_remove_a_directory_not_empty_test">>, #{})),
+        ?assertEqual([{'Left', 'Exists'}, {'Right', <<"k">>}, {'Right', 'Unit'},
+                      {'Left', 'NotFound'}],
+                     ern_helpers:taken(fs))
+    end).
+
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->

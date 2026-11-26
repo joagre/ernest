@@ -32,11 +32,13 @@ log's *The Applications' Lines Sorted*). The 51 lines of the three repositories'
 `docs/language_feedback.md`, each reproduced against `c9a0d66d`, stand in
 `docs/findings.md` under *The applications' lines*: 9 `fix`, 20 `decide`, 4 `felt`, 6 an
 item's and 12 `dropped`, and seven of the session's own that the readers met on the way.
-The fixes' sentences are written. Their tests, the pages of the declarations they touch
-and *Z15*'s mend of `ern doc --verbose` are one agent's build, which comes next.
+The fixes are made: their sentences, a test for each, the pages of the declarations
+they touch and *Z15*'s mend of `ern doc --verbose` (the log's *The Plain Fixes' Tests*).
 
-**Then the 20 `decide` lines, with the user one at a time**, in the findings' order, each
-after the log is searched and its program run. When they are answered and built, each
+**Next, the 20 `decide` lines, with the user one at a time**, in the findings' order, each
+after the log is searched and its program run. Five are answered, *H38*, *H39*, *H41*,
+*H43* and *H44*, and none of the five is built (the log's *The Applications' Lines
+Decided*). When all are answered and built, each
 session is answered by a message as `docs/clean_room.md`'s *The answer* says, with an
 archive made on the user's word. Then `docs/findings.md` goes, the review's entry is
 written with its counts, and item 4 closes.

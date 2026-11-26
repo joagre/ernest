@@ -231,7 +231,11 @@ since(File, Declarations) ->
 %% does not suggest. Held here are the declarations whose `None` programs
 %% were found handling where their arguments ruled it out, and those whose
 %% refusal is the host's raise answered, which costs as a raise does
-%% (report §10). Written with the sentences
+%% (report §10). Written with the sentences. So too Appendix G.11's reads
+%% of a head, which never answer `Protocol(BodyTooLarge)`, and of a body,
+%% which answer neither `Protocol(LineTooLong)` nor
+%% `Protocol(HeadersTooLarge)`, and G.12's decode of a segment of the path
+%% `Http.target` gives, which is never `None`; written after the code
 stated_test() ->
     Docs = maps:from_list(
              [{{ern_namespace:text(Namespace), atom_to_list(Name)},
@@ -249,8 +253,15 @@ stated_test() ->
                  {"Template", "pop"}],
     Raising = [{"String", "toInt"}, {"String", "toIntBase"}, {"String", "toFloat"},
                {"Bytes", "fromHex"}, {"Float", "div"}, {"Json", "parse"}],
+    HeadRead = [{"Http", "readRequest"}, {"Http", "readResponse"}],
+    BodyRead = [{"Http", "readRequestBody"}, {"Http", "readResponseBody"}],
     Unstated = [{Key, Phrase}
                 || {Keys, Phrase} <- [{NeverNone, <<"It is never `None` ">>},
+                                      {HeadRead, <<"never answers `Protocol(BodyTooLarge)`">>},
+                                      {BodyRead, <<"neither `Protocol(LineTooLong)` nor"
+                                                   " `Protocol(HeadersTooLarge)`">>},
+                                      {[{"Http", "target"}], <<"segment of the path it answers"
+                                                               " is never `None`">>},
                                       {Raising, <<"raise, which beneath a recursion whose call"
                                                   " is not in tail position costs the"
                                                   " recursion's depth (report §10)"/utf8>>}],

@@ -683,8 +683,6 @@ none_taken(Rest) ->
 %% build directory, one document per module and an index, or with --man one
 %% manual page per module and no index.
 doc(Options, [Path], ErrorDevice) ->
-    %% report §11.4, §11.9: --verbose says the root package first
-    ern_build:package_said(Options, ern_build:verbose(Options, ErrorDevice)),
     try doc_path(Options, Path, ErrorDevice)
     catch
         throw:{ended, Status} -> Status
@@ -721,16 +719,18 @@ source_named(Path, Beam) ->
     end.
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
-%% is read; a source is compiled first, in memory, as a directory's is, so
-%% that asking for a page writes nothing, each module read or compiled
-%% said by Say (--verbose), the source root and the build root first; a
-%% module that fails is reported as a build reports it, and its status
-%% answered. A file that is neither is refused for both.
+%% is read, the root package said first; a source is compiled first, in
+%% memory, as a directory's is, so that asking for a page writes nothing,
+%% each module read or compiled said by Say (--verbose), the source root,
+%% the build root and the root package first (§11.9); a module that fails
+%% is reported as a build reports it, and its status answered. A file that
+%% is neither is refused for both.
 beam_of(Options, Path, ErrorDevice, Say) ->
     lists:member(filename:extension(Path), [".ern", ".erc"])
         orelse ern_build:fail(ern_build:shown(Path) ++ " ends in neither .ern nor .erc"),
     case filename:extension(Path) of
         ".erc" ->
+            ern_build:package_said(Options, Say),
             Compiled = compiled(Path),
             %% both chunks a page is built from, so that a module whose
             %% chunks are not the compiler's is refused and no page begun
@@ -825,7 +825,12 @@ doc_dir(Options, Path, ErrorDevice) ->
     Hiding = [Module || #build_module{namespace = Namespace, file = File} = Module <- Modules,
                         ern_build:hidden_library(Namespace, File, Libraries) =/= none],
     {Status, Compiled} = case {Outdated, Misnamed, Hiding} of
-                             {[], [], []} -> {0, #{}};
+                             {[], [], []} ->
+                                 %% report §11.4: the roots and the root
+                                 %% package said as a compile says them
+                                 ern_build:started_said(Options, SourceRoot, BuildRoot,
+                                                        Say),
+                                 {0, #{}};
                              _ -> ern_build:compile_in_memory(
                                     "ern doc", Options, Path, ErrorDevice,
                                     fun(SaidRead) ->
