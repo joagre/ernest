@@ -1,19 +1,20 @@
 # Why Ernest
 
-The argument for the design, in six claims, four of them with a program, one with its configuration file and one with the report. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
+The argument for the design, in seven claims, five of them with a program, one with its configuration file and one with the report. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
+
+Its parts come from elsewhere: Unison's small core and its code known by the hash of its definition, the types of ML, which Gleam made ordinary on the Erlang runtime, and Erlang's processes.
 
 What Ernest adds is where the parts meet:
 
 - **Code travels.** Each function is known by a hash of its definition, not by the module it stands in, so it crosses to a node that lacks it, and a module keeps every version it has had.
 - **The mailbox in the function's type.** A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches.
+- **Foreign code is checked, not trusted.** What foreign code answers, sends or passes to a program is checked against the type declared for it, so a wrong value is a fault where it crosses.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
 - **A deadlock of the whole program is found.** A program that is no node, in which every process waits for a message none can send, ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows, and a function generic in a type names what it needs of it.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing.
 
-Its parts come from elsewhere: Unison's small core and its code known by the hash of its definition, the types of ML, which Gleam made ordinary on the Erlang runtime, and Erlang's processes.
-
-Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex, the BEAM's package index, among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part is the guide's §10 and [the questions](faq.md): `sys` is [*Where are `gen_server` and the supervisors?*](faq.md#where-are-gen_server-and-the-supervisors), and the release [*Where are ETS, tracing, `observer`, back pressure and releases?*](faq.md#where-are-ets-tracing-observer-back-pressure-and-releases).
+Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex, the BEAM's package index, among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part is the guide's §10 and [the questions](faq.md): `sys` is [*Where are `gen_server` and the supervisors?*](faq.md#where-are-gen_server-and-the-supervisors), and the release [*Where are ETS, tracing, `observer`, `global`, `pg`, back pressure and releases?*](faq.md#where-are-ets-tracing-observer-global-pg-back-pressure-and-releases).
 
 ## The claims, in code
 
@@ -21,7 +22,7 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 
 The hash is never written in a program. It is what a peer asks for, and what tells two versions of a definition apart.
 
-A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, one minor release of `ern` on one major release of OTP. It holds the standard library and the host's modules the program's foreign declarations name, and nothing of the program. It runs whichever version the spawn names:
+A counter is a process that holds a number. A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, which the guide's §8 defines. It holds the standard library and the host's modules the program's foreign declarations name, and nothing of the program. It runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
@@ -45,7 +46,7 @@ match Peer.computeAnywhere(fn() = render(scene, row), 5000) {
 
 Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
-On one node `Code.running` finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it: it finds them by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The counter here runs under no `restarting`: a process under one is back on its old loop at its next fault, and the deployment guide's §6.3 says how such a service is moved. `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it: it finds them by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -68,7 +69,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-`=next` is `next = next`, the field bound to a variable of its own name (the guide's §2.6). `next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
+`=next` is `next = next`, the field bound to a variable of its own name (the guide's §2.6). `next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place.
 
 In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it.
 
@@ -98,7 +99,7 @@ A version's name, `Counter$1`, is printed and cannot be written: the old version
 
 ### The mailbox in the function's type
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`. `counter` is the program's counter, bound at the top of the module and started under `restarting`, so any module sends to it by name, and a fault in `count` starts it again with the address kept:
+The counter's mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs, `the argument does not fit send: expected CounterMsg, found String`. `counter` is the program's counter, bound at the top of the module and started under `restarting`, so any module sends to it by name, and a fault in `count` starts it again with the address kept:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -135,9 +136,9 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). A Gleam `process.spawn` answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). A bare `process.spawn` in Gleam answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
 
-No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make, unless the subject is a named one:
+No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject that another process made with `process.new_subject()`:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -163,6 +164,14 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
   |     ^^^^^^^^
 ```
 
+`gleam/otp` gives a Gleam program more than a bare process. An actor made with `actor.new` hands its parent a `Subject` of its message type as it starts, so no subject is sent back by hand, and its handler takes that one type. An actor started under a `Name` is reached through `process.named_subject(name)` by any process that was passed the name, and a new process may take the name of one that failed.
+
+What remains is what the function's type says. A function that receives is refused in a process of another mailbox, as above; `process.receive` takes any subject in hand, and in a process that does not own it panics, or on a named subject receives nothing. A `Peer.spawn` of a function whose mailbox type is bound to its node is refused before the run (the guide's §8.3). A test's mailbox type is in its type, `Test.Case(m)` (the guide's §7.1). And `receive` takes the first message that matches a clause, wherever it waits in the mailbox (the guide's §4.4): a Gleam process takes the next message of a subject, or of a `Selector` over several, and its documentation gives two ways to another order, a subject for each kind or Erlang code.
+
+The claim has its costs. Every higher-order function carries an effect variable, `receiving e`, and a callback annotated without it takes only a function that receives nothing (the guide's §3.4). A parent that gives a child its own address takes it first, `let me = self()` (the guide's §4.1). A function that receives whatever its caller's mailbox holds prints a mark, `receiving e+`, that is never written (the guide's §4.4). And a library that waits on messages of its own runs in a process of its own (the guide's §4.5).
+
+### Foreign code is checked, not trusted
+
 The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function (the guide's §8.5):
 
 ```ernest-fragment
@@ -174,11 +183,9 @@ Where foreign code meets the program the type is checked, not trusted. The runti
 
 So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.5). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
-A delivery that foreign code arranges after its call has returned, by a host timer or by a host process nothing monitors, is one the runtime cannot see, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
-
 ### A distribution built for a WAN
 
-A node is Ernest started from a configuration directory, with a program or with none. Nodes talk over Erlang's own distribution, set up one way and not through its options ([the questions](faq.md#what-does-built-for-a-wan-mean)). A node's `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
+A node is Ernest started from a configuration directory, with a program or with none. What passes between two nodes is the host's, Erlang's own distribution with its protocol and its way of finding a peer lost ([the questions](faq.md#what-does-built-for-a-wan-mean)). What is Ernest's is who connects, and when: a node's `ernest.conf` lists the peers it knows, each by a name, a public key and an address, a connection is accepted from a listed key alone, under the name listed beside that key, and the one connection to a peer is dialed over TLS when an operation first needs it:
 
 ```json
 {
@@ -196,13 +203,13 @@ A node is Ernest started from a configuration directory, with a program or with 
 
 `ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. A service is a process a node offers its peers under a name; a peer finds its address by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `Io.OtherType`. `services`, empty here, names for each service a program looks up the peers that may offer it.
 
-A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
-
-The same trust is the operator's window. `ern shell --config-dir ops --attach foo` runs a shell whose every input runs on `foo`: its processes are listed, their faults said at the prompt, its modules loaded and reloaded from there, and a binding made at the prompt lives on the node while its name is in scope, the operator's machine keeping the terminal and the files alone. The shell is a node of its own, listed by `foo` under its key, so attaching is a connection like any other and nothing is installed on `foo` first; `:quit` leaves the node running. The deployment guide's §6 looks into a node this way, and the tour's chapter 8 moves a fix from a prompt on a node started with none of the program's code.
-
-The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. A restart here of a process that one of the silent peer's processes monitors or calls waits as long, and no setting shortens the window (the deployment guide's §2.3). A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
+The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. What waits on a silent peer meanwhile, and that no setting shortens the window, is the deployment guide's §2.3. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
+
+A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
+
+The same trust is the operator's window. `ern shell --config-dir ops --attach foo` runs a shell whose every input runs on `foo`: its processes are listed, their faults said at the prompt, its modules loaded and reloaded from there, and a binding made at the prompt lives on the node while its name is in scope, the operator's machine keeping the terminal and the files alone. The shell is a node of its own, listed by `foo` under its key, so attaching is a connection like any other and nothing is installed on `foo` first; `:quit` leaves the node running. The deployment guide's §5 looks into a node this way, and the tour's chapter 8 moves a fix from a prompt on a node started with none of the program's code.
 
 ### A deadlock of the whole program is found
 
@@ -294,11 +301,11 @@ A deadlock is quiescence, not a cycle, and the runtime's look for one may be lat
 
 A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang.
 
-Finding one costs a program at work the count behind it, a message at each spawn, each monitor and each process's end, and the check itself runs only once the program has been quiet. `make bench`, in a checkout of the repository, measures a spawn and a monitor so counted against the host's own; the prose here carries no number, since the bench owns it. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
+Finding one costs a program at work the count behind it, a message at each spawn, each monitor and each process's end, and the check itself runs only once the program has been quiet. `make bench`, in a checkout of the repository, measures a spawn and a monitor so counted against the host's own. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 
 ### Abstract types and requirements
 
-Three forms carry what a type does and how code is written over several types: an abstract type, a requirement and an operations record, each shown here. None of them is a type class, an interface or a trait.
+Three forms carry what a type does and how code is written over several types: an abstract type, a requirement and an operations record, each shown here. No program declares a type class, an interface or a trait.
 
 An *abstract type* keeps its constructor to its module. Every function of `stack.ern` takes a `Stack` apart, and no other module can:
 
@@ -389,6 +396,10 @@ input 2:1:4: String is not a type declared in this module
 
 A member is also no value: `Int.compare` in an expression is refused, and `compare` reaches it (report §4.5).
 
+A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for the two things the session shows: its set is closed, and a member is declared in its type's own module (report §4.9). It stands in the signature, so what a call supplies is written where the function is declared (report §0, principle 3). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and the closed set is the whole of what a type can promise.
+
+`show` is no member a type declares, and every value has it through `Io.show` (report §4.9); why a function generic in `a` writes `needs a.show` all the same is the guide's §7.3. The guide's §7 teaches requirements.
+
 An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, what every module sees without naming a module, and has no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:
 
 ```ernest
@@ -416,10 +427,6 @@ $ ern run unique.erc
 `unique` is one function over two representations, and the caller chooses at each call. The unordered set's list comes in no order a program may rely on, so its size is printed. `Operations` is the program's own record of the two functions it uses; the standard library declares no such record.
 
 `sorted` and `unique` are not two ways to one thing. A requirement asks for what every element type has of its own, and a record carries what the caller chooses.
-
-A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for two things: the set it names is closed, `compare`, `negate`, the six operators and `show`, which no program adds to, and a type's member is declared in its type's own module alone (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
-
-`show` is no member a type declares, and every value has it through `Io.show` (report §4.9); why a function generic in `a` writes `needs a.show` all the same is the guide's §7.3. The guide's §7 teaches requirements.
 
 ## Reading on
 

@@ -40,7 +40,7 @@
 //     ern stop --config-dir b
 //
 // Or move b's counter at b's own prompt, from a node ops that b lists
-// without an address (the deployment guide's §6), with `:reload` and then
+// without an address (the deployment guide's §5), with `:reload` and then
 // `Counter.moved()` typed there:
 //
 //     ern shell --config-dir ops --attach b --source-root upgrade/v2

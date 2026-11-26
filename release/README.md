@@ -8,11 +8,11 @@
 
 # Ernest @VERSION@
 
-[Ernest](https://ernest-lang.org) is a small BEAM language built around code that travels. This is the README of a release: the archive `ern-@VERSION@.tar.gz` holds it, and an installation holds it as `share/doc/ernest/README.md`. Until 1.0 a release may refuse a program the previous release accepted; this release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+[Ernest](https://ernest-lang.org) is a small language on the BEAM, the Erlang runtime, built around code that travels. This is the README of a release: the archive `ern-@VERSION@.tar.gz` holds it, and an installation holds it as `share/doc/ernest/README.md`. Until 1.0 a release may refuse a program the previous release accepted; this release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 
-From the archive. Ernest is tested on Linux; on macOS the same steps are expected to work. It needs Erlang/OTP 29 on your `PATH`, make, and a C compiler, on Debian and Ubuntu the packages `make` and `gcc`, for the one part of Ernest in C, the helper that runs another program for `Os.run`; their own `erlang` package is older than 29, so OTP comes from [erlang.org/downloads](https://www.erlang.org/downloads) or a version manager such as kerl:
+From the archive. Ernest is tested on Linux, where a node needs 5.3 or later; on macOS the same steps are expected to work. It needs Erlang/OTP 29 on your `PATH`, GNU make, and a C compiler, on Debian and Ubuntu the packages `make` and `gcc`, for the one part of Ernest in C, the helper that runs another program for `Os.run`; their own `erlang` package is older than 29, so OTP comes from [erlang.org/downloads](https://www.erlang.org/downloads) or a version manager such as kerl:
 
 ```
 make

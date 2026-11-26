@@ -1340,6 +1340,7 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Nothing to write 2026-11-26** (the log's *The Report's Own Lines*): the verdict changes no sentence of the report.
 - **P2 23** `3` — E.0 shape rule 1: where an operations record stands is a program's style; no listed function takes one. Fix: it moves to `guide/style.md`. Owner: report+guide-other. Decide: the move.
   - **Decided 2026-11-23** (the log's *The Report Recut*): taken with *P1 22*: shape rule 1's sentence on where an operations record stands moves to `guide/style.md`.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the sentence stands in `guide/style.md`; the report's loses it with the audit's sentences.
 - **P2 31** `3` — E.0 shape rules 4 and 5 restate §7.1, §7.4 and §6.1, §4.7. Owner: report. Decide: drop the two restatements.
   - **Decided 2026-11-23** (the log's *The Report Recut*): shape rules 4 and 5 keep their numbers and become a sentence each that points, at §7.1 and §7.4 and at §6.1 and §4.7.
   - **Added 2026-11-23, from the reading against `report/language.md`** (the log's *The Report Read Whole Against the Verdicts*): §7.4 cites "(§7.1, E.0 shape rule 4)" (`language.md:906`), so the two would point at each other: §7.4 states the rule and drops the citation.
@@ -1477,24 +1478,34 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Built 2026-11-26** (the log's *The Language Guide Recut*).
 - **R2 7, U 17 (repeats) [deployment 254-257 and 387-389]** `3` — `guide/deployment.md` L254-L257 against L387-L389: the `was not loaded` lines twice, each with its move in two wordings. Fix: section 7 owns them, 4.3 points; a row for the reach line; the fuller move stays. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 42, U 17 (repeats) [2461, deployment 76 and 273]** `3` — `guide/deployment.md`: the first draft's 27 headings unchanged; section 5.1 holds four subjects; the `.erc` of another namespace is said at L76 and L273, and at `guide/language.md:2461`. Fix: R2 8, 10, 12; L273 a pointer to L76. Owner: guide-other. Decide: the cut at L273.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): line 273 becomes a pointer to line 76. The headings and section 5.1 are the deployment guide's recut, *R2 8*, *R2 10* and *R2 12*.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 26** `3` — `guide/faq.md` L11: one 97-word sentence and the courtesy to Gleam said twice. Fix: break at "and the look, which Ernest owes Gleam"; one courtesy. Owner: guide-other. Decide: which courtesy stays.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): the sentence breaks at "and the look, which Ernest owes Gleam", and that courtesy stays, the debt, which is a fact. "And made well, in semantics and in syntax" goes.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **U 15** `3` — `guide/language.md:3152-3154` and `guide/deployment.md:287-289`, one paragraph twice (U 1 is what the copy cost). Fix: the deployment guide keeps the operator's two sentences and points at §8.9. Owner: guide-other. Decide: confirm the cut.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 36** `3` — `guide/why.md` L16, `guide/faq.md` L35, L85: "Not an OTP application" thrice. Fix: `why.md` L16 owns it; the answers keep the pointer. Owner: guide-other. Decide: the cut.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **U 16, N H1 (floor), R1 25** `3` user — sentences shared between the FAQ and the guides (`faq.md:27`, `:31`, `:89`, `:91`, `:109`), and the floor defined four or five times (`guide/language.md:2434`, `:2459`, `:3361`, `why.md:24`, `deployment.md:168`). Fix: the FAQ answers in a sentence and names the section; chapter 8's intro keeps the floor. Owner: guide-other+guide. Decide: confirm the cuts.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the FAQ answers in a sentence and a section, and `guide/why.md` points at the guide's chapter 8 for the floor. The deployment guide keeps its own definition in §2.2, its reader being told to assume nothing of the language.
 - **U 14, N H1 (foreign delivery, two workers), M 20 (foreign delivery), R2 17, R2 43** `3` — the late foreign delivery's `deadlock` at `guide/language.md:1432`, `why.md:176`, `:293`, `faq.md:83`, verbatim thrice, and "two workers waiting" at `language.md:1430`, `why.md:295`. Fix: `why.md:293` keeps it, `why.md:176` goes, the FAQ points (at the guide's §5.4, or report §8.6). Owner: guide-other. Decide: confirm the cut and the pointer.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): `why.md:293` keeps it and `why.md:176` goes. The FAQ points at the guide's §5.4, since a guide's reader is sent to a guide.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 11** `3` user — `tour/README.md` l.145, l.231, l.262, l.528, l.532; l.578, l.614, l.623; l.264, l.470, l.472; l.466, l.540, l.582; l.139, l.586: five things said in several chapters. Fix: the page-is-one-run in the opening, the others at their first or fullest place. Owner: tour. Decide: the cuts.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 14** `3` user — `tour/README.md` l.184, l.190, l.333, l.580: a notation's note in four places. Fix: one place, under the block; l.190's clause joins l.262. Owner: tour. Decide: the moves.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 12** `3` user — `tour/README.md` l.511, l.513, l.72: `guide/why.md`'s sentences word for word. Fix: the tour names the claim and says what the session did. Owner: tour. Decide: the cuts.
   - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 
 #### How are the reviews, the log, the plan, the known issues and their tools kept?
 
@@ -1912,41 +1923,58 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 
 - **U 22** `3` — `guide/deployment.md:86-90`, `:135`: stop and reload three ways each, with no word of when the `kill` is the one. Fix: a clause on when, or the `kill` lines go. Owner: guide-other. Decide: which.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the `kill` lines keep a clause on when they are the ones to use: where a service manager sends the signal.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 2** `3` — `guide/deployment.md` L380: "certificate and key disagree: a copied or edited directory", yet such a node does not start (shown); rows L378-L379 use "copied" against it. Fix: the row names what can dial with such a certificate, or leaves it to the report's list; "copied" goes. Owner: guide-other. Decide: which of the two.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the row leaves the table, since such a node does not start, and the report's §12.5 owns what a dial refuses; "copied" goes from the two rows above it. Leg 4 reads the table against §12.5 first.
   - **Read 2026-11-23, leg 4** (the log's *Leg 4's Readings*): comes back: the carrier still writes the row's line, for a listed key whose certificate names another host (`ern_carrier.erl:443`), so the row is a line a node says. §12.5 gives no text for the table's three refusals by key and by certificate; row 377 has a dial reach an unlisted node; row 378 names a node "as it named itself"; and with "copied" gone, `guide/deployment.md:162`'s pointer to the `replaced` row has nothing to point at.
   - **Answered 2026-11-24, the row stays** (the log's *Leg 4's Answers*): the removal is taken back, since the line is one a node says and the guide's table is where an operator looks a line up. The row's meaning reads "A certificate signed by `b`'s key names another host than that key gives. A node does not start from such a directory (report §12.5), so `b`'s key is used by something that is no node started from `b`'s directory", and its Do "Make `b`'s directory again with `ern config` on `b`'s machine, and give its peers the new key".
   - "Copied" goes from the two rows above it, as decided, and the `replaced` row takes it: its meaning gains "or two nodes were started from one copied directory, which have one key and are one node to their peers", and its Do "None after a restart; where the line repeats, look for a second node started from a copy of `b`'s directory", which `guide/deployment.md:162` points at. §12.5's list of what a node says reads "that a node was refused for a key no peer has, or for a name its key does not give; that a peer was refused for its certificate, for answering the dial of another peer, …". Neither line was run: the builder shows two nodes from one copied directory saying `replaced` before it writes the row, and the row comes back where they do not.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): "copied" left the two rows, and the `replaced` row has its new meaning and move, shown first by two shells started from one copied directory. The certificate's row has this line's meaning and Do, over the Do the second Fable round wrote for it, which does not fit that meaning: a question for the user, named in the plan's item 4.
 - **R2 13** `3` — `guide/deployment.md` section 1.2: a bullet that is no entry (L48), a 110-word `listen` bullet, refusals in writing order. Fix: R2 13's outline. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 12, R2 34** `3` — `guide/deployment.md` section 1.3: three jobs unbroken; L82 one 111-word sentence; a bare node said at L42, L94, L222-L224 (34). Fix: run-in heads; L94 to section 3.4, which owns the bare node. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken: run-in heads for the three jobs, and line 94 goes to section 3.4, which owns the bare node.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 10, R2 27** `3` — `guide/deployment.md` section 2.3: three rare delays between what always happens and the move; the window "the protocol's" at L186 and "the host's" at L190 (27). Fix: R2 10's outline, L190's last sentence goes; one owner for the window. Owner: guide-other. Decide: the recut, and whose the window is.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken, and the window has one owner, the runtime, as the report's §12.6 states it: line 186's "the protocol's" stays, and line 190's last sentence goes.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 11** `3` — `guide/deployment.md` section 5.3: the two exceptions before the example. Fix: rule, example and tool, then L287, L289; L310 goes. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 8** `3` — `guide/deployment.md` section 6: 1439 words under one heading. Fix: run-in heads as R2 8's outline; L400 joins *The processes*; L316's superuser part beside L156. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 6, R2 38** `3` — `guide/deployment.md` sections 5, 6: 5.2 and 5.3 use the attached shell section 6 teaches; 5.2 a précis since `aba5a198` (38). Fix: swap 5 and 6 (16 citations move), or 5.2 owns code sent from a shell, L349 moving there. Owner: guide-other. Decide: the swap, the no-number form, or 5.2 joins 5.3.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): sections 5 and 6 swap, since 5.2 and 5.3 use the attached shell that section 6 teaches. A guide's number may move before the launch (*R1 4*), and the sixteen citations are swept.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the deployment guide's sections 5 and 6 are swapped, and every citation follows, the language guide's five by the session.
 - **R2 35** `3` — `guide/faq.md` L115: the heading omits `global` and `pg`, which the answer covers (L119). Fix: the heading names them, or L119 under the `gen_server` question. Owner: guide-other. Decide: which.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the heading names `global` and `pg`, which its answer covers.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 19** `3` — `guide/faq.md` L19-L35: the longest answer in writing order; L23 uses `restarting` and `Supervisor` before they are said. Fix: R2 19's outline. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 20** `3` — `guide/faq.md` L5-L17: what differs at L7, L9, L15 with sameness and names between. Fix: L7, L9, L15; L11; L13; L17. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 18** `3` — `guide/faq.md`: questions away from their neighbors (Gleam and Unison parted, ETS far from `gen_server`, type class among nodes). Fix: R2 18's outline. Owner: guide-other. Decide: the order.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's order of the questions is taken.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 16** `3` — `guide/why.md` L178-L205: the connection's opening said at L180 and taken up at L203. Fix: L180, the file, L197; L203, L205; L199, L201. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 9** `3` — `guide/why.md` L20-L96: two subjects under *Code travels*; L48 and L71 say a sentence twice. Fix: R2 9's outline, one of each pair going. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken, one of each pair of sentences going, the one that stands with its program kept.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 14** `3` — `guide/why.md` L299-L422: the chapter leaves requirements and returns; the closed set thrice, the module rule twice. Fix: R2 14's outline, one of L375 and L420 kept. Owner: guide-other. Decide: the recut, and which sentence stays.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken. Line 375 stays, since it stands with the session that shows it, and line 420 keeps what it adds, that no program declares a class.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 15** `3` — `guide/why.md` L3-L16: "What Ernest adds is where the parts meet" before the parts. Fix: L3; L14; L5 with bullets; L16. Owner: guide-other. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R2 5** `3` — `guide/why.md`: *Code travels* first uses the counter, `Reply` and `answer` the second chapter introduces. Fix: the mailbox chapter first, bullets L7, L8 and `README.md` L71-L72 swapped; or L100's first sentence moved before L24. Owner: guide-other+readme. Decide: the order of the claims.
   - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the claims keep their order, *Code travels* first, in `guide/why.md` and the README: it is the claim Erlang cannot make, and the front page leads with it. Line 100's first sentence, which introduces `Reply` and `answer`, moves before line 24.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the sentence opens *Code travels*, as written. It does not introduce `Reply` and `answer`, which the mailbox's chapter still explains first.
 
 #### Do the library's names and vocabulary change before the launch?
 
@@ -2020,61 +2048,86 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Read 2026-11-23, leg 4** (the log's *Leg 4's Readings*): the draft comes to the user, checked against gleam_erlang 1.3.0 and gleam_otp 1.3.0 as their pages stand, the paragraph, the FAQ's item and each claim's source in `leg4/notes.md` and the pages' text in `leg4/F/gleam_text/`. `guide/why.md:137` gains "bare", and `:139` and `README.md:55` hold of a subject made with `process.new_subject()` alone, a named subject having no panic. One claim rests on a signature and no sentence: that `process.receive` takes any subject in hand.
   - **Answered 2026-11-24** (the log's *Leg 4's Answers*): the draft is taken as written, the paragraph after `guide/why.md:163` and the FAQ's item, with words for the two sentences the reader left open. `guide/why.md:137` begins "A bare `process.spawn` in Gleam answers a `Pid`", and `:139` and `README.md:55` end "and panics at run time in a process given a subject that another process made with `process.new_subject()`".
   - The session read each claim against the saved pages: an actor's subject and a named actor's, a name passed down and adopted, the panic on "a non-named subject that it does not own" and "will not receive a message" otherwise, which gives the claim on `process.receive` a sentence beside its signature, and *Ordering*'s two ways. It built the `Peer.spawn`, refused with `Peer.spawn starts a process whose mailbox type WorkerMsg is bound to its node`, and the three guide sections hold what the draft cites them for. The pages are those of 2026-11-23, and the builder fetches both again on the day it writes.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): as the draft was taken, in two paragraphs, both of Gleam's pages read again today at 1.3.0.
 - **M 11** `3` — `guide/why.md:165-176`, `tour/README.md:513`: the check at a foreign return is filed under the mailbox claim. Fix: a heading of its own, or the tour names it as its own rule. Owner: guide-other+tour+readme. Decide: whether it becomes a claim of its own.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): a claim of its own: `guide/why.md` gains the heading *Foreign code is checked, not trusted* over lines 165 to 176, the README's list a seventh line, and the tour points at it. It is not the mailbox's claim, and the reader looked for it under the wrong heading.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **L5** `3` — `guide/why.md:178`, `faq.md:87`: "built for a WAN" is the host's distribution with the trust and dial added; what waits on a silent peer is said in six places. Fix: why.md's first paragraph names what it covers and what it leaves to the host. Owner: guide-other. Decide: the claim's wording.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): the heading stays, since the FAQ's answer says what it means. `guide/why.md`'s first paragraph under it names what is Ernest's, the keys, the dial and the one connection, and what is the host's, the protocol and its loss. What waits on a silent peer is said once there and points at the deployment guide.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **M 9** `3` — `guide/why.md:301` against `:420` and `faq.md:109`: a requirement is and is not a type class; principle 3 not held against a supplied member. Fix: `:301` takes `:420`'s words, and a sentence on principle 3. Owner: guide-other. Decide: the claim's wording.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): line 301 no longer says a requirement is no type class: it says that no program declares one, and line 420 keeps what a requirement shares with a class's constraint. A sentence says that the requirement stands in the signature, so what a call supplies is written where the function is declared (principle 3).
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **M 10** `3` — `guide/why.md:98-176`: the mailbox claim states no cost; the pages show four. Fix: a short paragraph of costs, each with its section. Owner: guide-other. Decide: confirm the paragraph.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): confirmed: a short paragraph of the claim's costs, each with its section, the effect variable on every higher-order function, a callback annotated without `receiving`, a parent that hands on its address, the mark that is printed and never written, and the library that waits on messages of its own.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **N C1** `3` — `README.md:13-18`, `:51`, `:78`: Ernest defined against Erlang in Erlang's words, unglossed. Fix: open with the guide's §0's first three sentences, and gloss BEAM. Owner: readme. Decide: the README's opening.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): the opening stays as *The Front Page in the Announcement's Manner* decided on 2026-11-16: it speaks to the Erlang programmer, the announcement's reader. BEAM gains its gloss, "the Erlang runtime".
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **N C31** `3` — `README.md:13`, `:16`, `:78`, `guide/why.md:301`, `guide/faq.md:125`: claims that open on what another system lacks. Fix: per decision. Owner: readme+guide-other. Decide: whether each opens on what holds.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): no rule that a claim opens on what holds. The README's three places stay, "does not quite give" having been weighed in *The Front Page in the Announcement's Manner*; `guide/why.md`'s line 301 changes by *M 9*; and the FAQ's line 125 opens on what a package is.
+  - **Nothing to write 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the FAQ's answer opens on what a package is already.
 - **L17** `3` — `README.md:13`, `:55`: opens on Erlang and compares only with Gleam. Fix: carry §10's sentence on what a typed mailbox gives an Erlang programmer. Owner: readme. Decide: confirm.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): confirmed: the README carries one sentence on what a typed mailbox gives an Erlang programmer, a compile error and not a message that sits in a mailbox forever, as the guide's §10 says it.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **N C2** `3` — `README.md:22-48`: `Reply`, `answer`, `let far <-`, `Address.call(far, Counter.Get, 1000)` used unexplained. Fix: two sentences. Owner: readme. Decide: confirm the addition.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): confirmed: two sentences, what a `Reply` is and what `Address.call` does with `Counter.Get` and `1000`.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **L4, M 13, W20 (§6.5)** `3` — `README.md:67`, `guide/why.md:48`, `tour/README.md:582`, guide §6.5: the move to new code is shown only on unsupervised processes, and the shape the guide recommends returns to old code at its next fault. Fix: the README, why.md and chapter 8 name the limit, and §6.5 says it. Owner: readme+guide-other+tour+guide. Decide: confirm the clauses.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): confirmed: the README's line, `guide/why.md`, the tour's chapter 8 and the guide's §6.5 each say in a clause that the counter runs under no `restarting`, that a process under one is back on its old loop at its next fault, and where the deployment guide moves one that is restarted.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **L6** `3` — `README.md:78`: silent whether Ernest reaches Erlang or Erlang Ernest (`why.md:16`, `faq.md:85`, `:91`). Fix: one sentence beside it. Owner: readme. Decide: confirm the sentence.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): confirmed: one sentence beside it, that a program calls Erlang through a `foreign fn` and a plain Erlang node cannot be a peer.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **M 22 (877)** `3` — `guide/language.md:877`, `README.md:18`: `spawn(fn() = Unit)` then `send(worker, 5)` builds, a send fixing the mailbox type, against "the compiler checks every send against the mailbox it reaches" (report `language.md:740` states it). Fix: the README's claim narrows, or kept. Owner: readme+report. Decide: whether README:18's claim needs the exception.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): the claim stays whole. A process with no `receive` reads no message, its address still takes one type, and every send to it is checked against that type, which the first send fixes (§6.2).
+  - **Nothing to write 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): the claim stays whole.
 - **D Lists 15** `3` — `release/README.md:15` against `README.md:97-113`: only the README says "A node needs Linux 5.3 or later" and "GNU make". Fix: the release's README states the kernel, or both point at one owner. Owner: readme. Decide: whether the release's README states what the README does.
   - **Decided 2026-11-23** (the log's *What the Front Pages Claim*): the release's README states the kernel and GNU make, since it is read alone, in an archive.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 
 #### Are the tour's chapters recut, and what does its session show?
 
 - **L9, M 22 (tour:233)** `3` — `tour/README.md:226`, `:233`, `:361`, `guide/deployment.md:345`: `Counter$3` names the running version in a trace and a previous one in a type. Fix: show the two side by side in chapter 5, or a spelling decision. Owner: tour+report. Decide: whether the spelling stays and is shown, or changes.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the spelling stays, and the sentence about it goes. `Counter$3` is the third version both times, by §11.2: a trace numbers every version but the first, and a type only one that is no longer current. "A type's number works the other way" leaves the tour and `guide/deployment.md`, and chapter 5 says this where both are on the screen.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 2** `3` user — `tour/README.md` chapter 2, l.76-l.147: what the commands made is said 40 lines under them. Fix: R3 2's outline; one of l.147's and l.139's sentences goes. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and of the two sentences line 139's stays, the first place.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 3** `3` user — `tour/README.md` chapter 5, l.266-l.386: the claim behind notation notes; l.335 is chapter 6's. Fix: R3 3's outline, l.335 to chapter 6. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and line 335 goes to chapter 6, held to a sentence by *R3 7*.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 5, R3 9** `3` user — `tour/README.md` chapter 6, l.466-l.472: a sentence parts a reason from its "So"; the spine mid-paragraph; the order of 6 and 7 kept (9). Fix: R3 5's outline, l.466 going. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, line 466 goes, and chapters 6 and 7 keep their order.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 4** `3` user — `tour/README.md` chapter 7, l.474-l.536: l.513 changes subject; the draw and its claim 124 words apart. Fix: R3 4's outline. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 1** `3` user — `tour/README.md` chapter 8, l.538-l.655: the claim at the smaller move, the lead says how before what. Fix: R3 1's outline, l.584 joined or gone. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and line 584 is held to a sentence by *R3 7*.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 6** `3` user — `tour/README.md` l.13-l.17: how to read on both sides of how to start. Fix: R3 6's outline. Owner: tour. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken as given. It changes no sentence's content.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 16** `3` user — `tour/README.md` l.208, l.220, l.368, l.449, l.143, l.584: `Process.fromAddress`, `it`, `:processes` used and not said. Fix: a clause each, or the half sentence goes. Owner: tour. Decide: a clause or a cut, against R3 7.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): `Process.fromAddress` gets a clause at its first use, that `monitor` and `kill` take a process. The half sentences that hold `it` and `:processes` go.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 10** `3` user — `tour/README.md` l.353, l.430: the planted test's fix shown and never run. Fix: chapter 6 shows `ern test`'s two passing lines. Owner: tour+tests. Decide: whether chapter 6 shows them.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): chapter 6 shows `ern test`'s two passing lines, and the tour's test holds them: a fix that is never run is the one thing on the page a reader cannot check.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): chapter 6 shows `ern build .` and `ern test counter.erc` with its two passing lines and its count, from a run, and the tour's test runs the console.
 - **R3 8** `3` user — `tour/README.md` l.528-l.532, chapter 7 "Work anywhere": all three computes on `foo` since `c6eab569`. Fix: a session that shows a spread, or the title and contents line say what the page shows. Owner: tour+tests. Decide: which.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the title stays, since the program names no node, which is what it says. The contents line says what the page shows, a compute that names no node. No spread is staged, since one a test can hold needs a node made busy and a telling waited for. Where the family on `Peer.compute` changes what a compute does, the chapter follows.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 13** `3` user — `tour/README.md` l.72: the rule said on both sides of the Gleam aside, a note on the diagnostic's place between. Fix: the last sentence goes, the note to the paragraph's end. Owner: tour. Decide: the cut.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the cut is taken: the last sentence goes, and the note goes to the paragraph's end.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **R3 7** `3` user — `tour/README.md` whole: prose grew from 2,948 to 4,493 words in rule voice (l.145, l.233, l.335, l.530, l.584), against "no rule stated". Fix: each fix line held to a clause and a section. Owner: tour. Decide: which of these paragraphs go.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): none of the five paragraphs goes whole, and each is held to one sentence that says what the page shows and names the guide's section: line 145 keeps "one thing on the page is not promised", line 233 is *L9*'s sentence, lines 528 to 532 are one sentence, and lines 335 and 584 one each. Leg 4 checks that the guide states each rule before the tour drops it. A fix line of the tour is a clause and a section from here on, and `docs/reviews/full.md` says so.
   - **Read 2026-11-23, leg 4** (the log's *Leg 4's Readings*): comes back at three. Line 145's "a program that needs the order sends both from one process" stands in the guide's §1.4 alone (`guide/language.md:243`), which *U 25* cuts; line 233's frame number, the version whose code runs, is stated nowhere (§6.3, `:1746`); and line 532's rule that a peer's first telling counts the processes that open the connection, so that a peer just connected reads busy, is in no guide. Lines 335 and 584 hold.
   - **Answered 2026-11-24** (the log's *Leg 4's Answers*): the guides gain one sentence each, and the tour then keeps its one sentence and the section.
   - The language guide's §5.1, after "Messages from one sender arrive in the order sent": "Between two senders there is no order, so a program that needs one sends both from one process." Its §8.9, where a reload's site is shown: "A frame of a trace carries the number of the version whose code it runs, which need not be the version that spawned its process." The deployment guide's §3.2: "The first telling is read as the connection opens, while the processes that open it run, so a peer just connected may read busy; its next telling reads what it does." The third is the tour's own claim and was not run: the builder shows it on two nodes before the sentence is written, and the line comes back where a peer just connected does not read busy.
   - The second rests on §11.2 (`toolchain.md:332`) and no trace across a reload was made.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*): each of the five paragraphs is one sentence and a section. The session wrote the language guide's two sentences, in §5.1 and §8.4, and the deployment guide's §3.2 has the third, shown first on two bare nodes: a peer just connected read 0.1667 and 0.125 with no work running, and 0.0 at its next telling.
 - **L24 (the test), M 16** `3` — `test/ern_tour_tests.erl` holds its own copy of every tour line, where the README's transcript is read from the page. Fix: the tour's test reads its blocks from the page. Owner: tests. Decide: whether the tour's test reads the page.
   - **Decided 2026-11-23** (the log's *The Tour Recut*): the tour's test reads its blocks from the page, as the guide's test does, and its own copy of each line goes. The guide's §1.4 loses its copy of the session by *U 25*, and the test that held it to the README's goes with it.
   - **Built 2026-11-26** (the log's *The Blocks Checked*): the tour's test reads its consoles, its json block and chapter 1's program from `tour/README.md`, and its copy of the lines is gone. It keeps what the page tells in prose, the copying of each chapter's directory among it. A changed line of the page fails it, tried on four.
@@ -2167,12 +2220,14 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Built 2026-11-26** (the log's *The Language Guide Recut*).
 - **U 10, L7, R2 40** `3` — `guide/deployment.md:214-359` and `docs/design/nodes.md:123-125` cite each other for the measurements; `guide/why.md:297`'s "the prose here carries no number, since the bench owns it" answers a number removed before 0.9.0, and a reader wants a spawn's cost. Fix: one owner, the guides pointing or giving machine and date; the sentence ends at "against the host's own". Owner: guide-other+docs. Decide: who owns the guides' measured numbers, and whether why.md carries one.
   - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): the deployment guide owns the numbers an operator plans with, each with its machine and date, and `docs/design/nodes.md` points at it. `guide/why.md` carries none: its sentence ends at "against the host's own", the bench printing the figure for the reader's own machine.
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 
 #### What does the runtime promise at the host's limits and between nodes?
 
 - **PL4 1, U 9 (the bound)** `3` — §10, §8.7, §12.6 (`toolchain.md:898`), `guide/deployment.md:82`, `:88`, `:180`: §10 says the loss runs within 45 to 75 s, while the host closes later, measured at 84.9 s; the guide states 85 s thrice as a bound and sizes `TimeoutStopSec=90`. Fix: §10 says the silence is found within 45 to 75 s and the loss runs once the host closes (§12.6), §8.7 "closed"; the guide says it once, as the host's time. Owner: report+guide-other. Decide: confirm; §10's bound goes.
   - **Decided 2026-11-23** (the log's *The Runtime at the Host's Limits*): confirmed. §10 says the silence is found within 45 to 75 seconds and the loss is run once the host has closed the connection (§12.6), and §8.7's *A loss* says "closed". The deployment guide says once what was measured, 84.9 seconds, as the host's time and no bound, and says of the unit's 90 seconds what happens where the host takes longer.
   - **Read cold 2026-11-24** (the log's *The Changed Sentences Read Cold*): plain (*CB 25*): §12.6's "a peer from which nothing came in four such intervals is lost" reads "is found silent".
+  - **Built 2026-11-26** (the log's *The Other Guides, the Tour and the Front Pages*).
 - **PL3 L10 [bullet 6], PL6 L28** `3` — §10: a cost that teaches a route around is stated for the raise beneath `List.map` and not for a guard's fallthrough (113 µs against 44), each for the other's reason. Fix: one rule for when such a cost is stated. Owner: report. Decide: that rule.
   - **Decided 2026-11-23** (the log's *The Runtime at the Host's Limits*): no sentence in the report. The rule is the taste's, that no code is kept only to make it go faster: a cost is mended where the mending replaces one form with another no larger, as a guard's fallthrough became a function, and stated in §10 where mending would add a second path beside the one that stands, as beneath `List.map`. Both verdicts follow.
   - **Nothing to write 2026-11-26** (the log's *The Report's Own Lines*): the verdict changes no sentence of the report.

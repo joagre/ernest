@@ -4,8 +4,8 @@
 %% later chapter's files are copied in turn, `:load Counter` once and
 %% `:reload` at each chapter, beside the two bare nodes `foo` and `bar`,
 %% which chapter 2's commands make and the nodes' harness starts
-%% (ern_nodes_tests), with chapter 5's build and test run in that directory,
-%% and chapter 8's shell attached to `foo` and its stops.
+%% (ern_nodes_tests), with chapter 5's and chapter 6's builds and tests run
+%% in that directory, and chapter 8's shell attached to `foo` and its stops.
 %%
 %% What is typed and what is held to come is read from the page's blocks
 %% under each chapter's heading, each a console or the json block, bound in
@@ -241,14 +241,14 @@ readme_start() ->
 %%
 %% The test does not cover the five terminals as a reader sees them, a
 %% node's line's time, which bare node a compute that names none runs on,
-%% nor how long anything took. Its limit is the sum of its 95 waits, each
-%% bounded by the harness's time for one wait: fifteen jobs, two ports that
+%% nor how long anything took. Its limit is the sum of its 97 waits, each
+%% bounded by the harness's time for one wait: seventeen jobs, two ports that
 %% answer, two shells' starts, 62 inputs, two nodes' first lines, two of
 %% foo's lines of the attach, two lines of a node's end, four ends and what
 %% four said. Chapter 8's attach was written with the guides over the
 %% attached shell.
 tour_test_() ->
-    ern_harness:nodes_test({waits, 95}, fun tour/1).
+    ern_harness:nodes_test({waits, 97}, fun tour/1).
 
 tour(Base) ->
     Chapters = [{3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1}, {6, fun door/1},
@@ -374,14 +374,17 @@ per_key(#tour{base = Base, ports = Ports, shell = Shell} = Tour) ->
     [ran(Base, Ports, Command) || Command <- commands(Built)],
     Tour#tour{shell = typed_console(typed_console(Shell, Reloaded), Counted)}.
 
-%% Chapter 6: the reload names the binding of the previous type; a spawn
-%% on foo of the loop whose mailbox type carries `Upgrade` is refused as
-%% bound to its node; the counter here killed, and one started here and
+%% Chapter 6: `ern build .` says nothing, and `ern test counter.erc` passes
+%% both tests, the planted one mended, and counts the two cases, ending
+%% with status 0. The reload names the binding of the previous type; a
+%% spawn on foo of the loop whose mailbox type carries `Upgrade` is refused
+%% as bound to its node; the counter here killed, and one started here and
 %% one on foo by a compute, each behind an adapted address of the client's
 %% type, the one on foo counting what this node sends it (report §3.11,
-%% §6.5, §6.10, §8.7, §11.2, §11.5, Appendix E.27).
-door(#tour{shell = Shell} = Tour) ->
-    [Session] = consoles(6),
+%% §6.5, §6.10, §8.7, §11.1, §11.2, §11.5, §11.8, Appendix E.24, E.27).
+door(#tour{base = Base, ports = Ports, shell = Shell} = Tour) ->
+    [Tested, Session] = consoles(6),
+    [ran(Base, Ports, Command) || Command <- commands(Tested)],
     Tour#tour{shell = typed_console(Shell, Session)}.
 
 %% Chapter 7: a foreign function asked on each bare node answers the

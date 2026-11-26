@@ -1,10 +1,10 @@
 %% The deployment guide, guide/deployment.md, run as its reader runs it:
 %% its section 8, a deployment end to end, on real nodes, each command as
 %% its consoles write it, run from the directory their paths are relative
-%% to; the commands of its sections 1.1, 1.3 and 5.3 and the session of
-%% its section 6, the harness's paths in place of the guide's; section
-%% 1.4's statuses; and the lines its sections 7 and 4.3 quote, and those
-%% its section 6 quotes of an attached shell's end and of an attach
+%% to; the commands of its sections 1.1, 1.3 and 6.3 and the session of
+%% its section 5, the harness's paths in place of the guide's; section
+%% 1.4's statuses; and the lines its section 7 quotes, and those
+%% its section 5 quotes of an attached shell's end and of an attach
 %% refused, each held to the line a node or a shell writes where a test
 %% provokes it, here or in ern_nodes_tests, by cataloged/4, which
 %% catalog_test sees every quoted line has.
@@ -25,7 +25,7 @@
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal, which the guide leaves out.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
-%% The program the guide's sections 1.3, 5.3 and 8 build and run, its two
+%% The program the guide's sections 1.3, 6.3 and 8 build and run, its two
 %% builds, `v1` and `v2`, one module.
 -define(EXAMPLE, "../examples/upgrade").
 %% The modules whose tests provoke the lines the guide quotes.
@@ -277,10 +277,10 @@ statuses(Base) ->
     ?assertMatch({match, _}, re:run(Faulted, Stamped, [multiline])).
 
 %%
-%% Section 5.3, a service moved to new code
+%% Section 6.3, a service moved to new code
 %%
 
-%% guide/deployment.md, section 5.3; report §6.10, §8.7, §11.1, §11.2,
+%% guide/deployment.md, section 6.3; report §6.10, §8.7, §11.1, §11.2,
 %% Appendix E.28: a counter of the example's first build on b, as section 8
 %% starts it, and the session the section shows, a shell attached to b from
 %% ops with the second build's directory as its source root, whose
@@ -300,7 +300,7 @@ upgrade_test_() ->
     ern_harness:nodes_test({waits, 12}, fun upgrade/1).
 
 upgrade(Base) ->
-    [Session] = checked([Block || {_, "### 5.3" ++ _, "", _} = Block <- blocks()]),
+    [Session] = checked([Block || {_, "### 6.3" ++ _, "", _} = Block <- blocks()]),
     Section8 = lists:append(consoles("## 8.")),
     [Built] = [Command || {"build upgrade/v2", _} = Command <- Section8],
     [{Tool, _}] = [Command || {"run --config-dir a " ++ _, _} = Command <- Section8],
@@ -326,10 +326,10 @@ upgrade(Base) ->
     ern_harness:stop(B, WaitB).
 
 %%
-%% Section 6, looking in
+%% Section 5, looking in
 %%
 
-%% guide/deployment.md, section 6; report §11.2 *The attached shell*,
+%% guide/deployment.md, section 5; report §11.2 *The attached shell*,
 %% *Commands*, Appendix E.21, E.27: a counter of the example's first build
 %% on b, as section 8 starts it, and the session the section shows, a shell
 %% attached to b from ops: `:processes` lists the counter by its site,
@@ -351,7 +351,7 @@ looking_in_test_() ->
     ern_harness:nodes_test({waits, 12}, fun looking_in/1).
 
 looking_in(Base) ->
-    [Session] = checked([Block || {_, "## 6." ++ _, "", _} = Block <- blocks()]),
+    [Session] = checked([Block || {_, "## 5." ++ _, "", _} = Block <- blocks()]),
     ok = copied(Base),
     PortB = ern_harness:free_port(),
     A = ern_harness:made(Base, "a", none),
@@ -367,7 +367,7 @@ looking_in(Base) ->
     ern_harness:stop(B, WaitB).
 
 %%
-%% The lines a node writes, sections 7 and 4.3
+%% The lines a node writes, section 7
 %%
 
 %% guide/deployment.md, section 7; report §12.5, §12.6: a peer silent past the
@@ -404,7 +404,7 @@ fell_silent(Base) ->
     {_, ErrA} = ern_harness:said(A),
     cataloged(ErrA, "7", "fell silent", [{"b", "b"}]).
 
-%% guide/deployment.md, sections 4.3 and 7, and 1.2; report §12.5, §12.7: a bare
+%% guide/deployment.md, sections 7 and 1.2; report §12.5, §12.7: a bare
 %% node whose `listen` names port 0 says the port it bound; and code that
 %% arrives which it cannot take, a definition that references one no node
 %% holds, sent by a peer of the test's own that plays the spawner's part
@@ -452,9 +452,7 @@ refused_code(Base) ->
     ern_harness:stop(B, WaitB),
     {_, ErrB} = ern_harness:said(B),
     cataloged(ErrB, "7", "listening on", [{"51204", integer_to_list(PortB)}]),
-    cataloged(ErrB, "7", "could not take the code", [{"a", "z"}, {"Site", "Taker.main:1"}]),
-    cataloged(ErrB, "4.3", "could not take the code",
-              [{"a", "z"}, {"Counter.main:17", "Taker.main:1"}]).
+    cataloged(ErrB, "7", "could not take the code", [{"a", "z"}, {"Site", "Taker.main:1"}]).
 
 %% A peer of the test's own, run in a bare `erl` that holds a peer's key: it
 %% spawns on the node its command line names the function of the frame it
@@ -513,7 +511,7 @@ four_fifths() ->
                    " back\n">>, Said),
     cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
 
-%% guide/deployment.md, sections 7, 4.3 and 6: every line the guide quotes
+%% guide/deployment.md, sections 7 and 5: every line the guide quotes
 %% there is held to a node's or a shell's by a check that names it, beside
 %% the test that provokes the line, in this module or in ern_nodes_tests,
 %% and each check names one line; but two, which no test provokes, since
@@ -532,8 +530,8 @@ catalog_test() ->
                 [Line || {In, Line, _} <- Quoted, In =:= Section,
                          string:find(Line, Fragment) =/= nomatch]
             end,
-    Unprovoked = [{"6", "ern shell: the node b could not start the shell: ..."},
-                  {"6", "ern shell: the node b could not load the shell: ..."}],
+    Unprovoked = [{"5", "ern shell: the node b could not start the shell: ..."},
+                  {"5", "ern shell: the node b could not load the shell: ..."}],
     Checked = [{Section, Line} || {Section, Fragment} <- Checks,
                                   Line <- Named(Section, Fragment)] ++ Unprovoked,
     ?assertEqual([], [{Section, Line} || {Section, Line, _} <- Quoted,
@@ -569,12 +567,12 @@ check(Node) ->
             []
     end.
 
-%% guide/deployment.md, sections 7, 4.3 and 6: the line Section quotes
+%% guide/deployment.md, sections 7 and 5: the line Section quotes
 %% that holds Fragment is a line of Err, a node's or a shell's standard
 %% error, after its time, with each of the guide's names in it that Names gives the
 %% harness's in its place, and `...` any text. A line quoted after another
-%% in one cell or one item, `the peer b was added` / `was removed`, is the
-%% end of a line.
+%% in one cell, `the peer b was added` / `was removed`, is the end of a
+%% line.
 -spec cataloged(string(), string(), string(), [{string(), string()}]) -> ok.
 cataloged(Err, Section, Fragment, Names) ->
     case [{Line, Whole} || {In, Line, Whole} <- quoted(), In =:= Section,
@@ -604,10 +602,9 @@ pattern(Line, Whole, Names) ->
 part("...", _) -> ".*";
 part(Part, Names) -> ["\\Q", proplists:get_value(Part, Names, Part), "\\E"].
 
-%% The lines sections 7, 4.3 and 6 quote, {Section, Line, Whole}: each
-%% code span of the catalog's first column, and each of an item's before
-%% its colon, a span after the first in its cell or its item continuing the
-%% one before it; and each span of section 6's prose that is a line an
+%% The lines sections 7 and 5 quote, {Section, Line, Whole}: each code
+%% span of the catalog's first column, a span after the first in its cell
+%% continuing the one before it; and each span of section 5's prose that is a line an
 %% attached shell writes at its end or at a refused attach, `the node b
 %% ended`, `ern shell: the peer b is unreachable`, each a whole line, one
 %% the prose ends at its colon, `ern shell: the node b could not load the
@@ -617,11 +614,8 @@ quoted() ->
     [{"7", Span, Whole}
      || "| `" ++ _ = Row <- section(Lines, "## 7."),
         {Span, Whole} <- spans(hd(string:split(Row, " | ")))]
-        ++ [{"4.3", Span, Whole}
-            || "- `" ++ _ = Item <- section(Lines, "### 4.3"),
-               {Span, Whole} <- spans(hd(string:split(Item, "`: ")) ++ "`")]
-        ++ [{"6", reason_after(Span), true}
-            || Line <- section(Lines, "## 6."),
+        ++ [{"5", reason_after(Span), true}
+            || Line <- section(Lines, "## 5."),
                {match, Spans} <- [re:run(Line, "`([^`]*)`",
                                          [global, {capture, all_but_first, list}])],
                [Span] <- Spans,

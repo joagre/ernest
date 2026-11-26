@@ -10,12 +10,12 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
-[Ernest](https://ernest-lang.org) is a small BEAM language built around code that travels. It exists for two things Erlang does not quite give:
+[Ernest](https://ernest-lang.org) is a small language on the BEAM, the Erlang runtime, built around code that travels. It exists for two things Erlang does not quite give:
 
 - A process started on another node brings its code along, even where that node has none of the program installed. Code is known by its hash, much as in [Unison](https://www.unison-lang.org/).
 - A module is not held to two versions: a new one loads without disturbing the processes that run older ones, where Erlang kills those still running the oldest. The price is that every version is kept for the node's life.
 
-Mailboxes have types as well. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. The types are Hindley-Milner, as in ML.
+Mailboxes have types as well. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. A message that is not of the mailbox's type is a compile error, and not, as in Erlang, a message that sits in the mailbox forever. The types are Hindley-Milner, as in ML.
 
 A counter, whose loop names its mailbox type, `CounterMsg`:
 
@@ -33,7 +33,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
-And a shell talking to a bare node `foo`, which holds only Ernest's standard library:
+A `Reply(Int)` carries one answer, an `Int`, back to the process that asked, and `answer` sends it. And a shell talking to a bare node `foo`, which holds only Ernest's standard library:
 
 ```console
 $ ern shell --config-dir a
@@ -48,11 +48,11 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
-`foo` compiled `count` and its type before the process started. Each input runs in a process of its own, so the `Get` may reach `foo` before the `Inc` and answer `Some(0)`. The two nodes are two configuration directories, `a` and `foo`. Each names the other's public key. They share one TLS connection: no cookie, no epmd, no mesh.
+`foo` compiled `count` and its type before the process started. `Address.call` makes a `Reply`, gives it to `Counter.Get`, sends the request and waits up to `1000` milliseconds for the answer. Each input runs in a process of its own, so the `Get` may reach `foo` before the `Inc` and answer `Some(0)`. The two nodes are two configuration directories, `a` and `foo`. Each names the other's public key. They share one TLS connection: no cookie, no epmd, no mesh.
 
 You can run this in your browser. The front page of [ernest-lang.org](https://ernest-lang.org) has the same counter with a Try it button, and each visitor gets a shell and a bare `foo` of their own. The site and its shell are served by [a web server written in Ernest](https://github.com/joagre/ernest-httpd).
 
-The compiler checks more than sends. `count` receives from the mailbox of the process that runs it, so a call from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make, unless the subject is a named one.
+The compiler checks more than sends. `count` receives from the mailbox of the process that runs it, so a call from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject that another process made with `process.new_subject()`.
 
 ```console
 $ ern build other.ern
@@ -64,17 +64,18 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
   |     ^^^^^^^^
 ```
 
-[The tour](tour/README.md) ends by moving this running counter to new code on the remote node, its state intact.
+[The tour](tour/README.md) ends by moving this running counter to new code on the remote node, its state intact. The counter runs under no `restarting`: a process under one is back on its old loop at its next fault, and [the deployment guide](guide/deployment.md) says how such a service is moved.
 
 What Ernest adds, which [Why Ernest](guide/why.md) argues:
 
 - [Code travels](guide/why.md#code-travels)
 - [The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type)
+- [Foreign code is checked, not trusted](guide/why.md#foreign-code-is-checked-not-trusted)
 - [A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan)
 - [A deadlock of the whole program is found](guide/why.md#a-deadlock-of-the-whole-program-is-found)
 - [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
 
-Ernest runs on the BEAM without OTP's behaviors: a server is a `receive` loop, a supervision tree is the library's `Supervisor`, and a process's end arrives as a message from a monitor. [The questions](guide/faq.md) say what stands in their place, and how Ernest differs from Gleam and Unison.
+Ernest runs on the BEAM without OTP's behaviors: a server is a `receive` loop, a supervision tree is the library's `Supervisor`, and a process's end arrives as a message from a monitor. [The questions](guide/faq.md) say what stands in their place, and how Ernest differs from Gleam and Unison. A program calls Erlang through a `foreign fn`, and a plain Erlang node cannot be a peer.
 
 ## Where to begin
 

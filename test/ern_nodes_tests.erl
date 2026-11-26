@@ -583,7 +583,7 @@ missing_module(Base) ->
 %% its load path, names the file and the module it holds, not the module
 %% missing at the path of the one it holds, with a node's advice: a build
 %% root under the program's root where the file's path ends in the
-%% segments of the module it holds, as guide/deployment.md's section 5.1
+%% segments of the module it holds, as guide/deployment.md's section 1.3
 %% quotes it, and the removal alone where it does not; the same program run
 %% as no node does not read the file, and runs. A regression test, written
 %% after the fix (the release review found the node saying the
@@ -4645,23 +4645,15 @@ exchange(Base) ->
     ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),
-    %% the lines as the deployment guide quotes them, in its catalog and
-    %% beside a spawn's
+    %% the lines as the deployment guide quotes them, in its catalog
     Peer = {"a", "sender"},
     ern_deployment_tests:cataloged(ReceiverErr, "7", "has no value here",
                                    [Peer, {"Site", "Sender.main:13"}, {"Q", "Lacked.note"}]),
     ern_deployment_tests:cataloged(ReceiverErr, "7", "is not here",
                                    [Peer, {"Site", "Sender.main:15"}, {"M", "ern_sender_host"},
                                     {"Q", "Lacked.only"}]),
-    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "has no value here",
-                                   [Peer, {"Counter.main:13", "Sender.main:13"},
-                                    {"Counter.config", "Lacked.note"}]),
-    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "is not here",
-                                   [Peer, {"Counter.main:15", "Sender.main:15"},
-                                    {"counter_host", "ern_sender_host"},
-                                    {"Counter.tick", "Lacked.only"}]),
-    ern_deployment_tests:cataloged(ReceiverErr, "4.3", "has no function",
-                                   [{"tick/0", "ern_absent_function/0"}]).
+    ern_deployment_tests:cataloged(ReceiverErr, "7", "has no function",
+                                   [{"f/0", "ern_absent_function/0"}]).
 
 %% A library whose binding prints as it is evaluated, and a program that
 %% places work on a bare node and ends it, built in Base: the library's
@@ -5461,7 +5453,7 @@ attached_shell(Base) ->
 %% session's node's end or loss. Written before the fixes, which the line
 %% sharing the prompt's row failed, and the shell's own node's `the peer
 %% node ended` before it, in one run of sixteen. Each line is held to the
-%% deployment guide's section 6, which quotes it.
+%% deployment guide's section 5, which quotes it.
 attached_shell_ends_test_() ->
     ern_harness:nodes_test({waits, 10}, fun attached_shell_ends/1).
 
@@ -5484,9 +5476,9 @@ attached_shell_ends(Base) ->
               Err
           end, [{"ended", fun ern_harness:stop/2, 0, "the node node ended\n"},
                 {"lost", fun lost/2, 1, "the node node is lost\n"}]),
-    %% the lines as the deployment guide's section 6 quotes them
-    ern_deployment_tests:cataloged(Ended, "6", "ended", [{"b", "node"}]),
-    ern_deployment_tests:cataloged(Lost, "6", "is lost", [{"b", "node"}]).
+    %% the lines as the deployment guide's section 5 quotes them
+    ern_deployment_tests:cataloged(Ended, "5", "ended", [{"b", "node"}]),
+    ern_deployment_tests:cataloged(Lost, "5", "is lost", [{"b", "node"}]).
 
 %% report §11.2 *The attached shell*, Appendix E.27: the shell's own node
 %% tells no peer how busy it is, so at the prompt of the node it attaches
@@ -5644,7 +5636,7 @@ lost(Dir, Wait) ->
 %% takes the connection and at the dial's end where a port takes it and
 %% nothing answers over it, since the attach waits twice a dial's time; and
 %% one to a peer the shell's own node does not list that it is not listed,
-%% each line as the deployment guide's section 6 quotes it. Written after
+%% each line as the deployment guide's section 5 quotes it. Written after
 %% the code, a regression test of the refusal, and of the dial that waits
 %% (the log's *The Shell's Own Node*), whose answer was a race between the
 %% two
@@ -5666,12 +5658,12 @@ attach_refused(Base) ->
                   ?assertEqual("", Out),
                   Err
               end,
-    ern_deployment_tests:cataloged(Refused("absent"), "6", "is unreachable", [{"b", "absent"}]),
+    ern_deployment_tests:cataloged(Refused("absent"), "5", "is unreachable", [{"b", "absent"}]),
     Began = erlang:monotonic_time(millisecond),
-    ern_deployment_tests:cataloged(Refused("hole"), "6", "is unreachable", [{"b", "hole"}]),
+    ern_deployment_tests:cataloged(Refused("hole"), "5", "is unreachable", [{"b", "hole"}]),
     ?assert(erlang:monotonic_time(millisecond) - Began < 2 * ern_carrier:dial_ms()),
     ok = gen_tcp:close(Hole),
-    ern_deployment_tests:cataloged(Refused("nowhere"), "6", "is not listed", [{"b", "nowhere"}]).
+    ern_deployment_tests:cataloged(Refused("nowhere"), "5", "is not listed", [{"b", "nowhere"}]).
 
 %% report §11.2 *The attached shell*, §11.8, §12.6: an attach to a node
 %% that takes the connection and answers nothing over it is refused once
@@ -5679,7 +5671,7 @@ attach_refused(Base) ->
 %% time,
 %% with status 1, its standard output in line mode the shell's own node's
 %% line of the connection alone (§11.2 *The shell*), the line as the
-%% deployment guide's section 6 quotes it. The node's program
+%% deployment guide's section 5 quotes it. The node's program
 %% suspends its gateway, the process that answers a peer's frames, a
 %% spawn's among them, so that the connection stands and the spawn waits.
 %% Written after the code, a regression test
@@ -5702,7 +5694,7 @@ attach_unanswered(Base) ->
     ?assertEqual(1, Wait()),
     {Out, Err} = ern_harness:said(Ops),
     ?assertEqual("the peer node connected\n", unstamped(Out)),
-    ern_deployment_tests:cataloged(Err, "6", "did not answer in time", [{"b", "node"}]),
+    ern_deployment_tests:cataloged(Err, "5", "did not answer in time", [{"b", "node"}]),
     ern_harness:stop(Node, WaitNode).
 
 %% report §11.2, Appendix E.21, E.27, §8.3: on a shell that is a node,
@@ -7516,8 +7508,8 @@ broken_exchange(Base) ->
                  ++ "\n"]],
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["ern$", "could not take"]],
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:cataloged(ErrB, "4.3", "no longer holds the function's reach",
-                                   [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).
+    ern_deployment_tests:cataloged(ErrB, "7", "no longer holds the function's reach",
+                                   [{"a", "z"}, {"Site", "Lost.z:1"}]).
 
 %% report §11.2, §8.7, Appendix H: a service names its type by its hash, as
 %% any service does, a type the session declares among them, which is the
