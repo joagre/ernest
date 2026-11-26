@@ -196,6 +196,11 @@ function loadScript(src) {
     });
 }
 
+// The terminal's stylesheet loads beside its scripts, and the terminal
+// waits for all three: one opened before its stylesheet is drawn unstyled
+// until it comes, its screen and its accessibility tree in the page's flow
+// and taller than the panel. One that does not load is loaded again at the
+// next start.
 let xtermLoaded = null;
 
 function loadXterm() {
@@ -203,14 +208,18 @@ function loadXterm() {
         const style = document.createElement("link");
         style.rel = "stylesheet";
         style.href = new URL("../css/xterm.css", here);
+        const styled = new Promise((resolve, reject) => {
+            style.onload = resolve;
+            style.onerror = reject;
+        });
         document.head.append(style);
-        xtermLoaded = loadScript(new URL("xterm.js", here))
-            .then(() => loadScript(new URL("addon-fit.js", here)))
-            .catch((failure) => {
-                style.remove();
-                xtermLoaded = null;
-                throw failure;
-            });
+        const scripts = loadScript(new URL("xterm.js", here))
+            .then(() => loadScript(new URL("addon-fit.js", here)));
+        xtermLoaded = Promise.all([styled, scripts]).catch((failure) => {
+            style.remove();
+            xtermLoaded = null;
+            throw failure;
+        });
     }
     return xtermLoaded;
 }

@@ -82,6 +82,7 @@ checks() ->
      {"a paste waits for the first output", fun waiting/1},
      {"a terminal or a client that does not load", fun unloaded/1},
      {"two starts while the terminal loads", fun started_twice/1},
+     {"a terminal whose stylesheet loads last", fun styled/1},
      {"the shell's page and a phone", fun pages/1},
      {"every page on a phone", fun phone/1}].
 
@@ -509,6 +510,30 @@ started_twice(#{page := Page, url := Url}) ->
     Session = connected(Page, 0),
     until(Page, rows() ++ ".includes('session 1')"),
     ?assertEqual(1, eval(Page, "stub.sessions.length")),
+    stop(Page, Session).
+
+%% docs/design/site.md *The live shell*: the terminal opens once its
+%% stylesheet has loaded, however long after its scripts, and fills its
+%% panel from the session's first line. One opened before it was drawn
+%% unstyled, its screen and its accessibility tree in the page's flow and
+%% taller than the panel. The stylesheet is held in the page, so that it
+%% comes last when asked. The shell's page has loaded its client for its
+%% numbers, so a terminal that did not wait would be open once the fit
+%% addon has run. A regression test, written after the code.
+styled(#{page := Page, url := Url}) ->
+    fresh(Page, Url ++ "/shell/", {1440, 900}),
+    until(Page, "document.querySelector('[data-limit]').textContent !== 'a while'"),
+    eval(Page, "document.head.append = function (element) { if (element.href?.includes"
+               "('xterm.css')) { window.heldStyle = element; } else"
+               " { Element.prototype.append.call(this, element); } }"),
+    eval(Page, "panel.start.click()"),
+    until(Page, "window.heldStyle !== undefined && typeof FitAddon === 'object'"),
+    ?assert(eval(Page, "document.querySelector('.panel-terminal .xterm') === null && "
+                       ++ state() ++ " === ''")),
+    eval(Page, "delete document.head.append; document.head.append(heldStyle)"),
+    Session = connected(Page, 0),
+    until(Page, rows() ++ ".includes('session 1')"),
+    ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
     stop(Page, Session).
 
 %% docs/design/site.md *The live shell* and *The other pages*:
