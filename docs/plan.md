@@ -25,11 +25,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg: the report written from the copy, the renames of *The Library's Names*, and the
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
-standard library with the libraries and the cli are done, and two Fable rounds are held. A
-third round is next, on Fable 5.2 at high, then the shell's build on Opus 5.5 at xhigh (the
-log's *The First Build of Leg 4*, *The Renames of the Library's Names*, *The Runtime's
-Second Build*, *The First Fable Round*, *The Nodes' Build*, *The Libraries' Build*, *The
-Second Fable Round* and *The Cli's Build*).**
+standard library with the libraries and the cli are done, and three Fable rounds are held.
+The shell's build is next, by an agent on Opus 5.5 at xhigh, the session staying on Fable
+5.2 at high (the log's *The First Build of Leg 4*, *The Renames of the Library's Names*,
+*The Runtime's Second Build*, *The First Fable Round*, *The Nodes' Build*, *The Libraries'
+Build*, *The Second Fable Round*, *The Cli's Build*, *The Third Fable Round* and *The
+Session Stays on Fable*).**
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -172,7 +173,8 @@ says what is left once its readings are in, and no figure stands until then.
       lines come first that show the report false or contradicting itself, that touch
       soundness or security, or that a first user meets. Closed 2026-11-23 (the log's
       *The Refusals That Rested on a Count*).
-   4. Opus 5.5 at xhigh: the `1` and `1r` lines by the session, the `2a`, `2b` and decided
+   4. Opus 5.5 at xhigh, and Fable 5.2 at high since 2026-11-26 (below): the `1` and
+      `1r` lines by the session, the `2a`, `2b` and decided
       lines by agents, one brief to an owner holding all its lines, the libraries' with the
       standard library's and the examples' and the site's with the tests', the diffs
       read back,
@@ -182,22 +184,19 @@ says what is left once its readings are in, and no figure stands until then.
       the renames and the other changes the applications meet, with their message, so
       that the three can start; and then the rest.
 
-      A verdict that comes back during the builds needs Fable for its answer, with any
-      other question the session judges is Fable's. The questions are answered in a Fable
-      5.2 session at high at a cut where no agent runs and an answer feeds a build not yet
-      started, the first after the runtime's second build, and the last before `make
-      test-full` and the close (the log's *One Fable Round Before the Close* and *A Fable
-      Round at a Cut*). The builds go on meanwhile, and each question that waits is named
-      here as it comes, its ways under its line in the findings. Five wait now, the
-      third round's.
+      Until 2026-11-26 the leg's session ran on Opus 5.5 at xhigh, and a verdict that
+      came back during the builds waited for a Fable round at a cut, a session of its
+      own on Fable 5.2 at high, of which three were held (the log's *One Fable Round
+      Before the Close* and *A Fable Round at a Cut*).
 
-      A round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
-      running, and reads `docs/agents.md` and each waiting line in the findings. It puts
-      each decision to the user, one at a time, the argument first and a recommendation
-      naming its principle, and writes each answer under its line as *Answered*, the
-      report's sentences it settles beside it; it builds nothing. It commits the findings,
-      the log's entry and the plan, each decision struck from this list, and stops for the
-      switch back to Opus 5.5 at xhigh.
+      Since 2026-11-26 the session stays on Fable 5.2 at high, the user's word, and each
+      build's agent runs on Opus 5.5 at xhigh (the log's *The Session Stays on Fable*).
+      A verdict that comes back is put to the user at the next cut where no agent runs,
+      one decision at a time, the argument first and a recommendation naming its
+      principle, and its answer is written under its line as *Answered*, the report's
+      sentences it settles beside it. Each question that waits is named here as it
+      comes. None waits now. The session stops at a commit and asks for a `/clear` where
+      its context is worth dropping.
 
       The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
       decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and
@@ -212,16 +211,12 @@ says what is left once its readings are in, and no figure stands until then.
       S6*. The cli's build took the five texts and `Http.filePath`'s `OPTIONS` step,
       §8.7's sentence read cold before it (the log's *The Cli's Build*).
 
-      The third round, after the cli's build and before the shell's, decides five
-      questions, each under its line in the findings as *Comes back*: whether an
-      interrupted input that waited in a call names its callee (*B6*); whether `:reload`
-      passes over a file at a named package's namespace (*Z17*); what `:browse` alone
-      lists (*N C26*); a node's advice for a file that holds another module where its
-      path does not end in that module's segments (*T5*); and how a fault met near its
-      case's end is counted (*N C24*). The shell's build follows, on Opus 5.5 at xhigh,
-      its sentences and its brief waiting in `leg4/builds/`, `cold_shell/edits_shell.py`
-      and `brief_shell.md`, for the round's first three answers; the last two go with it,
-      the cli's code being theirs.
+      The third round was held 2026-11-26 (the log's *The Third Fable Round*), its five
+      decisions answered under *B6*, *Z17*, *N C26*, *T5* and *N C24*. The shell's build
+      follows, by an agent on Opus 5.5 at xhigh, and takes all five, the cli's code of
+      the last two among them. Its sentences and its brief wait in `leg4/builds/`,
+      `cold_shell/edits_shell.py` and `brief_shell.md`, the five answers written into
+      both.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
