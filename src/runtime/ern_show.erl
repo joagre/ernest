@@ -7,7 +7,7 @@
 %% same printer with neither bound.
 -module(ern_show).
 
--export([show/2, show/4, controls/2]).
+-export([show/2, show/4, controls/2, indented_trace/1]).
 
 %% The depth left, and how many elements of a list, map, or set are
 %% printed; `unbounded` is neither.
@@ -216,3 +216,12 @@ control(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F -> ern_literal:
 control(Char, _) -> Char.
 
 join(Parts) -> lists:join(", ", Parts).
+
+%% Report §11.2, Appendix E.21: a fault's trace as it is printed beneath
+%% the fault's line, `ern run`'s and the shell's `:load`'s alike, a frame
+%% a line, each indented by four spaces, a control character written as
+%% its escape.
+-spec indented_trace(binary()) -> iolist().
+indented_trace(Trace) ->
+    [["    ", controls(Frame, line), "\n"]
+     || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].

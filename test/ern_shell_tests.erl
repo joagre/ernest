@@ -189,6 +189,20 @@ doc_types_as_the_shell_prints() ->
                                                 " Either(Io.Error, Fs.Entry)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"    type Entry = Entry(path : Path,">>)).
 
+%% report §11.2, §11.4: `:browse` writes a function as its page's code
+%% block does, each parameter's name beside its type, in the session's
+%% names, each qualified where the page writes `Entry` and `list`, as
+%% `:doc` and `:type` write them
+browse_in_the_session_names_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun browse_in_the_session_names/0).
+
+browse_in_the_session_names() ->
+    {0, Output} = line_session(":browse Fs\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> type Fs.Entry\ntype Fs.Kind\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"\nFs.list(path : Path, ms : Int) :"
+                                                " Either(Io.Error, List(Fs.Entry))\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"\nlist(path">>)).
+
 %% report §11.2: a `let` of the name `it` or `declarations` binds that name
 %% as any `let` does. A regression test: the input's binding was the bare
 %% name, so `let it = 5` printed as an expression, `:type let it = 5` was
@@ -287,9 +301,11 @@ startup() ->
                  "let greeting = \"from the user file\"\nlet shared = 1\n"),
     %% the node's file binds the same name, holds a line that does not
     %% parse, which a blank line ends as it would at a terminal, and a
-    %% command, which runs as a typed one does
+    %% command, which runs as a typed one does, indented, which line mode
+    %% trims; a regression test, written after the code, for an indented
+    %% command, which went to the checker
     startup_file(filename:join([Node, ".ernest", "startup"]),
-                 "let shared = 2\n1 +\n\n:set depth 1\n"),
+                 "let shared = 2\n1 +\n\n  :set depth 1\n"),
     {0, Output} = line_session(Home, " --config-dir " ++ filename:join(Node, ".ernest"),
                                "greeting\nshared\n[[1]]\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"\"from the user file\" : String">>)),
@@ -322,13 +338,17 @@ startup_failures_named() ->
     Startup = filename:join(ConfigDir, "startup"),
     startup_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
                           ":load Nope\n"
-                          "let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"),
+                          "let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
+                          "   :type  1 + \"a\"\n"),
     Session = fun() -> line_session(" --config-dir " ++ ConfigDir, "k\n:processes\n") end,
     {0, Output} = Session(),
     [?assertMatch({_, _}, binary:match(Output, list_to_binary(Startup ++ Line)))
      || Line <- [":1: :set depth takes a number", ":2: no command :bogus",
                  ":3: fault: division by zero", ":5:12: both operands of `+`",
-                 ":6: no module Nope under the source root or on the load path"]],
+                 %% an indented command's argument is placed in the file's
+                 %% columns
+                 ":8:15: both operands of `+`",
+                 ":6: no module Nope under the source root . or on the load path"]],
     ?assertMatch({_, _}, binary:match(Output, <<"5 | :type  1 + \"a\"\n  |        -">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
     listed(Output, list_to_binary(["$Session1.", Startup, ":7 receiving\n"])),
@@ -336,6 +356,42 @@ startup_failures_named() ->
     {0, Bad} = Session(),
     ?assertMatch({_, _},
                  binary:match(Bad, list_to_binary(Startup ++ " is not UTF-8, and is not run"))).
+
+%% report §11.2: the interrupt ends a running startup input as it ends a
+%% typed one, its line named by the file and the line the input came from,
+%% as a startup input's fault is, and the session goes on to its prompt. A
+%% regression test: the reader took no key before the first prompt, so a
+%% startup input that waited held the shell's start for ever
+interrupted_startup_test_() ->
+    ern_nodes_tests:counted_test({waits, 5}, fun interrupted_startup/0).
+
+interrupted_startup() ->
+    Home = fresh_home(),
+    Dir = scratch("ern_stuck_"),
+    stuck_module(Dir),
+    startup_file(filename:join([Home, ".ernest", "startup"]), ":load Stuck\nStuck.wait()\n"),
+    Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell --source-root " ++ Dir,
+                 [{expect, "waiting"},
+                  {send, "03"},
+                  {expect, ".ernest/startup:2: Killed, waiting in Stuck.wait:27"},
+                  {expect, "> "},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, "04"}]),
+    ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)).
+
+%% report §11.2: a startup file's `:quit` ends the session before any
+%% prompt, so in line mode it ends no line and writes no line feed of its
+%% own, and the session reads none of its input. A regression test: it
+%% wrote an empty line
+startup_quit_in_line_mode_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun startup_quit_in_line_mode/0).
+
+startup_quit_in_line_mode() ->
+    Home = fresh_home(),
+    startup_file(filename:join([Home, ".ernest", "startup"]), ":quit\n"),
+    {0, Output} = line_session(Home, "", "1 + 1\n"),
+    ?assertMatch({match, _}, re:run(Output, "\\AErnest [^\n]*:help for help\\.\n\\z")).
 
 %% report §11.2, §11.5: `:reload` names a loaded module whose source the
 %% source root does not hold, and a module's diagnostic names its file from
@@ -636,6 +692,56 @@ browse_address() ->
                  <<"Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a\n">>,
                  <<"no module Nowhere is in scope">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"no module Address">>)).
+
+%% report §11.2: `:browse` alone lists what it takes, a name a line in the
+%% order of the names by code point: the modules in scope, the standard
+%% library's and the loaded ones, `Prelude` and `Address`; a module the
+%% session made, or the shell's own, is none of them. A regression test:
+%% `:browse` alone answered that it takes a module
+browse_alone_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun browse_alone/0).
+
+browse_alone() ->
+    Dir = scratch("ern_browse_alone_"),
+    ok = filelib:ensure_path(filename:join(Dir, "net")),
+    ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
+    ok = file:write_file(filename:join([Dir, "net", "near.ern"]), "export let one : Int = 1\n"),
+    {0, Output} = source_root_session(Dir, "1 + 1\n:load Greet\n:load Net.Near\n:browse\n"),
+    [_, Listing] = binary:split(Output, <<"compiled from ", (shown(Dir, "net/near.ern"))/binary,
+                                          "\n> ">>),
+    Listed = binary:split(Listing, <<"\n">>, [global, trim_all]),
+    Names = [Name || Name <- Listed, Name =/= <<"> ">>],
+    ?assertEqual(lists:usort(Names), Names),
+    [?assert(lists:member(Name, Names))
+     || Name <- [<<"Address">>, <<"Greet">>, <<"List">>, <<"Net.Near">>, <<"Prelude">>,
+                 <<"Test">>]],
+    ?assertEqual([], [Name || Name <- Names,
+                              binary:match(Name, [<<" ">>, <<"Ernest">>]) =/= nomatch]).
+
+%% report §11.2 *Startup and history*: a shell given a file says once, at
+%% start, each module of its program whose source has changed since its
+%% compiled form, a line each, and compiles nothing, the entry point
+%% running from the form given; of a module whose source is no longer
+%% there, or has not changed, it says nothing
+changed_at_start_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun changed_at_start/0).
+
+changed_at_start() ->
+    Dir = scratch("ern_changed_at_start_"),
+    Write = fun(File, Text) -> ok = file:write_file(filename:join(Dir, File), Text) end,
+    Write("main.ern", "export fn main() : Unit = Io.println(Cs.word() <> Gone.word())\n"),
+    Write("cs.ern", "export fn word() : String = \"old\"\n"),
+    Write("gone.ern", "export fn word() : String = \"!\"\n"),
+    {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern") ++ " build ."),
+    ok = file:delete(filename:join(Dir, "gone.ern")),
+    Write("cs.ern", "export fn word() : String = \"new\"\n"),
+    {0, Output} = line_session_in(Dir, " main.erc", ":reload\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<":help for help.\ncs.erc was compiled from cs.ern,"
+                                                " which has changed since;"
+                                                " :reload compiles it again\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"old!\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Cs, compiled again\n">>)),
+    ?assertEqual(1, length(binary:matches(Output, <<"has changed since">>))).
 
 %% report §8.5, §11.2: a file whose top-level binding faults does not start
 %% the shell, and the binding is named with its line. A regression test:
@@ -1601,12 +1707,14 @@ load_and_output_control_written() ->
     Ern = filename:absname("../bin/ern"),
     {0, Output} = ern_pty:sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ Ern
                              ++ " shell --source-root 's\es' --load-path 'l\el' < " ++ InputFile),
-    Refused = <<"no module Lib, which M uses: l\\x1Bl/lib.erc: not a compiled module\n">>,
+    Refused = <<"l\\x1Bl/lib.erc: not a compiled module\n">>,
     ?assertMatch({_, _},
                  binary:match(Output, <<"> Ok, compiled from s\\x1Bs/ok.ern\n"
                                         "> s\\x1Bs/bad.ern:1:16: expected an expression instead"
                                         " of `=`\n1 | export let x = = 1\n  |                ^\n"
-                                        "> ", Refused/binary, "> input 4:1:1: unknown name M.f\n"
+                                        "> ", Refused/binary,
+                                        "M is not loaded, since it uses Lib, which failed\n"
+                                        "> input 4:1:1: unknown name M.f\n"
                                         "1 | M.f()\n  | ^^^\n  | = help: :load M was refused: ",
                                         Refused/binary,
                                         "> output goes to s\\x1Bs/o.txt\n"
@@ -1645,7 +1753,7 @@ startup_control_written() ->
     File = <<"c\\x1Bd\\xC2\\x9B/startup">>,
     ?assertMatch({_, _},
                  binary:match(Output, <<File/binary, ":1: no module Nope under the source root"
-                                        " or on the load path\n",
+                                        " . or on the load path\n",
                                         File/binary, ":2: fault: division by zero\n"
                                         "    erlang:'div'/2\n"
                                         "    $Session1.", File/binary, ":2\n">>)),
@@ -2387,8 +2495,9 @@ load_completion_of_two_words() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :load KvParser.Lexer">>)).
 
 %% report §11.2: a command that takes an argument, completed whole, is
-%% followed by a space, and what completes after it is what it takes: a
-%% module for `:browse`, listed by its name alone; a setting for `:set`; a
+%% followed by a space, and what completes after it is what it takes: what
+%% `:browse` alone lists for `:browse`, `Address` among it, each listed by
+%% its name alone; a setting for `:set`; a
 %% module under the source root for `:load`, a directory at a time; and
 %% nothing after `:output`, where `Tab` neither lists nor indents. A
 %% lone candidate is completed as far as it goes, a setting with the space
@@ -2407,7 +2516,7 @@ load_completion_of_two_words() ->
 %% A regression test for a run under load, where the prompt came after the
 %% keys of the next line and its listing
 command_argument_test_() ->
-    ern_nodes_tests:counted_test({waits, 16}, fun command_argument/0).
+    ern_nodes_tests:counted_test({waits, 17}, fun command_argument/0).
 
 command_argument() ->
     SourceRoot = scratch("ern_root_"),
@@ -2447,6 +2556,9 @@ command_argument() ->
                  {expect, "compiled from"},
                  {send, hex(":browse Ht") ++ "09"},          % a nested module's namespace
                  {expect, "namespace Http"},
+                 {send, "03"},
+                 {send, hex(":browse Ad") ++ "09"},          % the prelude's namespace
+                 {expect, "> :browse Address"},
                  {send, "03"},
                  {send, hex(":load ") ++ "09"},
                  {expect, "Http."},
@@ -2927,11 +3039,12 @@ compile_at_a_full_table() ->
     ?assertEqual(Before, After).
 
 %% report §11.2: `:load` refuses a module whose dependency has no source
-%% and a compiled form it cannot read, with a sentence naming it. A
-%% regression test of compile_source's refusal, which the shell had told
-%% apart from diagnostics by the shape of a list, and, since the release
-%% review, of the refusal's text, which quoted the file's bytes. The
-%% refusal gives no advice, which is the build's (§11.1, §11.2)
+%% and a compiled form it cannot read: the form is refused, named, and the
+%% module that uses it is left, in a line of its own. A regression test of
+%% compile_source's refusal, which the shell had told apart from
+%% diagnostics by the shape of a list, and, since the release review, of
+%% the refusal's text, which quoted the file's bytes. The refusal gives no
+%% advice, which is the build's (§11.1, §11.2)
 load_unreadable_dependency_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_unreadable_dependency/0).
 
@@ -2940,8 +3053,10 @@ load_unreadable_dependency() ->
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
     {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"no module Dep, which Top uses: ">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "dep.erc"))/binary,
+                                                ": not a compiled module\n"
+                                                "Top is not loaded, since it uses Dep,"
+                                                " which failed\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
 %% report §11.2: a compiled form on the load path whose atom chunk is empty
@@ -2960,8 +3075,10 @@ load_empty_atoms_dependency() ->
     {0, Output} = source_root_session(Dir, "Empty.f()\n:load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Empty.f">>)),
     ?assertEqual(nomatch, binary:match(Output, <<":load Empty">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"no module Empty, which Top uses: ">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"empty.erc: not a compiled module\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "empty.erc"))/binary,
+                                                ": not a compiled module\n"
+                                                "Top is not loaded, since it uses Empty,"
+                                                " which failed\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"fault">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
@@ -4433,8 +4550,8 @@ load_passes_over_a_pipe() ->
     ok = filelib:ensure_path(filename:join(Dir, "src")),
     [] = os:cmd("mkfifo " ++ filename:join(Dir, "src/fifo.ern")),
     {0, Output} = line_session_in(Dir, " --source-root src", ":load Fifo\n1 + 1\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"> no module Fifo under the source root or on the"
-                                                " load path\n> 2 : Int\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"> no module Fifo under the source root src or on"
+                                                " the load path\n> 2 : Int\n">>)).
 
 %% report §11, §11.2: where a module's source has become a named pipe,
 %% which a module's source looked for passes over, `:load` loads the
@@ -4484,9 +4601,13 @@ reload_passes_over_a_pipe() ->
 
 %% report §11.9, §11.2: the shell started in a root package finds a named
 %% package's namespace under that package's build alone, a `--load-path`
-%% root's module at it passed over; the package's build provides no other
-%% namespace; and `:load` refuses a source under the source root at the
-%% package's namespace, which lies outside the named packages
+%% root's module at it passed over, and a source under the source root at
+%% it, which is no module's source, neither compiled by `:load` nor by
+%% `:reload`; the package's build provides no other namespace; and `:load`
+%% refuses a source under the source root at the package's namespace that
+%% the package's build does not hold, which lies outside the named
+%% packages. A regression test: `:load` refused the package's module for
+%% the source beside it, and `:reload` compiled that source
 package_load_test_() ->
     ern_nodes_tests:counted_test({waits, 4}, fun package_load/0).
 
@@ -4507,6 +4628,7 @@ package_load() ->
           "{\"ernest\": \"0.11.0\",\n"
           " \"packages\": [{\"name\": \"sl_leaf\", \"version\": \"1.0.0\"}]}\n"),
     Write(Pkg, "src/sl_leaf/extra.ern", "export fn one() : Int = 1\n"),
+    Write(Pkg, "src/sl_leaf.ern", "export fn hello() : String = \"stray\"\n"),
     Write(Decoy, "sl_leaf.ern", "export fn hello() : String = \"decoy\"\n"),
     {0, _} = ern_pty:sh("../bin/ern build " ++ Decoy),
     Write(Elsewhere, "sl_other.ern", "export fn word() : String = \"other\"\n"),
@@ -4515,12 +4637,16 @@ package_load() ->
                         filename:join(Build, "sl_other.erc")),
     {0, Output} = line_session(" --package-dir " ++ Pkg ++ " --source-root "
                                ++ filename:join(Pkg, "src") ++ " --load-path " ++ Decoy,
-                               ":load SlLeaf\nSlLeaf.hello()\n:load SlOther\n:load SlLeaf.Extra\n"),
+                               ":load SlLeaf\nSlLeaf.hello()\n:reload\n:load SlOther\n"
+                               ":load SlLeaf.Extra\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"SlLeaf, from ",
                                                 (shown(Build, "sl_leaf.erc"))/binary,
-                                                "\n> \"package\" : String\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> no module SlOther under the source root or on"
-                                                " the load path\n">>)),
+                                                "\n> \"package\" : String\n"
+                                                "> no source has changed\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"stray">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no module SlOther under the source root ",
+                                                (shown(Pkg, "src"))/binary,
+                                                " or on the load path\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Pkg, "src/sl_leaf/extra.ern"))/binary,
                                                 ": SlLeaf.Extra is the package sl_leaf's, which ",
                                                 (shown(Pkg, "package.conf"))/binary,
@@ -4560,6 +4686,45 @@ package_source_root() ->
     {0, Top} = line_session_in(Bare, "", ":load SsTop\nSsTop.word()\n"),
     ?assertMatch({_, _}, binary:match(Top, <<"SsTop, compiled from ss_top.ern\n"
                                              "> \"top\" : String\n">>)).
+
+%% report §11.2, §11.9: a shell given a file with no `--source-root` takes
+%% as its source root the root package's `src` where it reads a manifest
+%% and the package has one; else the root the file's namespace gives, where
+%% that root holds the source the file records; and the working directory
+%% otherwise, where `:reload` then finds no source
+file_source_root_test_() ->
+    ern_nodes_tests:counted_test({waits, 5}, fun file_source_root/0).
+
+file_source_root() ->
+    Dir = scratch("ern_file_source_root_"),
+    [Pkg, Bare] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "bare"]],
+    Write = fun(Root, File, Text) ->
+                Path = filename:join(Root, File),
+                ok = filelib:ensure_dir(Path),
+                ok = file:write_file(Path, Text)
+            end,
+    Ern = filename:absname("../bin/ern"),
+    Write(Pkg, "package.conf", "{\"ernest\": \"0.11.0\", \"packages\": []}\n"),
+    Write(Pkg, "src/fr_main.ern", "export let one : Int = 1\n"),
+    {0, _} = ern_pty:sh("cd " ++ Pkg ++ " && " ++ Ern ++ " build --build-root build src"),
+    Write(Bare, "src/fr_main.ern", "export let one : Int = 1\n"),
+    {0, _} = ern_pty:sh("cd " ++ Bare ++ " && " ++ Ern ++ " build src"),
+    Write(Bare, "elsewhere/fr_main.erc", ""),
+    {ok, _} = file:copy(filename:join(Bare, "src/fr_main.erc"),
+                        filename:join(Bare, "elsewhere/fr_main.erc")),
+    Inputs = ":reload\n:load Zz\n",
+    Root = fun(Shown) -> <<"> no module Zz under the source root ", Shown/binary,
+                           " or on the load path\n">> end,
+    {0, Package} = line_session_in(Pkg, " build/fr_main.erc", Inputs),
+    ?assertMatch({_, _}, binary:match(Package, <<"> no source has changed\n">>)),
+    ?assertMatch({_, _}, binary:match(Package, Root(<<"src">>))),
+    {0, Namespace} = line_session_in(Bare, " src/fr_main.erc", Inputs),
+    ?assertMatch({_, _}, binary:match(Namespace, <<"> no source has changed\n">>)),
+    ?assertMatch({_, _}, binary:match(Namespace, Root(<<"src">>))),
+    {0, Working} = line_session_in(Bare, " elsewhere/fr_main.erc", Inputs),
+    ?assertMatch({_, _}, binary:match(Working, <<"> no source has changed\n"
+                                                "the source root . holds no source of FrMain\n">>)),
+    ?assertMatch({_, _}, binary:match(Working, Root(<<".">>))).
 
 %% The refusal of a program's module of the library Time's namespace, its
 %% source or its compiled form File under Dir, which the library Http uses
@@ -5776,8 +5941,8 @@ output_to_a_pipe() ->
     ?assertMatch({_, _}, binary:match(Output, Refusal(Home))),
     ?assertMatch({_, _}, binary:match(Output, <<"output goes to /dev/null">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet is in scope">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet under the source root or on"
-                                                " the load path">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet under the source root . or"
+                                                " on the load path">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
 
 %% report §11.2: a qualified name of a module the session has not loaded
@@ -5802,6 +5967,60 @@ load_help() ->
                                                 Help/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown type Greet.T">>)),
     ?assertEqual(4, length(binary:matches(Output, Help))).
+
+%% report §4.2, §11.1, §11.2: `:load` refuses a module one of whose
+%% namespace's segments is taken as the build refuses its file, and the
+%% session goes on; a name under that module is answered with the
+%% refusal, and after the refused `:load` with the refusal that `:load`
+%% gave. A regression test: the refusal ended the session with the host's
+%% stack, and the answer named the `:load`
+load_taken_segment_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_taken_segment/0).
+
+load_taken_segment() ->
+    Dir = scratch("ern_load_taken_"),
+    ok = filelib:ensure_path(filename:join(Dir, "app")),
+    ok = file:write_file(filename:join([Dir, "app", "io.ern"]), "export fn mine() : Int = 1\n"),
+    {0, Output} = source_root_session(Dir, "App.Io.mine()\n:load App.Io\n:doc App.Io.mine\n"
+                                           "1 + 1\n"),
+    Refusal = <<(shown(Dir, "app/io.ern"))/binary, ": Io is the standard library's namespace,"
+                " and no segment of a module's; give io another name">>,
+    ?assertMatch({_, _}, binary:match(Output, <<"  | = help: ", Refusal/binary, "\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"\n> ", Refusal/binary, "\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no documentation for App.Io.mine;"
+                                                " :load App.Io was refused: ",
+                                                Refusal/binary, "\n> 2 : Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"puts it in scope">>)).
+
+%% report §11, §11.2: `:load` of a module whose compiled form holds no
+%% interface the toolchain reads refuses the file as `ern run` refuses
+%% such a dependency, named from the working directory. A regression test:
+%% the shell answered that there was no such module
+load_no_compiled_module_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_no_compiled_module/0).
+
+load_no_compiled_module() ->
+    Dir = scratch("ern_load_garbage_"),
+    ok = file:write_file(filename:join(Dir, "foo.erc"), "garbage\n"),
+    {0, Output} = source_root_session(Dir, ":load Foo\n1 + 1\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "foo.erc"))/binary,
+                                                ": not a compiled module\n> 2 : Int\n">>)).
+
+%% report §11.2, §4.2: `:doc` of a name that is no module's shows no
+%% module's page, a namespace being a module's only where each segment
+%% begins with a capital letter: `list` names no module `List`, and a
+%% `let`-bound `list` is shown by its name and its type alone. A
+%% regression test: both showed the page of `List`
+doc_lowercase_name_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun doc_lowercase_name/0).
+
+doc_lowercase_name() ->
+    {0, Output} = line_session(":doc list\n:doc list.map\nlet list = [1, 2]\n:doc list\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no documentation for list\n"
+                                                "> no documentation for list.map\n"
+                                                "> list : List(Int)\n> list\n\n"
+                                                "    list : List(Int)\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"module List">>)).
 
 %% report §11.2, §8.7: `:load` and `:reload` work in a shell that is a node
 %% as in any, and a name of a module it has not loaded is answered with the
@@ -6048,7 +6267,8 @@ stored_values_go() ->
                              ":reload\nterms() - loaded\n",
                              write_source(Dir, "demo.ern", "export let kept : Int = 3\n"),
                              ":reload\nterms() - loaded\n"]),
-    ?assertMatch({_, _}, binary:match(Output, <<"nothing was loaded\n> 1 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"nothing was loaded\n    erlang:'div'/2\n"
+                                                "    Bad.b:2\n> 1 : Int">>)),
     %% the binding `loaded` and each new version's one value
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 3 : Int\n">>)).
@@ -6098,7 +6318,10 @@ refused_load_keeps_its_unit() ->
                              ":load Giver\n:load Giver\n",
                              "unit(\"ern@giver\")\nunit(\"ern@giver$2\")\nunit(\"ern@giver$3\")\n",
                              "Address.callForever(Hold.holder, Hold.Run)\n"]),
-    Refused = <<"> Giver.broken:5 faulted: division by zero; nothing was loaded\n">>,
+    %% report §11.2, Appendix E.21: the binding's trace beneath the
+    %% refusal's line, as `ern run` writes a fault's
+    Refused = <<"> Giver.broken:5 faulted: division by zero; nothing was loaded\n"
+                "    erlang:'div'/2\n    Giver.broken:5\n">>,
     ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> 42 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> false : Bool\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, Refused/binary,
@@ -6348,6 +6571,7 @@ refused_load_kills() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Server.broken:5 faulted: division by zero; nothing"
                                                 " was loaded, and the process spawned at"
                                                 " Server.worker:2 was killed\n"
+                                                "    erlang:'div'/2\n    Server.broken:5\n"
                                                 "> no process of the session's is running\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Server, compiled from ",
                                                 (shown(Dir, "server.ern"))/binary,
@@ -6403,6 +6627,7 @@ refused_load_kills_holder() ->
     listed(Output, <<"Bad.broken:5 faulted: division by zero; nothing"
                      " was loaded, and the process spawned at"
                      " Runner.start:19 was killed\n"
+                     "    erlang:'div'/2\n    Bad.broken:5\n"
                      "> Runner.hub:7 receiving\n">>),
     listed(Output, <<"> Runner.hub:7 receiving\n">>, 2),
     [?assertEqual(nomatch, binary:match(Output, Text))
@@ -7367,8 +7592,9 @@ terminal_test_() ->
 
 terminal() ->
     %% it says when it is running, so the interrupt is sent then and not
-    %% on a guess at how long the checking took
-    Long = "{ Io.println(\"running\"); List.foldLeft(List.range(1, 200000000), 0,"
+    %% on a guess at how long the checking took; the text is joined as it
+    %% runs, so that the input's echo is not it
+    Long = "{ Io.println(\"run\" <> \"ning\"); List.foldLeft(List.range(1, 200000000), 0,"
            " fn(a, b) = a + b) }",
     %% every step waits for what the screen shows, so that a shell slower
     %% under load is waited for rather than raced
@@ -7390,7 +7616,128 @@ terminal() ->
     %% answered the next input, and ended at `C-d` with status 0, which
     %% raw/4 asserts
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
-    ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)).
+    ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
+    %% report §11.2: the input ran and did not wait, so its line names no
+    %% wait
+    ?assertEqual(nomatch, binary:match(Screen, <<"Killed,">>)).
+
+%% report §11.2, §12.4: an input the interrupt ends answers `Killed`, and
+%% where its process waited, its waiting frame, and where it waited in a
+%% call, `on` and the callee's spawn site, as a deadlock's line writes
+%% them, a frame where the stack shows one: a call in tail position leaves
+%% its caller's frame off the stack. Each input says when it is about to
+%% wait, and the interrupt is sent then. A regression test: the interrupt
+%% answered `Killed` alone
+interrupt_names_the_wait_test_() ->
+    ern_nodes_tests:counted_test({waits, 9}, fun interrupt_names_the_wait/0).
+
+interrupt_names_the_wait() ->
+    Dir = scratch("ern_stuck_"),
+    stuck_module(Dir),
+    Screen = pty(alone("../bin/ern shell --source-root " ++ Dir),
+                 [{expect, "> "},
+                  {send, hex(":load Stuck\r")},
+                  {expect, "compiled from"},
+                  {send, hex("Stuck.wait()\r")},
+                  {expect, "waiting"},
+                  {send, "03"},
+                  {expect, "Killed, waiting in Stuck.wait:27"},
+                  {send, hex("Stuck.ask(Stuck.start())\r")},
+                  {expect, "asking"},
+                  {send, "03"},
+                  {expect, "Killed, waiting in Stuck.ask:15 on Stuck.start:6"},
+                  {send, hex("Stuck.askLast(Stuck.start())\r")},
+                  {expect, "asking last"},
+                  {send, "03"},
+                  {expect, "Killed, waiting on Stuck.start:6"},
+                  {send, "04"}]),
+    %% a `receive` names no callee
+    ?assertEqual(nomatch, binary:match(Screen, <<"Stuck.wait:27 on">>)).
+
+%% A module whose functions wait for ever, each saying first that it is
+%% about to: `wait` in a `receive` on line 27, and `ask` in a call on line
+%% 15 of the server `start` spawns on line 6, and `askLast` in the same
+%% call in tail position (report §12.4).
+stuck_module(Dir) ->
+    ok = file:write_file(filename:join(Dir, "stuck.ern"),
+                         ["/// A server that never answers, and a wait for nothing.\n",
+                          "\n",
+                          "export type Msg = Ask(Reply(Int)) | Other\n",
+                          "\n",
+                          "export fn start() : Address(Msg) =\n",
+                          "    spawn(serve)\n",
+                          "\n",
+                          "fn serve() : Unit receiving Msg =\n",
+                          "    receive {\n",
+                          "        Other -> serve()\n",
+                          "    }\n",
+                          "\n",
+                          "export fn ask(server : Address(Msg)) : Int = {\n",
+                          "    Io.println(\"asking\");\n",
+                          "    let answer = Address.callForever(server, Ask);\n",
+                          "    Io.println(\"answered\");\n",
+                          "    answer\n",
+                          "}\n",
+                          "\n",
+                          "export fn askLast(server : Address(Msg)) : Int = {\n",
+                          "    Io.println(\"asking last\");\n",
+                          "    Address.callForever(server, Ask)\n",
+                          "}\n",
+                          "\n",
+                          "export fn wait() : Unit receiving Msg = {\n",
+                          "    Io.println(\"waiting\");\n",
+                          "    receive {\n",
+                          "        Other -> Unit\n",
+                          "    }\n",
+                          "}\n"]).
+
+%% report §11.2: `C-d` on an empty input, entered while an input runs,
+%% waits as an input typed meanwhile does: the input runs to its end, and
+%% then the session ends. A regression test: `C-d` ended the reader, whose
+%% end killed the input. The input waits for `cat` to read a named pipe to
+%% its end, which the test opens once `C-d` is sent, and each text the test
+%% waits for is joined at run time, so that the input's echo is not it
+end_of_input_waits_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun end_of_input_waits/0).
+
+end_of_input_waits() ->
+    Pipe = scratch_name("ern_ending_"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Input = "{ Io.println(\"run\" <> \"ning\"); let _ = Os.run(Os.command(\"cat\", [\""
+            ++ Pipe ++ "\"]), 60000); Io.println(\"fin\" <> \"ished\") }\r",
+    Screen = pty(alone("../bin/ern shell"),
+                 [{expect, "> "},
+                  {send, hex(Input)},
+                  {expect, "running"},
+                  {send, "04"},
+                  {put, Pipe},
+                  {expect, "finished"}]),
+    ?assertEqual(nomatch, binary:match(Screen, <<"Killed">>)).
+
+%% report §11.2, §6.4: `C-c` abandons the line, whose end and the next
+%% prompt the session draws, one sender, so two held in one read draw two
+%% prompts, each on a row of its own. The next input is typed once both
+%% are drawn. A regression test: the reader drew the line's end and the
+%% session the prompt, and two drew `> > `
+interrupts_in_one_read_test_() ->
+    ern_nodes_tests:counted_test({waits, 6}, fun interrupts_in_one_read/0).
+
+interrupts_in_one_read() ->
+    Screen = screen(alone("../bin/ern shell"),
+                    [{expect, "> "},
+                     {send, hex("1")},
+                     {expect, "1"},
+                     {send, "0303"},
+                     {expect, "> "},
+                     {expect, "> "},
+                     {send, hex("2 + 2\r")},
+                     {expect, "4 : Int"},
+                     {send, "04"}],
+                    {24, 80}),
+    Lines = binary:split(Screen, <<"\n">>, [global]),
+    ?assertEqual(nomatch, binary:match(Screen, <<"> >">>)),
+    ?assert(lists:member(<<"> 1">>, Lines)),
+    ?assert(lists:member(<<"> 2 + 2">>, Lines)).
 
 %% report §11.2, §12.5: the start line names the toolchain's version text,
 %% the one `VERSION` holds, with the mark of a build that is no release

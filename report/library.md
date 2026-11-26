@@ -823,7 +823,7 @@ While it waits, `run` keeps a process of the library's own beside the one that r
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9).
 
-`callee` is the site of the callee whose fault a call carried to the process (§6.6), `Ledger.start:6`, or of the callee whose end the cause says, `Tcp.acceptForever` for `callee was killed`, and is `None` where no call carried it or said it and where the callee has no site, a process of another node or one the runtime did not start (§6.9). `peer` is the name of the peer whose fault a compute, or a call of a callee on that peer, carried to the process (§6.6, §8.7), and is `None` where neither carried one. `time` is the moment the fault was met, in milliseconds since the epoch as `Clock.now` counts them (E.15).
+`callee` names the process's callee by its site (§6.9): `Faulted("Ledger.start:6")` where a call carried the callee's fault to the process (§6.6), and `Ended("Tcp.acceptForever")` where the cause says how the callee ended, `callee was killed`. It is `None` where neither holds and where the callee has no site, a process of another node or one the runtime did not start (§6.9). `peer` is the name of the peer whose fault a compute, or a call of a callee on that peer, carried to the process (§6.6, §8.7), and is `None` where neither carried one. `time` is the moment the fault was met, in milliseconds since the epoch as `Clock.now` counts them (E.15).
 
 `trace` is the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line, a run of identical lines one line, and the innermost twelve lines of it. A trace so cut ends with a thirteenth line that counts the kept frames it leaves out (§10), `... 6 more frames`, and `... 1 more frame` for one. It is empty for a process the host ended, which met no fault (§6.9). A fault a system process gives the entry process, keys that are not UTF-8 among them (§12.1), carries the entry process's stack as the fault finds it.
 
@@ -835,10 +835,13 @@ A frame of a process that waits in a `receive` names the `receive`'s own line, a
 
 A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's, and a kept frame of the runtime's, is the function as the host writes it, an atom quoted where the host quotes one, then its line, `lists:nth/2:213`, without a line where the host has none.
 
+The first line of a trace whose cause names a host error names after its frame what the host says of the raise, `erlang:binary_to_integer/1, argument 1: not a textual representation of an integer`, where it says anything: each argument it describes, `argument 1:` and its words, in the arguments' order, then what it says of no argument, each after `, `.
+
 ```
 type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) | Suspended // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28), Suspended while the host holds it
-type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
+type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(Callee), peer : Optional(String), time : Int)
+type Callee = Faulted(site : String) | Ended(site : String)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address and every check (§8.4)
 Process.fromReply : (Reply(a)) -> Process // the caller's process, with which the callee may monitor it; no address (§6.6)
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names

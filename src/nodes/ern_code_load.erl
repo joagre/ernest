@@ -287,8 +287,8 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
     Units = #{Namespace => PlacedUnit
               || #placed{found = #found{namespace = Namespace}, unit = PlacedUnit} <- Placed,
                  PlacedUnit =/= ern_namespace:erlang_module(Namespace)},
-    Made = try ern_compile:from_compiled(Beam, Unit, Interfaces, ern_typecheck:prelude_env(),
-                                         Units) of
+    Made = try ern_compile:from_compiled(Beam, Unit, Interfaces,
+                                         ern_typecheck:held_prelude_env(), Units) of
                {ok, Compiled} -> Compiled
            catch
                error:Reason -> cannot(Found, ["its back end could not compile it, ",
@@ -329,7 +329,7 @@ evaluated_by(Evaluated) ->
 %% Report §8.5, §11.2, Appendix E.28: a binding that faulted, by its site,
 %% with its cause; and one whose evaluator was killed as it evaluated, as
 %% the shell's load says it.
-ended(BindingSite, {faulted, Cause}) ->
+ended(BindingSite, {faulted, Cause, _Trace}) ->
     <<BindingSite/binary, " faulted: ", Cause/binary>>;
 ended(BindingSite, killed) ->
     <<BindingSite/binary, " was killed">>.

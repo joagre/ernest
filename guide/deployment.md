@@ -266,7 +266,7 @@ A definition's hash covers the hashes of the definitions it uses, so a fix to on
 
 Nodes on two floors never connect (section 2.2). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, every node stopped and started again on the new floor, or as a second fleet beside the first, with directories of their own, its programs found or placed there and the first fleet stopped once nothing needs it (report §12.5).
 
-A node reads at its start every module in its program's directory and every directory beneath it, and refuses to start where an `.erc` there holds a module of another namespace than its path gives, one built from another source root: `ern run: old/counter.erc holds Counter, not Old.Counter; remove it, and build Old.Counter from its source root` (report §11.2).
+A node reads at its start every module in its program's directory and every directory beneath it, and refuses to start where an `.erc` there holds a module of another namespace than its path gives, one built from another source root: `ern run: old/counter.erc holds Counter, not Old.Counter; remove it, or keep a build root outside the program's root` (report §11.2).
 
 A build written into the directory a running node was started from, where `ern build` put its `.erc`, reaches the node at its next start and nothing before; code reaches a running node from disk through `Code.load` (section 5.3, report Appendix E.28), or through `:load` at a shell attached to it, which takes the node's own compiled form where its load path holds one (section 6). Put each build in a directory of its own, and point the service manager's unit at the one meant.
 

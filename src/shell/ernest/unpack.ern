@@ -82,7 +82,8 @@ export fn main() : Unit = {
 fn locked() : Either(String, Unit) =
     match Fs.stat(Path(lib), fileMs) {
         Right(entry) when entry.kind == Fs.Directory ->
-            Either.mapLeft(hold(lib <> "/.unpack"), fn(reason) = lib <> "/.unpack: " <> reason)
+            Either.mapLeft(hold(Path(lib) <> Path(".unpack")),
+                           fn(reason) = lib <> "/.unpack: " <> reason)
       | _ ->
             Right(Unit)
     }
@@ -110,7 +111,7 @@ fn standing(entry : Entry) : Standing = {
         Left(Io.NotFound) ->
             Absent
       | Right(Some(_)) or Left(Io.NotUtf8(_)) ->
-            if heldVersion(path) == Version(entry.version) then Stands else Linked
+            if heldVersion(Path(path)) == Version(entry.version) then Stands else Linked
       | Right(None) ->
             match Fs.stat(Path(path), fileMs) {
                 Right(found) when found.kind == Fs.Directory -> directoryStanding(entry, path)
@@ -123,7 +124,7 @@ fn standing(entry : Entry) : Standing = {
 }
 
 fn directoryStanding(entry : Entry, path : String) : Standing =
-    match heldVersion(path) {
+    match heldVersion(Path(path)) {
         Version(version) when version == entry.version ->
             Stands
       | Version(version) ->
@@ -382,7 +383,7 @@ fn packageRefusals(entry : Entry, unpacked : List(Unpacked), directory : String)
 fn ownBeamRefusals(beam : String) : List(String) =
     if String.startsWith(beam, "ern@") then
         [beam <> " is named as a unit is"]
-    else if isFoundFirst(beam) then
+    else if isFoundFirst(Path(beam)) then
         [beam <> " is the host's own module, which is found first"]
     else
         []
@@ -583,17 +584,17 @@ foreign fn files(bytes : Bytes) : Either(String, List(#(String, Bytes))) =
 // Report §11.9: the job's lock on the file at the path, held by this
 // process until it ends, or the reason it is not held. The library has no
 // lock on a file, and a second run waits for this one in the host.
-foreign fn hold(path : String) : Either(String, Unit) =
+foreign fn hold(path : Path) : Either(String, Unit) =
     "ern_unpack:hold/1"
 
 // Report §11.9, §11.2: whether a `.beam` is named as a module of the host's
 // own or of the toolchain's, which the host finds first.
-foreign fn isFoundFirst(beam : String) : Bool =
+foreign fn isFoundFirst(beam : Path) : Bool =
     "ern_unpack:is_found_first/1"
 
 // Report §11.9: what a package's directory holds of its `VERSION`, by the
 // one test `ern build` holds a named package to.
-foreign fn heldVersion(package : String) : Held =
+foreign fn heldVersion(package : Path) : Held =
     "ern_unpack:held_version/1"
 
 // Report §11.9: the version an archive's `VERSION` holds, where it is of

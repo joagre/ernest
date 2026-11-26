@@ -1575,16 +1575,39 @@ shell(Options, Rest, ErrorDevice) ->
 
 %% Report §11.2, §11.9: where the shell finds a module's source: the root
 %% `--source-root` names, or else the root package's `src` where the shell
-%% read a manifest and the package has one, and the working directory
-%% otherwise; a path under the toolchain's own roots takes that root, as a
-%% build's does. An attached shell reads no manifest.
+%% read a manifest and the package has one, then for a shell given a file
+%% the root of the loaded module where that root holds the source the file
+%% records (recorded_root/1), and the working directory otherwise; a path
+%% under the toolchain's own roots takes that root, as a build's does. An
+%% attached shell reads no manifest and is given no file, Path being the
+%% working directory.
 shell_source_root(Options, Path) ->
     Default = case [Src || {root_package, Dir} <- Options, Src <- [filename:join(Dir, "src")],
                            filelib:is_dir(Src)] of
                   [Src] -> Src;
-                  [] -> "."
+                  [] -> recorded_root(Path)
               end,
     ern_build:source_root(Options, Path, Default).
+
+%% Report §11.2, §11.1: the root of the loaded module File, the directory
+%% reached from it by going up one directory per segment of its namespace,
+%% where the source the file records, from that root, is a file under it;
+%% the working directory otherwise, and for an attached shell's ".".
+recorded_root(".") ->
+    ".";
+recorded_root(File) ->
+    case ern_interface:read(compiled(File)) of
+        {ok, #{interface := #interface{namespace = Namespace}, source_path := SourcePath}} ->
+            Root = ern_build:root_of(ern_build:absolute(File), Namespace),
+            Source = ern_build:absolute(filename:join(Root,
+                                                      unicode:characters_to_list(SourcePath))),
+            case ern_build:relative(Source, Root) =/= outside andalso filelib:is_regular(Source) of
+                true -> Root;
+                false -> "."
+            end;
+        _ ->
+            "."
+    end.
 
 %% Report §11.2: `--attach` takes no file, `--main`, `--load-path`,
 %% `--libs-dir` or `--package-dir`, each refused naming it, and needs
@@ -1694,12 +1717,13 @@ no_main_file(run) ->
 %% Report §11.2: every fault on standard error as it happens, a line each:
 %% the process of its spawn site and the cause, the entry process's by its
 %% site alone, an initializer's binding's among them (§8.5); after the
-%% cause, where a call carried the fault from its callee, the callee's site
-%% (§6.6), where a compute or a call carried it from a peer, the peer's
-%% name (§6.6, §8.7), and for a process a peer spawned, the peer, named as
-%% a node's line names it (§12.5), since the site is the spawner's; then
-%% Suffix, `ern test`'s case (cases_launch/6); and beneath it the fault's
-%% trace (§7.3, indented_trace/1). It goes through standard error's
+%% cause, where a call carried the fault from its callee or the cause says
+%% how the callee ended, the callee's site (§6.6), where a compute or a call
+%% carried it from a peer, the peer's name (§6.6, §8.7), and for a process
+%% a peer spawned, the peer, named as a node's line names it (§12.5), since
+%% the site is the spawner's; then Suffix, `ern test`'s case
+%% (cases_launch/6); and beneath it the fault's trace (§7.3,
+%% ern_show:indented_trace/1). It goes through standard error's
 %% process, so that it keeps its place among what the program wrote there,
 %% and is flushed with it when the program ends.
 %%
@@ -1730,17 +1754,20 @@ report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, 
                 iolist_to_binary([ern_job_line:stamp(Stamped, Time), Of,
                                   ern_show:controls(Site, line), Faulted,
                                   ern_show:controls(Cause, line), carried(Callee, From),
-                                  SpawnedBy, Suffix, "\n", indented_trace(Trace),
+                                  SpawnedBy, Suffix, "\n",
+                                  ern_show:indented_trace(Trace),
                                   left_waiting(Process)])).
 
 %% Report §11.2, §6.6, §8.7: what follows a fault's cause on its line, a
 %% report's and a test's alike: the callee's site where a call carried the
-%% fault from its callee, then the peer's name where a compute, or a call
-%% of a callee on the peer, carried it from the peer, each escaped as a
-%% site is.
+%% fault from its callee, or where the cause says how the callee ended
+%% (Appendix E.21), then the peer's name where a compute, or a call of a
+%% callee on the peer, carried it from the peer, each escaped as a site is.
 carried(Callee, From) ->
     [case Callee of
-         {'Some', Site} -> [", the fault of the callee ", ern_show:controls(Site, line)];
+         {'Some', {'Faulted', Site}} ->
+             [", the fault of the callee ", ern_show:controls(Site, line)];
+         {'Some', {'Ended', Site}} -> [", the callee ", ern_show:controls(Site, line)];
          'None' -> []
      end,
      case From of
@@ -1753,14 +1780,6 @@ carried(Callee, From) ->
 %% the trace; none for any other fault.
 left_waiting(Process) ->
     [["    ", Line, "\n"] || Line <- ern_rt:left_waiting(Process)].
-
-%% Report §11.2, Appendix E.21: a fault's trace as it is printed beneath
-%% the fault's line, a frame a line, each indented by four spaces, a
-%% control character written as its escape.
--spec indented_trace(binary()) -> iolist().
-indented_trace(Trace) ->
-    [["    ", ern_show:controls(Frame, line), "\n"]
-     || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].
 
 %% The options of a launch that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
@@ -2031,7 +2050,7 @@ report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
             1;
         false ->
             io:format(ErrorDevice, "fault: ~ts~n~ts",
-                      [ern_show:controls(Cause, line), indented_trace(Trace)]),
+                      [ern_show:controls(Cause, line), ern_show:indented_trace(Trace)]),
             70
     end;
 %% report §12.1, §11.8: keys the shell can no longer read, or its terminal
@@ -2049,7 +2068,7 @@ report_shell_outcome(ErrorDevice, {gone, Stream} = Gone) ->
 %% report §8.5, §11.2: a binding that faulted before the shell began
 report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",
-              [Site, ern_show:controls(Cause, line), indented_trace(Trace)]),
+              [Site, ern_show:controls(Cause, line), ern_show:indented_trace(Trace)]),
     1;
 report_shell_outcome(ErrorDevice, Other) ->
     report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Other).
@@ -2247,11 +2266,18 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
 %% case's name stands for the launch, as the runner's list of the tests
 %% holds it (tests_entry/4), since a process of its chain may fault until
 %% the end.
+%%
+%% A case has ended once its process has (§6.9): the reaper, which
+%% applies the reporter, removes a process's row as it handles the
+%% process's end, so whether the case's process keeps its row is judged in
+%% the reaper's order of ends, where the runner's own row, which the runner
+%% clears from its own process, would order nothing against the report.
 reported(Running, Report, {'FaultReport', Process, _, _, _, _, _, _, _, _} = FaultReport, Peer) ->
     Root = ern_rt:root_of(Process),
-    IsRunning = ets:member(Running, Root),
+    Case = ets:lookup(Running, {'case', Root}),
+    IsRunning = Case =/= [] andalso ern_rt:is_started(Root),
     IsRunning orelse ets:update_counter(Running, outside, 1, {outside, 0}),
-    Suffix = case ets:lookup(Running, {'case', Root}) of
+    Suffix = case Case of
                  [{_, Name}] ->
                      [", started by the case ", ern_show:show(string, Name),
                       [", which had ended" || not IsRunning]];
@@ -2351,7 +2377,8 @@ run_test({'Case', Name, Run}, Running, Frames) ->
 %% that faulted its trace, and beneath a deadlock's the processes it left
 %% waiting (§12.4).
 case_line(Name, Outcome, Trace) ->
-    iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n", indented_trace(Trace)]).
+    iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n",
+                      ern_show:indented_trace(Trace)]).
 
 %% A test that returned still sends its Down; it is taken so that it is not
 %% left in the runner's mailbox.

@@ -103,7 +103,7 @@ Examples
 > :type takes an expression
 > no module Nope is in scope
 > aaaa is not a module name: each segment of one is words beginning with a capital letter, as in Http.Parser or OrderedSet
-> no module Nope under the source root or on the load path
+> no module Nope under the source root . or on the load path
 > List is the standard library's, in scope from the start
 > :reload takes no argument
 > no documentation for Nope.nope
@@ -132,7 +132,7 @@ zero : () -> Int
   :output path    what programs write, appended to path, or back in the region for -
   :processes      the live processes by spawn site, the shell's own left out
   :quit           the shell left, as by C-d on an empty input; an attached node runs on
-  :reload         every loaded module whose source has changed
+  :reload         compile again and load the loaded modules whose source changed, and those that use them
   :set            depth n, length n, rows n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
 The value of the last expression is `it`.

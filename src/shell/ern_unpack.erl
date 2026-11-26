@@ -23,10 +23,12 @@ given(Entries, IsVerbose) ->
 
 %% Report §11.9: the entries as `Ernest.Unpack.Entry` values, each its name,
 %% its version, and its `url` and its `sha256` where it has them.
--spec entries() -> [{'Entry', binary(), binary(), optional(binary()), optional(binary())}].
+-spec entries() -> [{'Entry', binary(), binary(), ern_rt:optional(binary()),
+                     ern_rt:optional(binary())}].
 entries() ->
     {Entries, _} = persistent_term:get({?MODULE, entries}, {[], false}),
-    [{'Entry', list_to_binary(Name), list_to_binary(Version), optional(Url), optional(Sha256)}
+    [{'Entry', list_to_binary(Name), list_to_binary(Version), ern_rt:optional(Url),
+      ern_rt:optional(Sha256)}
      || #package_entry{name = Name, version = Version, url = Url, sha256 = Sha256} <- Entries].
 
 %% Report §11.9: whether the job says each named package unpacked or that
@@ -35,11 +37,6 @@ entries() ->
 is_verbose() ->
     {_, IsVerbose} = persistent_term:get({?MODULE, entries}, {[], false}),
     IsVerbose.
-
--type optional(Value) :: {'Some', Value} | 'None'.
-
-optional(none) -> 'None';
-optional(Value) -> {'Some', Value}.
 
 %% Report §11.9: the members of the archive Bytes, a tar archive compressed
 %% by gzip, as `erl_tar` lists them, in the archive's order, each its name,
@@ -50,7 +47,9 @@ optional(Value) -> {'Some', Value}.
 %% not decode, a pax record's that is not UTF-8, in the words of the
 %% header's that the host refuses (erl_tar:format_error/1).
 -spec members(binary()) ->
-          {'Right', [{'Member', binary(), atom(), integer()}]} | {'Left', binary()}.
+          {'Right', [{'Member', binary(), 'Directory' | 'Regular' | 'Unknown' | 'Other',
+                      integer()}]}
+              | {'Left', binary()}.
 members(Bytes) ->
     case erl_tar:table({binary, Bytes}, [verbose, compressed]) of
         {ok, Listed} ->
@@ -97,8 +96,8 @@ reason(Reason) ->
 %% (ern_os:job_locked/1); a name that reaches no regular file, which is not
 %% opened, in §11's words, and any other failure in the host's, a link at
 %% Path among them, which is refused and not followed.
--spec hold(binary()) -> {'Right', 'Unit'} | {'Left', binary()}.
-hold(Path) ->
+-spec hold({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', binary()}.
+hold({'Path', Path}) ->
     case ern_os:job_locked(Path) of
         locked -> {'Right', 'Unit'};
         unopened -> {'Left', <<"is no regular file">>};
@@ -111,16 +110,16 @@ hold(Path) ->
 %% a library's shim, each a module on the host's code path, which the run
 %% has given the libraries' directories (ern_code:load_runtime/0). No atom
 %% is made of the name.
--spec is_found_first(binary()) -> boolean().
-is_found_first(File) ->
+-spec is_found_first({'Path', binary()}) -> boolean().
+is_found_first({'Path', File}) ->
     Name = unicode:characters_to_list(File),
     lists:member(filename:rootname(Name), [atom_to_list(Module) || Module <- erlang:pre_loaded()])
         orelse code:where_is_file(Name) =/= non_existing.
 
 %% Report §11.9: what the package's directory Package under `lib` holds of
 %% its `VERSION` (ern_package:version_held/1), as `Ernest.Unpack.Held`.
--spec held_version(binary()) -> 'NoVersion' | 'NotOfForm' | {'Version', binary()}.
-held_version(Package) ->
+-spec held_version({'Path', binary()}) -> 'NoVersion' | 'NotOfForm' | {'Version', binary()}.
+held_version({'Path', Package}) ->
     case ern_package:version_held(unicode:characters_to_list(Package)) of
         absent -> 'NoVersion';
         not_of_form -> 'NotOfForm';
@@ -129,7 +128,7 @@ held_version(Package) ->
 
 %% Report §11.9: the version an archive's `VERSION`, Bytes, holds, where it
 %% is of its form (ern_package:version_of/1).
--spec version_of(binary()) -> optional(binary()).
+-spec version_of(binary()) -> ern_rt:optional(binary()).
 version_of(Bytes) ->
     case ern_package:version_of(Bytes) of
         {version, Version} -> {'Some', list_to_binary(Version)};

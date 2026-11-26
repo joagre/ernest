@@ -12,7 +12,7 @@ export fn fromWorkingDirectory(path : Path) : String =
 
 /// Report §11.2: a startup file, the history file and `$HOME/.ernest` are
 /// named as §11.5 names a source's file, through `controlFree`.
-export fn named(path : Path) : String =
+export fn pathNamed(path : Path) : String =
     controlFree(fromWorkingDirectory(path))
 
 /// Report §11.2: the host's reason for a file a job could not read, write
@@ -81,7 +81,7 @@ let path =
 let fromHere =
     Test.Case(name = "a path under the working directory is named from it",
               run = fn() =
-                  Test.equal(#(named(Os.workingDirectory <> Path("a\u{1B}/b")),
+                  Test.equal(#(pathNamed(Os.workingDirectory <> Path("a\u{1B}/b")),
                                fromWorkingDirectory(Path("/elsewhere/x")),
                                fromWorkingDirectory(Path("rel/x"))),
                              #("a\\x1B/b", "/elsewhere/x", "rel/x")))

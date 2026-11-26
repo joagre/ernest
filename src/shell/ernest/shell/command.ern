@@ -18,7 +18,7 @@ export type Action =
   | Processes
   | Quit
   | Reload
-  | Settings
+  | Set
   | Type
 
 /// Report §11.2: what completes after a command's name. A path is an
@@ -48,12 +48,8 @@ type Selection = Picked(Command) | Unknown | Ambiguous(List(String))
 /// What one `:set` sets.
 export type Setting = Depth(Int) | Length(Int) | Rows(Int) | Timing(Bool)
 
-// Report §8.5, §8.7: the session's half of the shell crosses to the node it
-// attaches to as any program's code does, and a bare node evaluates the
-// standard library's bindings alone, so a value of the shell's that is no
-// constant (§4.6) is a function, its value built at each call: this table,
-// `settingsAbout` below, and `defaults` and `localMs` in `shell.ern` (the
-// log's *The Shell Attaches as a Program Spawns*).
+// A function of no parameters, as `settingsAbout` below is, since the
+// table is no constant: `src/shell/README.md`'s *Idioms to notice* says why.
 /// Report §11.2: the commands, in the alphabetical order the help lists them.
 export fn commands() : List(Command) =
     [Command(name = "bindings",
@@ -64,7 +60,7 @@ export fn commands() : List(Command) =
      Command(name = "browse",
              action = Browse,
              placeholder = "Module",
-             takes = Needs(what = "a module", completes = Modules),
+             takes = Allows(Modules),
              about = "the exports of Module with their types"),
      Command(name = "doc",
              action = Doc,
@@ -111,9 +107,10 @@ export fn commands() : List(Command) =
              action = Reload,
              placeholder = "",
              takes = Nothing,
-             about = "every loaded module whose source has changed"),
+             about = "compile again and load the loaded modules whose source changed, and those"
+                 <> " that use them"),
      Command(name = "set",
-             action = Settings,
+             action = Set,
              placeholder = "",
              takes = Allows(SettingWords),
              about = settingsAbout()),
@@ -314,10 +311,9 @@ let alphabetical = Test.Case(name = "the commands are in alphabetical order", ru
 
 let lines =
     Test.Case(name = "a command line is its action and its argument, trimmed",
-              run = fn() = match #(parse(":br  List "), parse(":help")) {
-                  #(Right(#(Browse, "List")), Right(#(Help, ""))) -> Test.Passed
-                | _ -> Test.Failed("parse")
-              })
+              run = fn() =
+                  Test.equal(#(parse(":br  List "), parse(":help"), parse(":browse ")),
+                             #(Right(#(Browse, "List")), Right(#(Help, "")), Right(#(Browse, "")))))
 
 let refusals = Test.Case(name = "a command line that selects nothing says why", run = fn() = {
     let lines = [":zz", ":f", ":b", ":type", ":help me", ":type 1 +\n2"];
@@ -341,13 +337,12 @@ let three =
 let completing =
     Test.Case(name = "what completes is what the command takes",
               run = fn() =
-                  match #(completes(":load"),
-                          completes(":output"),
-                          completes(":help"),
-                          completes(":zz")) {
-                      #(Some(SourceModules), Some(Paths), None, None) -> Test.Passed
-                    | _ -> Test.Failed("completes")
-                  })
+                  Test.equal(#(completes(":load"),
+                               completes(":output"),
+                               completes(":browse"),
+                               completes(":help"),
+                               completes(":zz")),
+                             #(Some(SourceModules), Some(Paths), Some(Modules), None, None)))
 
 let helpLines =
     Test.Case(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {

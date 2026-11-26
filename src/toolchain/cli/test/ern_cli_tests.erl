@@ -3007,10 +3007,9 @@ deadlock_lines(Name, Opening) ->
 %% fault of §11.2: written on standard error where it comes before the
 %% entry process's end, and not written where it comes after it (§8.6).
 %% Its line names the case that started the client, and says the case had
-%% ended where the runner had the test's end first, that fault counted on
-%% the count's line (§11.2, §11.8). Nothing orders the three, which each
-%% follow the test's fault, so standard error holds one of the client's
-%% two lines or nothing.
+%% ended, since the test's end brings it, that fault counted on the count's
+%% line (§11.2, §11.8). Nothing orders the client's fault and the entry
+%% process's end, so standard error holds the client's line or nothing.
 %%
 %% A regression test, written after the code. It does not cover a doc
 %% example's case, which runs as a program of its own, which of the three
@@ -3033,9 +3032,8 @@ deadlock_line_on_a_test_test() ->
     Client = <<"the process of Asks.stuck:8 faulted: deadlock, the fault of the callee stuck, "
                "started by the case \"stuck\"">>,
     Frame = <<"\n    Asks.client:3\n">>,
-    Running = <<Client/binary, Frame/binary>>,
     Ended = <<Client/binary, ", which had ended", Frame/binary>>,
-    ?assertMatch(Fault when Fault =:= <<>>; Fault =:= Running; Fault =:= Ended, Errors),
+    ?assertMatch(Fault when Fault =:= <<>>; Fault =:= Ended, Errors),
     Outside = case Errors of
                   Ended -> <<", 1 fault outside a case">>;
                   _ -> <<>>
@@ -3044,6 +3042,41 @@ deadlock_line_on_a_test_test() ->
     ?assertEqual(<<"    1 process of Asks.stuck:8 waits in Asks.client:3 on stuck\n"
                    "1 case, 1 failed", Outside/binary, "\n">>,
                  Listed).
+
+%% report §11.2, §11.8, §6.9: a case has ended once its process has, so the
+%% fault its end brings, of a process that waits on the case's process in
+%% `callForever` as the case returns, names the case as one that had ended
+%% and counts as a fault outside a case, judged in the order the runtime
+%% handles the two ends. A process the case started holds the program's end
+%% until the client has ended (Appendix E.23), so that the fault is met
+%% before the end. A regression test, written after the fix: the runner
+%% judged by its own row of the case, which it clears from another process,
+%% and did not count the fault in some runs
+fault_after_its_case_test() ->
+    Dir = tmp(),
+    write(Dir, "src/waits.ern",
+          "type Msg = Get(Reply(Int)) | Terminating(Reply(Unit)) | Gone(Down)\n"
+          "fn client(server : Address(Msg)) : Unit = {\n"
+          "    let _ = Address.callForever(server, Get);\n"
+          "    Unit\n"
+          "}\n"
+          "fn keeper(server : Address(Msg)) : Unit receiving Msg = {\n"
+          "    Os.subscribeTermination(Terminating);\n"
+          "    let _ = spawnMonitored(fn() = client(server), Gone);\n"
+          "    receive { Terminating(reply) -> receive { Gone(_) -> answer(reply, Unit) } }\n"
+          "}\n"
+          "let waited = Test.Case(name = \"waited\", run = fn() : Test.Result receiving Msg = {\n"
+          "    let me = self();\n"
+          "    let _ = spawn(fn() = keeper(me));\n"
+          "    receive { Get(_) -> Test.Passed }\n"
+          "})\n"),
+    ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {1, Said, Errors} = streams_of(["test", Dir ++ "/build/waits.erc"]),
+    ?assertMatch({_, _}, binary:match(Errors, <<"the process of Waits.keeper:8 faulted: callee"
+                                                " returned without answering, the callee waited,"
+                                                " started by the case \"waited\", which had"
+                                                " ended\n">>)),
+    ?assertEqual(<<"waited: passed\n1 case, 0 failed, 1 fault outside a case\n">>, Said).
 
 %%
 %% ern run and ern test, report §11.2
@@ -6020,6 +6053,39 @@ callee_fault_line_test() ->
                    " \"calls\"\n">>,
                  untraced(Tests)).
 
+%% report §6.6, §11.2, Appendix E.21: a caller's fault whose cause says how
+%% its callee ended names the callee's site after it, as a Down gives it,
+%% `, the callee` and the site, and one a call carried from such a caller
+%% names that caller as the callee whose fault it is; a case's line names
+%% it too
+callee_ended_line_test() ->
+    Dir = tmp(),
+    File = write(Dir, "chain.ern",
+                 "type Msg = Ask(Reply(Int))\n"
+                 "fn ended() : Unit receiving Msg = receive { Ask(_) -> kill(Process.current()) }\n"
+                 "fn relay() : Unit receiving Msg =\n"
+                 "    receive { Ask(reply) ->"
+                 " answer(reply, Address.callForever(spawn(ended), Ask)) }\n"
+                 "fn returns() : Unit receiving Msg = receive { Ask(_) -> Unit }\n"
+                 "let returned = Test.Case(name = \"returned\", run = fn() = {\n"
+                 "    let _ = Address.callForever(spawn(returns), Ask);\n"
+                 "    Test.Passed\n"
+                 "})\n"
+                 "export fn main() : Unit ="
+                 " Io.println(Int.toString(Address.callForever(spawn(relay), Ask)))\n"),
+    ?assertEqual(0, ern(["build", "--source-root", Dir, File])),
+    {Run, 1} = standard_error_of(["run", filename:join(Dir, "chain.erc")]),
+    ?assertEqual(<<"the process of Chain.main:10 faulted: callee was killed, the callee"
+                   " Chain.relay:4\n"
+                   "Chain.main faulted: callee was killed, the fault of the callee"
+                   " Chain.main:10\n">>,
+                 untraced(Run)),
+    {_, 1} = standard_error_of(["test", filename:join(Dir, "chain.erc")]),
+    ?assertEqual(<<"returned: faulted: callee returned without answering, the callee"
+                   " Chain.returned:7\n"
+                   "1 case, 1 failed\n">>,
+                 untraced(captured())).
+
 %% Whether a line is test_faults_test's case `returns`.
 is_returns(<<"returns: ", _/binary>>) -> true;
 is_returns(_) -> false.
@@ -6082,10 +6148,11 @@ restart_in_a_wrap_test() ->
                   <<"    Wrapped.main:4">>],
                  binary:split(captured(), <<"\n">>, [global, trim])).
 
-%% report §11.2, §7.3, §12.3: beneath a foreign function's raise the fault
-%% line has its trace, as every fault's has, naming first the function
-%% that raised, as the host names it. A regression test: the stack was
-%% dropped, and a failure of the runtime named no module and no line.
+%% report §11.2, §7.3, §12.3, Appendix E.21: beneath a foreign function's
+%% raise the fault line has its trace, as every fault's has, naming first
+%% the function that raised, as the host names it, and what the host says
+%% of the raise. A regression test: the stack was dropped, and a failure of
+%% the runtime named no module and no line.
 fault_stack_test() ->
     Dir = tmp(),
     File = write(Dir, "raise.ern",
@@ -6096,7 +6163,7 @@ fault_stack_test() ->
     [First, Second | _] = binary:split(captured(), <<"\n">>, [global]),
     ?assertEqual(<<"Raise.main faulted: foreign function erlang:element/2 raised error:badarg">>,
                  First),
-    ?assertEqual(<<"    erlang:element/2">>, Second).
+    ?assertEqual(<<"    erlang:element/2, argument 2: not a tuple">>, Second).
 
 %% report §12.3, §11.2, Appendix E.21: a foreign function's return that does
 %% not match its declared type faults with a cause that names the host's

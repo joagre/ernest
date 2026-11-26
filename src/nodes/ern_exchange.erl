@@ -101,10 +101,9 @@
                    arrived = []}).
 
 %% The exchanges by their references, and the reference of each by the
-%% identity it asks for, which a second spawn joins; the count the pool's
-%% next name is taken from (ern_arrival:name/1); and the prelude's
-%% environment, none before the first arrival.
--record(state, {exchanges = #{}, asked = #{}, next = 1, env = none}).
+%% identity it asks for, which a second spawn joins; and the count the
+%% pool's next name is taken from (ern_arrival:name/1).
+-record(state, {exchanges = #{}, asked = #{}, next = 1}).
 
 %% The exchange registered and running, from the node's start, as the
 %% gateway is (ern_gateway:start/0). Report §8.7, §12.7: it waits on no
@@ -421,15 +420,11 @@ received(Identity, Arrived, Declared, Reach, State) ->
         false -> unit_received(Arrived, Declared, Reach, State)
     end.
 
-unit_received(Arrived, Declared, Reach, #state{next = Next, env = Env} = State) ->
-    Prelude = case Env of
-                  none -> ern_typecheck:prelude_env();
-                  _ -> Env
-              end,
+unit_received(Arrived, Declared, Reach, #state{next = Next} = State) ->
     {Unit, Taken} = ern_arrival:name(Next),
-    case ern_arrival:received(Unit, Arrived, Declared, Reach, Prelude) of
-        ok -> {ok, State#state{next = Taken, env = Prelude}};
-        Failed -> {Failed, State#state{env = Prelude}}
+    case ern_arrival:received(Unit, Arrived, Declared, Reach, ern_typecheck:held_prelude_env()) of
+        ok -> {ok, State#state{next = Taken}};
+        Failed -> {Failed, State}
     end.
 
 key({function, Hash}) -> {hash, Hash};

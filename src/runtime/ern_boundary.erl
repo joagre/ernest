@@ -79,7 +79,7 @@ raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
     ern_rt:fault(unicode:characters_to_binary(
                    [<<"foreign function ">>, Named,
                     lacked(HostModule, HostFunction, Arity, Class, Error, Stack)]),
-                 ern_rt:failure_trace(Stack)).
+                 ern_rt:failure_trace(Error, Stack)).
 
 %% Report §12.3, §8.4: what follows the function's name in a raise's cause:
 %% where the host lacked the function itself as the call was made, its

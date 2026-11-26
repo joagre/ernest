@@ -1293,12 +1293,15 @@ missing_module(Base) ->
 %% report §11.2, §8.7: a file at a module's path that holds another module
 %% is refused before anything runs, and a node, which reads every module of
 %% its load path, names the file and the module it holds, not the module
-%% missing at the path of the one it holds, with a node's advice; the same
-%% program run as no node does not read the file, and runs. A regression
-%% test, written after the fix (the release review before 0.4.0 found the
-%% node saying the module the file holds was not on the load path)
+%% missing at the path of the one it holds, with a node's advice: a build
+%% root under the program's root where the file's path ends in the
+%% segments of the module it holds, as guide/deployment.md's section 5.1
+%% quotes it, and the removal alone where it does not; the same program run
+%% as no node does not read the file, and runs. A regression test, written
+%% after the fix (the release review before 0.4.0 found the node saying the
+%% module the file holds was not on the load path)
 misplaced_module_test_() ->
-    nodes_test({waits, 3}, fun misplaced_module/1).
+    nodes_test({waits, 5}, fun misplaced_module/1).
 
 misplaced_module(Base) ->
     Lone = made(Base, "lone", none),
@@ -1315,10 +1318,24 @@ misplaced_module(Base) ->
     Main = filename:join(Build, "main.erc"),
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
     ?assertEqual({0, "ran\n"}, Run(Main)),
-    Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; remove it, or"
-        " keep a build root outside the program's root\n",
+    Refusal = "ern run: " ++ ern_build:shown(Moved) ++ " holds Extra, not Moved; remove it\n",
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
-    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
+    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))),
+    ok = file:delete(Moved),
+    %% the guide's own program: a counter whose old build stands under old/
+    %% beneath the program's root, the node run from the base
+    ok = file:write_file(filename:join(Source, "counter.ern"),
+                         "export fn next(n : Int) : Int = n + 1\n"),
+    0 = built(["--build-root", Build, Source]),
+    ok = filelib:ensure_path(filename:join(Build, "old")),
+    {ok, _} = file:copy(filename:join(Build, "counter.erc"),
+                        filename:join([Build, "old", "counter.erc"])),
+    {ok, Guide} = file:read_file("../guide/deployment.md"),
+    {match, [Quoted]} = re:run(Guide, "`(ern run: old/counter\\.erc holds [^`]*)`",
+                               [{capture, all_but_first, list}]),
+    ?assertEqual({1, Quoted ++ "\n"},
+                 finished(["cd ", Build, " && ", ?ERN, " run --config-dir ", filename:absname(Lone),
+                           " main.erc 2>&1"])).
 
 %% report §11.2, §11.1, §8.7: a node, which reads every module of its load
 %% path, refuses a `.erc` whose path from its root breaks §11.1's shape by
@@ -3446,8 +3463,11 @@ compute_on_peer(Base) ->
     %% one line here
     Division = desk_site("computes", "fn() = 1 / List.size([])"),
     has(Err, Divided ++ "    erlang:'div'/2\n    " ++ Division ++ "\n    " ++ Division ++ "\n"),
+    %% Appendix E.21: what the host says of the raise crosses with the
+    %% trace, on its first line
     has(Err, "the process of " ++ Faulted ++ " faulted:" ++ Raised
-             ++ "\n    erlang:binary_to_integer/1\n"),
+             ++ "\n    erlang:binary_to_integer/1, argument 1: not a textual representation of"
+                " an integer\n"),
     Computed = desk_site("computes", "compute(\"store\", Lonely.speak"),
     has(StoreErr, "the peer desk's compute at " ++ Computed ++ " was not loaded: the binding"
                   " Lonely.greeting has no value here"),

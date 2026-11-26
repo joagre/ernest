@@ -99,14 +99,10 @@ priv_test() ->
 %% both EUnit's group leader, which keeps what it is given, asked of it
 %% before and after.
 printed(Args) ->
-    Before = captured(),
+    Before = unicode:characters_to_binary(?capturedOutput),
     Status = ern_cli:ern(Args, group_leader()),
-    After = captured(),
+    After = unicode:characters_to_binary(?capturedOutput),
     {Status, binary:part(After, byte_size(Before), byte_size(After) - byte_size(Before))}.
-
-captured() ->
-    group_leader() ! {get_output, self()},
-    receive {output, Output} -> unicode:characters_to_binary(Output) end.
 
 %% The module of the package's own: the text of its `priv`'s file, which
 %% the host finds by the application's name, the package's.

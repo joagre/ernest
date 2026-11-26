@@ -19,7 +19,7 @@
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
          library_hidden/2, stdlib_hash/0, dependency_interfaces/6, changed_since/3,
-         gone_since/2, load_path/1, load_path_of/1, set_load_path/1,
+         changed_cause/2, gone_since/2, load_path/1, load_path_of/1, set_load_path/1,
          load_path/0, with_root/2,
          directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, regular_bytes/1, reason/1, sweep_pages/5, compile_source/5,
@@ -284,7 +284,8 @@ kept_or_held(Modules, BuildRoot, IsRootGiven) ->
 %% or the removal alone where the path does not end in Held's segments;
 %% `kept`, a build's given its source root, which writes over no other
 %% module's file; and `node`, a node's start, whose load path holds the
-%% file.
+%% file, by a build root under the program's root where the path ends in
+%% Held's segments, or the removal alone where it does not.
 -spec held_another(file:filename(), [atom()], [atom()], rebuild | source_root | kept | node) ->
           string().
 held_another(File, Held, Namespace, Advice) ->
@@ -295,19 +296,26 @@ held_another(File, Held, Namespace, Advice) ->
 advice(rebuild, _File, _Held, Name) ->
     ["remove it, and build ", Name, " from its source root"];
 advice(source_root, File, Held, _Name) ->
-    Absolute = absolute(File),
-    Root = root_of(Absolute, Held),
-    case relative(Absolute, Root) =:= ern_namespace:module_path(Held) ++ ".erc" of
+    case is_held_path(File, Held) of
         true ->
-            ["build with --source-root ", shown(Root), ", ", ern_namespace:text(Held),
-             "'s source root, or remove ", shown(File)];
+            ["build with --source-root ", shown(root_of(absolute(File), Held)), ", ",
+             ern_namespace:text(Held), "'s source root, or remove ", shown(File)];
         false ->
             ["remove ", shown(File)]
     end;
 advice(kept, _File, _Held, Name) ->
     ["remove it to build ", Name, " there"];
-advice(node, _File, _Held, _Name) ->
-    "remove it, or keep a build root outside the program's root".
+advice(node, File, Held, _Name) ->
+    case is_held_path(File, Held) of
+        true -> "remove it, or keep a build root outside the program's root";
+        false -> "remove it"
+    end.
+
+%% Whether the path of File ends in the segments of the module it holds,
+%% Held, as a build root under the program's root would write it.
+is_held_path(File, Held) ->
+    Absolute = absolute(File),
+    relative(Absolute, root_of(Absolute, Held)) =:= ern_namespace:module_path(Held) ++ ".erc".
 
 %% Report §11.1, §11.2: what --verbose writes with, a line on the job's
 %% ErrorDevice for each decision as the job makes it, where Options hold
@@ -2051,8 +2059,14 @@ held_advice(_Reader) -> rebuild.
 %% gone, in one text in every job that refuses one.
 -spec changed_since(file:filename(), file:filename(), [atom()]) -> string().
 changed_since(Erc, Source, Namespace) ->
-    lists:flatten([shown(Erc), " was compiled from ", shown(Source), ", which has changed since;"
-                   " compile ", ern_namespace:text(Namespace), " again first"]).
+    lists:flatten([changed_cause(Erc, Source), "; compile ", ern_namespace:text(Namespace),
+                   " again first"]).
+
+%% The cause alone, which a shell given a file writes at its start with
+%% advice of its own (ern_shell:changed_at_start/1).
+-spec changed_cause(file:filename(), file:filename()) -> string().
+changed_cause(Erc, Source) ->
+    lists:flatten([shown(Erc), " was compiled from ", shown(Source), ", which has changed since"]).
 
 -spec gone_since(file:filename(), file:filename()) -> string().
 gone_since(Erc, Source) ->

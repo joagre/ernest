@@ -474,7 +474,8 @@ failed_spawn_ends_no_call_test() ->
                Caller = self(),
                Forever = fun() ->
                              Caller ! {forever, try ern_rt:call_forever(Dropping, Ask)
-                                                catch throw:{ern, fault, Cause} -> {faulted, Cause}
+                                                catch throw:{ern, #fault{cause = Cause}} ->
+                                                    {faulted, Cause}
                                                 end}
                          end,
                ok = ern_waits:returned(Dropping, {ern_peer, spawn, ['_', '_', '_', '_']},
@@ -700,7 +701,8 @@ compute_caller_test() ->
                                                    [faulted, #fault{cause = 42, trace = foo}],
                                                    [faulted, #fault{cause = <<"x">>,
                                                                     trace = <<"M.f:4\n">>,
-                                                                    callee = <<"M.g:9">>,
+                                                                    callee = {'Faulted',
+                                                                              <<"M.g:9">>},
                                                                     peer = <<"q">>,
                                                                     time = 0}]])
                                 end),
@@ -753,7 +755,7 @@ compute_caller_test() ->
                   {{'Left', 'Unreachable'}, undefined}},
                  receive {caller, _, _, _, _, _, _, _} = Got -> Got end),
     {reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"M.f:4\nM.f:1\n">>, 'None',
-                {'Some', <<"M.g:9">>}, {'Some', <<"p">>}, Time}} =
+                {'Some', {'Faulted', <<"M.g:9">>}}, {'Some', <<"p">>}, Time}} =
         receive {reported, _} = Reported -> Reported end,
     %% the moment the caller met the fault, not the peer's
     ?assert(Time > 0).

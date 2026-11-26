@@ -1753,7 +1753,7 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace goes no deeper than the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A trace keeps twelve lines, and a deeper stack's ends with a thirteenth that counts the frames left out, `... 6 more frames`. A frame of the standard library's own Ernest names its line in the library's source, `Process.run:326` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A trace keeps twelve lines, and a deeper stack's ends with a thirteenth that counts the frames left out, `... 6 more frames`. A frame of the standard library's own Ernest names its line in the library's source, `Process.run:346` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1794,7 +1794,7 @@ $ ern run tasks.erc
 the process of Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:326
+    Process.run:346
 0: failed, division by zero
 5: 20
 all jobs done
@@ -3178,7 +3178,7 @@ The tools are one command, `ern`, whose first word is its job, and a mode for Em
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints its site and `killed`, `Hello.main killed`, and the status is 1.
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. It runs the compiled form as it stands and reads no source. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints its site and `killed`, `Hello.main killed`, and the status is 1.
 
   A termination tells the processes that subscribed with `Os.subscribeTermination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main name` runs another exported function of the module, of no arguments, instead of `main`.
@@ -3194,7 +3194,7 @@ The tools are one command, `ern`, whose first word is its job, and a mode for Em
 
 §1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:faults` a line for each fault without its trace, `:set` sets the depth and length values are printed to, the rows that show what programs write, `:set rows`, and timing, `:output` sends what programs write to a terminal or a file, and `:keys` lists the keys the shell binds at a terminal.
 
-An input runs in a process of its own, and at a terminal `C-c` ends it, which answers `Killed`, the session and its bindings kept (report §11.2).
+An input runs in a process of its own, and at a terminal `C-c` ends it, which answers `Killed`, followed, where the input waited, by its frame and its callee as a deadlock's line names them (§5.4), the session and its bindings kept (report §11.2).
 
 A `let` at the prompt binds a name of the session's node, the one its inputs run on, which no peer has: a function that captures the name is not started on a peer, its spawn or compute answering `Left(Io.NotLoaded(text))`, `text` what the peer lacked, which it says on its standard error too. A local of a block that the lambda captures crosses with it, as a value (§8.1; report §11.2, *Inputs*).
 

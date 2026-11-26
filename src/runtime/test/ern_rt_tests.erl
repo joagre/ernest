@@ -1334,7 +1334,7 @@ call_key_goes_by_every_path_test() ->
                Restarted = {ern_rt:call(Restarting, Ask, 600000), Left()},
                Forever = {ern_rt:call_forever(Answering, Ask), Left()},
                ForeverEnded = {try ern_rt:call_forever(ern_rt:spawn(Ending, <<"Main.main:4">>), Ask)
-                               catch throw:{ern, fault, Cause} -> Cause
+                               catch throw:{ern, #fault{cause = Cause}} -> Cause
                                end, Left()},
                EntryProcess = erlang:self(),
                Asked = fun() ->
@@ -4475,9 +4475,9 @@ faults_before_the_end_are_reported_test() ->
     ?assertMatch({fault, Cause, _}, Outcome),
     Reported = [ern_waits:wait(reported) || _ <- [c, b, a, main]],
     ?assertEqual([{<<"Main.main:3">>, Cause, 'None'},
-                  {<<"Main.main:4">>, Cause, {'Some', <<"Main.main:3">>}},
-                  {<<"Main.main:5">>, Cause, {'Some', <<"Main.main:4">>}},
-                  {<<"main">>, Cause, {'Some', <<"Main.main:5">>}}],
+                  {<<"Main.main:4">>, Cause, {'Some', {'Faulted', <<"Main.main:3">>}}},
+                  {<<"Main.main:5">>, Cause, {'Some', {'Faulted', <<"Main.main:4">>}}},
+                  {<<"main">>, Cause, {'Some', {'Faulted', <<"Main.main:5">>}}}],
                  [{Site, Carried, Callee} || {Site, Carried, Callee, _} <- Reported]),
     Times = [Time || {_, _, _, Time} <- Reported],
     ?assert(lists:all(fun erlang:is_integer/1, Times)),

@@ -120,7 +120,8 @@ The host's persistent terms, each put once at a job's start, a launch or a reloa
 - `{ern_peer, names}`, `{ern_peer, nodes}`, `{ern_peer, named}`, `{ern_peer, services}`, `{ern_carrier, configuration}` and `{ern_carrier, peers}`, a node's configuration, peers and services, put as it starts and again at each reload (§8.7, §12.5);
 - `{ern_carrier, attached}`, the node an attached shell's session runs on, on the shell's own node (§11.2);
 - `{ern_prelude, stdlib_directory}`, the standard library's directory, found once in a host's life, and `{ern_prelude, stdlib_interfaces}`, its interfaces, replaced whole where a file of the library is added, removed or changed (§11.1);
-- `{ern_shell, loaded}`, `{ern_shell, prelude}`, `{ern_shell, stdlib_met}` and `{ern_shell, screen}`, the shell's: what the runner loaded, the prelude's environment, whether the library's interfaces have been read, and the screen of the shell's own node, each put once ([`shell.md`](shell.md));
+- `{ern_typecheck, prelude_env}`, the prelude's environment, put at its first need in a host's life, by the shell, a node's exchange or a load of a peer's code (§8.7);
+- `{ern_shell, loaded}` and `{ern_shell, screen}`, the shell's: what the runner loaded and the screen of the shell's own node, each put once ([`shell.md`](shell.md));
 - a top-level binding's value, under its unit's key, which a ground binding needs no read of, put as its unit is initialized and erased as the unit goes, a shell's at almost every input (§8.5, §11.2).
 
 ## The look
@@ -141,7 +142,7 @@ Otherwise, before it faults the entry process or the test that runs, it reads ea
 
 ## A call, a restart, a kill
 
-A call is the host's monitor with an alias, a send, a receive with its deadline and the answer (§6.6); its reply is the alias with the caller's process beside it, which `Process.fromReply` answers; it writes its callee's row and marks itself, and its wait reads the caller's mailbox so that a restart asked for is taken there (§6.9, §10). A `callForever` reads its callee's spawn site as it begins, while the row stands, so that a fault of the callee's it ends with names the site after the cause (§6.6, §7.4).
+A call is the host's monitor with an alias, a send, a receive with its deadline and the answer (§6.6); its reply is the alias with the caller's process beside it, which `Process.fromReply` answers; it writes its callee's row and marks itself, and its wait reads the caller's mailbox so that a restart asked for is taken there (§6.9, §10). A `callForever` reads its callee's spawn site as it begins, while the row stands, so that a fault of the callee's it ends with, and a cause that says how the callee ended, name the site after the cause, `Faulted` of it or `Ended` (§6.6, §7.4, E.21).
 
 A restarting function entered in a process of the runtime's own that applies a function for another, a wrap's delivery, a courier or a kept process, faults before anything of a restart begins, a fault the recipient meets as it meets any fault there (§6.9, §7.4; the log's *The Argument's Four Decisions*).
 

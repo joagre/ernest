@@ -9,7 +9,7 @@
 
 /// A fault, or the first line of a diagnostic: what needs the eye.
 export fn fault(text : String, color : Markdown.Output) : String =
-    paint(color, Ansi.Foreground(Ansi.Red), text)
+    paint(text, Ansi.Foreground(Ansi.Red), color)
 
 /// A diagnostic, its first line colored as a fault, the source under it
 /// plain.
@@ -21,7 +21,7 @@ export fn diagnostic(text : String, color : Markdown.Output) : String =
 
 /// The type after a printed value, dimmed so that the value stands out.
 export fn quiet(text : String, color : Markdown.Output) : String =
-    paint(color, Ansi.Dim, text)
+    paint(text, Ansi.Dim, color)
 
 /// A name in a listing or a brief, the name bold: `name : type`, a
 /// function's declaration `List.map(list : List(a), ...) : List(b)`, or a
@@ -41,7 +41,7 @@ export fn named(text : String, color : Markdown.Output) : String = {
             let before = String.slice(text, 0, end);
             let name = Optional.withDefault(List.last(String.words(before)), "");
             let start = end - String.size(name);
-            String.slice(text, 0, start) <> paint(color, Ansi.Bold, name) <> String.drop(text, end)
+            String.slice(text, 0, start) <> paint(name, Ansi.Bold, color) <> String.drop(text, end)
         }
     }
 }
@@ -53,10 +53,10 @@ export fn named(text : String, color : Markdown.Output) : String = {
 export fn emphasis(text : String, color : Markdown.Output) : String =
     match color {
         Markdown.Plain -> if String.isEmpty(text) then text else "*" <> text <> "*"
-      | Markdown.Styled -> paint(color, Ansi.Foreground(Ansi.Cyan), text)
+      | Markdown.Styled -> paint(text, Ansi.Foreground(Ansi.Cyan), color)
     }
 
-fn paint(color : Markdown.Output, style : Ansi.Style, text : String) : String =
+fn paint(text : String, style : Ansi.Style, color : Markdown.Output) : String =
     match color {
         Markdown.Styled -> if String.isEmpty(text) then text else Ansi.styled(text, style)
       | Markdown.Plain -> text

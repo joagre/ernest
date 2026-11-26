@@ -16,6 +16,15 @@
 -include_lib("builder/include/ern_build.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 
+%% Appendix E.21, report §12.3: the first line of the trace of a foreign
+%% `binary_to_integer/1` given text that is no integer, its frame and what
+%% the host says of the raise.
+-define(UNPARSED, <<"erlang:binary_to_integer/1, argument 1: not a textual representation of an"
+                    " integer">>).
+
+%% The same, given an integer.
+-define(NOT_TEXT, <<"erlang:binary_to_integer/1, argument 1: not a binary">>).
+
 %%
 %% Helpers
 %%
@@ -302,7 +311,7 @@ standard_own_shim_test() ->
     ?assertEqual({false, true}, {lists:member('$2', Functions), lists:member('$3', Functions)}),
     {{fault, Cause, Trace}, _} = ern_program:run(['M'], Text, #{standard => true}),
     ?assertEqual(<<"foreign function erlang:list_to_binary/1 raised error:badarg">>, Cause),
-    ?assertMatch([<<"erlang:list_to_binary/1">>, <<"M.main:9">>],
+    ?assertMatch([<<"erlang:list_to_binary/1, argument 1: not an iolist term">>, <<"M.main:9">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
 
 %% report §3.10, §9.6, §11.1: compare at Int, Float, String, Char and Bool is
@@ -733,7 +742,7 @@ trace_names_functions_test() ->
            "export fn main() : Unit = Io.println(Int.toString(helper(3)))\n",
     {Result, _} = ern_program:run(['Traced'], Text, #{}),
     {fault, _, Trace} = Result,
-    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>,
+    ?assertMatch([?NOT_TEXT, <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>,
                   <<"Traced.Vec.+:5">>, <<"Traced.helper:8">>, <<"List.map:", _/binary>>,
                   <<"Traced.helper:8">>, <<"Traced.main:11">>],
                  frames(Trace)).
@@ -932,14 +941,14 @@ foreign_line_test() ->
                  ern_canonical:read(Beam)),
     {ok, Made} = ern_compile:from_compiled(Beam, 'ern@placed$2', [], ern_typecheck:prelude_env(),
                                            #{}),
-    Frames = [<<"erlang:binary_to_integer/1">>, <<"Placed.boom:1">>, <<"Placed.go:2">>,
+    Frames = [?UNPARSED, <<"Placed.boom:1">>, <<"Placed.go:2">>,
               <<"Placed.main:3">>],
     ?assertEqual(Frames, Traced(Built, Beam)),
     ?assertEqual(Frames, Traced('ern@placed$2', Made)),
     {Input, InputBeam} = Compiled(#{session_offset => 10, site_namespace => ['$Session1']}),
     ?assertMatch({ok, #recorded{foreign = [#foreign_function{source = {11, 1, none}}]}},
                  ern_canonical:read(InputBeam)),
-    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"$Session1.boom:11">>,
+    ?assertEqual([?UNPARSED, <<"$Session1.boom:11">>,
                   <<"$Session1.go:12">>, <<"$Session1.main:13">>],
                  Traced(Input, InputBeam)).
 
@@ -1002,7 +1011,7 @@ trace_twelve_frames_test() ->
     ?assertMatch([_, _, _, _, _, _, _, _, _, _, _, _, <<"... 1 more frame">>], frames(Shallow)),
     {{fault, _, Trace}, _} = ern_program:run(['Deep'], Text("20"), #{}),
     Frames = frames(Trace),
-    ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Deep.parsed:1">> | _], Frames),
+    ?assertMatch([?UNPARSED, <<"Deep.parsed:1">> | _], Frames),
     %% each call returns to another function than the last, so that the
     %% host keeps every frame, which it does not of a function's own
     %% recursion; `nested`'s last call is a tail call, which leaves no frame
@@ -1083,8 +1092,8 @@ trace_through_a_wait_test() ->
                                                "}\n"),
                   frames(Body)
               end,
-    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"M.boom:2">>, <<"M.main:6">>], Faulted("")),
-    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"M.boom:2">>, <<"M.main:6">>, <<"M.main:5">>],
+    ?assertEqual([?NOT_TEXT, <<"M.boom:2">>, <<"M.main:6">>], Faulted("")),
+    ?assertEqual([?NOT_TEXT, <<"M.boom:2">>, <<"M.main:6">>, <<"M.main:5">>],
                  Faulted("      | after 5000 -> Unit\n")),
     {ok, Waiting} =
         ern_program:run("foreign fn frameOf(process : Address(Msg)) : String = "
@@ -1148,7 +1157,8 @@ trace_keeps_the_runtime_of_a_failure_test() ->
         ern_program:run("foreign fn systemProcess(name : Int) : Int = \"ern_rt:system_process/1\"\n"
                         "export fn main() : Unit = Io.println(Int.toString(systemProcess(3)))\n"),
     ?assertEqual(<<"foreign function ern_rt:system_process/1 raised error:badarg">>, Raised),
-    ?assertMatch([<<"persistent_term:get/1">>, <<"ern_rt:system_process/1:", _/binary>>,
+    ?assertMatch([<<"persistent_term:get/1, argument 1: ", _/binary>>,
+                  <<"ern_rt:system_process/1:", _/binary>>,
                   <<"M.systemProcess:1">>, <<"M.main:2">>], frames(Trace)),
     true = register(ern_stack_here, self()),
     {ok, _} = ern_program:run("foreign fn here() : Int = \"ern_emitter_tests:stack_here/0\"\n"
@@ -2911,6 +2921,42 @@ foreign_lacked_test() ->
                    "14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,"
                    "40],<<\"a string here\">>,<<\"another string there\">>}">>,
                  cause_of(Long)).
+
+%% Appendix E.21, report §12.3: what the host says of a raise stands after
+%% the frame on its trace's first line and in no cause: each argument it
+%% describes in their order, the frame's own, which is the function that
+%% raised and not always the one the cause names; a raise the host says
+%% nothing of has its frame alone
+host_description_test() ->
+    Main = "export fn main() : Unit = ",
+    {Parsed, _} = ern_program:run("foreign fn parsed(text : String) : Int"
+                                  " = \"erlang:binary_to_integer/1\"\n"
+                                  ++ Main ++ "Io.println(Int.toString(parsed(\"x\")))\n"),
+    ?assertMatch({fault, <<"foreign function erlang:binary_to_integer/1 raised error:badarg">>,
+                  <<"erlang:binary_to_integer/1, argument 1: not a textual representation of"
+                    " an integer\n", _/binary>>},
+                 Parsed),
+    {Deeper, _} = ern_program:run("foreign fn stamped(time : Foreign.Term) : String"
+                                  " = \"calendar:system_time_to_rfc3339/1\"\n"
+                                  ++ Main ++ "Io.println(stamped(Foreign.term(\"x\")))\n"),
+    ?assertMatch({fault, <<"foreign function calendar:system_time_to_rfc3339/1 raised"
+                           " error:badarg">>,
+                  <<"erlang:convert_time_unit/3, argument 1: ", _/binary>>},
+                 Deeper),
+    {Both, _} = ern_program:run("foreign fn written(n : Foreign.Term, base : Int) : String"
+                                " = \"erlang:integer_to_binary/2\"\n"
+                                ++ Main ++ "Io.println(written(Foreign.atom(\"a\"), 99))\n"),
+    {fault, _, BothTrace} = Both,
+    [BothFirst | _] = binary:split(BothTrace, <<"\n">>),
+    ?assertMatch({match, _}, re:run(BothFirst, <<"^erlang:integer_to_binary/2, argument 1: .*,"
+                                                 " argument 2: ">>)),
+    {Unsaid, _} = ern_program:run("foreign fn nth(n : Int, xs : List(Int)) : Int"
+                                  " = \"lists:nth/2\"\n"
+                                  ++ Main ++ "Io.println(Int.toString(nth(5, [1])))\n"),
+    ?assertMatch({fault, _, <<"lists:nth_1/2:", _/binary>>}, Unsaid),
+    {fault, _, UnsaidTrace} = Unsaid,
+    [UnsaidFirst | _] = binary:split(UnsaidTrace, <<"\n">>),
+    ?assertEqual(nomatch, re:run(UnsaidFirst, <<", ">>)).
 
 %% report §6.5, §8.4: an address `adapted` made, given to foreign code and given
 %% back, is the address that went out, its function kept. A regression

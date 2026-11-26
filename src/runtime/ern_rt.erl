@@ -47,10 +47,10 @@
          call_unlimited/2, call_until_ended/2, finished_by/2, compute/4, answer/2, refuse/2,
          reply_process/1, is_reply/1,
          monitor/2, monitor_service/2, demonitor/1, kill/1, killed/2,
-         peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
+         peer_restarted/1, waiting/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
          processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
-         writes_through/1, faults/1, termination/1,
+         writes_through/1, faults/1, termination/1, optional/1,
          expected/2, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
          end_source/2,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, at_receive/0, peer_wait/1,
@@ -58,7 +58,7 @@
          deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, host_term/1, host_term/2,
-         fault/1, fault/2, trace/1, failure_trace/1, system_process/1, hold_terminal/1,
+         fault/1, fault/2, trace/1, failure_trace/2, system_process/1, hold_terminal/1,
          terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1, disown_terminal/0,
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
@@ -76,7 +76,7 @@
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
          note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1, stop/1, let_go/1]).
 
--export_type([address/0, outcome/0]).
+-export_type([address/0, outcome/0, optional/1]).
 
 -include_lib("runtime/include/ern_rt.hrl").
 
@@ -297,6 +297,8 @@
 %% What a program's answer from foreign code is checked by: its descriptor
 %% and the fault's cause, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
+%% Report §12.2: an `Optional(a)` as Ernest's values are written.
+-type optional(Value) :: {'Some', Value} | 'None'.
 
 %% Report §6.9: a monitor as the reaper holds it. wrap: Wrap, whose
 %% Wrap(Down) is sent to the caller, or for the runner, whose monitor is
@@ -963,11 +965,11 @@ call_forever(Address, Request, Check, Limited) ->
         {answered, Answered} -> Answered;
         {fault, Cause} -> fault(Cause);
         {thrown, Fault} -> throw(Fault);
-        {restarted, asked} -> fault(<<"callee was restarted">>);
+        {restarted, asked} -> callee_ended(<<"callee was restarted">>, Site);
         {restarted, {fault, Cause}} -> callee_fault(Callee, Cause, Site);
         %% report §6.6, Appendix E.18: a socket or a listener the program
         %% closed ended as a function returns, and its caller learns why
-        {ended, {ern, closed}} -> fault(<<"callee was closed">>);
+        {ended, {ern, closed}} -> callee_ended(<<"callee was closed">>, Site);
         {ended, ExitReason} -> ended(Callee, Site, reason(ExitReason));
         restart -> restart_now()
     end.
@@ -1021,18 +1023,28 @@ callee_site(Callee) ->
 
 %% Report §6.6, §7.4, §11.2: a callee's fault carried to its caller, which
 %% faults with the callee's cause unchanged, the callee's site beside it
-%% for its report's line, `, the fault of the callee Ledger.start:6`, and
-%% none where the site is not known; for a callee of another node, whose
-%% site this node does not know, the name its peer is listed under as the
-%% fault is carried, `, on the peer foo`, and none where the configuration
-%% lists it no more (Appendix E.21); its trace the caller's stack (met/3).
+%% for its report's line, `Faulted` of it (Appendix E.21), `, the fault of
+%% the callee Ledger.start:6`, and none where the site is not known; for a
+%% callee of another node, whose site this node does not know, the name its
+%% peer is listed under as the fault is carried, `, on the peer foo`, and
+%% none where the configuration lists it no more (Appendix E.21); its trace
+%% the caller's stack (met/3).
 callee_fault(Callee, Cause, _Site) when node(Callee) =/= node() ->
     case ern_peer:peer_of(Callee) of
         {'Some', Name} -> throw({ern, #fault{cause = Cause, peer = Name}});
         'None' -> fault(Cause)
     end;
 callee_fault(_Callee, Cause, <<>>) -> fault(Cause);
-callee_fault(_Callee, Cause, Site) -> throw({ern, #fault{cause = Cause, callee = Site}}).
+callee_fault(_Callee, Cause, Site) ->
+    throw({ern, #fault{cause = Cause, callee = {'Faulted', Site}}}).
+
+%% Report §6.6, §11.2, Appendix E.21: a caller's fault whose cause says how
+%% its callee ended, the callee's site beside it as a Down gives it,
+%% `Ended` of it, `, the callee Tcp.acceptForever`, and none where the site
+%% is empty, as a callee's of another node is (§6.9); its trace the
+%% caller's stack (met/3).
+callee_ended(Cause, <<>>) -> fault(Cause);
+callee_ended(Cause, Site) -> throw({ern, #fault{cause = Cause, callee = {'Ended', Site}}}).
 
 %% Report §8.4: an answer foreign code gave, checked against the reply's
 %% type as a foreign function's return is.
@@ -1040,13 +1052,13 @@ foreign_answer(none, Value) -> Value;
 foreign_answer({Descriptor, Cause}, Value) -> ern_boundary:value(Descriptor, Value, Cause).
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
-%% the callee's cause, its site beside it, or says how it ended; with the
-%% program the caller ends too.
+%% the callee's cause, or says how it ended, its site beside either; with
+%% the program the caller ends too.
 -spec ended(pid(), binary(), term()) -> no_return().
 ended(Callee, Site, {'Fault', Cause}) -> callee_fault(Callee, Cause, Site);
-ended(_Callee, _, 'Killed') -> fault(<<"callee was killed">>);
-ended(_Callee, _, 'Returned') -> fault(<<"callee returned without answering">>);
-ended(_Callee, _, 'Unknown') -> fault(<<"callee had ended">>);
+ended(_Callee, Site, 'Killed') -> callee_ended(<<"callee was killed">>, Site);
+ended(_Callee, Site, 'Returned') -> callee_ended(<<"callee returned without answering">>, Site);
+ended(_Callee, Site, 'Unknown') -> callee_ended(<<"callee had ended">>, Site);
 %% report §8.7: the callee's node was lost, and the callee may live on
 ended(_Callee, _, 'Unreachable') -> fault(<<"callee is unreachable">>);
 ended(Callee, _, 'ProgramEnd') when node(Callee) =:= node() ->
@@ -1171,7 +1183,7 @@ gateway_of(Callee) -> {ern_gateway, node(Callee)}.
 %% alias, is the call's first note.
 %%
 %% The answer is the value, the caller's fault with the cause, the trace
-%% and the callee's site that crossed, the peer's name beside them and the
+%% and the callee that crossed, the peer's name beside them and the
 %% trace followed by the compute's site, {Peer, Site} being the two (§8.7,
 %% §11.2), `Other` with the Reason of a process that ended before it
 %% answered, or the failure the peer answered or the wait met.
@@ -1234,7 +1246,7 @@ computed_answer(Alias, MonitorRef, Deadline) ->
 
 %% Report §8.7, Appendix E.27: the peer's answer as the caller takes it. A
 %% fault crosses as the peer's #fault{}, of which the caller takes the
-%% cause, the trace and the callee's site, each text, and only where each is
+%% cause, the trace and the callee, each text, and only where each is
 %% UTF-8, since the caller's fault is reported as text (§11.2); a failure's
 %% text, `NotLoaded`'s and `Other`'s, so too, as a spawn's answer is read
 %% (ern_peer:frame/2); an answer of another shape, or a fault or a failure
@@ -1257,8 +1269,7 @@ answer_taken(Message) ->
         {_, ended, Reason} ->
             {ended, Reason};
         {_, faulted, #fault{cause = Cause, trace = Trace, callee = Callee}} ->
-            case is_text(Cause) andalso is_text(Trace)
-                 andalso (Callee =:= none orelse is_text(Callee)) of
+            case is_text(Cause) andalso is_text(Trace) andalso is_callee(Callee) of
                 true -> {faulted, Cause, Trace, Callee};
                 false -> unreadable_answer()
             end;
@@ -1268,6 +1279,12 @@ answer_taken(Message) ->
 
 unreadable_answer() ->
     {'Left', {'Other', <<"the peer's answer could not be read">>}}.
+
+%% Appendix E.21: a fault's callee as a peer's runtime writes it, none or
+%% the callee's site, text, under the kind of what the cause says of it.
+is_callee(none) -> true;
+is_callee({Kind, Site}) when Kind =:= 'Faulted'; Kind =:= 'Ended' -> is_text(Site);
+is_callee(_) -> false.
 
 is_text(Text) ->
     is_binary(Text) andalso ern_fs:is_utf8(Text).
@@ -2147,6 +2164,8 @@ numbered(Text) ->
 %% for a frame the stack does not show, and for the callee of a process
 %% that waits in a receive. A callee in a deadlock has a row, since a call
 %% to a process with none is one that may deliver (calling_the_foreign/1).
+%% Report §11.2: the shell's interrupt reads it too (ern_shell:waiting/1).
+-spec waiting(pid()) -> {binary() | none, binary() | none}.
 waiting(Pid) ->
     case erlang:process_info(Pid, [current_stacktrace, {dictionary, ?CALL}]) of
         [{current_stacktrace, Stack}, {_, Call}] ->
@@ -3001,10 +3020,10 @@ termination(Address) ->
 %% anyone who waits on it, with the node of the peer whose spawn started
 %% the process, which its line names (§8.7), or none. The fields are in
 %% declared order: process, site, cause, restarted, trace, the peer's name
-%% as the configuration lists it (§8.7), the site of the callee whose fault
-%% a call carried (§6.6), the name of the peer a compute, or a call of a
-%% callee on that peer, carried it from (§6.6, §8.7), and the moment it was
-%% met (Appendix E.15).
+%% as the configuration lists it (§8.7), the callee by its site, of the
+%% kind its cause gives (§6.6, callee_fault/3, callee_ended/2), the name
+%% of the peer a compute, or a call of a callee on that peer, carried it
+%% from (§6.6, §8.7), and the moment it was met (Appendix E.15).
 %%
 %% The reaper reports, so that the reports reach each courier in the order
 %% they were met; a process that restarts sends it its fault. A courier
@@ -3027,6 +3046,9 @@ report(Pid, Site, Peer, #fault{cause = Cause, trace = Trace, callee = Callee, pe
                       end
                   end, matching_rows(?FAULTS, '_')).
 
+%% Report §12.2: a value or none written as an `Optional`, which the
+%% runtime's reports and the shell's host halves give Ernest.
+-spec optional(Value | none) -> optional(Value).
 optional(none) -> 'None';
 optional(Value) -> {'Some', Value}.
 
@@ -3693,7 +3715,7 @@ ended_as(Pid, Held, #fault{cause = Cause, trace = Trace}) ->
 %% compute carried keeps the peer's (§8.7); one a call carried from its
 %% callee (§6.6) takes the stack where it is raised. A failure of the
 %% runtime is the host's class and reason, its trace a failure's
-%% (failure_trace/1).
+%% (failure_trace/2).
 %%
 %% Every place a host error becomes a fault reads it here, as a #fault{}
 %% met then, at the moment it is met, which a fault raised again keeps.
@@ -3715,7 +3737,7 @@ met(Class, Error, Stack) ->
     failure_met(Class, Error, Stack).
 
 failure_met(Class, Error, Stack) ->
-    #fault{cause = host_cause(Class, Error), trace = failure_trace(Stack), time = now()}.
+    #fault{cause = host_cause(Class, Error), trace = failure_trace(Error, Stack), time = now()}.
 
 %% Report §3.1, §7.4: the cause of the host's badarith, read from its stack
 %% where it was met. An Int `/` or `%` by zero is the host's `div` or `rem`,
@@ -3800,12 +3822,50 @@ trace(Stack) ->
                      not is_helper_frame(Entry)]).
 
 %% Appendix E.21, report §7.4, §12.3: the trace of a fault whose cause names a
-%% host error, a failure in the runtime or a foreign function's raise,
+%% host error, Error, a failure in the runtime or a foreign function's raise,
 %% which keeps the runtime's frames above the program's outermost frame,
-%% where the host error was met in the runtime's own code.
--spec failure_trace([tuple()]) -> binary().
-failure_trace(Stack) ->
-    traced(Stack).
+%% where the host error was met in the runtime's own code. Its first line
+%% names after its frame what the host says of the raise (described/2).
+-spec failure_trace(term(), [tuple()]) -> binary().
+failure_trace(Error, Stack) ->
+    traced(Stack, described(Error, Stack)).
+
+%% Appendix E.21, report §12.3: what the host says of the raise of Error, read
+%% from the first frame's error_info by the module and function it names, as
+%% the host's own printer reads it: each argument it describes, `argument 1:`
+%% and its words, in the arguments' order, then what it says of no argument,
+%% each after `, `; the reason it gives is the cause's, and is not written.
+%% Nothing where the frame names no error_info, the host describes nothing,
+%% or its describing raises.
+described(Error, [{_, _, _, Info} | _] = Stack) when is_list(Info) ->
+    case proplists:get_value(error_info, Info) of
+        #{module := Module} = ErrorInfo ->
+            Function = maps:get(function, ErrorInfo, format_error),
+            try Module:Function(Error, Stack) of
+                Described when is_map(Described) -> description(Described);
+                _ -> <<>>
+            catch
+                _:_ -> <<>>
+            end;
+        _ ->
+            <<>>
+    end;
+described(_, _) ->
+    <<>>.
+
+description(Described) ->
+    Arguments = lists:sort([{Position, Text} || Position := Text <- Described,
+                                                is_integer(Position)]),
+    General = [Text || general := Text <- Described],
+    Said = [[", argument ", integer_to_binary(Position), ": ", Text]
+            || {Position, Text} <- Arguments]
+        ++ [[", ", Text] || Text <- General],
+    try unicode:characters_to_binary(Said) of
+        Binary when is_binary(Binary) -> Binary;
+        _ -> <<>>
+    catch
+        _:_ -> <<>>
+    end.
 
 %% Appendix E.21: a trace, the stack given, the innermost first, a frame a
 %% line, a run of identical lines one line, its innermost twelve lines,
@@ -3821,9 +3881,19 @@ failure_trace(Stack) ->
 %% either without a line where the host gives none. Report §11.2: the
 %% printer indents it.
 traced(Stack) ->
+    traced(Stack, <<>>).
+
+%% The same, Described written after the first line's frame (failure_trace/2).
+traced(Stack, Described) ->
     Program = lists:reverse(lists:dropwhile(fun(Entry) -> not is_program_frame(Entry) end,
                                             lists:reverse(Stack))),
-    {Kept, Cut} = kept_lines(runs([trace_line(Entry) || {_, _, _, _} = Entry <- Program])),
+    Lines = case [trace_line(Entry) || {_, _, _, _} = Entry <- Program] of
+                [First | Rest] ->
+                    [<<First/binary, (ern_show:controls(Described, line))/binary>> | Rest];
+                [] ->
+                    []
+            end,
+    {Kept, Cut} = kept_lines(runs(Lines)),
     unicode:characters_to_binary([[[Line, $\n] || {Line, _} <- Kept]
                                   | more_frames(lists:sum([Count || {_, Count} <- Cut]))]).
 
@@ -5400,12 +5470,13 @@ site() ->
 %% (deadlock/0), is told of by the caller's monitor, a raw one as the
 %% runner's of the entry process is, which carries its site, the binding it
 %% evaluated, and its end. `{evaluated, Evaluator}`, or `{ended, Evaluator,
-%% Site, How}`, How `{faulted, Cause}` or `killed`; the row of its screen
+%% Site, How}`, How `{faulted, Cause, Trace}`, the trace empty for one
+%% ended from outside with none, or `killed`; the row of its screen
 %% goes where the load is withdrawn (withdraw_load/2). A caller that meets a
 %% fault or a restart asked for at its wait undoes this evaluation first, as
 %% a binding's fault undoes it, and then faults or restarts (§6.5, §6.9).
 -spec evaluate([module()], binary()) ->
-          {evaluated, pid()} | {ended, pid(), binary(), {faulted, binary()} | killed}.
+          {evaluated, pid()} | {ended, pid(), binary(), {faulted, binary(), binary()} | killed}.
 evaluate(Units, Site) ->
     Ref = make_ref(),
     Caller = erlang:self(),
@@ -5436,7 +5507,7 @@ evaluate(Units, Site) ->
 %% is the look's as evaluate/2's is. `evaluated`, or the binding's site and
 %% how it ended.
 -spec evaluate_load([module()], binary()) ->
-          evaluated | {ended, binary(), {faulted, binary()} | killed}.
+          evaluated | {ended, binary(), {faulted, binary(), binary()} | killed}.
 evaluate_load(Units, Site) ->
     Caller = erlang:self(),
     Ref = make_ref(),
@@ -5532,8 +5603,9 @@ evaluator(Units, Site, Caller, Ref, Sink, Watchers) ->
                                    ok -> {evaluated, is_owner()}
                                catch
                                    Class:Error:Stack ->
-                                       #fault{cause = Cause} = met(Class, Error, Stack),
-                                       {ended, site(), {faulted, Cause}}
+                                       #fault{cause = Cause, trace = Trace} =
+                                           met(Class, Error, Stack),
+                                       {ended, site(), {faulted, Cause, Trace}}
                                end,
                      Caller ! {Ref, Outcome},
                      case Outcome of
@@ -5576,10 +5648,14 @@ waited_evaluation(Evaluator, Ref) ->
             {Ref, {ended, _, _} = Ended} ->
                 receive {Ref, _, _} -> Ended end;
             {Ref, Site, ExitReason} ->
+                Trace = case ExitReason of
+                            {ern, fault, _, FaultTrace} -> FaultTrace;
+                            _ -> <<>>
+                        end,
                 {ended, Site, case reason(ExitReason) of
                                   'Killed' -> killed;
-                                  {'Fault', Cause} -> {faulted, Cause};
-                                  Other -> {faulted, atom_to_binary(Other)}
+                                  {'Fault', Cause} -> {faulted, Cause, Trace};
+                                  Other -> {faulted, atom_to_binary(Other), Trace}
                               end};
             '$ern_restart' ->
                 {interrupted, restart};

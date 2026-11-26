@@ -22,8 +22,9 @@
 
 -export([check/3, check_resolved/6, check/5, hidden_prelude_types/2, check_string/2, type_state/1,
          scope_state/2, set_type_state/2, prelude_names/1, prelude_values/1, prelude_constructor/2,
-         prelude_constructors/1, prelude_env/0, seeded/2, without_interface/2, with_interfaces/2,
-         lookup_type/2, identity/2, position/2, reach/2, ground_term/2, shim/2, global_scheme/2,
+         prelude_constructors/1, held_prelude_env/0, prelude_env/0, seeded/2, without_interface/2,
+         with_interfaces/2, lookup_type/2, identity/2, position/2, reach/2, ground_term/2, shim/2,
+         global_scheme/2,
          is_provided/2, described_type/2, let_order/1, settled/2, foreign_implementation/1,
          constructor_code/2, fields/2, declared_scheme/3, declared_referent/3, is_running_never/2,
          declaration_type/2, is_top_let/2, is_foreign/2, declaration_scheme/2, declared_fields/3,
@@ -665,6 +666,24 @@ prelude_constructor(Name, Env) ->
 -spec prelude_constructors(env()) -> #{[atom()] => #constructor_info{}}.
 prelude_constructors(#env{constructors = Constructors}) ->
     Constructors.
+
+%% Report §11.2, §12.7: the prelude's environment as prelude_env/0 builds
+%% it, built at a host's first need and held for the host's life, a
+%% persistent term set once, since the toolchain's tree does not change
+%% under a running host: the shell's sessions, a node's exchange and a load
+%% of a unit made from its forms read this one term, which a read, a spawn
+%% and a message do not copy. Two that need it at once may each build it,
+%% and the second put of an equal term changes nothing.
+-spec held_prelude_env() -> env().
+held_prelude_env() ->
+    case persistent_term:get({?MODULE, prelude_env}, none) of
+        none ->
+            Env = prelude_env(),
+            persistent_term:put({?MODULE, prelude_env}, Env),
+            Env;
+        Env ->
+            Env
+    end.
 
 -spec prelude_env() -> env().
 prelude_env() ->

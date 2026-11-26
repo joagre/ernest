@@ -573,7 +573,7 @@ trace_leaves_out_a_units_helper_test() ->
                  {Unit, Main, 0, [{line, 3}]}],
         ?assertEqual(<<"lists:map/2:1\nTracehelper.main:3\n">>, ern_rt:trace(Stack)),
         ?assertEqual(<<"ern@tracehelper:'-$type_1/0-fun-0-'/3\nlists:map/2:1\n"
-                       "Tracehelper.main:3\n">>, ern_rt:failure_trace(Stack))
+                       "Tracehelper.main:3\n">>, ern_rt:failure_trace(badarg, Stack))
     after
         ern_helpers:unloaded(Unit)
     end.

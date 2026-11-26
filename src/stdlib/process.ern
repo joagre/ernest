@@ -95,17 +95,20 @@ export type Activity =
 
 /// A fault of a process the runtime started: the process, where it was spawned,
 /// the cause, whether it restarts after the fault, its trace, the peer whose
-/// spawn started the process, the callee or the peer the cause was carried
-/// from, and the time the fault was met.
+/// spawn started the process, the callee the cause was carried from or says the
+/// end of, the peer it was carried from, and the time the fault was met.
 ///
 /// `spawnedBy` is the name of the peer whose spawn started the process, as the
 /// configuration lists it (report §8.7), and `None` where no peer's spawn
-/// started it or the configuration no longer lists that peer. `callee` is the
-/// spawn site of the callee whose cause a call faulted the process with (report
-/// §6.6), and `peer` the name of the peer whose compute's cause it faulted with
-/// (report §8.7); each is `None` where the cause was not carried so. `time` is
-/// the moment the fault was met, in milliseconds since the epoch, as
-/// `Clock.now` counts them.
+/// started it or the configuration no longer lists that peer. `callee` names
+/// the process's callee by its spawn site (report §6.6, §6.9): `Faulted` where a
+/// call carried the callee's fault to the process, and `Ended` where the cause
+/// says how the callee ended, `callee was killed`; it is `None` where neither
+/// holds and where the callee has no site, a process of another node among
+/// them. `peer` is the name of the peer whose fault a compute, or a call of a
+/// callee on that peer, carried to the process (report §8.7), and `None` where
+/// neither carried one. `time` is the moment the fault was met, in milliseconds
+/// since the epoch, as `Clock.now` counts them.
 ///
 /// The trace is the innermost twelve frames of the host's stack where the fault
 /// was met, the innermost first, a frame a line, ending with the outermost
@@ -135,15 +138,32 @@ export type FaultReport =
                 restarted : Bool,
                 trace : String,
                 spawnedBy : Optional(String),
-                callee : Optional(String),
+                callee : Optional(Callee),
                 peer : Optional(String),
                 time : Int)
+
+/// The callee a fault's report names, by its spawn site (report §6.9): the one
+/// whose fault a call carried to the caller (report §6.6), or the one whose end
+/// the cause says, `callee was killed` (Appendix E.21).
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Process.Ended(site = "Tcp.acceptForever") {
+///     Process.Faulted(=site) -> "the fault of the callee " <> site
+///   | Process.Ended(=site) -> "the callee " <> site
+/// }
+/// // => "the callee Tcp.acceptForever"
+/// ```
+///
+/// since 0.11.0
+export type Callee = Faulted(site : String) | Ended(site : String)
 
 // What the process that judges a call of `run` takes: the call for its
 // answer, the value `f` returned, the end of the process `f` runs in, and
 // the end or restart of the caller. The judge is a process of its own,
 // since `run` receives nothing in its caller's process.
-type JudgeMsg(a) = Run(Reply(Either(Reason, a))) | Finished(a) | Ended(Down) | CallerEnded(Down)
+type JudgeMsg(a) = Run(Reply(Either(Reason, a))) | Finished(a) | RunEnded(Down) | CallerEnded(Down)
 
 /// The process behind the address, through every adapted address and every check
 /// (report §8.4). Two addresses of one process give equal processes, though addresses
@@ -323,7 +343,7 @@ export fn run(f : () -> a receiving m) : Either(Reason, a) = {
         receive {
             Run(reply) -> {
                 let home = self();
-                judged(reply, spawnMonitoredAt(fn() = send(home, Finished(f())), Ended, site))
+                judged(reply, spawnMonitoredAt(fn() = send(home, Finished(f())), RunEnded, site))
             }
           | CallerEnded(_) ->
                 Unit
@@ -341,7 +361,7 @@ export fn run(f : () -> a receiving m) : Either(Reason, a) = {
 // before it did.
 fn judged(reply : Reply(Either(Reason, a)), running : Address(m)) : Unit receiving JudgeMsg(a) =
     receive {
-        Ended(down) ->
+        RunEnded(down) ->
             match down.reason {
                 Returned ->
                     receive {

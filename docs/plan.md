@@ -25,12 +25,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg: the report written from the copy, the renames of *The Library's Names*, and the
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
-standard library with the libraries and the cli are done, and three Fable rounds are held.
-The shell's build is next, by an agent on Opus 5.5 at xhigh, the session staying on Fable
-5.2 at high (the log's *The First Build of Leg 4*, *The Renames of the Library's Names*,
-*The Runtime's Second Build*, *The First Fable Round*, *The Nodes' Build*, *The Libraries'
-Build*, *The Second Fable Round*, *The Cli's Build*, *The Third Fable Round* and *The
-Session Stays on Fable*).**
+standard library with the libraries, the cli and the shell are done, and three Fable
+rounds are held. The shell's second build is next, by an agent on Opus 5.5 at high, then
+the report's own decided lines, the tests' build and the documents (the log's *The First Build of Leg 4*, *The Renames
+of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
+Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
+Third Fable Round*, *The Session Stays on Fable* and *The Shell's Build*).**
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -195,8 +195,16 @@ says what is left once its readings are in, and no figure stands until then.
       one decision at a time, the argument first and a recommendation naming its
       principle, and its answer is written under its line as *Answered*, the report's
       sentences it settles beside it. Each question that waits is named here as it
-      comes. None waits now. The session stops at a commit and asks for a `/clear` where
-      its context is worth dropping.
+      comes. The session stops at a commit and asks for a `/clear` where its context is
+      worth dropping.
+
+      Seven questions wait, none holding a build, each with its ways and a
+      recommendation in `leg4/builds/cold_report/questions.md`: E.0 rule 3's "stated
+      whole" against E.13's generator (*P2 42*); a record update against §10's fraction;
+      the three sets of a shell's processes (*G 23*); where §12 says which process pays
+      (*G 21*); E.0 rule 2's sentence on a vocabulary, which reads false cold; shape
+      rule 8's first paragraph, which does not tell `Tcp.port` from `Tcp.read`; and
+      whether the interrupt ends a running `:load`, which it does not.
 
       The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
       decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and
@@ -213,10 +221,15 @@ says what is left once its readings are in, and no figure stands until then.
 
       The third round was held 2026-11-26 (the log's *The Third Fable Round*), its five
       decisions answered under *B6*, *Z17*, *N C26*, *T5* and *N C24*. The shell's build
-      follows, by an agent on Opus 5.5 at xhigh, and takes all five, the cli's code of
-      the last two among them. Its sentences and its brief wait in `leg4/builds/`,
-      `cold_shell/edits_shell.py` and `brief_shell.md`, the five answers written into
-      both.
+      took all five, the cli's code of the last two among them (the log's *The Shell's
+      Build*). Its second build follows, by an agent on Opus 5.5 at high, from
+      `leg4/builds/brief_shell2.md`: the two decided lines the first brief left out,
+      *E2 C14* and *E2 C2*, the trace of a reload's faulting binding, and the help's
+      line for `:browse`. After it the report's own decided lines go into the tree, from
+      the three scripts of `leg4/builds/cold_report/`, read cold already; then the
+      tests' build with the examples' and the site's (`brief_tests.md`), *Z1*'s
+      diagnosis (`brief_z1.md`), and the documents, the language guide first
+      (`brief_guide.md`).
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

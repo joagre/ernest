@@ -48,9 +48,10 @@ export let nothing = Completion(word = "", candidates = [])
 /// at the cursor, the parser being given the text before the word: with
 /// the word there it has been read already, and what may stand at the
 /// cursor is what may stand in its place. `entries` lists a directory of
-/// the source root, for `:load`.
+/// the source root, `sourceRoot`, for `:load`.
 export fn completion(line : String,
                      cursor : Int,
+                     sourceRoot : Path,
                      entries : (Path) -> Either(Io.Error,
                                                 List(Fs.Entry))) : #(Completion, String) = {
     let typedWord = word(String.slice(line, 0, cursor));
@@ -60,7 +61,7 @@ export fn completion(line : String,
         let command = String.slice(line, 0, cursor);
         #(commandWord(command, line), command)
     } else if String.startsWith(line, ":") then
-        #(argument(line, cursor, typedWord, entries), typedWord)
+        #(argument(line, cursor, typedWord, sourceRoot, entries), typedWord)
     else {
         let before = String.slice(line, 0, cursor - String.size(typedWord));
         match #(slot(before), String.lastIndexOf(typedWord, ".")) {
@@ -129,6 +130,7 @@ fn withSpace(completion : Completion, takes : Bool) : Completion =
 fn argument(line : String,
             cursor : Int,
             typedWord : String,
+            sourceRoot : Path,
             entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : Completion = {
     let end = Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
@@ -140,7 +142,7 @@ fn argument(line : String,
       | Some(Command.SettingWords) ->
             match String.trim(before) {
                 "" -> {
-                    let names = argumentNames(Command.SettingWords, typedWord, entries);
+                    let names = argumentNames(Command.SettingWords, typedWord, sourceRoot, entries);
                     withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
                 }
               | "timing" -> {
@@ -155,7 +157,7 @@ fn argument(line : String,
       | Some(completes) ->
             if String.isEmpty(String.trim(before)) then
                 complete(typedWord,
-                         argumentNames(completes, typedWord, entries),
+                         argumentNames(completes, typedWord, sourceRoot, entries),
                          argumentSlot(completes))
             else
                 nothing
@@ -175,18 +177,17 @@ fn argumentSlot(completes : Command.Completes) : Slot =
 
 fn argumentNames(completes : Command.Completes,
                  typedWord : String,
+                 sourceRoot : Path,
                  entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) =
     match completes {
-        // a module is listed by its name alone, since every candidate here
-        // is a module; the namespaces they are in, `Http` for
-        // `Http.Parser`, complete with their dots
+        // report §11.2: what `:browse` alone lists, each listed by its name
+        // alone and completed whole; the namespaces they are in, `Http`
+        // for `Http.Parser`, complete with their dots, a segment at a time
         Command.Modules ->
-            withNamespaces(List.filterMap(names(), fn(name) = match name {
-                Name(=text, kind = Module) -> Some(Name(=text, kind = Module, shown = text))
-              | _ -> None
-            }))
+            withNamespaces(List.map(browsable(),
+                                    fn(text) = Name(=text, kind = Module, shown = text)))
       | Command.SourceModules ->
-            sourceModules(typedWord, entries)
+            sourceModules(typedWord, sourceRoot, entries)
       | Command.Expressions ->
             fault("argument completes an expression's names in a clause of its own")
       | Command.Names ->
@@ -206,12 +207,13 @@ fn argumentNames(completes : Command.Completes,
 // name, so that a large root is never walked whole. A directory is a
 // namespace and a `.ern` file a module, each named by §11.1's path shape.
 fn sourceModules(typedWord : String,
+                 sourceRoot : Path,
                  entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) = {
     let finished = List.dropLast(String.split(typedWord, "."), 1);
     // a finished segment that is no namespace's names no directory
     let directory =
         List.foldLeft(finished,
-                      Some(Path(sourceRoot())),
+                      Some(sourceRoot),
                       fn(found, part) =
                           Optional.andThen(found,
                                            fn(path) =
@@ -249,14 +251,14 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
 foreign fn names() : List(Name) =
     "ern_shell:names/0"
 
+// Report §11.2: what `:browse` takes, which `:browse` alone lists.
+foreign fn browsable() : List(String) =
+    "ern_shell:browsable/0"
+
 // Report §11.2: the names the session declares, which `:forget` takes;
 // the session is the front end's to hold.
 foreign fn sessionNames() : List(Name) =
     "ern_shell:session_names/0"
-
-// Report §11.2: the source root `:load` compiles from.
-foreign fn sourceRoot() : String =
-    "ern_shell:source_root/0"
 
 // Report §11.2: every name the session declares, as it is written.
 foreign fn sessionTexts() : List(String) =
@@ -438,13 +440,19 @@ export fn applied(text : String,
 // a prefix is the better match and is listed first.
 //
 
+// How a segment typed reaches a segment of a name: by its prefix, or by
+// the starts of the words inside the name.
+type Matching = ByPrefix | ByAbbreviation
+
 // The names reached by prefix, and those reached by abbreviation alone,
 // each alphabetical.
 fn matches(typedWord : String, names : List(Name)) : #(List(Name), List(Name)) = {
     let parts = String.split(typedWord, ".");
-    let exact = List.filter(names, fn(name) = reaches(parts, name, true));
+    let exact = List.filter(names, fn(name) = reaches(parts, name, ByPrefix));
     let loose =
-        List.filter(names, fn(name) = reaches(parts, name, false) && !reaches(parts, name, true));
+        List.filter(names,
+                    fn(name) =
+                        reaches(parts, name, ByAbbreviation) && !reaches(parts, name, ByPrefix));
     #(alphabetical(exact), alphabetical(loose))
 }
 
@@ -456,32 +464,34 @@ fn alphabetical(names : List(Name)) : List(Name) =
 // Report §11.2: a name is reached a segment at a time, so what is typed
 // reaches the names of as many segments as it has; a namespace's members
 // come after its dot.
-fn reaches(parts : List(String), name : Name, byPrefix : Bool) : Bool = {
+fn reaches(parts : List(String), name : Name, matching : Matching) : Bool = {
     let segments = String.split(name.text, ".");
-    List.size(parts) == List.size(segments) && every(parts, segments, byPrefix)
+    List.size(parts) == List.size(segments) && every(parts, segments, matching)
 }
 
 // Each segment of what is typed against the segment of the name in the
 // same place, every one matched as the last is, whole, by its prefix or by
 // the starts of its words: `L.fM` reaches `List.filterMap`.
-fn every(parts : List(String), segments : List(String), byPrefix : Bool) : Bool =
+fn every(parts : List(String), segments : List(String), matching : Matching) : Bool =
     match #(parts, segments) {
         #([], _) ->
             true
       | #(part :: rest, segment :: more) ->
-            (segment == part || begins(segment, part, byPrefix)) && every(rest, more, byPrefix)
+            (segment == part || begins(segment, part, matching)) && every(rest, more, matching)
       | #(_, []) ->
             fault("reaches gives every as many parts as segments")
     }
 
 // Report §11.2: a segment's first letter is matched as typed, since its
 // case says what a name is (§2.3); the rest by prefix or by word starts.
-fn begins(segment : String, part : String, byPrefix : Bool) : Bool =
-    if byPrefix then
-        String.startsWith(segment, part)
-    else
-        String.slice(part, 0, 1) == String.slice(segment, 0, 1)
-            && abbreviates(String.toList(part), String.toList(segment), true)
+fn begins(segment : String, part : String, matching : Matching) : Bool =
+    match matching {
+        ByPrefix ->
+            String.startsWith(segment, part)
+      | ByAbbreviation ->
+            String.slice(part, 0, 1) == String.slice(segment, 0, 1)
+                && abbreviates(String.toList(part), String.toList(segment), true)
+    }
 
 // An abbreviation matches the starts of the words inside a name:
 // `fM` and `fm` both reach `filterMap`, `m` alone does not.
@@ -588,7 +598,7 @@ let applying =
 // cursor landed inside the word it had completed.
 let commandInWord =
     Test.Case(name = "a command's word completes as far as the cursor", run = fn() = {
-        let #(completed, typedWord) = completion(":browse", 3, fn(_) = Right([]));
+        let #(completed, typedWord) = completion(":browse", 3, Path("."), fn(_) = Right([]));
         Test.equal(applied(":browse", 3, typedWord, completed), #(":browse owse", 8))
     })
 
