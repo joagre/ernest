@@ -144,7 +144,7 @@ square : (Int) -> Int
 hello
 ```
 
-The first line names the release of `ern` and the session's number, which counts the sessions a node has had, a plain shell's own being 1 (§9.2, report §11.2). A value of type `Unit` prints nothing, so the last input shows only what it wrote. An error at the prompt is placed as `input n:line:column`, `n` counting what is entered, commands among them (report §11.2). A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest.
+The first line names the release of `ern` and the session's number, which counts the sessions a node has had, a plain shell's own being 1 (§9.3, report §11.2). A value of type `Unit` prints nothing, so the last input shows only what it wrote. An error at the prompt is placed as `input n:line:column`, `n` counting what is entered, commands among them (report §11.2). A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest.
 
 `ern shell hello.erc` starts the shell with the compiled module in scope, as it was built, and its `main` running beside the prompt; a `main` that reads lines, bytes or keys faults there, and is run with `ern run` (report §11.2). `:load Hello` at the prompt compiles the module where its source has changed, says what it loaded and runs nothing (§9.3). A module without `main` is put in scope with nothing running. The prompt sees a module's exported names; a private `fn` is tried by entering it at the prompt, or by exporting it.
 
@@ -425,7 +425,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-**Equality and order.** Map keys and set elements need equality. `==` and `!=` are defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.3). On a value of a foreign type, `Foreign.Term` (§8.5) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the identity of the process behind each address instead, a `Process`, which `Process.fromAddress` gives (§5.2).
+**Equality and order.** Map keys and set elements need equality. `==` and `!=` are defined on every type except a function type, the type of an address or of a reply, the `Reply` an answer goes back on (§4.3), and a type that holds one in a field or as an argument of a built-in type. On a value of a foreign type, `Foreign.Term` (§8.5) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the identity of the process behind each address instead, a `Process`, which `Process.fromAddress` gives (§5.2).
 
 The compiler infers which type variables need equality, and a printed type marks each with `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation writes no mark. The one mark a program writes is `=` on a foreign declaration's type variable, since the compiler cannot see what the Erlang compares (§8.5, report §11.5).
 
@@ -715,7 +715,7 @@ Without a source that fixes the type, `value + value` is a type error, and `(val
 **What is polymorphic.** A polymorphic name may be used at one type here and at another there.
 
 - A `fn` is polymorphic.
-- A top-level `let` is polymorphic where its initializer is a value: a literal, a name, a lambda, a tuple or a list of values, or a constructor applied to values, `let empty = []`.
+- A top-level `let` is polymorphic where its initializer is a value: a literal, a name, a lambda, a tuple or a list of values, a list built with `::` from values, or a constructor applied to values, `let empty = []`.
 - A top-level `let` whose initializer is no value, such as a call or an `if`, is polymorphic where its type holds no function, foreign value, address or reply. `let empty = fresh()`, `fresh` a function of the program's that answers `Stack([])`, a `Stack(a)` of a type `Stack` the program declares, is polymorphic; `let shared = spawn(...)`, an address (§4.1), is not (report §4.6).
 - A `let` in a block is polymorphic only where it binds a lambda. Any other `let` in a block has one type.
 

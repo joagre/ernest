@@ -700,7 +700,7 @@ A *package* is a directory that holds a *manifest*, the file `package.conf`. Its
 
 An entry has a `name` and a `version`, and may have a `url` and a `sha256`, which `ern unpack` alone uses (**`ern unpack`**). In the root package's manifest, an entry's version is the one the root package is built with. In a named package's, it is the least version of its package that the named package works with (**The build**).
 
-A name is written as a file's name is (§11.1). The package's namespace is the one §4.2 makes of its name: the package `pixel_map` provides `PixelMap`. A version is three numbers joined by `.`, `0.2.1`, none written with a leading zero. Two versions compare number by number, the first number first. A `url` is an `https` URL. A `sha256` is 64 hexadecimal digits, their letters lowercase.
+A name is written as a file's name is (§11.1). The package's namespace is the one §4.2 makes of its name: the package `pixel_map` provides `PixelMap`. A version is three numbers joined by `.`, `0.2.1`, none written with a leading zero. Two versions compare number by number, the first number first. A `url` is an RFC 3986 URI whose scheme is `https`, in either case, and whose host is not empty. A `sha256` is 64 hexadecimal digits, their letters lowercase.
 
 A manifest holds neither the name nor the version of its own package: a package's name is its directory's under `lib`.
 

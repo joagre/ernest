@@ -112,7 +112,7 @@ A process replaces its own loop by a message in its type that carries the new fu
 
 A module reloaded in the shell gets a version beside its earlier ones, each named, so that a process still running the old version runs it to its end and a value of an old type prints as that version's (report §11.2). Nothing is purged: a version, once loaded, is held for the node's life, so the memory of a node that reloads without end grows with its versions, a limit the report states; the deployment guide's §4.2 says when a node is restarted.
 
-Across nodes a definition is known by the hash of its form, which holds its name with its module's, so two nodes agree on a function by its content and not by a module's name alone, which in Erlang stands for whichever of its two loaded versions is current, and a moved or renamed module is new code (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
+Across nodes a definition is known by the hash of its form, which for a function or a type holds its name with its module's, so two nodes agree on a function by its content and not by a module's name alone, which in Erlang stands for whichever of its two loaded versions is current, and a moved or renamed module is new code (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
 
 ### Why does a function spawned on a peer read the peer's top-level bindings, and not the spawner's?
 

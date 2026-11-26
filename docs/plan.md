@@ -123,11 +123,12 @@ the release, is what is left.
    The `fix` lines of the code and the decided lines' code are built (the log's *The
    Release Review's Lines Built*), and `make test-full` passes on them.
 
+   The round's cold reader read the review's own diff, and its findings are made or
+   filed; `make sections` passes and three runs of `make bench` stand at the reference
+   (the log's *The Round's Cold Reading, and the Bench on the Release's Commit*).
+
    What is left, in order:
-   - **The round**, reader K over the review's own diff, which is the cold reading of
-     §4.6's and §3.9's new sentences too, and over the release's commit `make sections`,
-     `make bench`, then `make bench-release`, with `make load` and `make sanitize` where
-     the runtime or the helper changed.
+   - **`make bench-release` and `make load`**, the runtime having changed.
    - **The release's own steps**, `release.md`'s fifth.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
@@ -478,7 +479,9 @@ What the line left, in the order it is taken:
   decide with the user: §4.6's values for a block's `let` too, with what §4.8 calls a
   definition, a cold reading and the argument's paragraph. With it, the release review's *P1 10*: the
   help `annotate the value where it is bound` names no value, where what is annotated is
-  the lambda's parameter.
+  the lambda's parameter. And the round's cold reader's sixth: a negated number
+  literal is a constant and no value (§4.6), so `let t = #(fn(x) = x, -1)` is refused
+  where `1` in its place is generalized.
 - **170. A prelude type's members written with their prefix**, from the findings' *P1 18,
   K 27*. `int.ern` declares `fn Int.+` and, unprefixed, `fn compare` and `fn negate`,
   which costs an exception sentence in §4.2, in §4.8 and in Appendix F. The standard

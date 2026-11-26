@@ -167,7 +167,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none.
 
-   A pair is two ways to write one value for every argument, and there are two: `toString` of a number or a `Bool` and `Io.show` (E.1), and `Process.current()` and `Process.fromAddress(self())` (E.21). A function that is a more general one at one argument, as `Int.toString` is `Int.toStringBase` at 10, is no pair.
+   Two names answer what a composition of others answers and are kept, each for its section's reason: `toString` of a number or a `Bool` beside `Io.show` (E.1), and `Process.current()` beside `Process.fromAddress(self())` (E.21). A function rule 4 admits though a composition equals it, `Map.contains`, and one that is a more general one at one argument, `Int.toString`, are neither.
 
    A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote. A published specification, a date, a pattern language, a format, a protocol, is a library's and no module's vocabulary, but for the one text form of a time the toolchain's own lines write (§11.2), which E.15 states as E.9 states `Float.toString`'s.
 3. It is a general operation of the type, and its definition is the obvious one: `List.foldRight`, `Float.sqrt`.
@@ -1135,9 +1135,9 @@ A node's code after its start (§8.7, §11.2): a compiled module loaded by the p
 - that holds a module at the namespace of a library's module on which a module of a library or of a named package that the run takes, a job, a session or a node as §4.2 says, depends, its source outside that library's source root (§11.1);
 - that is a directory or a file at a module's path that holds another module (§11.2).
 
-`load` and `hashes` answer `Left(NotAFile)` for a path that names a named pipe, a device or a socket, as `Fs.read` does (Appendix E.1), and do not open it. `load` answers `Left(NotFound)` for a path with no file or a module of the reach the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
+`load` and `hashes` answer `Left(NotAFile)` for a path that names a named pipe, a device or a socket, as `Fs.read` does (Appendix E.1), and do not open it. `load` answers `Left(NotFound)` for a path with no file or a module it depends on that the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
 
-A module of the reach whose file is such a file answers `Left(Invalid)` as the file given does.
+A module it depends on whose file is such a file answers `Left(Invalid)` as the file given does.
 
 `load` evaluates the bindings of the module and of those it depends on that have no value on the node, in §8.5's order, each as a body of mailbox type `Never`, as `ern run` evaluates a program's before `main`, in a process of the runtime's own, its *evaluator*, while the calling process waits. The evaluator ends once every binding has its value, unless a binding opened what it owns, a listener, a socket, a running program, a table or a process started to end with it (Appendix D, E.18, E.21, E.23): it then lives on until each process it owns has ended, a program's once it has exited and a socket's once its connection has closed counting as ended, one it gave away counted until its end, until the program's end where it owns a table, or until it is killed, as the entry process lives through a program (§8.5).
 
@@ -1373,7 +1373,7 @@ A line of the chunked coding ends as a head's does, in a line feed with or witho
 
 A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given.
 
-A response's status line carries the phrase `reason(status)` gives, the one IANA's registry of status codes gives the status, RFC 9110's among them, and `""` for a status the registry does not assign, assigns for a time or has made obsolete.
+A response's status line carries the phrase `reason(status)` gives, the one IANA's registry of status codes gives the status, RFC 9110's among them, and `""` for a status the registry does not assign, assigns for a time, lists as unused or has made obsolete.
 
 `chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
