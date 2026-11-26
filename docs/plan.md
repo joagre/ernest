@@ -28,10 +28,10 @@ outside the project depends on it, as MVP 4.4's opening says.
 ernest-epx and ernest-template, each told the verdict on every line of its feedback file
 by a message.
 
-**Ernest 0.11.0 is tagged, and MVP 4.4's item 5 waits on its publishing.** The tag is
-`v0.11.0` at `8dedd59f`, of 2026-11-26, after the release review that ran that day over
-`6c6b8ef1`. The push and the release on GitHub are the user's, and ernest-template's release
-and ernest-epx's follow, as the item's *Where the item stands* says.
+**Ernest 0.11.0 is out.** The tag is `v0.11.0` at `8dedd59f`, of 2026-11-26, after the
+release review that ran that day over `6c6b8ef1`, and it is published on GitHub with its
+archive. ernest-template's release and ernest-epx's follow, each on the user's word, as MVP
+4.4's item 5 says, and close it.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -123,9 +123,11 @@ the release, is what is left.
    `findings.md`'s as it stood at `3051fbf5`. What the session kept is in its probes
    directory, `release_0110/`.
 
-   What is left is the user's: the push of the tag, the release on GitHub with the
-   archive, its checksum and the note, and the repository's About text. `v0.10.0` was
-   never pushed, and goes with it or before it.
+   It is published since the same day, on the user's word: `main`, `v0.11.0` and
+   `v0.10.0`, which had never been pushed, are on GitHub, and the release there holds the
+   archive, its checksum and the note. The About text already said the README's opening.
+   No release of 0.10.0 stands on GitHub, its tag alone. What is left of the item is the
+   two releases below.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
