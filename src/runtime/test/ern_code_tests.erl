@@ -53,10 +53,7 @@ hash(QualifiedName, Definitions) ->
 %% from. A regression test, written after the code: the forms were read
 %% from whatever the file held when first asked for
 file_forms_hold_the_units_code_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_code_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = ern_helpers:tmp("ern_code_"),
     File = filename:join(Dir, "tablefile.erc"),
     Compiled = fun(Text) ->
                    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Tablefile'], Text),
@@ -84,10 +81,7 @@ file_forms_hold_the_units_code_test() ->
 %% that opened it would not end, which is how the test shows that none
 %% does. A device and a socket are not covered
 file_forms_unopened_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_code_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = ern_helpers:tmp("ern_code_"),
     File = filename:join(Dir, "pipeform.erc"),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Pipeform'],
                                                              "export fn one() : Int = 1\n"),
@@ -114,9 +108,7 @@ file_forms_unopened_test() ->
 %% written after the code; it does not cover the shell's build and its
 %% libraries', which the shell's tests and `ern doc --man`'s reach
 own_unit_loaded_at_first_call_test() ->
-    Dir = filename:join([os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_code_" ++ os:getpid() ++ "_"
-                         ++ integer_to_list(erlang:unique_integer([positive])), "stdlib"]),
+    Dir = filename:join(ern_helpers:tmp("ern_code_"), "stdlib"),
     ok = filelib:ensure_path(Dir),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Firstcall'],
                                                              "export fn one() : Int = 1\n"),

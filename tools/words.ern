@@ -2,11 +2,10 @@
 // The words a reader takes in at once, counted: every prose paragraph of
 // the tracked documents past a count of words, a list item among them, or
 // every comment block of the Erlang and the Ernest, for its writer to read
-// again for a turn it may hide (CLAUDE.md, *Writing*; docs/code_style.md,
-// *Every language*). The count is 100 where none is given; 150 is the
-// ceiling the style tests hold both to, since a block past it no reader
-// takes in whole. A list, not a limit: a paragraph that holds one thing
-// stays whole.
+// again for a turn it may hide (docs/code_style.md, *Every language*).
+// The count is 100 where none is given; 150 is the ceiling the style tests
+// hold both to, since a block past it no reader takes in whole. A list,
+// not a limit: a paragraph that holds one thing stays whole.
 //
 // `ern run words.erc paragraphs [count]` lists the paragraphs, a line each
 // on standard output, its path, line, words and first characters, and
@@ -36,9 +35,12 @@ type Paragraph = Paragraph(file : String, line : Int, words : Int, first : Strin
 // A comment block past the count: where it begins and its words.
 type Block = Block(file : String, line : Int, words : Int)
 
-// Where the reading stands as a document's lines go by: the line's number,
-// whether it is inside a fence, the paragraph begun and not yet ended, and
-// the paragraphs found.
+// Where the reading stands as a document's lines go by: the line's number;
+// whether it is inside a fence; the paragraph begun and not yet ended, by
+// its first line's number and text and its words, none while its words
+// are 0; whether that paragraph is no prose and is not counted, a
+// heading, a table row or an HTML line; whether it is a list item, and
+// the indentation of its first line; and the paragraphs found.
 type Reading =
     Reading(line : Int,
             fence : Bool,
@@ -67,7 +69,6 @@ let documents : List(String) = ["*.md", ":!docs/log/", ":!docs/proposals/"]
 let sources : List(String) =
     ["src/*.erl",
      "test/*.erl",
-     "test/fixtures/*.erl",
      "src/*.ern",
      "examples/*.ern",
      "tools/*.ern",
@@ -78,9 +79,6 @@ let sources : List(String) =
 // The bytes of a paragraph's beginning shown, its last character whole.
 let shownBytes : Int = 60
 
-// A file's time and git's, as the other tools give theirs.
-let fileMs : Int = 10000
-
 export fn main() : Unit =
     match parsed(Os.arguments) {
         Right(#(Paragraphs, measure)) ->
@@ -89,12 +87,12 @@ export fn main() : Unit =
                 List.forEach(found, fn(paragraph) = Io.println(shown(paragraph)))
             })
       | Right(#(Comments, measure)) ->
-            List.forEach(List.filter(tracked(sources), isOurs), fn(file) = {
+            List.forEach(tracked(sources) |> withoutBorrowed, fn(file) = {
                 let found = blocksOf(file, contents(file), measure);
                 List.forEach(found, fn(block) = Io.println(shownBlock(block)))
             })
       | Left(message) ->
-            quit(message)
+            Repository.quit("words", message)
     }
 
 fn parsed(arguments : List(String)) : Either(String, #(Job, Int)) =
@@ -125,35 +123,21 @@ fn jobNamed(name : String) : Either(String, Job) =
 
 // The files git tracks that the pathspecs name.
 fn tracked(pathspecs : List(String)) : List(String) =
-    match Os.run(Os.command("git", ["ls-files", "--"] <> pathspecs), fileMs) {
-        Right(finished) when finished.status == 0 ->
-            String.lines(text("git ls-files", finished.stdout))
-      | _ ->
-            quit("git ls-files failed")
-    }
+    String.lines(Repository.git("words", ["ls-files", "--"] <> pathspecs))
 
-// Whether a source is the repository's own, and not the vendored getopt's.
-fn isOurs(file : String) : Bool =
-    String.endsWith(file, "/getopt.erl") == false
+// The files, but those THIRD_PARTY_LICENSES says were copied from upstream.
+fn withoutBorrowed(files : List(String)) : List(String) = {
+    let borrowed = Set.fromList(Repository.borrowed("words"));
+    List.filter(files, fn(file) = !Set.contains(borrowed, file))
+}
 
 // A tracked file's text, none where the working directory no longer holds it.
 fn contents(file : String) : String =
-    match Fs.read(Path(file), fileMs) {
-        Right(bytes) -> text(file, bytes)
+    match Fs.read(Path(file), Repository.fileMs) {
+        Right(bytes) -> Repository.text("words", file, bytes)
       | Left(Io.NotFound) -> ""
-      | Left(error) -> quit("cannot read " <> file <> ": " <> Io.show(error))
+      | Left(error) -> Repository.quit("words", "cannot read " <> file <> ": " <> Io.show(error))
     }
-
-fn text(source : String, bytes : Bytes) : String =
-    match String.fromUtf8(bytes) {
-        Some(text) -> text
-      | None -> quit(source <> " is not UTF-8")
-    }
-
-fn quit(message : String) : a = {
-    Io.printlnError("words: " <> message);
-    Os.exit(1)
-}
 
 //
 // The paragraphs

@@ -22,10 +22,10 @@ EBIN = ebin
 # no application on a code path.
 ERLC_FLAGS = +debug_info -Werror -I ../src -I ../src/toolchain
 
-# The toolchain on a host's code path, as bin/ern gives it, and the modules of
-# the runtime's tests that the tests here call, ern_named and ern_waits.
-CODE_PATH = -pa ../build/toolchain/*/ebin -pa ../build/shared/ebin -pa ../build/nodes/ebin \
-	  -pa ../build/runtime/ebin -pa ../build/shell/ebin -pa ../build/runtime/test
+# The toolchain on a host's code path, as bin/ern gives it (tools/code_path.sh),
+# and the modules of the runtime's tests that the tests here call, ern_named
+# and ern_waits.
+CODE_PATH := $(shell sh ../tools/code_path.sh ..) -pa ../build/runtime/test
 
 # The suites by area: each area has a target of its own, which the
 # repository's Makefile runs as `make test-<area>`, alone for a change that
@@ -54,7 +54,7 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(XREF) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
-	  $(SHELL_TESTS) ern_pty ern_repository ern_measure) $(ALONE)
+	  $(SHELL_TESTS) ern_harness ern_pty ern_repository ern_measure) $(ALONE)
 
 # ern_eunit, by which EUNIT_ALONE runs each test alone and EUNIT_SIDE_BY_SIDE
 # its tests side by side, a module of the runtime's tests, compiled by the
@@ -123,12 +123,12 @@ integration: $(BEAMS) prepare measured named
 nodes: $(BEAMS) prepare machines pty
 	@$(call NODES_RUN,nodes,$(NODES))
 
-# The deployment guide run on nodes, through ern_nodes_tests' harness.
+# The deployment guide run on nodes, through the harness, ern_harness.
 deployment: $(BEAMS) prepare
 	@$(call NODES_RUN,deployment,$(DEPLOYMENT))
 
 # The tour's programs and sessions, tour/1/ to tour/8/, its shell a node
-# beside two bare nodes, through ern_nodes_tests' harness.
+# beside two bare nodes, through the harness, ern_harness.
 tour: $(BEAMS) prepare
 	@$(call NODES_RUN,tour,$(TOUR))
 
@@ -155,7 +155,7 @@ BENCH_BEAMS = $(patsubst %,$(EBIN)/%.beam,ern_bench ern_measure ern_costs ern_la
 # programs, and their harnesses compiled, so that a change that breaks one
 # is seen by `make test-full`.
 measured: prepare $(EBIN)/ern_load.beam $(BENCH_BEAMS) $(EBIN)/ern_service_tests.beam \
-	  $(EBIN)/ern_pick_costs.beam benched
+	  $(EBIN)/ern_harness.beam $(EBIN)/ern_pick_costs.beam benched
 	@mkdir -p build/load build/service
 	@for p in $(LOADS); do \
 	  ../bin/ern build --verbose --source-root fixtures/load --build-root build/load \
@@ -443,8 +443,10 @@ PICKED = ern_pick_costs:main(["build/bench/pick-machines", "machines/machines.tx
 PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)"
 
 # The machines' tools, which test/machines/nodes.sh runs and the bench's
-# node parts call (ern_machines).
-machines: $(EBIN)/ern_machine.beam $(EBIN)/ern_machine_node.beam $(EBIN)/ern_machines.beam
+# node parts call (ern_machines), with the harness whose steps and time for
+# one wait ern_machine takes.
+machines: $(EBIN)/ern_machine.beam $(EBIN)/ern_machine_node.beam $(EBIN)/ern_machines.beam \
+	  $(EBIN)/ern_harness.beam
 
 clean:
 	rm -rf $(EBIN) build

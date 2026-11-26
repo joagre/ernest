@@ -15,8 +15,9 @@
 %% writes before the installation and removes after it, whatever its end.
 -define(UNTRACKED, "../examples/ern_install_tests_untracked.txt").
 
-%% The installation and the archive, each made by make, one after the other,
-%% since two makes at once would each write the built trees. Each make here
+%% docs/design/install.md: the installation and the archive, each made by
+%% make, one after the other, since two makes at once would each write the
+%% built trees. Each make here
 %% builds before it installs, and a test that runs beside other areas runs
 %% at their load, so no time is known before the first part has run: the
 %% first part is timed, and each part after it is given that time for each
@@ -303,18 +304,22 @@ release() ->
                       VersionText =:= iolist_to_binary(["ern ", string:trim(Version), Mark, "\n"])],
     ?assertMatch({[_], _}, {Made, VersionText}),
     [Ref] = Made,
-    %% report §11.4: each module page's footer names the version text of
-    %% the ern that wrote it, the release's, a hyphen escaped as roff
-    %% writes one. A regression test: the archive's pages had named the
-    %% checkout's build, `-dev`
+    %% report §11.4: each module page's footer, and ern(1)'s, names the
+    %% version text of the ern that wrote it, the release's, a hyphen
+    %% escaped as roff writes one. A regression test: the archive's pages
+    %% had named the checkout's build, `-dev`
     "ern " ++ Text = string:trim(binary_to_list(VersionText)),
-    Footer = iolist_to_binary(["\"3ern\" \"\" \"Ernest ",
-                               string:replace(Text, "-", "\\-", all), "\""]),
+    Footer = fun(Section) ->
+                 iolist_to_binary(["\"", Section, "\" \"\" \"Ernest ",
+                                   string:replace(Text, "-", "\\-", all), "\""])
+             end,
     Pages = filelib:wildcard(Base ++ "/p/share/man/man3/*.3ern"),
     ?assert(length(Pages) > 25),
     ?assertEqual([], [Page || Page <- Pages,
                               {ok, Bytes} <- [file:read_file(Page)],
-                              binary:match(Bytes, Footer) =:= nomatch]),
+                              binary:match(Bytes, Footer("3ern")) =:= nomatch]),
+    {ok, Manual} = file:read_file(Base ++ "/p/share/man/man1/ern.1"),
+    ?assertMatch({_, _}, binary:match(Manual, Footer("1"))),
     ?assert(links_to(Documents ++ "guide/language.md",
                      "/blob/" ++ Ref ++ "/docs/module_doc_template.md")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),

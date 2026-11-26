@@ -50,10 +50,10 @@ export fn main() : Unit =
         [root, out, version, tag] ->
             match generated(Path(root), Path(out), version, tag) {
                 Right(_) -> Unit
-              | Left(message) -> quit(message)
+              | Left(message) -> Repository.quit("site", message)
             }
       | _ ->
-            quit("usage: site root out version tag")
+            Repository.quit("site", "usage: site root out version tag")
     }
 
 fn generated(root : Path, out : Path, version : String, tag : String) : Either(String, Unit) = {
@@ -232,7 +232,7 @@ fn notFoundWritten(run : Run.Run) : Either(String, Unit) = {
 
 // The site is written whole into a directory of its own.
 fn absent(out : Path) : Either(String, Unit) =
-    match Fs.stat(out, Run.fileMs) {
+    match Fs.stat(out, Repository.fileMs) {
         Left(Io.NotFound) ->
             Right(Unit)
       | Right(_) ->
@@ -339,7 +339,10 @@ fn iconsGathered(directory : Path) : Either(String, String) = {
                     fn(entry) = Path.toString(entry.path));
     let symbols <- List.tryMap(icons, fn(entry) = {
         let text <- Run.textOf(entry.path);
-        let id = Optional.withDefault(Path.name(Path.withoutExtension(entry.path)), "");
+        let id = match Path.name(Path.withoutExtension(entry.path)) {
+            Some(found) -> found
+          | None -> fault("Fs.list joins each entry's name to its directory's path")
+        };
         symbolOf(Path.toString(entry.path), id, text)
     });
     Right(String.join(["<svg xmlns=\"http://www.w3.org/2000/svg\">",
@@ -404,9 +407,4 @@ fn logosCopied(root : Path, out : Path) : Either(String, Unit) = {
                         Run.copied(root <> Path("assets") <> Path(name),
                                    out <> Path("assets") <> Path(name)));
     Right(Unit)
-}
-
-fn quit(message : String) : Unit = {
-    Io.printlnError("site: " <> message);
-    Os.exit(1)
 }

@@ -210,7 +210,7 @@ pick_test() ->
 %% waiting above it among them, a later one in its place; a number below
 %% 0.0 faults the caller and sets nothing. The launch's table, which a
 %% launch makes, stands in for one here. A regression test, written after
-%% the code; the numbers above 1.0 since the release review before 0.4.0,
+%% the code; the numbers above 1.0 since the release review,
 %% which found them refused
 set_utilization_test() ->
     undefined = ets:whereis(ern_launch),

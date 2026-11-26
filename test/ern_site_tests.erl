@@ -43,6 +43,9 @@
 -define(ICONS, "../site/root/assets/img/icons").
 -define(LOGOS, ["ernest-mark.svg", "ernest-avatar-64.png", "ernest-social-light.png"]).
 
+%% docs/design/site.md *The generation*, *Anchors* and *Links*: the generator
+%% run once over the fixture's tree, and each part of what it wrote held by
+%% a test below.
 generated_test_() ->
     {setup, fun generated/0, fun(_) -> ok end,
      [{"pages", fun pages/0}, {"assets", fun assets/0}, {"icons", fun icons/0},

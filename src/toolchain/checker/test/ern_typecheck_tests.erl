@@ -1490,11 +1490,11 @@ code_running_test() ->
 %% that receives (§3.9). A send to one is refused, `expected Never`, a send
 %% over the list too, and an annotation of another mailbox type; `kill`
 %% over it is not. A regression test, written after the fix (the release
-%% review before 0.4.0 found the addresses at a variable nothing fixed, a
+%% review found the addresses at a variable nothing fixed, a
 %% send of 42 to a process that received another type compiling and
 %% breaking its mailbox at run time); the process-only function a
-%% regression test of its own, written after the fix of the full review
-%% before 0.5.0, which found it refused. It does not run a program
+%% regression test of its own, written after the fix of the full review,
+%% which found it refused. It does not run a program
 code_running_never_test() ->
     Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)\n",
     Skip = "fn skip() : Unit receiving m = receive { _ -> Unit }\n",
@@ -2067,7 +2067,7 @@ toolchains_own_names_test() ->
 %% each of its values, a function's reach among it, which the interface
 %% carries only where it names a binding or a foreign declaration, so that
 %% a function whose new reach names none names none it named before. A
-%% regression test, written after the fix: the full review before 0.5.0
+%% regression test, written after the fix: the full review
 %% found the old reach kept, as the module's ground terms once were; it
 %% does not cover a build, which reads one interface of each module
 interface_replaces_a_reach_test() ->
@@ -2793,7 +2793,7 @@ process_only_through_an_interface_test() ->
 %% A wait and a process-only callee are refused at once, as before, and a
 %% parameter the body calls still receives nothing. A regression test,
 %% written after the checker, the lambda's `: T` after the fix of the full
-%% review before 0.5.0, which found it refused: it does not cover a
+%% review, which found it refused: it does not cover a
 %% recursive group whose other member fixes the variable
 %% (group_member_written_none_test covers one whose member calls `self`),
 %% nor the shell's prompt, whose inputs are typed as a block's statements
@@ -2878,7 +2878,7 @@ standing_over_a_body_that_calls_self_test() ->
 %% selection the enclosing definition resolves as it ends, keeps it, and is
 %% refused there; so is a call under a lambda's `: T` whose variable such a
 %% selection holds. A regression test, written after the fix: the full
-%% review before 0.5.0 found the lambda refused where the same body as a
+%% review found the lambda refused where the same body as a
 %% `fn` or a `let`-bound lambda was accepted; it does not cover the prompt
 lambda_calling_self_receives_nothing_test() ->
     Run = "fn run(f : () -> Unit) : Unit = f()\n",
@@ -2972,7 +2972,7 @@ monitor_in_a_wrap_test() ->
 %% members written `: T` are checked after the others, each group's members
 %% in the order of their declarations; one whose other member waits is
 %% refused at the call. A regression test, written after the fix: the full
-%% review before 0.5.0 found the verdict changing with the order the
+%% review found the verdict changing with the order the
 %% host's graph gave the members, which changed from one start of the host
 %% to the next; within one start of the host the test cannot show that
 %% order, only each order of declaration
@@ -2990,7 +2990,7 @@ group_member_written_none_test() ->
 %% none only where it quantifies it: a lambda or a local `fn` that calls
 %% the enclosing function's callback keeps the callback's mailbox type,
 %% and is refused where a function that receives nothing is expected. A
-%% regression test, written after the fix: the full review before 0.5.0
+%% regression test, written after the fix: the full review
 %% found the variable written as none, a process started by a function
 %% that receives nothing reading an `Int` as a `String`; it does not cover
 %% the prompt
@@ -3011,7 +3011,7 @@ generalization_keeps_a_held_effect_test() ->
 %% a `<-` or a top-level `let` that the call gives its type, so that the
 %% definition's error is the one reported; an error of the user's own is
 %% still reported. A regression test, written after the fix: the full
-%% review before 0.5.0 found `the type a is not known whole here` after
+%% review found `the type a is not known whole here` after
 %% the error it followed from
 failed_definition_draws_no_second_error_test() ->
     Failed = "type Shape = Dot(name : String) | Circle(name : String, radius : Int)\n"
@@ -5228,7 +5228,7 @@ local_helper_over_an_operator_test() ->
 %% the top-level `let`, the top-level `fn`, the member written out and the
 %% annotated parameter always were, and an operand the lambda leaves open
 %% is refused at its `let`, whatever calls it later. A regression test,
-%% written after the fix: the full review before 0.5.0 found the result
+%% written after the fix: the full review found the result
 %% quantified, an `Int` reaching `String.toUpper` and the shell's printer;
 %% it does not cover the prompt, whose inputs are typed as a block's
 %% statements are
@@ -6095,7 +6095,7 @@ bitstring_pattern_test() ->
 %% report §6.3: a receive guard is a guard expression, and calls nothing;
 %% a match guard is any Bool expression. The help offers a `let` before
 %% the `receive` first, which keeps the message in the mailbox, a regression
-%% test of the help, written after it (the release review before 0.4.0
+%% test of the help, written after it (the release review
 %% found the help to `match` alone, which takes the message out)
 receive_guard_test() ->
     Source = "type Msg = N(Int) | Stop\n",
@@ -6216,8 +6216,8 @@ without_interface_test() ->
 %% `receive` guard, and a Bool one a guard expression; one selected through
 %% a call, a function's or a lambda's a field holds, is not, the guard
 %% calling nothing. A regression test, written after the code; the field
-%% read was refused before, which a reader of the release review before
-%% 0.7.0 found as it read a state's field
+%% read was refused before, which a reader of the release review found as it
+%% read a state's field
 receive_guard_field_test() ->
     Head = "type Msg = At(at : Int)\ntype Lot = Lot(at : Int, open : Bool)\n"
            "type State = State(at : Int, lot : Lot, next : () -> State)\n"

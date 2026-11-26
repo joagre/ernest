@@ -55,6 +55,9 @@ chrome() ->
 %% The tests
 %%
 
+%% docs/design/site.md *The live shell*, *A page kept under the panel* and
+%% *The homepage*: each check below, in one browser over the fixture's pages
+%% and the repository's own homepage.
 client_test_() ->
     {setup, fun started/0, fun stopped/1,
      fun(World) ->
@@ -774,7 +777,7 @@ click(Page, X, Y) ->
 %% page that has just committed then loses its requests, its script among
 %% them, so that none is started: version 157 needs both flags for that.
 chrome_started() ->
-    Profile = filename:join(ern_pty:run_dir(),
+    Profile = filename:join(ern_helpers:run_dir(),
                             "ern_chrome_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_dir(Profile ++ "/"),
     Port = open_port({spawn_executable, chrome()},
@@ -797,7 +800,7 @@ endpoint(Port, Acc) ->
             end;
         {Port, {exit_status, Status}} ->
             error({chrome_ended, Status, Acc})
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         error({chrome_said_no_endpoint, Acc})
     end.
 
@@ -807,7 +810,7 @@ chrome_ended(Port) ->
     {os_pid, Pid} = erlang:port_info(Port, os_pid),
     receive
         {Port, {exit_status, _}} -> ok
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         os:cmd("kill " ++ integer_to_list(Pid))
     end.
 
@@ -830,7 +833,7 @@ cdp_started({Address, Path}) ->
                          cdp(Socket, Rest, 1, #{}, [], #{})
                      end),
     receive {cdp_ready, Cdp} -> Cdp
-    after ern_nodes_tests:wait_ms() -> error(no_devtools)
+    after ern_harness:wait_ms() -> error(no_devtools)
     end.
 
 %% The head of the upgrade's response and what came after it.
@@ -906,7 +909,7 @@ call(Cdp, Method, Params, Session) ->
     receive
         {cdp_reply, Id, #{<<"result">> := Result}} -> Result;
         {cdp_reply, Id, #{<<"error">> := Error}} -> error({devtools, Method, Error})
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         error({devtools_did_not_answer, Method})
     end.
 

@@ -1403,8 +1403,8 @@ idle_check_is_cheap_test() ->
 %% processes behind, so the next run failed to make its table
 failed_start_test() ->
     %% the standard library is what its directory holds, here one module
-    Dir = filename:join([os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_rt_failed_start_" ++ os:getpid(), "stdlib"]),
+    Dir = filename:join([ern_helpers:run_dir(), "ern_rt_failed_start_" ++ os:getpid(),
+                         "stdlib"]),
     ok = filelib:ensure_path(Dir),
     ErlangModule = 'ern@zz_failed_start',
     Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{'$init', 0}]},
@@ -1719,8 +1719,7 @@ asked(Late) ->
 %% before the fix. It covers a load made by a call, the only
 %% way an Ernest process loads, and not code:ensure_loaded called directly
 loading_is_not_deadlock_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_rt_loading_" ++ os:getpid()),
+    Dir = filename:join(ern_helpers:run_dir(), "ern_rt_loading_" ++ os:getpid()),
     ok = filelib:ensure_path(Dir),
     ErlangModule = ern_zz_loading,
     Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{f, 0}]},
@@ -3734,11 +3733,11 @@ killed_teller_test() ->
 %% report §8.6, §6.9, §11.2: a subscriber whose wrap never finishes, and
 %% which then ends, is waited for no longer: the wrap's delivery ends with
 %% it, and the end goes on, the runtime saying that the subscriber ended
-%% without answering. A regression test, written after the code (finding
-%% C27): the end's teller applied the wrap itself and read no end of the
-%% subscriber while it did, so the end waited for ever; a restart of the
-%% subscriber under such a wrap, which ends the delivery the same way, is
-%% not covered
+%% without answering. A regression test, written after the code (the
+%% log's *Before the Tag, the Last Builds*): the end's teller applied the
+%% wrap itself and read no end of the subscriber while it did, so the end
+%% waited for ever; a restart of the subscriber under such a wrap, which
+%% ends the delivery the same way, is not covered
 spinning_wrap_ends_with_its_subscriber_test() ->
     Self = self(),
     Stopper = spawn(fun() -> receive {spinning, Subscriber} -> Subscriber ! stop end end),

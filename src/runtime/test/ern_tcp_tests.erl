@@ -785,16 +785,16 @@ accept_at_the_file_limit() ->
                          " -eval \"ern_tcp_tests:at_the_file_limit(), erlang:halt(0)\"'"},
                     [binary, exit_status, stderr_to_stdout, {line, 200}]),
     true = port_command(Erl, "go\n"),
-    <<"port: ", PortText/binary>> = said(Erl, <<"port: ">>),
-    _ = said(Erl, <<"filled">>),
+    <<"port: ", PortText/binary>> = next_line(Erl, <<"port: ">>),
+    _ = next_line(Erl, <<"filled">>),
     {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, binary_to_integer(PortText),
                                    [binary, {active, false}], 5000),
     ok = gen_tcp:send(Socket, <<"x">>),
     true = port_command(Erl, "connected\n"),
-    _ = said(Erl, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
-    _ = said(Erl, <<"forever: {'Left',{'Other',<<\"too many open files\">>}}">>),
-    <<"took: ", Took/binary>> = said(Erl, <<"took: ">>),
-    _ = said(Erl, <<"later: {'Right',<<\"x\">>}">>),
+    _ = next_line(Erl, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    _ = next_line(Erl, <<"forever: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    <<"took: ", Took/binary>> = next_line(Erl, <<"took: ">>),
+    _ = next_line(Erl, <<"later: {'Right',<<\"x\">>}">>),
     Status = receive {Erl, {exit_status, Exit}} -> Exit after 20000 -> none end,
     gen_tcp:close(Socket),
     ?assertEqual(0, Status),
@@ -805,12 +805,12 @@ accept_at_the_file_limit() ->
 %% The next line the host under the limit writes, which begins as Expected
 %% says; where it does not, or the host falls silent, the test fails with
 %% every line the host wrote from there.
-said(Erl, Expected) ->
+next_line(Erl, Expected) ->
     receive
         {Erl, {data, {eol, Line}}} ->
             case binary:longest_common_prefix([Line, Expected]) =:= byte_size(Expected) of
                 true -> Line;
-                false -> erlang:error({said, [Line | rest(Erl)]})
+                false -> erlang:error({next_line, [Line | rest(Erl)]})
             end
     after 20000 -> erlang:error({silent, Expected})
     end.
@@ -2811,9 +2811,10 @@ tls_verified_takes_a_held_certificate_test() ->
 %% is checked still, of a certificate sent alone and of one sent with its
 %% chain, with its authority and without it.
 %%
-%% A regression test, written after the code (C1-2): the host refused each
-%% before it looked in the file, and a far end was taken by its own
-%% certificate only where it was self-signed. A chain of more than one
+%% A regression test, written after the code (the log's *The Release
+%% Review Before 0.9.0*): the host refused each before it looked in the
+%% file, and a far end was taken by its own certificate only where it was
+%% self-signed. A chain of more than one
 %% intermediate is not covered.
 tls_verified_takes_a_pinned_certificate_test() ->
     #{dir := Dir, ca := Ca, server := {Chain, _} = Server,
@@ -3557,10 +3558,7 @@ accepting(Listener, Count) ->
 %% localhost, and `self_signed_elsewhere`, naming another host.
 -spec pki() -> #{atom() => term()}.
 pki() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_tcp_tls_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir ++ "/"),
+    Dir = ern_helpers:tmp("ern_tcp_tls_"),
     Root = public_key:pkix_test_root_cert("Ernest test authority", key_options()),
     Other = public_key:pkix_test_root_cert("Ernest other authority", key_options()),
     #{dir => Dir,

@@ -82,8 +82,10 @@ fn errorText(error : Io.Error) : String =
       | _ -> Io.show(error)
     }
 
+// The lines counted as `wc` counts them, by their line feeds, so that a
+// last line with none counts for none.
 fn measured(text : String, size : Int) : Counts =
-    Counts(lines = List.size(String.lines(text)),
+    Counts(lines = List.size(String.split(text, "\n")) - 1,
            words = List.size(String.words(text)),
            bytes = size)
 

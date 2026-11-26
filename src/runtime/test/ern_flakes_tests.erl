@@ -284,35 +284,14 @@ headers(File, Part) ->
 %% test's own restored after.
 captured(Run) ->
     Leader = group_leader(),
-    Keeper = spawn_link(fun() -> kept(<<>>) end),
+    Keeper = ern_helpers:device(),
     group_leader(Keeper, self()),
     try
         Run()
     after
         group_leader(Leader, self())
     end,
-    Keeper ! {written, self()},
-    receive
-        {written, Keeper, Bytes} -> Bytes
-    end.
-
-%% A group leader's answers to the requests io:format/2 and io:put_chars/1
-%% send, the bytes kept until the test asks for them.
-kept(Bytes) ->
-    receive
-        {io_request, From, ReplyAs, {put_chars, unicode, Chars}} ->
-            From ! {io_reply, ReplyAs, ok},
-            kept(<<Bytes/binary, (unicode:characters_to_binary(Chars))/binary>>);
-        {io_request, From, ReplyAs, {put_chars, unicode, Module, Function, Arguments}} ->
-            From ! {io_reply, ReplyAs, ok},
-            Chars = apply(Module, Function, Arguments),
-            kept(<<Bytes/binary, (unicode:characters_to_binary(Chars))/binary>>);
-        {io_request, From, ReplyAs, _} ->
-            From ! {io_reply, ReplyAs, {error, request}},
-            kept(Bytes);
-        {written, Test} ->
-            Test ! {written, self(), Bytes}
-    end.
+    ern_helpers:device_bytes(Keeper).
 
 %% docs/development.md "Building": the tests make test gives a host are
 %% each test function of its modules, in the order each module exports
@@ -331,17 +310,18 @@ alone_takes_each_test_function_test() ->
     end.
 
 %% docs/development.md "Building", `make flakes`, tools/flakes.ern: the
-%% program refuses a MINUTES that is not a positive whole number and a
-%% LOOPS that is not a whole number, each in one line with the status 1. A
-%% regression test, written after the program.
+%% program refuses minutes that are not a positive whole number and loops
+%% that are not a whole number, each in one line with the status 1, in the
+%% program's words and not make's, which the Makefile writes. A regression
+%% test, written after the program.
 program_refusals_test_() ->
     {timeout, 60, fun program_refusals/0}.
 
 program_refusals() ->
     Dir = program_dir("refusals"),
     Hosts = ["--", "one", "sh", "-c", "exit 0"],
-    Minutes = <<"make flakes: MINUTES=n, a positive whole number, is required\n">>,
-    Loops = <<"make flakes: LOOPS=n, a whole number, is required\n">>,
+    Minutes = <<"make flakes: minutes, a positive whole number, is required\n">>,
+    Loops = <<"make flakes: loops, a whole number, is required\n">>,
     ?assertEqual({1, Minutes}, ran(Dir, ["", "1", records(Dir) | Hosts])),
     ?assertEqual({1, Minutes}, ran(Dir, ["0", "1", records(Dir) | Hosts])),
     ?assertEqual({1, Loops}, ran(Dir, ["1", "x", records(Dir) | Hosts])),

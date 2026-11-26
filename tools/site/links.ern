@@ -166,7 +166,7 @@ fn numbered(texts : List(String)) : Map(String, String) = {
 fn numberKey(found : String) : String = {
     let digits = String.replace(found, ".", "");
     match String.toList(found) {
-        first :: _ when isCapital(first) -> "appendix-" <> String.toLower(digits)
+        first :: _ when first >= 'A' && first <= 'Z' -> "appendix-" <> String.toLower(digits)
       | _ -> digits
     }
 }
@@ -179,7 +179,7 @@ fn fragmentKey(fragment : String) : String =
             "appendix-" <> String.fromList(run)
         }
       | None -> {
-            let #(run, _) = digitRun(String.toList(fragment));
+            let #(run, _) = List.splitWhile(String.toList(fragment), Char.isAsciiDigit);
             String.fromList(run)
         }
     }
@@ -209,22 +209,10 @@ fn sectionNumber(chars : List(Char)) : Optional(String) =
     }
 
 fn appendixNumber(chars : List(Char)) : Optional(String) =
-    match chars {
-        letter :: '.' :: rest when isCapital(letter) ->
-            match digitRun(rest) {
-                #([], _) -> Some(Char.toString(letter))
-              | #(run, '.' :: _) -> Some(Char.toString(letter) <> "." <> String.fromList(run))
-              | _ -> None
-            }
-      | _ ->
-            None
+    match Citations.appendix(chars) {
+        Some(#(found, '.' :: _)) -> Some(found)
+      | _ -> None
     }
-
-fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
-    List.splitWhile(chars, Char.isAsciiDigit)
-
-fn isCapital(char : Char) : Bool =
-    char >= 'A' && char <= 'Z'
 
 //
 // GitHub's anchors
@@ -637,9 +625,8 @@ fn logLink(page : Page, title : Markdown.Inline, place : String) : Markdown.Inli
 // The text, each citation in it a link to the section it names, as
 // `Citations` reads them: a bare `§` is the guide's own in the guide and
 // the report's in every other document (docs/design/site.md *Links*).
-fn cited(text : String, page : Page) : Either(String, List(Markdown.Inline)) = {
-    let bare = if page.source == "guide/language.md" then Citations.Guide else Citations.Report;
-    List.tryMap(Citations.pieces(text, bare), fn(piece) = match piece {
+fn cited(text : String, page : Page) : Either(String, List(Markdown.Inline)) =
+    List.tryMap(Citations.pieces(text, Citations.bareOf(page.source)), fn(piece) = match piece {
         Citations.Text(written) ->
             Right(Markdown.Text(written))
       | Citations.Citation(=label, =document, =section) ->
@@ -647,7 +634,6 @@ fn cited(text : String, page : Page) : Either(String, List(Markdown.Inline)) = {
                        fn(found) =
                            Markdown.Link(text = [Markdown.Text(label)], url = local(page, found)))
     })
-}
 
 // Where a citation leads, a section of the report, the guide or the
 // deployment guide.

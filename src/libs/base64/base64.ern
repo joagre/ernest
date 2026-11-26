@@ -193,12 +193,12 @@ let outsideAlphabet =
                   Test.equal(read(["Zm-v", "Zm_v", "Zm9\u{e9}", "Zm9v\u{b}\u{b}\u{b}\u{b}"]), []))
 
 // report Appendix G.8
-let count =
+let countsNoMultipleOfFour =
     Test.Case(name = "a count of characters that is no multiple of four is refused",
               run = fn() = Test.equal(read(["Z", "Zg", "Zg=", "Zm9vY"]), []))
 
 // report Appendix G.8
-let padding =
+let paddingMisplaced =
     Test.Case(name = "a = anywhere but as the last one or two characters is refused",
               run = fn() =
                   Test.equal(read(["Zg===", "Z===", "====", "Zm=v", "=Zm9", "Zg==Zg=="]), []))
@@ -223,12 +223,12 @@ let exactlyWritten =
                       List.map(String.toList(alphabet <> "= "), fn(char) = String.fromList([char]));
                   let texts =
                       extended(extended(extended(["Q"], characters), characters), characters);
-                  let read =
+                  let decoded =
                       List.filterMap(texts,
                                      fn(text) =
                                          Optional.map(decode(text), fn(bytes) = #(text, bytes)));
-                  Test.equal(#(List.size(read),
-                               List.filter(read, fn(#(text, bytes)) = encode(bytes) != text)),
+                  Test.equal(#(List.size(decoded),
+                               List.filter(decoded, fn(#(text, bytes)) = encode(bytes) != text)),
                              #(64 * 64 * 64 + 64 * 16 + 4, []))
               })
 

@@ -6,7 +6,7 @@
 %% one, and a count of what a screen shows.
 -module(ern_pty).
 
--export([run/3, tried/3, watched/5, watcher/0, settings/2, paste_off/0, run_dir/0, sh/1,
+-export([run/3, tried/3, watched/5, watcher/0, settings/2, paste_off/0, sh/1,
          count/2]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -26,9 +26,9 @@
 %% that a program slower under load is waited for rather than raced; a step
 %% the harness could not meet fails the test. Each wait the harness runs,
 %% an expect's and the program's end, is a step of the test's
-%% (ern_nodes_tests:step/2), bounded by the time for one wait
-%% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
-%% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
+%% (ern_harness:step/2), bounded by the time for one wait
+%% (ern_harness:wait_ms/0), so that the session's bound is its steps'
+%% sum, to which the harness's run is held too (ern_harness:collected/2),
 %% and a step that fails is told by its own bound before the test's runs
 %% out.
 -spec run(string(), [step()], [option()]) -> {integer() | timeout, binary()}.
@@ -44,11 +44,11 @@ run(Command, Steps, Options) ->
 -spec tried(string(), [step()], [option()]) ->
           {integer() | timeout, binary(), [binary()]}.
 tried(Command, Steps, Options) ->
-    Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms())]
+    Arguments = ["--timeout", integer_to_list(ern_harness:wait_ms())]
                 ++ lists:append([["--step", step(Step)] || Step <- Steps])
                 ++ lists:append([option(Option) || Option <- Options]) ++ ["--", Command],
-    {0, Output} = ern_nodes_tests:collected(harness(Arguments),
-                                            length([Text || {expect, Text} <- Steps]) + 1),
+    {0, Output} = ern_harness:collected(harness(Arguments),
+                                        length([Text || {expect, Text} <- Steps]) + 1),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
     [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
@@ -88,8 +88,8 @@ watched(Watcher, Watched, Ended, Command, Steps) ->
 %% (watched/5), one of its own under the run's directory.
 -spec watcher() -> file:filename().
 watcher() ->
-    filename:join(run_dir(), "ern_watcher_" ++ os:getpid() ++ "_"
-                             ++ integer_to_list(erlang:unique_integer([positive]))).
+    filename:join(ern_helpers:run_dir(), "ern_watcher_" ++ os:getpid() ++ "_"
+                                        ++ integer_to_list(erlang:unique_integer([positive]))).
 
 %% The terminal's settings as `stty -g` read them, as the command found
 %% them or as it left them, where a watcher (watched/5) wrote them.
@@ -107,13 +107,6 @@ option({size, Rows, Columns}) ->
     ["--size", integer_to_list(Rows) ++ "x" ++ integer_to_list(Columns)];
 option(screen) ->
     ["--screen"].
-
-%% The directory a run of the tests makes what it needs under, its homes,
-%% sources and inputs: the one `make` makes for the run and removes when it
-%% ends, or the host's for a run of a test by itself.
--spec run_dir() -> file:filename().
-run_dir() ->
-    os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")).
 
 %% A step as the harness's argument, which reaches it whole (harness/1).
 %% An expect's text holds no line feed: the terminal writes a program's
@@ -139,7 +132,7 @@ status(Text) -> binary_to_integer(Text).
 %% it stands, a variable's setting before it among what it may hold.
 -spec sh(string()) -> {non_neg_integer(), binary()}.
 sh(Command) ->
-    ern_nodes_tests:collected(shell(Command), 1).
+    ern_harness:collected(shell(Command), 1).
 
 %% The port of the harness run with Arguments, which reach it as they are,
 %% so that a step and the command reach it whole, a quote or a `;` among

@@ -76,7 +76,7 @@ const phone = window.matchMedia("(width <= 47.5em)");
 const panel = {
     layout: null,
     element: null,
-    terminal: null,
+    screen: null,
     state: null,
     buttons: {},
     running: false,
@@ -251,7 +251,7 @@ async function startSession() {
         return;
     }
     if (session.terminal === null) {
-        panel.terminal.replaceChildren();
+        panel.screen.replaceChildren();
         const terminal = new Terminal({
             screenReaderMode: true,
             macOptionIsMeta: true,
@@ -261,7 +261,7 @@ async function startSession() {
         });
         const fit = new FitAddon.FitAddon();
         terminal.loadAddon(fit);
-        terminal.open(panel.terminal);
+        terminal.open(panel.screen);
         terminal.onData((data) => sendKeys(encoder.encode(data)));
         terminal.onBinary((data) => sendKeys(Uint8Array.from(data, (char) => char.charCodeAt(0))));
         terminal.onResize((size) => session.handle?.resize(size.rows, size.cols));
@@ -282,7 +282,7 @@ async function startSession() {
             if (!panel.element.hidden) {
                 fit.fit();
             }
-        }).observe(panel.terminal);
+        }).observe(panel.screen);
         Object.assign(session, { terminal, fit });
     }
     session.fit.fit();
@@ -410,7 +410,7 @@ function focusTerminal() {
     if (session.terminal !== null) {
         session.terminal.focus();
     } else {
-        panel.terminal.focus();
+        panel.screen.focus();
     }
 }
 
@@ -601,18 +601,18 @@ function addPanel() {
     });
     warning.append(warningText, extend);
 
-    const terminal = document.createElement("div");
-    terminal.className = "panel-terminal";
-    terminal.tabIndex = -1;
+    const screen = document.createElement("div");
+    screen.className = "panel-terminal";
+    screen.tabIndex = -1;
     const note = document.createElement("p");
     note.className = "panel-note";
     note.textContent = "Start opens a session, or a Paste does.";
-    terminal.append(note);
+    screen.append(note);
 
-    element.append(handle, bar, warning, terminal);
+    element.append(handle, bar, warning, screen);
     page.after(element);
     Object.assign(panel,
-        { element, handle, terminal, state, start, stop, hide, warning, warningText });
+        { element, handle, screen, state, start, stop, hide, warning, warningText });
     setState("");
 
     for (const dimension of ["width", "height"]) {
@@ -694,9 +694,12 @@ function showLimits() {
     }
     loadClient().then(({ limits }) => {
         for (const span of spans) {
-            span.textContent = limitsSaid[span.dataset.limit](limits);
+            const said = limitsSaid[span.dataset.limit];
+            if (said !== undefined) {
+                span.textContent = said(limits);
+            }
         }
-    }, () => {});
+    }).catch(() => {});
 }
 
 // A time in milliseconds as a page says it, in the largest unit it is a
@@ -979,7 +982,9 @@ async function navigate(url, state, pushed) {
         [document, page].map((each) => each.querySelector(selector)?.getAttribute(attribute));
     const [oldScript, newScript] = named("script[src]", "src");
     const [oldStyle, newStyle] = named('link[rel="stylesheet"]', "href");
-    if (page.querySelector("main") === null || oldScript !== newScript || oldStyle !== newStyle) {
+    const whole = (selector) =>
+        page.querySelector(selector) !== null && document.querySelector(selector) !== null;
+    if (!swapped.every(whole) || oldScript !== newScript || oldStyle !== newStyle) {
         location.assign(url);
         return;
     }
@@ -993,9 +998,13 @@ async function navigate(url, state, pushed) {
     arrive(url, state);
 }
 
+// The parts of a page another puts in place of its own; a page that lacks
+// one, or whose page lacks one, is loaded whole.
+const swapped = [".site-nav", ".site-menu nav", "main", "footer"];
+
 function putInPlace(page) {
     document.title = page.title;
-    for (const selector of [".site-nav", ".site-menu nav", "main", "footer"]) {
+    for (const selector of swapped) {
         const replacement = document.adoptNode(page.querySelector(selector));
         document.querySelector(selector).replaceWith(replacement);
     }

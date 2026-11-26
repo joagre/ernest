@@ -16,10 +16,10 @@
 // removed first, each a `PartFile`. Each host is told the hunt in its
 // environment, as ern_flakes reads it.
 //
-// A termination ends the hosts and removes the rounds' directories before
+// A termination ends the hosts and removes the rounds' directory before
 // the program ends (report §8.6). The host's interrupt ends the program at
 // once, and with it every program it started (Appendix E.23), but the
-// rounds' directories stay.
+// rounds' directory stays.
 //
 
 // What the command line gives.
@@ -30,7 +30,7 @@ type Part = Part(name : String, program : String, arguments : List(String))
 
 // What the hunt's entry process is told: a host's end, and the program's
 // end, which it answers once the hosts are ended and the rounds'
-// directories removed.
+// directory removed.
 type HuntMsg = Ended(part : String, outcome : Outcome) | Stop(Reply(Unit))
 
 // How a host ended: it ran to its exit status, or could not be run.
@@ -52,9 +52,6 @@ type PartSummary = PartSummary(line : String, failed : List(String), early : Boo
 
 let usage : String = "usage: flakes minutes loops records -- part program argument..."
 
-// A file's time and rm's, as the other tools give theirs.
-let fileMs : Int = 10000
-
 let newline : Bytes = String.toUtf8("\n")
 
 // A busy loop, which keeps one processor busy until it is killed.
@@ -72,11 +69,11 @@ fn parsed(arguments : List(String)) : Either(String, Hunt) =
         minutes :: loops :: records :: words -> {
             let minutes <- match String.toInt(minutes) {
                 Some(count) when count > 0 -> Right(count)
-              | _ -> Left("MINUTES=n, a positive whole number, is required")
+              | _ -> Left("minutes, a positive whole number, is required")
             };
             let loops <- match String.toInt(loops) {
                 Some(count) when count >= 0 -> Right(count)
-              | _ -> Left("LOOPS=n, a whole number, is required")
+              | _ -> Left("loops, a whole number, is required")
             };
             let parts <- partsOf(words);
             if List.isEmpty(parts) then
@@ -113,7 +110,7 @@ fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
     Os.subscribeTermination(Stop);
     let records = Os.workingDirectory <> hunt.records;
     let _ <-
-        Either.mapLeft(Fs.makeDir(records, fileMs),
+        Either.mapLeft(Fs.makeDir(records, Repository.fileMs),
                        fn(error) =
                            "cannot make " <> Path.toString(records) <> ": " <> Io.show(error));
     let _ <- List.tryForEach(hunt.parts, fn(part) = cleared(records, part));
@@ -121,7 +118,7 @@ fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
         Either.mapLeft(List.tryMap(List.range(1, hunt.loops), fn(_) = Os.start(busyLoop)),
                        fn(error) = "cannot start a busy loop: " <> Io.show(error));
     let rounds <-
-        Either.mapLeft(Fs.makeTempDir(fileMs),
+        Either.mapLeft(Fs.makeTempDir(Repository.fileMs),
                        fn(error) = "cannot make the rounds' directory: " <> Io.show(error));
     let until = Clock.now() + 60000 * hunt.minutes;
     let hunter = self();
@@ -145,7 +142,7 @@ fn told(part : Part, records : Path, until : Int, rounds : Path) : List(#(String
      #("ERL_CRASH_DUMP", Path.toString(partFile(records, part, CrashDump)))]
 
 // The outcome of each host by its part's name, once every host has ended.
-// At the program's end the hosts are ended and the rounds' directories
+// At the program's end the hosts are ended and the rounds' directory
 // removed before the end is answered, so that nothing is left (report
 // §8.6); a host is ended with the process that started it (Appendix E.23).
 fn waited(hosts : List(Process),
@@ -205,7 +202,7 @@ fn relay(host : Address(Os.ProgramMsg), errors : Path, pending : Bytes) : Either
             }
         }
       | Right(Os.Stderr(bytes)) -> {
-            match Fs.append(errors, bytes, fileMs) {
+            match Fs.append(errors, bytes, Repository.fileMs) {
                 Right(_) ->
                     Unit
               | Left(error) ->
@@ -273,7 +270,7 @@ fn partSummary(part : Part, records : Path, outcome : Outcome) : Either(String, 
     else
         Either.mapLeft(Fs.append(file,
                                  String.toUtf8("\n== " <> part.name <> " " <> ending <> "\n"),
-                                 fileMs),
+                                 Repository.fileMs),
                        fn(error) =
                            "cannot append to " <> Path.toString(file) <> ": " <> Io.show(error));
     let rounds <- linesOf(partFile(records, part, Rounds));
@@ -324,7 +321,7 @@ fn partFile(records : Path, part : Part, file : PartFile) : Path = {
 fn cleared(records : Path, part : Part) : Either(String, Unit) =
     List.tryForEach(partFiles, fn(file) = {
         let path = partFile(records, part, file);
-        match Fs.remove(path, fileMs) {
+        match Fs.remove(path, Repository.fileMs) {
             Right(_) -> Right(Unit)
           | Left(Io.NotFound) -> Right(Unit)
           | Left(error) -> Left("cannot remove " <> Path.toString(path) <> ": " <> Io.show(error))
@@ -333,7 +330,7 @@ fn cleared(records : Path, part : Part) : Either(String, Unit) =
 
 // The lines of a file, none where it is not there.
 fn linesOf(path : Path) : Either(String, List(String)) =
-    match Fs.read(path, fileMs) {
+    match Fs.read(path, Repository.fileMs) {
         Right(bytes) -> Right(String.lines(String.fromUtf8Lossy(bytes)))
       | Left(Io.NotFound) -> Right([])
       | Left(error) -> Left("cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
@@ -344,7 +341,7 @@ fn linesOf(path : Path) : Either(String, List(String)) =
 // program.
 fn removed(path : Path) : Either(String, Unit) = {
     let finished <-
-        Either.mapLeft(Os.run(Os.command("rm", ["-rf", Path.toString(path)]), fileMs),
+        Either.mapLeft(Os.run(Os.command("rm", ["-rf", Path.toString(path)]), Repository.fileMs),
                        fn(error) = "cannot run rm: " <> Io.show(error));
     if finished.status == 0 then
         Right(Unit)
@@ -355,7 +352,7 @@ fn removed(path : Path) : Either(String, Unit) = {
                  <> String.fromUtf8Lossy(finished.stderr))
 }
 
-fn quit(message : String) : Unit = {
+fn quit(message : String) : a = {
     said(message);
     Os.exit(1)
 }

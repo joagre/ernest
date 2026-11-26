@@ -29,6 +29,8 @@
 %% A console whose command is `$ ern shell` is a session: its `> ` lines
 %% are the inputs, and the rest is what the shell prints; `$ ern shell
 %% words.erc` after a module is a session with that module loaded. A
+%% session that reloads stands for an edit the document tells and does not
+%% show, and a test of its own replays it (why_reload_session/0). A
 %% console whose first line is a `> ` line continues the session of the
 %% nearest console before it under its heading, its inputs and what the
 %% shell prints added to that session's, so that a long session is shown in
@@ -47,12 +49,9 @@
 %% every block under its heading.
 -module(ern_guide_tests).
 
-%% EUnit's captured output, asked of the test's group leader, which is
-%% EUnit's. EUnit's own ?capturedOutput first asks whether it is by the
-%% function it is running, which under load it can sample while that
-%% process runs another module's code, and then answers "", which once
-%% failed the diagnostics' examples intermittently.
--define(capturedOutput, captured_output()).
+%% EUnit's captured output (ern_helpers:captured_output/0), in place of
+%% EUnit's own ?capturedOutput, which under load can answer "".
+-define(capturedOutput, ern_helpers:captured_output()).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -190,6 +189,82 @@ why_examples_test_() ->
 faq_examples_test_() ->
     examples(?FAQ, "faq").
 
+%% guide/why.md, report §11.2: the session of versions, replayed as a
+%% session is, its inputs and what the shell prints held to the console,
+%% with the edit the prose tells made before `:reload`: `CounterMsg` gains
+%% a `Reset`. The counter is the argument's, whose fragment stands above
+%% the session. Its limit is the sum of its eight waits: the first prompt,
+%% the five inputs, the shell's end at `:quit` and what it printed.
+why_reload_session_test_() ->
+    ern_harness:counted_test({waits, 8}, fun why_reload_session/0).
+
+why_reload_session() ->
+    [Lines] = [Lines || #block{info = <<"console">>, code = [<<"$ ern shell">> | Lines]}
+                            <- blocks(numbered(?WHY), none, []),
+                        lists:member(<<":reload">>, inputs(Lines))],
+    Dir = tmp(),
+    Counter = fun(Reset) ->
+                  ["export type CounterMsg =
+"
+                   "    Inc(Int)
+"
+                   "  | Get(Reply(Int))
+",
+                   ["  | Reset
+" || Reset],
+                   "  | Upgrade(next : (Int) -> Unit receiving CounterMsg)
+
+"
+                   "export fn count(total : Int) : Unit receiving CounterMsg =
+"
+                   "    receive {
+"
+                   "        Inc(amount) ->
+"
+                   "            count(total + amount)
+"
+                   "      | Get(reply) -> {
+"
+                   "            answer(reply, total);
+"
+                   "            count(total)
+"
+                   "        }
+",
+                   ["      | Reset ->
+            count(0)
+" || Reset],
+                   "      | Upgrade(=next) ->
+"
+                   "            next(total)
+"
+                   "    }
+"]
+              end,
+    ok = write(filename:join(Dir, "counter.ern"), Counter(false)),
+    Shell = filename:join(Dir, "shell"),
+    {Port, Wait} = ern_harness:launched(Shell, ["cd ", Dir, " && HOME=", Dir, " ",
+                                                filename:absname("../bin/ern"), " shell"]),
+    ok = ern_harness:prints(Shell, "> "),
+    Typed = fun({Count, Input}) ->
+                    case Input of
+                        <<":reload">> ->
+                            ok = write(filename:join(Dir, "counter.ern"), Counter(true));
+                        _ ->
+                            ok
+                    end,
+                    true = port_command(Port, [Input, <<"\n">>]),
+                    ok = ern_harness:prints(Shell, "> ", Count + 1, ern_harness:wait_ms())
+            end,
+    Inputs = inputs(Lines),
+    lists:foreach(Typed, lists:zip(lists:seq(1, length(Inputs)), Inputs)),
+    true = port_command(Port, <<":quit\n">>),
+    ?assertEqual(0, Wait()),
+    {Out, _} = ern_harness:said(Shell),
+    Printed = unicode:characters_to_binary(Out),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(trim(session_shown(Lines)), session_end(Printed)).
+
 %% guide/language.md §8.1; report §8.7, §11.2, §11.3, Appendix E.27: the
 %% section's square.ern run on two nodes from one directory, as the
 %% console after its two directories shows it. `a` and `foo` are made
@@ -208,25 +283,25 @@ faq_examples_test_() ->
 %% the build, four `ern config` jobs, `foo`'s listening, the run, the stop,
 %% `foo`'s end and what it said
 work_on_a_peer_test_() ->
-    ern_nodes_tests:nodes_test({waits, 10}, fun work_on_a_peer/1).
+    ern_harness:nodes_test({waits, 10}, fun work_on_a_peer/1).
 
 work_on_a_peer(Base) ->
     built(Base, tree_of("square.ern")),
     [[{"run --config-dir a square.erc" = RunWords, RunShown},
       {"stop --config-dir foo" = StopWords, []}]] = node_consoles(<<"### 8.1 ">>),
-    ListenFoo = ern_nodes_tests:address(ern_nodes_tests:free_port()),
+    ListenFoo = ern_harness:address(ern_harness:free_port()),
     [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir a",
                   "config --config-dir foo --listen " ++ binary_to_list(ListenFoo)]],
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir a --peer-dir foo", "config --config-dir foo --peer-dir a"]],
     Foo = filename:join(Base, "foo"),
-    Wait = ern_nodes_tests:bare_started(Foo, []),
-    ern_nodes_tests:says(Foo, "listening on "),
+    Wait = ern_harness:bare_started(Foo, []),
+    ern_harness:says(Foo, "listening on "),
     ran(Base, RunWords, RunShown),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, StopWords)),
     ?assertEqual(143, Wait()),
-    {"", Err} = ern_nodes_tests:said(Foo),
+    {"", Err} = ern_harness:said(Foo),
     ?assertEqual([<<"listening on ", ListenFoo/binary>>, <<"the peer a connected">>,
                   <<"the peer a ended">>],
                  stamped(Err)).
@@ -256,7 +331,7 @@ work_on_a_peer(Base) ->
 %% store's listening, two runs, the desk's end on the store, the stop, the
 %% store's end and what it said
 services_across_nodes_test_() ->
-    ern_nodes_tests:nodes_test({waits, 12}, fun services_across_nodes/1).
+    ern_harness:nodes_test({waits, 12}, fun services_across_nodes/1).
 
 services_across_nodes(Base) ->
     built(Base, tree_of("store.ern")),
@@ -264,8 +339,8 @@ services_across_nodes(Base) ->
      [{"run --config-dir desk desk.erc" = DeskWords, DeskShown},
       {"run --config-dir desk board.erc" = BoardWords, BoardShown},
       {"stop --config-dir store" = StopWords, []}]] = node_consoles(<<"### 8.2 ">>),
-    Port = ern_nodes_tests:free_port(),
-    Listen = ern_nodes_tests:address(Port),
+    Port = ern_harness:free_port(),
+    Listen = ern_harness:address(Port),
     [Store, Desk] = [filename:join(Base, Name) || Name <- ["store", "desk"]],
     [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir store --listen " ++ binary_to_list(Listen),
@@ -273,18 +348,18 @@ services_across_nodes(Base) ->
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir desk --peer-dir store",
                   "config --config-dir store --peer-dir desk"]],
-    ern_nodes_tests:edit(Desk, fun(Conf) ->
-                                   Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}}
-                               end),
+    ern_harness:edit(Desk, fun(Conf) ->
+                               Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}}
+                           end),
     Ern = filename:absname("../bin/ern"),
-    {_, Wait} = ern_nodes_tests:launched(Store, ["cd ", Base, " && ", Ern, " ", StoreWords]),
-    ern_nodes_tests:says(Store, "listening on "),
+    {_, Wait} = ern_harness:launched(Store, ["cd ", Base, " && ", Ern, " ", StoreWords]),
+    ern_harness:says(Store, "listening on "),
     ran(Base, DeskWords, DeskShown),
-    ern_nodes_tests:says(Store, "the peer desk ended"),
+    ern_harness:says(Store, "the peer desk ended"),
     ran(Base, BoardWords, BoardShown),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, StopWords)),
     ?assertEqual(143, Wait()),
-    {Out, Err} = ern_nodes_tests:said(Store),
+    {Out, Err} = ern_harness:said(Store),
     ?assertEqual("", Out),
     ?assertEqual([binary:replace(Line, <<"127.0.0.1:8655">>, Listen) || Line <- StoreShown],
                  stamped(Err)).
@@ -312,7 +387,7 @@ services_across_nodes(Base) ->
 packages_test_() ->
     Commands = [Command || #block{info = <<"console">>, code = Code} <- section_blocks(?PACKAGES),
                            Command <- replayed_commands(Code)],
-    ern_nodes_tests:counted_test({waits, length(Commands)}, fun packages/0).
+    ern_harness:counted_test({waits, length(Commands)}, fun packages/0).
 
 packages() ->
     Base = tmp(),
@@ -357,7 +432,7 @@ ran_as_shown({Command, Shown}, #replay{start = Start, dir = Dir, path = Path,
     Port = open_port({spawn_executable, "/bin/sh"},
                      [{args, ["-c", iolist_to_binary(Script)]}, {cd, Dir},
                       {env, [{"PATH", Path}]}, exit_status, stderr_to_stdout, binary]),
-    {Status, Printed} = ern_nodes_tests:collected(Port, 1),
+    {Status, Printed} = ern_harness:collected(Port, 1),
     {Written, Read} = as_shown(Shown, lines(string:trim(Printed, trailing)), Digests),
     %% compared as text, which a failure prints whole, where it cuts a binary
     Text = fun(Lines) -> [unicode:characters_to_list(Line) || Line <- Lines] end,
@@ -428,7 +503,7 @@ tree_of(File) ->
 %% Files written under Base and built there, Base their source root.
 built(Base, Files) ->
     [ok = write(filename:join(Base, Name), Code) || {Name, Code} <- Files],
-    ?assertEqual(0, ern_nodes_tests:built([Base])).
+    ?assertEqual(0, ern_harness:built([Base])).
 
 %% The commands of each console under the guide's heading that begins with
 %% Heading whose first command starts a node, `$ ern run --config-dir`.
@@ -498,9 +573,9 @@ examples(Document, Kind) ->
      | [checked(Example) || Example <- Here]].
 
 %% The check of a unit, a test of the harness's steps
-%% (ern_nodes_tests:counted_test/3), named Name.
+%% (ern_harness:counted_test/3), named Name.
 checked({Name, Unit}) ->
-    ern_nodes_tests:counted_test(Name, {waits, steps(Unit)}, fun() -> check(Unit) end).
+    ern_harness:counted_test(Name, {waits, steps(Unit)}, fun() -> check(Unit) end).
 
 %% The steps check/1 takes for a unit: each Erlang module's compile by
 %% `erlc`, the build, and the console's run, in this node or a host of its
@@ -513,9 +588,23 @@ steps({rejected, _}) -> 1;
 steps({session, _}) -> 1;
 steps({continuation, _}) -> 1.
 
-%% The catalog's errors may be the parser's or an unknown name's.
-cataloged("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
+%% The catalog's errors may be the parser's or an unknown name's, and its
+%% programs are written with each picture unpictured (unpictured/1).
+cataloged("diagnostics", {rejected, #{files := [{Name, Code} | Beside]} = Unit}) ->
+    {rejected, Unit#{any_reason => true, files => [{Name, unpictured(Code)} | Beside]}};
 cataloged(_, Unit) -> Unit.
+
+%% Report §2.1, §11.5: a catalog's program as it is compiled, each control
+%% character's picture, U+2400 to U+241F and U+2421, the character it
+%% pictures, and U+FFFD the byte 0xFF, which begins no UTF-8 character, as
+%% the compiler's output shows them.
+unpictured(Code) ->
+    iolist_to_binary([if
+                          Char >= 16#2400, Char =< 16#241F -> Char - 16#2400;
+                          Char =:= 16#2421 -> 16#7F;
+                          Char =:= 16#FFFD -> 16#FF;
+                          true -> <<Char/utf8>>
+                      end || Char <- unicode:characters_to_list(Code)]).
 
 loads_nothing({modules, #{launch := #launch{invocation = Invocation, inputs = Inputs}}}) ->
     Invocation =:= "shell " orelse Inputs =/= [];
@@ -532,7 +621,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, Name))
      || {Name, _} <- Files, filename:extension(Name) =:= ".erl"],
-    ?assertEqual(0, ern_nodes_tests:built(["--source-root", Dir, "--build-root", Build, Dir])),
+    ?assertEqual(0, ern_harness:built(["--source-root", Dir, "--build-root", Build, Dir])),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     Checked = case Launch of
         none ->
@@ -544,7 +633,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
             ErrorFile = filename:join(Dir, "stderr"),
             {ok, ErrorDevice} = file:open(ErrorFile, [write]),
             %% a step, bounded as a build in this node is, by the test's limit
-            ern_nodes_tests:step({run, Args}),
+            ern_harness:step({run, Args}),
             ?assertEqual(exit_status(Launch), ern_cli:ern(Args, ErrorDevice)),
             ok = file:close(ErrorDevice),
             {ok, Stderr} = file:read_file(ErrorFile),
@@ -572,7 +661,7 @@ check({rejected, #{files := [{Name, Code} | Beside], shown := Shown} = Unit}) ->
     File = filename:join(Dir, Name),
     ok = write(File, Code),
     %% built in this node, the file named as a build started in Dir names it
-    Status = ern_nodes_tests:built(["--source-root", Dir, File]),
+    Status = ern_harness:built(["--source-root", Dir, File]),
     Output = named_from(Dir, unicode:characters_to_binary(?capturedOutput)),
     ok = file:del_dir_r(Dir),
     ?assertMatch({1, _}, {Status, Output}),
@@ -736,8 +825,13 @@ group([#block{line = Number, info = <<"ernest-rejected">>, heading = Heading, co
     [{rejected, Unit} | group(Rest, Seen)];
 group([#block{line = Number, info = <<"console">>, code = [<<"$ ern shell">> | Lines]} | Rest],
       Seen) ->
-    [{session, #{line => Number, inputs => inputs(Lines), shown => session_shown(Lines)}}
-     | group(Rest, Seen)];
+    case lists:member(<<":reload">>, inputs(Lines)) of
+        true ->
+            group(Rest, Seen);
+        false ->
+            [{session, #{line => Number, inputs => inputs(Lines), shown => session_shown(Lines)}}
+             | group(Rest, Seen)]
+    end;
 group([#block{line = Number, info = <<"console">>, code = [<<"> ", _/binary>> | _]} | Rest],
       Seen) ->
     %% continued/2 joined every console that continues a session to it
@@ -911,7 +1005,8 @@ rewrite([<<"```ernest-rejected">> = Open | Rest], Beside) ->
     {Code, [Close | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
     File = file_of(Code),
     Console = [<<"```console">>, iolist_to_binary(["$ ern build ", File])
-               | lines(string:trim(printed(File, join(Code), Beside), trailing))] ++ [<<"```">>],
+               | lines(string:trim(printed(File, unpictured(join(Code)), Beside), trailing))]
+        ++ [<<"```">>],
     [Open | Code] ++ [Close | consoled(After, Console, Beside)];
 rewrite([<<"```", Info/binary>> = Open | Rest], Beside) ->
     {Code, [Close | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
@@ -963,10 +1058,7 @@ named_from(Dir, Output) ->
 %% that no earlier run's is read, and removed once the check has what it
 %% needs; one a failed check leaves stays, for a reader.
 tmp() ->
-    Unique = os:getpid() ++ "_" ++ integer_to_list(erlang:unique_integer([positive])),
-    Dir = filename:join(ern_pty:run_dir(), "ern_guide_" ++ Unique),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_guide_").
 
 write(Path, Code) ->
     ok = filelib:ensure_dir(Path),
@@ -974,12 +1066,9 @@ write(Path, Code) ->
 
 %% A command run by the host's shell to its end: its status, and what it
 %% wrote, its standard error beside its standard output; one step of the
-%% harness's (ern_nodes_tests:collected/2).
+%% harness's (ern_harness:collected/2).
 sh(Command) ->
-    ern_nodes_tests:collected(open_port({spawn_executable, "/bin/sh"},
-                                        [{args, ["-c", Command]}, exit_status, stderr_to_stdout,
-                                         binary]), 1).
+    ern_harness:collected(open_port({spawn_executable, "/bin/sh"},
+                                    [{args, ["-c", Command]}, exit_status, stderr_to_stdout,
+                                     binary]), 1).
 
-captured_output() ->
-    group_leader() ! {get_output, self()},
-    receive {output, Output} -> Output end.

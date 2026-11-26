@@ -216,12 +216,14 @@ fn counted(count : Int, noun : String) : String =
 //
 
 // Why the connection was not made: the file of certificates, which
-// `connectTls` reads before it dials, that cannot be read, or what the dial
-// or the handshake met (report Appendix E.18).
+// `connectTls` reads before it dials, that cannot be read or holds no
+// certificate, which it answers as `Other`, the file's name and what is
+// wrong, `ca.pem: NotFound`, or what the dial or the handshake met (report
+// Appendix E.18).
 fn connectErrorText(error : Io.Error, target : Target, caFile : Path) : String =
     match error {
-        Io.NotFound or Io.Denied or Io.NotAFile ->
-            "cannot read the certificates in " <> Path.toString(caFile)
+        Io.Other(text) when String.startsWith(text, Path.toString(caFile) <> ": ") ->
+            "cannot read the certificates in " <> text
       | _ ->
             "cannot connect to " <> target.authority <> ": " <> errorText(error)
     }

@@ -133,8 +133,7 @@ output(Helper, Output) ->
 %% helper closed the program's input once both had ended, and dropped the
 %% bytes given after it without an answer
 helper_gives_input_after_the_outputs_end_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_os_input_" ++ os:getpid()),
+    Dir = filename:join(ern_helpers:run_dir(), "ern_os_input_" ++ os:getpid()),
     ok = filelib:ensure_path(Dir),
     Fifo = filename:join(Dir, "fifo"),
     Mark = filename:join(Dir, "mark"),
@@ -760,8 +759,8 @@ helper_ended_under_a_write_test() ->
                Forker = parent_number(Helper),
                MonitorRef = erlang:monitor(process, Program),
                Met = try
-                         said(Shell, ["kill -STOP ", Forker]),
-                         said(Shell, ["kill -KILL ", Helper]),
+                         commanded(Shell, ["kill -STOP ", Forker]),
+                         commanded(Shell, ["kill -KILL ", Helper]),
                          ok = zombie(integer_to_list(Helper),
                                      erlang:monotonic_time(millisecond) + 5000),
                          WriteReply = alias(),
@@ -772,8 +771,8 @@ helper_ended_under_a_write_test() ->
                          after 5000 -> timeout
                          end
                      after
-                         said(Shell, ["kill -CONT ", Forker]),
-                         said(Shell, ["kill -KILL ", Sleep]),
+                         commanded(Shell, ["kill -CONT ", Forker]),
+                         commanded(Shell, ["kill -KILL ", Sleep]),
                          port_close(Shell)
                      end,
                Self ! {met, {Met, erlang:is_process_alive(Program)}},
@@ -782,7 +781,7 @@ helper_ended_under_a_write_test() ->
     ?assertEqual({{fault, <<"the runtime's helper ern_exec failed">>}, true}, ern_waits:wait(met)).
 
 %% A command run by the shell Shell opened, once the shell has said so.
-said(Shell, Command) ->
+commanded(Shell, Command) ->
     true = port_command(Shell, [lists:concat(Command), "; echo done\n"]),
     receive {Shell, {data, <<"done\n">>}} -> ok end.
 
@@ -1313,8 +1312,7 @@ exited(Helper) ->
 %% it writes to a named pipe the test reads, whose end shows that `sleep`
 %% has ended, and is then found by its number
 terminal_kill_test() ->
-    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_os_kill_" ++ os:getpid()),
+    Fifo = filename:join(ern_helpers:run_dir(), "ern_os_kill_" ++ os:getpid()),
     "" = os:cmd("mkfifo " ++ Fifo),
     Reader = open_port({spawn_executable, os:find_executable("cat")},
                        [{args, [Fifo]}, exit_status, binary]),
@@ -1352,17 +1350,17 @@ terminal_kill_test() ->
 %% on a named pipe the test reads and not on the program's, so that the
 %% program's outputs end with the shell, and the pipe's end shows that
 %% `sleep` has ended once the run has its exit status. A regression test,
-%% written after the code (C1-1): the helper reaped the program and left
-%% its group running; a member under a terminal that ignores the hangup is
-%% terminal_kill_test's at a kill, and group_killed_at_the_exit_test_'s at
-%% an exit. The run's own limit stands past the wait's 5 seconds, which
-%% bound a failure, so that a `sleep` left running is killed by its number
+%% written after the code (the log's *The Release Review Before 0.9.0*):
+%% the helper reaped the program and left its group running; a member under
+%% a terminal that ignores the hangup is terminal_kill_test's at a kill, and
+%% group_killed_at_the_exit_test_'s at an exit. The run's own limit
+%% stands past the wait's 5 seconds, which bound a failure, so that a
+%% `sleep` left running is killed by its number
 exited_program_leaves_no_group_test_() ->
     {timeout, 60, fun exited_program_leaves_no_group/0}.
 
 exited_program_leaves_no_group() ->
-    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_os_group_" ++ os:getpid()),
+    Fifo = filename:join(ern_helpers:run_dir(), "ern_os_group_" ++ os:getpid()),
     "" = os:cmd("mkfifo " ++ Fifo),
     Reader = open_port({spawn_executable, os:find_executable("cat")},
                        [{args, [Fifo]}, exit_status, binary]),
@@ -1460,8 +1458,7 @@ kill_reaches_a_program_out_of_its_group_test_() ->
     {timeout, 60, fun kill_reaches_a_program_out_of_its_group/0}.
 
 kill_reaches_a_program_out_of_its_group() ->
-    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_os_moved_" ++ os:getpid()),
+    Fifo = filename:join(ern_helpers:run_dir(), "ern_os_moved_" ++ os:getpid()),
     "" = os:cmd("mkfifo " ++ Fifo),
     Reader = open_port({spawn_executable, os:find_executable("cat")},
                        [{args, [Fifo]}, exit_status, binary]),
@@ -2246,11 +2243,7 @@ replaced_file_kept_test() ->
 
 %% A directory of the test's own for a node's file, named for the test.
 node_dir(Prefix) ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        Prefix ++ os:getpid() ++ "_"
-                            ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp(Prefix).
 
 %% A living process that is no node, which reads its input and echoes it,
 %% and its number, once it has echoed: until it first runs, the process the
@@ -2293,8 +2286,7 @@ ended_by_termination(PidFile, Living) ->
 %% that opened the pipe would not end, which is how the test shows that
 %% none does. A device is not covered
 unopened_node_file_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_os_unopened_" ++ os:getpid()),
+    Dir = filename:join(ern_helpers:run_dir(), "ern_os_unopened_" ++ os:getpid()),
     ok = filelib:ensure_path(Dir),
     PidFile = filename:join(Dir, "ernest.pid"),
     Number = list_to_integer(os:getpid()),
@@ -2316,10 +2308,11 @@ unopened_node_file_test() ->
     ?assertEqual(lists:duplicate(3, {unopened, unopened, unopened}), [Pipe, Bound, Directory]).
 
 %% report §12.5: a node's ernest.pid that an earlier node left, which others
-%% may write, as one made under the mask 002 before 0.9.0 is, is made its
-%% owner's alone to write once the node holds its lock, its other bits as
-%% they were, and is then signaled as the node's. A regression test: before
-%% the rule, the node took the file as it found it and `ern stop` refused it
+%% may write, as one an older release's node made under the mask 002 is, is
+%% made its owner's alone to write once the node holds its lock, its other
+%% bits as they were, and is then signaled as the node's. A regression test:
+%% before the rule, the node took the file as it found it and `ern stop`
+%% refused it
 found_node_file_test() ->
     PidFile = filename:join(node_dir("ern_os_found_"), "ernest.pid"),
     ok = file:write_file(PidFile, <<"999999\n">>),

@@ -1449,9 +1449,5 @@ load_text({Average, Processors}) ->
 
 %% A scratch directory of the run's own, which measured/2 removes.
 scratch() ->
-    Base = case os:getenv("ERN_TEST_DIR") of
-               false -> "/tmp";
-               Dir -> Dir
-           end,
-    filename:join(Base, "ern_measure_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))).
+    filename:join(ern_helpers:run_dir(), "ern_measure_" ++ os:getpid() ++ "_"
+                                         ++ integer_to_list(erlang:unique_integer([positive]))).

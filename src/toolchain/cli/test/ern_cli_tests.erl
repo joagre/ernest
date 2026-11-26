@@ -20,17 +20,10 @@
 %% `make` removes when the run ends (RUN_UNIT_TESTS), or the host's for a run
 %% of a test by itself.
 tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_cli_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_cli_").
 
 write(Dir, Relative, Text) ->
-    Path = filename:join(Dir, Relative),
-    ok = filelib:ensure_dir(Path),
-    ok = file:write_file(Path, Text),
-    Path.
+    ern_helpers:write(Dir, Relative, Text).
 
 hello() ->
     "export fn main() : Unit = Io.println(\"hello, world\")\n".
@@ -98,23 +91,16 @@ refusal(Job, Line) ->
 said_text(Text) ->
     binary:match(captured(), Text).
 
-%% What EUnit captured of the test's output, as UTF-8, asked of the test's
-%% group leader, which is EUnit's. EUnit's own ?capturedOutput first asks
-%% whether it is by the function it is running, which under load it can
-%% sample while that process runs another module's code, and then answers
-%% "", which failed the diagnostics' examples at times.
+%% What EUnit captured of the test's output (ern_helpers:captured_output/0).
 captured() ->
-    group_leader() ! {get_output, self()},
-    receive {output, Output} -> unicode:characters_to_binary(Output) end.
+    ern_helpers:captured_output().
 
 %% A job run with its standard error captured apart from its standard
 %% output, which EUnit captures: what it wrote there, and its status.
 standard_error_of(Args) ->
-    Self = self(),
-    Device = spawn(fun() -> capture(Self, []) end),
+    Device = ern_helpers:device(),
     Status = ern(Args, Device),
-    Device ! {done, self()},
-    receive {captured, Text} -> {Text, Status} end.
+    {unicode:characters_to_list(ern_helpers:device_bytes(Device)), Status}.
 
 %% A job's status, what it wrote on standard output after what the test
 %% captured before, and what it wrote on standard error.
@@ -124,24 +110,6 @@ streams_of(Args) ->
     After = captured(),
     {Status, binary:part(After, byte_size(Before), byte_size(After) - byte_size(Before)),
      unicode:characters_to_binary(Errors)}.
-
-%% An I/O server that keeps what it is given to write, and gives it to its
-%% owner, flattened, when the owner is done.
-capture(Owner, Acc) ->
-    receive
-        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
-            From ! {io_reply, ReplyAs, ok},
-            capture(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
-        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Args}} ->
-            From ! {io_reply, ReplyAs, ok},
-            Chars = apply(Module, Function, Args),
-            capture(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
-        {io_request, From, ReplyAs, _} ->
-            From ! {io_reply, ReplyAs, {error, request}},
-            capture(Owner, Acc);
-        {done, Owner} ->
-            Owner ! {captured, lists:flatten(lists:reverse(Acc))}
-    end.
 
 %% Lines as a stream holds them, each ended.
 lines(Lines) ->
@@ -3823,12 +3791,10 @@ said_outside_a_launch_test() ->
           "let ones = Test.Case(name = \"ones\", run = fn() = Test.equal(1, 1))\n"),
     ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     Self = self(),
-    Device = spawn(fun() -> capture(Self, []) end),
+    Device = ern_helpers:device(),
     ?assertEqual(0, ern(["test", Dir ++ "/build"], Device)),
     ok = ern_carrier:say("the peer store connected"),
-    Device ! {done, self()},
-    Said = receive {captured, Text} -> unicode:characters_to_binary(Text) end,
-    ?assertEqual(<<"the peer store connected\n">>, Said),
+    ?assertEqual(<<"the peer store connected\n">>, ern_helpers:device_bytes(Device)),
     ?assertEqual(<<"A\nones: passed\n1 case, 0 failed\n">>, captured()),
     Inside = ern_rt:run_main(fun() -> ern_carrier:say("said in a launch") end, <<"main">>,
                              #{stderr => fun(Bytes) -> Self ! {stderr, Bytes} end}),
@@ -5375,19 +5341,22 @@ recompile_rule_test() ->
     {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
     %% a module built against other standard library interfaces is rebuilt
     ok = file:write_file(Dir ++ "/build/main.erc",
-                         forge(Main3, fun(Chunk) -> Chunk#{stdlib => <<"another">>} end)),
+                         ern_helpers:forge(Main3,
+                                           fun(Chunk) -> Chunk#{stdlib => <<"another">>} end)),
     ?assertEqual(0, ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
     %% a module built by another version of ern is rebuilt
     ok = file:write_file(Dir ++ "/build/main.erc",
-                         forge(Main3, fun(Chunk) -> Chunk#{compiler => <<"0.0.0">>} end)),
+                         ern_helpers:forge(Main3,
+                                           fun(Chunk) -> Chunk#{compiler => <<"0.0.0">>} end)),
     ?assertEqual(0, ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
     %% and one built by another build of this version, whose code changed: a
     %% regression test, since the version alone was compared and a changed
     %% compiler kept what it had built before
     ok = file:write_file(Dir ++ "/build/main.erc",
-                         forge(Main3, fun(Chunk) -> Chunk#{compiler => <<?VERSION>>} end)),
+                         ern_helpers:forge(Main3,
+                                           fun(Chunk) -> Chunk#{compiler => <<?VERSION>>} end)),
     ?assertEqual(0, ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
@@ -5541,16 +5510,6 @@ compiler_digest_of_its_files_test() ->
 calls(Module) ->
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(code:which(Module), [imports]),
     lists:usort([Callee || {Callee, _, _} <- Imports, lists:prefix("ern_", atom_to_list(Callee))]).
-
-%% A compiled module with its interface chunk changed by Change.
-forge(Beam, Change) ->
-    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
-    Rewritten = [case Id of
-                     "ErnI" -> {Id, term_to_binary(Change(binary_to_term(Chunk)))};
-                     _ -> {Id, Chunk}
-                 end || {Id, Chunk} <- Chunks],
-    {ok, Forged} = beam_lib:build_module(Rewritten),
-    Forged.
 
 %% report §11.1: the sweep removes .erc files whose source is gone and
 %% directories left empty; single-file mode does not sweep
@@ -7423,11 +7382,11 @@ another_build_refused_test() ->
                   Output = captured(),
                   binary:part(Output, Before, byte_size(Output) - Before)
               end,
-    ok = file:write_file(Main, forge(MainBeam, Another)),
+    ok = file:write_file(Main, ern_helpers:forge(MainBeam, Another)),
     ?assertEqual(Refusal("ern run", Main), Refused("run")),
     ?assertEqual(Refusal("ern test", Main), Refused("test")),
     ok = file:write_file(Main, MainBeam),
-    ok = file:write_file(Shape, forge(ShapeBeam, Another)),
+    ok = file:write_file(Shape, ern_helpers:forge(ShapeBeam, Another)),
     ?assertEqual(Refusal("ern run", Shape), Refused("run")),
     ?assertEqual(Refusal("ern test", Shape), Refused("test")),
     ok = file:write_file(Shape, ShapeBeam),

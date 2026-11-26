@@ -3,7 +3,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([write_formatted/0, long_pairs/1]).
+-export([write_formatted/0]).
 
 -define(ROOT, "..").
 
@@ -46,9 +46,8 @@
                     "|digraph:out_neighbours").
 
 %% docs/code_style.md: code lines are at most 100 characters, in the compiler's
-%% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
-%% vendored getopt keeps its upstream form, and test/build holds a build's
-%% copies, which a stale one failed. A line a command wrote, quoted under
+%% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; a
+%% borrowed file keeps its upstream form (borrowed/0). A line a command wrote, quoted under
 %% the command in a block of an Ernest comment, is the tool's and no line
 %% of code, so it may be as long as the command wrote it (quoted/2); the
 %% command's own line is held. A regression test for the Makefiles, scripts
@@ -62,9 +61,7 @@ line_length_test() ->
                 "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh",
                 "tools/*.escript", "bin/ern", "src/**/*.hrl", "Makefile", "test/Makefile",
                 "test/run.mk", "release/Makefile"],
-    Files = [File || File <- ern_repository:files(Patterns),
-                     filename:basename(File) =/= "getopt.erl",
-                     not lists:prefix("test/build/", File)],
+    Files = ern_repository:files(Patterns) -- borrowed(),
     ?assert(length(Files) > 20),
     Long = [{File, Number} || File <- Files, Number <- long_lines(File)],
     ?assertEqual([], Long).
@@ -102,14 +99,9 @@ quoted([{Number, Line} | Rest], Under) ->
 %% writes, `utf8`, `sha1`, and one whose number is the thing named,
 %% `year10000`, the low 64 bits, `low64`, an RFC's format, `rfc850`, a
 %% protocol's version, `http11`. A regression test for the function's name,
-%% which it did not read before 0.9.0, when `count2` stood in the tour's
-%% upgrade
+%% which it once did not read, when `count2` stood in the tour's upgrade
 numbered_name_test() ->
-    Patterns = ["src/stdlib/**/*.ern", "src/libs/**/*.ern", "src/shell/**/*.ern",
-                "examples/**/*.ern", "tools/**/*.ern", "tour/*/*.ern", "test/**/*.ern"],
-    Files = [File || File <- ern_repository:files(Patterns), not lists:prefix("test/build/", File)],
-    ?assert(length(Files) > 20),
-    ?assertEqual([], lists:append([numbered_names(File) || File <- Files])).
+    ?assertEqual([], lists:append([numbered_names(File) || File <- modules()])).
 
 numbered_names(File) ->
     Text = ern_repository:read(File),
@@ -181,7 +173,7 @@ declared_private([], _, _) ->
 %% evaluator, from `fn tokenize` on, its comments aside, and each of its
 %% types is the example's, so that the bench measures the example. A
 %% regression test, written after the copy, which nothing held to the
-%% example, and its types to nothing until the release review before 0.5.0
+%% example, and its types to nothing until the release review
 parser_fixture_test() ->
     ?assertEqual(code_from("examples/interpreter.ern"),
                  code_from("test/fixtures/bench/parser.ern")),
@@ -217,33 +209,28 @@ uncommented([$" | Rest], InString) -> [$" | uncommented(Rest, not InString)];
 uncommented([Char | Rest], InString) -> [Char | uncommented(Rest, InString)];
 uncommented([], _) -> [].
 
-%% docs/code_style.md: no file holds a tab but a Makefile; the vendored getopt
-%% keeps its upstream form. A regression test for the fixtures' Erlang and
-%% the machines' script, which it once left unread
+%% docs/code_style.md: no tracked file of text holds a tab but a Makefile; a
+%% borrowed file keeps its upstream form (borrowed/0), and the plain
+%% shell's golden session types one at its prompt (report §11.2). A
+%% regression test for the report, the guide, the design notes, the site
+%% and the scripts, which its list of patterns once left unread
 no_tab_test() ->
-    Patterns = ["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c",
-                "test/*.erl", "test/bench/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
-                "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
-                "editors/emacs/*.el", "editors/emacs/test/*.el",
-                "editors/emacs/test/half_typed/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
-                "tools/**/*.ern", "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh",
-                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md", "docs/log/*.md",
-                "docs/reviews/*.md"],
-    Files = [File || File <- ern_repository:files(Patterns),
-                     filename:basename(File) =/= "getopt.erl",
-                     not lists:prefix("test/build/", File)],
-    ?assert(length(Files) > 20),
-    ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
-                                        lists:member($\t, Line)]).
+    Typed = ["test/fixtures/session/basic.in"],
+    Files = [File || File <- ern_repository:files(["**"]) -- (borrowed() ++ Typed),
+                     filename:basename(File) =/= "Makefile",
+                     filename:extension(File) =/= ".mk"],
+    ?assert(length(Files) > 300),
+    ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- text_lines(File),
+                                        binary:match(Line, <<"\t">>) =/= nomatch]).
 
-%% docs/code_style.md, CLAUDE.md *Writing*: a paragraph of a tracked document
+%% docs/code_style.md *Every language*: a paragraph of a tracked document
 %% is at most 150 words, a list item among them, since a block past it no
 %% reader takes in whole; the listing is tools/words.ern's, which
 %% `make paragraphs` runs at a hundred for the writer to read and this
 %% test at the ceiling, from the build `make` leaves in build/tools. The log
 %% and the proposals are left out, as the listing leaves them. A regression
 %% test, written after
-%% the release review before 0.6.0 found Appendix A's lexical-decision
+%% the release review found Appendix A's lexical-decision
 %% paragraph at 399 words, listed at every run and read by no one
 paragraph_ceiling_test() ->
     ?assertEqual([], words_listed("paragraphs")).
@@ -310,11 +297,11 @@ holds(Line, Pattern) ->
     re:run(Line, Pattern, [{capture, none}]) =:= match.
 
 %% docs/code_style.md's *Every language*: a comment cites no step or item
-%% of the plan or finding of a review, and no date, in every tracked file
-%% of code but a borrowed one and a fixture, which is data. A comment is
-%% what follows the marker its language writes. A log entry's title is a citation the
-%% rule asks for, and a date with a time after it is a value, as in a doc
-%% block's example. Written with the sweep that made it hold (the log's
+%% of the plan and no finding of a review, no release and no date, in every
+%% tracked file of code but a borrowed one and a fixture, which is data. A
+%% comment is what follows the marker its language writes. A log entry's
+%% title is a citation the rule asks for, and a date with a time after it is
+%% a value, as in a doc block's example. Written with the sweep that made it hold (the log's
 %% *The Release Cleanup Built*); a comment that names the plan in other
 %% words escapes it
 timeline_comment_test() ->
@@ -326,7 +313,6 @@ timeline_comment_test() ->
              || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
                 not lists:prefix("test/fixtures/", File),
                 not lists:member(File, Borrowed),
-                filename:basename(File) =/= "getopt.erl",
                 filelib:is_regular(filename:join(?ROOT, File)),
                 {Extensions, Marker} <- Kinds,
                 lists:member(filename:extension(File), Extensions),
@@ -335,7 +321,9 @@ timeline_comment_test() ->
     Timeline = "\\bMVP\\b|\\b[Mm]ilestones?\\b|\\bplan item|\\(plan\\b|\\bplan, |plan's item"
                "|docs/plan\\.md|review's [A-Z]+(-[A-Z]+)?-?[0-9]|\\bfindings? [A-Z]{1,2}-?[0-9]"
                "|\\(([A-Z]{1,2}[0-9]+(, | and |\\)))+|findings\\.md|\\bfeedback (line )?[0-9]"
-               "|\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b(?!T)",
+               "|\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b(?!T)|\\(finding\\b"
+               "|\\([A-Z]{1,2}[0-9]+(-[0-9]+\\)|;)|\\breview before\\b"
+               "|\\bbefore [0-9]+\\.[0-9]+\\.[0-9]+",
     ?assertEqual([], [{File, Number}
                       || {File, Marker} <- Files,
                          {Number, Line} <- text_lines(File),
@@ -433,8 +421,8 @@ words(Line, HostNames, Word) ->
 
 %% docs/code_style.md: one `-export` list, in the order the functions appear,
 %% in the toolchain's modules and in the tests' and their harnesses', under
-%% test/ and in each root's test/ under src/; the vendored getopt keeps its
-%% upstream form. A `-spec` on every exported function is held here in the
+%% test/ and in each root's test/ under src/; a borrowed file keeps its
+%% upstream form (borrowed/0). A `-spec` on every exported function is held here in the
 %% tests' modules, since EUnit exports each of a test module's tests; erlc's
 %% +warn_missing_spec holds it in the rest (the Makefile). Written after the
 %% rule, when six modules had fallen out of order and one had lost its
@@ -442,10 +430,10 @@ words(Line, HostNames, Word) ->
 %% exports were found to have none, and the roots' once five of theirs were
 %% found out of order and two without specs
 exports_test() ->
-    Files = [File || File <- ern_repository:modules()
-                                 ++ ern_repository:files(["src/**/test/*.erl", "test/*.erl",
-                                                          "test/bench/*.erl", "tools/**/*.erl"]),
-                     filename:basename(File) =/= "getopt.erl"],
+    Files = (ern_repository:modules()
+             ++ ern_repository:files(["src/**/test/*.erl", "test/*.erl", "test/bench/*.erl",
+                                      "tools/**/*.erl"]))
+        -- borrowed(),
     ?assert(length(Files) > 20),
     ?assertEqual([], [{File, Fault} || File <- Files, Fault <- export_faults(File)]).
 
@@ -648,8 +636,7 @@ write_formatted() ->
 modules() ->
     Patterns = ["src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
                 "src/libs/**/*.ern", "tools/**/*.ern", "tour/*/*.ern", "test/**/*.ern"],
-    Modules = [File || File <- ern_repository:files(Patterns),
-                       not lists:prefix("test/build/", File)],
+    Modules = ern_repository:files(Patterns),
     ?assert(length(Modules) > 20),
     Modules.
 
@@ -802,8 +789,7 @@ inputs([{Number, Line} | Rest], Inside) ->
 %% is a fragment, an Erlang string of a test's program, may begin inside
 %% the parentheses, so where no bracket stands open, a `,` before the pair
 %% or none is enough: Appendix A has a name and `=` follow a `,` in a field
-%% alone. Exported for the sweep that wrote the repository's pairs as puns
-%% (the log's *The Pun*) and those of the programs outside.
+%% alone.
 -spec long_pairs([ern_lexer:token()]) -> [{ern_lexer:token(), ern_lexer:token()}].
 long_pairs(Tokens) ->
     long_pairs(Tokens, none, []).
@@ -1008,7 +994,6 @@ compiled_as(Relative) ->
 has_line(Relative, Line) ->
     lists:member(Line, [Text || {_, Text} <- numbered(Relative)]).
 
+%% A file's numbered lines as text_lines/1 reads them, each a string.
 numbered(Relative) ->
-    Text = unicode:characters_to_list(ern_repository:read(Relative)),
-    Lines = string:split(Text, "\n", all),
-    lists:zip(lists:seq(1, length(Lines)), Lines).
+    [{Number, unicode:characters_to_list(Line)} || {Number, Line} <- text_lines(Relative)].

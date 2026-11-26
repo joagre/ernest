@@ -1,6 +1,7 @@
 %% Nodes on one machine (report §8.7): each node an `ern run --config-dir`
 %% of its own, started as a person starts one, its lines read from its
-%% standard error. The carrier's tests dial through a `foreign fn` of the
+%% standard error, through the harness of test/ern_harness.erl. The
+%% carrier's tests dial through a `foreign fn` of the
 %% host's, which reaches the carrier and nothing of a program's; the frame a
 %% gateway cannot read is sent by a host module on the program's load path;
 %% a host that holds a peer's key and names itself as it likes is a bare
@@ -10,8 +11,7 @@
 %% whose store and desk are two nodes; the tests of two builds write a
 %% program and build it twice, one function and one type changed. A test
 %% that provokes a line the deployment guide quotes holds it to the guide's
-%% (ern_deployment_tests:cataloged/4), and the harness is exported for
-%% ern_deployment_tests, which runs the guide's commands on nodes.
+%% (ern_deployment_tests:cataloged/4).
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -19,728 +19,20 @@
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
--export([nodes_test/2, counted_test/2, counted_test/3, step/1, step/2, free_port/0, made/3,
-         address/1, edit/2, configuration/1, lists/2, peer/3, name/1, program/1, built/1,
-         wait_ms_text/0, client/0, client/8, key_files/1, start/3, bare_started/2, bound_port/1,
-         launched/2, says/2, says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0,
-         detector_ms/0, has/2, connected/2, accepted/1, received/2, unread_writer/1,
-         read_to_its_end/1, run_signaled/2, collected/2, closed/1]).
-
-%% What waits for a node's end: its status, or `timeout` where it has not
-%% ended within the harness's time for one wait.
--type wait() :: fun(() -> integer() | timeout).
-
 -define(ERN, filename:absname("../bin/ern")).
-%% The block free_port/0 takes from, ending where Linux's default ephemeral
-%% range begins, whose macOS counterpart begins higher.
--define(FIRST_PORT, 16384).
--define(PORTS, 16384).
+%% The harness's time for one wait, and the detector's latest (report
+%% §12.6), which a test that waits for the detector is given beside it.
+-define(WAIT_MS, ern_harness:wait_ms()).
+-define(DETECTOR_MS, ern_harness:detector_ms()).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
-%% The milliseconds that bound one step of a test's: each wait the harness
-%% runs, for a node's line, its end, what it said, a bare `erl`'s run or a
-%% command's to its end, a build, or an input typed at a shell, the
-%% harness's own functions counting each as they run it (step/1); a step
-%% that waits a time the report states beside them, a dial's or the
-%% detector's, is given that time too. It is the unit every bound of these
-%% tests counts in: a test's limit is its steps' sum (nodes_test/2), and
-%% each find, spawn, compute, call and utilization of a program a test runs
-%% is given it (wait_ms_declaration/0, test/fixtures/peers/harness.ern),
-%% since an answer later than it has failed its step, whichever says so
-%% first, the answer's time or the test. A build runs in the test's own
-%% process, bounded by the test's limit alone.
--define(WAIT_MS, 30000).
-%% The key of the test process's dictionary that holds the steps of the
-%% test it runs, {Count, Taken} (counted/2).
--define(STEPS, '$ern_steps').
 %% Report §8.7: the host gives up a dial that nothing answers after 7
 %% seconds.
 -define(DIAL_MS, 7000).
-%% Report §12.6: the detector finds a silent peer at most 75 seconds after
-%% its last traffic.
--define(DETECTOR_MS, 75000).
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
-
-tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_nodes_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
-
-%% A test of real nodes, named by its function, given the directory it
-%% makes them under, after which every node still running from a directory
-%% there is killed, however the test ended, its time running out among the
-%% ways: the cleanup is the fixture's, which outlives the test's process.
-%% Its time is the sum of its steps' bounds, Count steps each bounded by
-%% the harness's time for one wait (waits/1) and the Beyond milliseconds
-%% of the report's times its steps wait beside them, so that a step that
-%% fails is told by its own bound before the test's runs out; and its
-%% steps are counted as it takes them, Count of them (counted/2).
--spec nodes_test({waits, pos_integer()} | {waits, pos_integer(), non_neg_integer()},
-                 fun((file:filename()) -> term())) ->
-          {setup, fun(() -> file:filename()), fun((file:filename()) -> ok),
-           fun((file:filename()) -> tuple())}.
-nodes_test({waits, Count}, Test) ->
-    nodes_test({waits, Count, 0}, Test);
-nodes_test({waits, Count, Beyond}, Test) ->
-    {name, Name} = erlang:fun_info(Test, name),
-    {setup, fun tmp/0, fun killed/1,
-     fun(Base) ->
-         {timeout, waits(Count) + Beyond div 1000,
-          {atom_to_list(Name), fun() -> counted(Count, fun() -> Test(Base) end) end}}
-     end}.
-
-%% A test of the harness's steps that starts no node here, an integration
-%% test's, the shell's or the terminal's: its time and its count as a
-%% nodes test's, named by its function.
--spec counted_test({waits, pos_integer()}, fun(() -> term())) ->
-          {timeout, pos_integer(), {string(), fun(() -> ok)}}.
-counted_test({waits, Count}, Test) ->
-    {module, Module} = erlang:fun_info(Test, module),
-    {name, Name} = erlang:fun_info(Test, name),
-    counted_test(lists:concat([Module, ":", Name]), {waits, Count}, Test).
-
-%% The same, named Name, for a test whose function is a closure, one of
-%% the many a document's examples make (ern_guide_tests).
--spec counted_test(string(), {waits, pos_integer()}, fun(() -> term())) ->
-          {timeout, pos_integer(), {string(), fun(() -> ok)}}.
-counted_test(Name, {waits, Count}, Test) ->
-    {timeout, waits(Count), {Name, fun() -> counted(Count, Test) end}}.
-
-%% A test's limit in seconds, as EUnit's `timeout` takes it: its Count
-%% steps, each bounded by the harness's time for one wait. EUnit's limit is
-%% the fallback for a wait that holds up the harness itself, a build's
-%% among them.
-waits(Count) ->
-    Count * ?WAIT_MS div 1000.
-
-%% Test run with its steps counted, Count of them, each a wait of the
-%% harness's (step/1): a step past Count fails the test at once, naming the
-%% step, and a test that ends having taken fewer fails, naming both
-%% numbers, so that a test's count is its steps' and its limit their sum.
-counted(Count, Test) ->
-    put(?STEPS, {Count, 0}),
-    try
-        _ = Test(),
-        {Count, Taken} = get(?STEPS),
-        Taken =:= Count orelse erlang:error({fewer_steps_than_counted, Taken, Count}),
-        ok
-    after
-        erase(?STEPS)
-    end.
-
-%% One step of the test the calling process runs taken, What naming it, or
-%% Steps of them for a wait the harness cannot see the steps of, a run that
-%% gives each of its own waits the harness's time for one wait, a script's
-%% or `ern test`'s, whose test gives that number to the harness's function
-%% that waits for it. The harness's own functions take the steps as they
-%% wait. A process that runs no counted test, a tool's or a test's of
-%% another area, counts nothing.
--spec step(term()) -> ok.
-step(What) ->
-    step(What, 1).
-
--spec step(term(), pos_integer()) -> ok.
-step(What, Steps) ->
-    case get(?STEPS) of
-        undefined ->
-            ok;
-        {Count, Taken} when Taken + Steps > Count ->
-            erlang:error({steps_past_the_count, Count, What});
-        {Count, Taken} ->
-            put(?STEPS, {Count, Taken + Steps}),
-            ok
-    end.
-
-%% Report §8.6, a node detecting no deadlock: each node whose ernest.pid is
-%% still in a directory under Base killed, a stopped one among them. A test
-%% that passed has stopped its nodes, and the file of one a test killed is
-%% gone with it (report §12.5).
-killed(Base) ->
-    lists:foreach(fun node_killed/1, filelib:wildcard(filename:join([Base, "*", "ernest.pid"]))).
-
-%% The process a node's ernest.pid names killed, where it is a node, its
-%% command line naming a configuration directory; a file gone meanwhile
-%% names none.
-node_killed(PidFile) ->
-    Read = case file:read_file(PidFile) of
-               {ok, Text} -> string:to_integer(string:trim(binary_to_list(Text)));
-               {error, _} -> none
-           end,
-    case Read of
-        {ProcessNumber, ""} when ProcessNumber > 0 ->
-            Digits = integer_to_list(ProcessNumber),
-            string:find(os:cmd("ps -o args= -p " ++ Digits), "--config-dir") =:= nomatch
-                orelse os:cmd("kill -KILL " ++ Digits) =:= "";
-        _ ->
-            false
-    end.
-
-%% A port nothing holds now on the loopback interface, for a node to bind
-%% later. It comes from below the host's ephemeral range, since until the
-%% node binds it nothing holds it for the node, and a connection a test
-%% beside this one opens draws its port from that range. The counter keeps
-%% two tests of this run apart, and the process number two runs at once.
--spec free_port() -> inet:port_number().
-free_port() ->
-    Taken = list_to_integer(os:getpid()) + erlang:unique_integer([positive, monotonic]),
-    Port = ?FIRST_PORT + Taken rem ?PORTS,
-    case gen_tcp:listen(Port, [{ip, {127, 0, 0, 1}}]) of
-        {ok, Socket} ->
-            ok = gen_tcp:close(Socket),
-            Port;
-        {error, eaddrinuse} ->
-            free_port()
-    end.
-
-%% A configuration directory `ern config` made, listening on Listen, a
-%% port of the loopback interface, or not at all.
--spec made(file:filename(), string(), none | inet:port_number()) -> file:filename().
-made(Base, Name, Listen) ->
-    Dir = filename:join(Base, Name),
-    _ = ern_node:create(Dir, case Listen of
-                                 none -> none;
-                                 Port -> binary_to_list(address(Port))
-                             end),
-    Dir.
-
-%% Report Appendix C: the `listen` or the `network-address` of a node at
-%% Port of the loopback interface.
--spec address(inet:port_number()) -> binary().
-address(Port) ->
-    list_to_binary("127.0.0.1:" ++ integer_to_list(Port)).
-
-%% Report Appendix C: the node's `ernest.conf` changed by Change.
--spec edit(file:filename(), fun((map()) -> map())) -> ok.
-edit(Dir, Change) ->
-    ok = file:write_file(filename:join(Dir, "ernest.conf"),
-                         json:encode(Change(configuration(Dir)))).
-
-%% Report Appendix C: the node's `ernest.conf`, read.
--spec configuration(file:filename()) -> map().
-configuration(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    json:decode(Text).
-
-%% The node's public key, as `ern config` prints it for a directory that
-%% exists.
-public(Dir) ->
-    ern_node:create(Dir, none).
-
-%% Dir lists each of Peers, {Name, PeerDir, Port}, a port or none.
--spec lists(file:filename(), [{string(), file:filename(), none | inet:port_number()}]) -> ok.
-lists(Dir, Peers) ->
-    edit(Dir, fun(Conf) ->
-                  Conf#{<<"peers">> => [peer(Name, PeerDir, Port)
-                                        || {Name, PeerDir, Port} <- Peers]}
-              end).
-
-%% Report Appendix C: a peer's entry in a node's `peers`, the node of the
-%% directory Dir by Name, dialed at Port of the loopback interface, or never.
--spec peer(string(), file:filename(), none | inet:port_number()) -> map().
-peer(Name, Dir, none) ->
-    #{<<"name">> => list_to_binary(Name), <<"public-key">> => public(Dir)};
-peer(Name, Dir, Port) ->
-    (peer(Name, Dir, none))#{<<"network-address">> => address(Port)}.
-
-%% A node's name on the carrier.
--spec name(file:filename()) -> string().
-name(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    atom_to_list(ern_carrier:name(Der)).
-
-%% A node's key's digest, as a refusal names an unlisted key.
-digest(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    binary_to_list(binary:encode_hex(crypto:hash(sha256, Der), lowercase)).
-
-%% The test program, built in Root: it dials a peer, sends it a frame its
-%% gateway cannot read, sends it a spawn of the function whose hash it is
-%% given with a site that is not UTF-8, sends it a find whose alias is of
-%% another node, asks how busy a peer is, or waits, as its arguments say.
--spec program(file:filename()) -> file:filename().
-program(Root) ->
-    ok = filelib:ensure_path(Root),
-    ok = file:write_file(filename:join(Root, "node.ern"), [<<"
-foreign fn connect(node : Foreign.Term) : Bool = \"net_kernel:connect_node/1\"
-foreign fn frame(node : Foreign.Term) : Unit = \"ern_nodes_frame:send/1\"
-foreign fn site(node : Foreign.Term, hash : String) : Unit = \"ern_nodes_frame:site/2\"
-foreign fn elsewhere(node : Foreign.Term) : Unit = \"ern_nodes_frame:elsewhere/1\"
-
-export fn main() : Unit receiving Unit =
-    match Os.arguments {
-        [\"connect\", peer] -> Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))))
-      | [\"frame\", peer] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
-            frame(Foreign.atom(peer));
-            // until the test, which has seen the connection end, says so
-            let _ = Io.readLine();
-            Unit
-        }
-      | [\"site\", peer, hash] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
-            site(Foreign.atom(peer), hash);
-            let _ = Io.readLine();
-            Unit
-        }
-      | [\"elsewhere\", peer] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
-            elsewhere(Foreign.atom(peer));
-            let _ = Io.readLine();
-            Unit
-        }
-      | [\"utilization\", peer] ->
-            Io.println(\"utilization: \" <> Io.show(Peer.utilization(peer, waitMs())))
-      | [\"hold\", peer] -> {
-            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
-            held()
-        }
-      | _ -> {
-            Io.println(\"waiting\");
-            held()
-        }
-    }
-
-// Until the node is stopped: a node waiting for ever is no deadlock.
-fn held() : Unit receiving Unit = receive { _ -> held() }
-">>, wait_ms_declaration()]),
-    ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
--module(ern_nodes_frame).
--export([send/1, site/2, elsewhere/1]).
-send(Node) ->
-    erlang:send({ern_gateway, Node}, unreadable),
-    erlang:send({ern_gateway, Node}, {ern_frame, self(), unreadable}),
-    'Unit'.
-site(Node, Hash) ->
-    Spawned = {function, binary:decode_hex(Hash)},
-    %% the site alone out of shape, the spawner waiting nothing
-    Frame = {spawn, make_ref(), Spawned, <<255>>, false, 0},
-    erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
-    'Unit'.
-elsewhere(Node) ->
-    %% the alias alone out of shape, a reference of a node no peer lists
-    Alias = binary_to_term(<<131, 90, 1:16, 119, 13, \"other@node.er\", 1:32, 1:32>>),
-    Frame = {find, <<\"sink\">>, <<0:256>>, Alias},
-    erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
-    'Unit'.
-">>),
-    {ok, _} = compile:file(filename:join(Root, "ern_nodes_frame.erl"), [{outdir, Root}]),
-    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
-    {ok, _} = compile:file(filename:join(Root, "ern_nodes_client.erl"), [{outdir, Root}]),
-    0 = built([Root]),
-    filename:join(Root, "node.erc").
-
-%% Report §11.1: `ern build` with the words Words after it, run in the
-%% test's own process as the command line runs it, and its status: one
-%% step. A host module a test compiles with the host's compiler is no step.
--spec built([string()]) -> integer().
-built(Words) ->
-    step({built, Words}),
-    ern_cli:ern(["build" | Words], group_leader()).
-
-%% The function a program the test writes gives each of its finds, spawns,
-%% computes, calls and utilizations, the harness's time for one wait, as
-%% the program's last declaration, so that no line above it moves.
-wait_ms_declaration() ->
-    ["\n"
-     "// The milliseconds each find, spawn, compute, call and utilization here\n"
-     "// waits: the test's time for one step, which an answer later than it\n"
-     "// has failed, whichever says so first.\n"
-     "fn waitMs() : Int = ", wait_ms_text(), "\n"].
-
-%% The harness's time for one wait as an input typed at a shell writes it,
-%% and a program a test writes gives it to a wait of its own.
--spec wait_ms_text() -> string().
-wait_ms_text() ->
-    integer_to_list(?WAIT_MS).
-
-%% A host module for a bare `erl` that holds a peer's key: its port map,
-%% which answers every name with the loopback port its command line gives,
-%% and its run, which connects to the node its command line names, says
-%% whether it could, asks the node its name over the connection, and, where
-%% its command line says it waits, asks again once a line comes on its
-%% standard input, ending at the input's end.
--spec client() -> binary().
-client() ->
-    <<"
--module(ern_nodes_client).
--export([start_link/0, register_node/2, register_node/3, port_please/2, port_please/3,
-         address_please/3, listen_port_please/2, names/1, main/0]).
-start_link() -> ignore.
-register_node(_, _) -> {ok, 1}.
-register_node(_, _, _) -> {ok, 1}.
-port_please(_, _) -> {port, port(), 6}.
-port_please(_, _, _) -> {port, port(), 6}.
-address_please(_, _, _) -> {ok, {127, 0, 0, 1}, port(), 6}.
-listen_port_please(_, _) -> {ok, 0}.
-names(_) -> {error, address}.
-port() ->
-    {ok, [[Port]]} = init:get_argument(ern_nodes_port),
-    list_to_integer(Port).
-main() ->
-    {ok, [[Target]]} = init:get_argument(ern_nodes_target),
-    Node = list_to_atom(Target),
-    io:format(\"connect: ~p~n\", [net_kernel:connect_node(Node)]),
-    io:format(\"call: ~p~n\", [called(Node)]),
-    case init:get_argument(ern_nodes_wait) of
-        {ok, _} ->
-            _ = io:get_line(\"\"),
-            io:format(\"after: ~p~n\", [called(Node)]);
-        error ->
-            ok
-    end,
-    halt().
-called(Node) ->
-    {ok, [[Ms]]} = init:get_argument(ern_nodes_ms),
-    try erpc:call(Node, erlang, node, [], list_to_integer(Ms)) of
-        Node -> ran
-    catch
-        error:{erpc, Reason} -> Reason
-    end.
-">>.
-
-%% A bare `erl` that dials the node listening on Port as Name, presenting
-%% the certificate and key given, with the cookie given, its module in
-%% Root, and waiting for a line on its standard input before it asks again
-%% where Wait says so, each ask given the harness's time for one wait;
-%% answers the port whose writes are its standard input and whose messages
-%% are its standard output, and the function that waits for its end, that
-%% time again, and answers what it printed.
-client(Root, Name, Keys, Cookie, Port, Target, Wait) ->
-    client(Root, Name, Keys, Cookie, Port, Target, [Flag || Flag <- ["-ern_nodes_wait"], Wait],
-           "ern_nodes_client").
-
-%% The same, running Module's main/0 with the flags Flags, the epmd module
-%% ern_nodes_client's, the harness's time for one wait its `-ern_nodes_ms`.
--spec client(file:filename(), string(), {file:filename(), file:filename()}, string(),
-             inet:port_number(), string(), [string()], string()) ->
-          {port(), fun(() -> {integer(), binary()})}.
-client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Flags, Module) ->
-    Tls = lists:append([[Side ++ "_" ++ Option, Value]
-                        || Side <- ["client", "server"],
-                           {Option, Value} <- [{"certfile", Certificate}, {"keyfile", Key},
-                                               {"verify", "verify_none"},
-                                               {"versions", "tlsv1.3"}]]),
-    Arguments = ["-noshell", "-pa", Root, "-name", Name, "-proto_dist", "inet_tls",
-                 "-ssl_dist_opt" | Tls]
-        ++ ["-epmd_module", "ern_nodes_client", "-start_epmd", "false", "-dist_listen", "false",
-            "-connect_all", "false", "-setcookie", Cookie,
-            "-ern_nodes_port", integer_to_list(Port), "-ern_nodes_target", Target,
-            "-ern_nodes_ms", integer_to_list(?WAIT_MS)]
-        ++ Flags ++ ["-s", Module, "main"],
-    Client = open_port({spawn_executable, os:find_executable("erl")},
-                       [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
-    {Client, fun() -> collected(Client, 1) end}.
-
-%% The files of a node's key in its configuration directory, its
-%% certificate and its private key.
--spec key_files(file:filename()) -> {file:filename(), file:filename()}.
-key_files(Dir) ->
-    {filename:join(Dir, "certificate.pem"), filename:join(Dir, "private-key.pem")}.
-
-%% A certificate signed with the key of a configuration directory that names
-%% the host given, written beside the directory: the key is one node's, the
-%% host another's.
-forged(Dir, Host) ->
-    File = Dir ++ ".forged.pem",
-    ok = file:write_file(File, public_key:pem_encode([{'Certificate',
-                                                        ern_helpers:forged_certificate(Dir, Host),
-                                                        not_encrypted}])),
-    {File, filename:join(Dir, "private-key.pem")}.
-
-%% A node's key's host on the carrier.
-host(Dir) ->
-    [{_, Der, _}] = public_key:pem_decode(public(Dir)),
-    ern_carrier:host(Der).
-
-%% A node started in the background; answers what waits for its end.
--spec start(file:filename(), file:filename(), [string()]) -> wait().
-start(Dir, Program, Arguments) ->
-    {_Port, Wait} = started(Dir, Program, Arguments),
-    Wait.
-
-%% The same, with the port whose writes are the node's standard input. Its
-%% standard output and standard error each go through a pipe that `tee`
-%% reads, which writes the stream to a file beside the node's directory and
-%% hands it to the node's watcher, so that a test waits on a line written
-%% rather than reading the file again.
-started(Dir, Program, Arguments) ->
-    launched(Dir, [?ERN, " run --config-dir ", Dir, " ", Program,
-                   [[" ", Argument] || Argument <- Arguments]]).
-
-%% A shell that is a node, its source root SourceRoot, reading its inputs
-%% from the port's writes, in line mode; its HOME a directory of its own,
-%% so that no person's startup file runs. Its load path is LoadPath's
-%% directories, a build among them, which a node reads whole at its start.
-shell_started(Dir, SourceRoot) ->
-    shell_started(Dir, SourceRoot, []).
-
-shell_started(Dir, SourceRoot, LoadPath) ->
-    Home = Dir ++ ".home",
-    ok = filelib:ensure_path(Home),
-    launched(Dir, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Dir, " --source-root ",
-                   SourceRoot, [[" --load-path ", Root] || Root <- LoadPath]]).
-
-%% A bare node, `ern run --config-dir` with no `.erc` (report §8.7, §11.2),
-%% its load path LoadPath's directories; answers what waits for its end.
--spec bare_started(file:filename(), [file:filename()]) -> wait().
-bare_started(Dir, LoadPath) ->
-    {_Port, Wait} = launched(Dir, [?ERN, " run --config-dir ", Dir,
-                                   [[" --load-path ", Root] || Root <- LoadPath]]),
-    Wait.
-
-%% The port a node whose `listen` names port 0 bound, once it says so
-%% (report §12.5): the one line a bare node, which runs nothing of its own,
-%% writes as it starts to listen.
--spec bound_port(file:filename()) -> inet:port_number().
-bound_port(Dir) ->
-    says(Dir, "listening on "),
-    {match, [Port]} = re:run(written(Dir, err), "listening on [^ ]*:([0-9]+)\n",
-                             [{capture, all_but_first, list}]),
-    list_to_integer(Port).
-
-%% A node started by the command Words, its standard input the port's
-%% writes, and what waits for its end, the harness's time for one wait.
--spec launched(file:filename(), iodata()) -> {port(), wait()}.
-launched(Dir, Words) ->
-    Watcher = watcher(Dir),
-    [Out, Err] = [piped(Watcher, Stream, Dir ++ Suffix)
-                  || {Stream, Suffix} <- [{out, ".out"}, {err, ".err"}]],
-    Command = lists:flatten([Words, " > ", Out, " 2> ", Err]),
-    Port = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status]),
-    {Port, fun() -> ended(Port, ?WAIT_MS) end}.
-
-%% The status a node started through Port ended with, or `timeout` where it
-%% has not ended within Ms: one step.
-ended(Port, Ms) ->
-    step({ended, Port}),
-    receive {Port, {exit_status, Status}} -> Status after Ms -> timeout end.
-
-%% The pipe a stream is written to, and its reader, which writes what comes
-%% to File and tells Watcher of it, and of the stream's end.
-piped(Watcher, Stream, File) ->
-    Pipe = File ++ ".pipe",
-    _ = file:delete(Pipe),
-    [] = os:cmd("mkfifo " ++ Pipe),
-    _ = spawn(fun() ->
-                  Reader = open_port({spawn_executable, "/bin/sh"},
-                                     [{args, ["-c", "exec tee " ++ File ++ " < " ++ Pipe]},
-                                      binary, exit_status]),
-                  teed(Reader, Watcher, Stream)
-              end),
-    Pipe.
-
-teed(Reader, Watcher, Stream) ->
-    receive
-        {Reader, {data, Bytes}} -> Watcher ! {Stream, Bytes}, teed(Reader, Watcher, Stream);
-        {Reader, {exit_status, _}} -> Watcher ! {Stream, ended}
-    end.
-
-%% A node's watcher, registered under its directory's name: what each of
-%% its streams has said, and whether it has ended, and who waits for what.
-%% A node started again from its directory has a watcher of its own.
-watcher(Dir) ->
-    Name = watcher_name(Dir),
-    case whereis(Name) of
-        undefined -> ok;
-        Earlier -> unregister(Name), exit(Earlier, kill)
-    end,
-    Watcher = spawn(fun() -> watching(#{out => {<<>>, open}, err => {<<>>, open}}, []) end),
-    true = register(Name, Watcher),
-    Watcher.
-
-watcher_name(Dir) ->
-    list_to_atom("ern_nodes_tests " ++ Dir).
-
-watching(Streams, Waiting) ->
-    receive
-        {Stream, ended} ->
-            {Text, _} = maps:get(Stream, Streams),
-            told(Streams#{Stream := {Text, ended}}, Waiting);
-        {Stream, Bytes} when is_binary(Bytes) ->
-            {Text, State} = maps:get(Stream, Streams),
-            told(Streams#{Stream := {<<Text/binary, Bytes/binary>>, State}}, Waiting);
-        {waiting, _, _, _, _} = Wait ->
-            told(Streams, [Wait | Waiting]);
-        {said, _} = Wait ->
-            told(Streams, [Wait | Waiting]);
-        {written, Stream, From} ->
-            {Text, _} = maps:get(Stream, Streams),
-            From ! {written, Stream, Text},
-            watching(Streams, Waiting)
-    end.
-
-%% The waits answered, the rest kept: a part once its stream holds it as
-%% many times as asked, or has ended without, and the whole once both
-%% streams have ended.
-told(Streams, Waiting) ->
-    watching(Streams, [Wait || Wait <- Waiting, not answered(Streams, Wait)]).
-
-answered(Streams, {waiting, Stream, Part, Count, From}) ->
-    case maps:get(Stream, Streams) of
-        {Text, State} ->
-            Held = length(binary:matches(Text, Part)) >= Count,
-            case {Held, State} of
-                {false, open} -> false;
-                {_, _} -> From ! {seen, Stream, Part, Held}, true
-            end
-    end;
-answered(#{out := {Out, ended}, err := {Err, ended}}, {said, From}) ->
-    From ! {said, Out, Err},
-    true;
-answered(_, {said, _}) ->
-    false.
-
-%% Until the node's standard error holds Part; the harness's time for one
-%% wait, or Ms where a wait outlasts it, bounds a failure.
--spec says(file:filename(), string()) -> ok.
-says(Dir, Part) ->
-    says(Dir, Part, ?WAIT_MS).
-
--spec says(file:filename(), string(), timeout()) -> ok.
-says(Dir, Part, Ms) ->
-    seen(Dir, err, Part, 1, Ms).
-
-%% Until the node's standard output holds Part, or holds it Count times.
--spec prints(file:filename(), string()) -> ok.
-prints(Dir, Part) ->
-    prints(Dir, Part, ?WAIT_MS).
-
-prints(Dir, Part, Ms) ->
-    prints(Dir, Part, 1, Ms).
-
--spec prints(file:filename(), string(), pos_integer(), timeout()) -> ok.
-prints(Dir, Part, Count, Ms) ->
-    seen(Dir, out, Part, Count, Ms).
-
-%% One step, the wait for a line.
-seen(Dir, Stream, Part, Count, Ms) ->
-    step({seen, Dir, Stream, Part}),
-    waited(Dir, Stream, Part, Count, Ms).
-
-waited(Dir, Stream, Part, Count, Ms) ->
-    Bytes = unicode:characters_to_binary(Part),
-    watcher_name(Dir) ! {waiting, Stream, Bytes, Count, self()},
-    receive
-        {seen, Stream, Bytes, true} -> ok;
-        %% the stream ended without the part: what the node said on either
-        %% stream is the cause
-        {seen, Stream, Bytes, false} ->
-            {Out, Err} = both_ended(Dir),
-            erlang:error({ended_unsaid, Dir, Part, Out, Err})
-    after Ms ->
-        erlang:error({not_said, Dir, Part})
-    end.
-
-%% A waiting node ended by termination, which ends it with 128 and the
-%% signal's number (report §11.2).
--spec stop(file:filename(), wait()) -> ok.
-stop(Dir, Wait) ->
-    terminated(Dir),
-    ?assertEqual(143, Wait()).
-
-%% A node sent termination, by the process its ernest.pid names.
-terminated(Dir) ->
-    {ok, Pid} = file:read_file(filename:join(Dir, "ernest.pid")),
-    _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
-    ok.
-
-%% Report §11.2: a fault reported while the shell waits for a line is
-%% written before the next prompt, so the line of a fault a peer's spawn
-%% made comes with the first input the shell reads once the fault has
-%% reached it, which under load is not always the first typed after the
-%% test saw what the process printed before it faulted. An input that
-%% prints nothing is typed and the prompt it brings waited for, then
-%% standard output read for Part, until it holds Part or the harness's
-%% time for one wait is out, one step; each round waits on its prompt and
-%% none on a time. A prompt is counted as the shell's `> `, which what the
-%% inputs here print holds nowhere else.
-fault_line(Input, Dir, Part) ->
-    step({fault_line, Dir, Part}),
-    fault_line(Input, Dir, Part, erlang:monotonic_time(millisecond) + ?WAIT_MS).
-
-fault_line(Input, Dir, Part, Deadline) ->
-    Prompts = length(string:split(written(Dir, out), "> ", all)) - 1,
-    true = port_command(Input, "Unit\n"),
-    Left = Deadline - erlang:monotonic_time(millisecond),
-    waited(Dir, out, "> ", Prompts + 1, max(Left, 1)),
-    case string:find(written(Dir, out), Part) of
-        nomatch when Left > 0 -> fault_line(Input, Dir, Part, Deadline);
-        nomatch -> erlang:error({not_said, Dir, Part});
-        _ -> ok
-    end.
-
-%% What a running node's stream has written so far.
--spec written(file:filename(), out | err) -> string().
-written(Dir, Stream) ->
-    watcher_name(Dir) ! {written, Stream, self()},
-    receive {written, Stream, Text} -> binary_to_list(Text) end.
-
-%% What a node that has ended wrote, once both its streams have ended: one
-%% step. The helper that holds a node's lock keeps the node's standard error
-%% until it has removed the node's ernest.pid and ended (report §12.5), so
-%% that a node's file is gone once said/1 returns, and once finished/1 does
-%% for a command that sends the node's standard error to its output.
--spec said(file:filename()) -> {string(), string()}.
-said(Dir) ->
-    step({said, Dir}),
-    both_ended(Dir).
-
-both_ended(Dir) ->
-    watcher_name(Dir) ! {said, self()},
-    receive
-        {said, Out, Err} -> {binary_to_list(Out), binary_to_list(Err)}
-    after ?WAIT_MS ->
-        erlang:error({still_writing, Dir})
-    end.
-
-%% The harness's time for one wait, which a test of the deployment guide's
-%% waits by too, and test/fixtures/peers/harness.ern writes as a number.
--spec wait_ms() -> pos_integer().
-wait_ms() ->
-    ?WAIT_MS.
-
-%% The detector's latest, which a test of the deployment guide's that
-%% waits for it is given beside its step's own time.
--spec detector_ms() -> pos_integer().
-detector_ms() ->
-    ?DETECTOR_MS.
-
-%% Whether Text holds Part; a failure names the part it missed and the
-%% text it read.
--spec has(string(), string()) -> ok.
-has(Text, Part) ->
-    case string:find(Text, Part) of
-        nomatch -> erlang:error({not_held, Part, Text});
-        _ -> ok
-    end.
-
-%% A connection to what listens at Port of the loopback interface, in
-%% binary and passive mode, with Options beside: one step.
--spec connected(inet:port_number(), [gen_tcp:connect_option()]) -> gen_tcp:socket().
-connected(Port, Options) ->
-    step({connected, Port}),
-    {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, Port, [binary, {active, false} | Options],
-                                   ?WAIT_MS),
-    Socket.
-
-%% A connection a listener of the test's takes: one step.
--spec accepted(gen_tcp:socket()) -> gen_tcp:socket().
-accepted(Listener) ->
-    step({accepted, Listener}),
-    {ok, Socket} = gen_tcp:accept(Listener, ?WAIT_MS),
-    Socket.
-
-%% What comes next over a passive socket, Length bytes, or what has come
-%% where Length is 0: one step.
--spec received(gen_tcp:socket(), non_neg_integer()) -> {ok, binary()} | {error, term()}.
-received(Socket, Length) ->
-    step({received, Socket}),
-    gen_tcp:recv(Socket, Length, ?WAIT_MS).
 
 %% the log's *The Harness Counts a Test's Steps*: a step past a test's
 %% count fails the test at once, naming the step and the count, and a
@@ -748,24 +40,24 @@ received(Socket, Length) ->
 %% written after the counter; it does not cover a step taken in another
 %% process, which counts nothing.
 steps_past_the_count_test() ->
-    {timeout, _, {_, Counted}} = counted_test({waits, 1}, fun two_steps/0),
+    {timeout, _, {_, Counted}} = ern_harness:counted_test({waits, 1}, fun two_steps/0),
     ?assertError({steps_past_the_count, 1, second}, Counted()),
-    ?assertEqual(undefined, get(?STEPS)).
+    ?assertEqual(undefined, ern_harness:counting()).
 
 two_steps() ->
-    step(first),
-    step(second).
+    ern_harness:step(first),
+    ern_harness:step(second).
 
 %% the log's *The Harness Counts a Test's Steps*: a test that ends short
 %% of its count fails, naming the steps it took and its count. A regression
 %% test, written after the counter.
 fewer_steps_than_counted_test() ->
-    {timeout, _, {_, Counted}} = counted_test({waits, 2}, fun one_step/0),
+    {timeout, _, {_, Counted}} = ern_harness:counted_test({waits, 2}, fun one_step/0),
     ?assertError({fewer_steps_than_counted, 1, 2}, Counted()),
-    ?assertEqual(undefined, get(?STEPS)).
+    ?assertEqual(undefined, ern_harness:counting()).
 
 one_step() ->
-    step(first).
+    ern_harness:step(first).
 
 %% report §12.5, §12.6: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
@@ -773,27 +65,27 @@ one_step() ->
 %% which says it ended and not that it was lost; and the host's own reports
 %% of its nodes are not written
 connect_test_() ->
-    nodes_test({waits, 7}, fun connect/1).
+    ern_harness:nodes_test({waits, 7}, fun connect/1).
 
 connect(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "the peer a ended"),
-    stop(B, WaitB),
-    {OutA, ErrA} = said(A),
-    {_, ErrB} = said(B),
-    has(OutA, "connect: true"),
-    has(ErrA, "the peer b connected"),
-    has(ErrB, "the peer a connected"),
-    has(ErrB, "the peer a ended"),
+    ern_harness:says(B, "the peer a ended"),
+    ern_harness:stop(B, WaitB),
+    {OutA, ErrA} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(OutA, "connect: true"),
+    ern_harness:has(ErrA, "the peer b connected"),
+    ern_harness:has(ErrB, "the peer a connected"),
+    ern_harness:has(ErrB, "the peer a ended"),
     ?assertEqual(nomatch, string:find(ErrB, "was lost")),
     ?assertEqual(nomatch, string:find(ErrB, "**")),
     %% a node's ernest.pid is there while it runs and gone at its end
@@ -803,30 +95,32 @@ connect(Base) ->
 %% lists, and no other: the dialer is told nothing but that it could not
 %% connect, and the node that refused says so, naming the key's digest
 unlisted_test_() ->
-    nodes_test({waits, 7}, fun unlisted/1).
+    ern_harness:nodes_test({waits, 7}, fun unlisted/1).
 
 unlisted(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "was refused: no peer has its key"),
-    stop(B, WaitB),
-    {OutA, ErrA} = said(A),
-    {_, ErrB} = said(B),
-    has(OutA, "connect: false"),
+    ern_harness:says(B, "was refused: no peer has its key"),
+    ern_harness:stop(B, WaitB),
+    {OutA, ErrA} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(OutA, "connect: false"),
     %% the dialer says only that it listens
     [Listening] = string:split(string:trim(ErrA, trailing, "\n"), "\n", all),
-    has(Listening, "listening on 127.0.0.1:" ++ integer_to_list(PortA)),
-    has(ErrB, "a node with the key " ++ digest(A) ++ " was refused: no peer has its key"),
+    ern_harness:has(Listening, "listening on 127.0.0.1:" ++ integer_to_list(PortA)),
+    ern_harness:has(ErrB, "a node with the key " ++ ern_harness:digest(A)
+                          ++ " was refused: no peer has its key"),
     ?assertEqual(nomatch, string:find(ErrB, "TLS")),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:cataloged(ErrB, "7", "no peer has its key", [{"b", digest(A)}]).
+    ern_deployment_tests:cataloged(ErrB, "7", "no peer has its key",
+                                   [{"b", ern_harness:digest(A)}]).
 
 %% report §8.7, §12.5: a node accepts a connection from a peer whose key it lists
 %% only under the name that key gives it: a host that holds the key of the
@@ -838,41 +132,46 @@ unlisted(Base) ->
 %% a listed key connected under a name of its choosing, which a reload that
 %% removed the peer did not end, and over which a call still ran
 bound_test_() ->
-    nodes_test({waits, 12}, fun bound/1).
+    ern_harness:nodes_test({waits, 12}, fun bound/1).
 
 bound(Base) ->
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    C = made(Base, "c", none),
-    lists(A, [{"b", B, none}, {"c", C, none}]),
+    PortA = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    C = ern_harness:made(Base, "c", none),
+    ern_harness:lists(A, [{"b", B, none}, {"c", C, none}]),
     Root = filename:join(Base, "build"),
-    Program = program(Root),
+    Program = ern_harness:program(Root),
     Cookie = ern_carrier:cookie(),
-    WaitA = start(A, Program, []),
-    prints(A, "waiting"),
-    Target = name(A),
-    {_, Ghost} = client(Root, "ghost@node.ernest", key_files(B), Cookie, PortA, Target, false),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
+    Target = ern_harness:name(A),
+    {_, Ghost} = ern_harness:client(Root, "ghost@node.ernest", ern_harness:key_files(B), Cookie,
+                                    PortA, Target, false),
     {0, GhostOut} = Ghost(),
-    has(GhostOut, "connect: false"),
-    says(A, "a node named ghost@node.ernest was refused: its key gives another name"),
-    {_, Forged} = client(Root, name(C), forged(B, host(C)), Cookie, PortA, Target, false),
+    ern_harness:has(GhostOut, "connect: false"),
+    ern_harness:says(A, "a node named ghost@node.ernest was refused: its key gives another name"),
+    {_, Forged} = ern_harness:client(Root, ern_harness:name(C),
+                                     ern_harness:forged(B, ern_harness:host(C)), Cookie, PortA,
+                                     Target, false),
     {0, ForgedOut} = Forged(),
-    has(ForgedOut, "connect: false"),
-    says(A, "the peer b was refused: its certificate names another host than its key gives"),
-    {Own, Owned} = client(Root, name(B), key_files(B), Cookie, PortA, Target, true),
-    says(A, "the peer b connected"),
-    lists(A, [{"c", C, none}]),
+    ern_harness:has(ForgedOut, "connect: false"),
+    ern_harness:says(A, "the peer b was refused: its certificate names another host than its key"
+                        " gives"),
+    {Own, Owned} = ern_harness:client(Root, ern_harness:name(B), ern_harness:key_files(B), Cookie,
+                                      PortA, Target, true),
+    ern_harness:says(A, "the peer b connected"),
+    ern_harness:lists(A, [{"c", C, none}]),
     ?assertMatch({0, _}, signaled("reload", A)),
-    says(A, "the peer b was removed"),
+    ern_harness:says(A, "the peer b was removed"),
     true = port_command(Own, "go\n"),
     {0, OwnOut} = Owned(),
-    stop(A, WaitA),
-    has(OwnOut, "connect: true"),
-    has(OwnOut, "call: ran"),
+    ern_harness:stop(A, WaitA),
+    ern_harness:has(OwnOut, "connect: true"),
+    ern_harness:has(OwnOut, "call: ran"),
     ?assertEqual(nomatch, string:find(OwnOut, "after: ran")),
-    has(OwnOut, "after: "),
-    {_, ErrA} = said(A),
+    ern_harness:has(OwnOut, "after: "),
+    {_, ErrA} = ern_harness:said(A),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "gives another name", []),
     ern_deployment_tests:cataloged(ErrA, "7", "certificate names another host", [{"b", "b"}]).
@@ -882,25 +181,25 @@ bound(Base) ->
 %% which answers under its own name, and the dial fails, neither node
 %% connected; a refuses c's key for the dial of b and says so
 answered_test_() ->
-    nodes_test({waits, 6}, fun answered/1).
+    ern_harness:nodes_test({waits, 6}, fun answered/1).
 
 answered(Base) ->
-    PortC = free_port(),
-    A = made(Base, "a", none),
-    B = made(Base, "b", none),
-    C = made(Base, "c", PortC),
-    lists(A, [{"b", B, PortC}, {"c", C, none}]),
-    lists(C, [{"a", A, none}]),
-    Program = program(filename:join(Base, "build")),
-    WaitC = start(C, Program, []),
-    prints(C, "waiting"),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    PortC = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", none),
+    C = ern_harness:made(Base, "c", PortC),
+    ern_harness:lists(A, [{"b", B, PortC}, {"c", C, none}]),
+    ern_harness:lists(C, [{"a", A, none}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitC = ern_harness:start(C, Program, []),
+    ern_harness:prints(C, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    stop(C, WaitC),
-    {OutA, ErrA} = said(A),
-    {_, ErrC} = said(C),
-    has(OutA, "connect: false"),
-    has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
+    ern_harness:stop(C, WaitC),
+    {OutA, ErrA} = ern_harness:said(A),
+    {_, ErrC} = ern_harness:said(C),
+    ern_harness:has(OutA, "connect: false"),
+    ern_harness:has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
     ?assertEqual(nomatch, string:find(ErrA, "connected")),
     ?assertEqual(nomatch, string:find(ErrC, "connected")).
 
@@ -912,24 +211,25 @@ answered(Base) ->
 %% before its fix, it failed: a took the holder of c's key for b, the
 %% certificate bound to no host dialed
 answered_by_another_key_test_() ->
-    nodes_test({waits, 5}, fun answered_by_another_key/1).
+    ern_harness:nodes_test({waits, 5}, fun answered_by_another_key/1).
 
 answered_by_another_key(Base) ->
-    PortB = free_port(),
-    A = made(Base, "a", none),
-    B = made(Base, "b", none),
-    C = made(Base, "c", none),
-    lists(A, [{"b", B, PortB}, {"c", C, none}]),
+    PortB = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", none),
+    C = ern_harness:made(Base, "c", none),
+    ern_harness:lists(A, [{"b", B, PortB}, {"c", C, none}]),
     Root = filename:join(Base, "build"),
-    Program = program(Root),
-    {Holder, Held} = answering(Root, name(B), key_files(C), ern_carrier:cookie(), PortB),
-    WaitA = start(A, Program, ["utilization", "b"]),
+    Program = ern_harness:program(Root),
+    {Holder, Held} = answering(Root, ern_harness:name(B), ern_harness:key_files(C),
+                               ern_carrier:cookie(), PortB),
+    WaitA = ern_harness:start(A, Program, ["utilization", "b"]),
     ?assertEqual(0, WaitA()),
     true = port_command(Holder, "go\n"),
     {0, _} = Held(),
-    {OutA, ErrA} = said(A),
-    has(OutA, "utilization: Left(Io.Unreachable)"),
-    has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
+    {OutA, ErrA} = ern_harness:said(A),
+    ern_harness:has(OutA, "utilization: Left(Io.Unreachable)"),
+    ern_harness:has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "answered the dial", [{"c", "c"}, {"b", "b"}]),
     ?assertEqual(nomatch, string:find(ErrA, "connected")).
@@ -940,20 +240,20 @@ answered_by_another_key(Base) ->
 %% of b's key, a bare `erl`, that says it ends and then tells a how busy it
 %% is, its connection lasting, has not ended, and a says it was lost when
 %% it closes, not that it ended. A regression test, written after the fix
-%% (the release review before 0.4.0 found a peer's word that it ends kept
+%% (the release review found a peer's word that it ends kept
 %% while its connection lasted); it does not cover a peer that says it
 %% ends and stays connected telling nothing, whose word stands until its
 %% connection's end
 told_after_its_end_test_() ->
-    nodes_test({waits, 6}, fun told_after_its_end/1).
+    ern_harness:nodes_test({waits, 6}, fun told_after_its_end/1).
 
 told_after_its_end(Base) ->
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, none}]),
+    PortA = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, none}]),
     Root = filename:join(Base, "build"),
-    Program = program(Root),
+    Program = ern_harness:program(Root),
     Source = filename:join(Root, "ern_nodes_ender.erl"),
     ok = file:write_file(Source, <<"
 -module(ern_nodes_ender).
@@ -972,15 +272,16 @@ main() ->
     halt().
 ">>),
     {ok, _} = compile:file(Source, [{outdir, Root}]),
-    WaitA = start(A, Program, []),
-    prints(A, "waiting"),
-    {_, Ender} = client(Root, name(B), key_files(B), ern_carrier:cookie(), PortA, name(A), [],
-                        "ern_nodes_ender"),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
+    {_, Ender} = ern_harness:client(Root, ern_harness:name(B), ern_harness:key_files(B),
+                                    ern_carrier:cookie(), PortA, ern_harness:name(A), [],
+                                    "ern_nodes_ender"),
     ?assertMatch({0, _}, Ender()),
-    says(A, "the peer b was lost: it closed"),
-    stop(A, WaitA),
-    {_, ErrA} = said(A),
-    has(ErrA, "the peer b connected"),
+    ern_harness:says(A, "the peer b was lost: it closed"),
+    ern_harness:stop(A, WaitA),
+    {_, ErrA} = ern_harness:said(A),
+    ern_harness:has(ErrA, "the peer b connected"),
     ?assertEqual(nomatch, string:find(ErrA, "the peer b ended")).
 
 %% A bare `erl` that listens on Port as Name, presenting the certificate and
@@ -1011,9 +312,9 @@ main() ->
             "-s", "ern_nodes_answering", "main"],
     Holder = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
-    step({listening, Name}),
+    ern_harness:step({listening, Name}),
     listening(Holder, <<>>),
-    {Holder, fun() -> collected(Holder, 1) end}.
+    {Holder, fun() -> ern_harness:collected(Holder, 1) end}.
 
 listening(Holder, Acc) ->
     case binary:match(Acc, <<"listening">>) of
@@ -1032,28 +333,28 @@ listening(Holder, Acc) ->
 %% the floor's digest and holding nothing of the build. A regression test:
 %% a fingerprint once refused them
 other_build_test_() ->
-    nodes_test({waits, 7}, fun other_build/1).
+    ern_harness:nodes_test({waits, 7}, fun other_build/1).
 
 other_build(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    Program = program(filename:join(Base, "build")),
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
     Other = filename:join(Base, "other"),
     ok = filelib:ensure_path(Other),
     ok = file:write_file(filename:join(Other, "extra.ern"), "export fn f() : Int = 1\n"),
-    Changed = program(Other),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Changed, ["connect", name(B)]),
+    Changed = ern_harness:program(Other),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Changed, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    stop(B, WaitB),
-    {OutA, _} = said(A),
-    {_, ErrB} = said(B),
-    has(OutA, "connect: true"),
-    has(ErrB, "the peer a connected"),
+    ern_harness:stop(B, WaitB),
+    {OutA, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(OutA, "connect: true"),
+    ern_harness:has(ErrB, "the peer a connected"),
     ?assertEqual(nomatch, string:find(ErrB, "refused")).
 
 %% report §12.5: a node that stands on another floor fails the handshake with
@@ -1061,29 +362,30 @@ other_build(Base) ->
 %% in its own words; here a bare `erl` that holds a listed peer's key and
 %% names itself as that key gives, with another cookie
 other_floor_test_() ->
-    nodes_test({waits, 6}, fun other_floor/1).
+    ern_harness:nodes_test({waits, 6}, fun other_floor/1).
 
 other_floor(Base) ->
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, none}]),
+    PortA = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, none}]),
     Root = filename:join(Base, "build"),
-    Program = program(Root),
-    WaitA = start(A, Program, []),
-    prints(A, "waiting"),
-    {_, Other} = client(Root, name(B), key_files(B), "another-floor", PortA, name(A), false),
+    Program = ern_harness:program(Root),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
+    {_, Other} = ern_harness:client(Root, ern_harness:name(B), ern_harness:key_files(B),
+                                    "another-floor", PortA, ern_harness:name(A), false),
     {0, OtherOut} = Other(),
-    has(OtherOut, "connect: false"),
-    says(A, "the peer b was refused: it stands on another floor, another release or build of"
-            " ern or another major release of OTP"),
-    stop(A, WaitA),
-    {_, ErrA} = said(A),
+    ern_harness:has(OtherOut, "connect: false"),
+    ern_harness:says(A, "the peer b was refused: it stands on another floor, another release or"
+                        " build of ern or another major release of OTP"),
+    ern_harness:stop(A, WaitA),
+    {_, ErrA} = ern_harness:said(A),
     ?assertEqual(nomatch, string:find(ErrA, "**")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "another floor", [{"b", "b"}]).
 
-%% report §8.7, limit 14 of the proposal: two nodes started from copies of
+%% report §8.7: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
 %% first's connection, which the peer says each time. Its limit is the sum
 %% of its eight steps, its program's build, a line of b's, of a's and of
@@ -1092,14 +394,14 @@ other_floor(Base) ->
 %% of its own, ran out under the full run's load; its builds are counted,
 %% and its host modules' compiles, which are no step, are not
 replaced_test_() ->
-    nodes_test({waits, 8}, fun replaced/1).
+    ern_harness:nodes_test({waits, 8}, fun replaced/1).
 
 replaced(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
     Copy = filename:join(Base, "copy"),
     ok = file:make_dir(Copy),
     [{ok, _} = file:copy(filename:join(A, File), filename:join(Copy, File))
@@ -1110,17 +412,17 @@ replaced(Base) ->
     [ok = file:change_mode(Path, Mode)
      || {Path, Mode} <- [{Copy, 8#700}, {filename:join(Copy, "ernest.conf"), 8#644},
                          {filename:join(Copy, "private-key.pem"), 8#600}]],
-    edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["hold", name(B)]),
-    says(A, "the peer b connected"),
-    WaitCopy = start(Copy, Program, ["hold", name(B)]),
-    says(B, "the peer a's connection was replaced by another from the same node"),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{A, WaitA}, {Copy, WaitCopy}, {B, WaitB}]],
-    {_, ErrB} = said(B),
-    has(ErrB, "the peer a's connection was replaced by another from the same node"),
+    ern_harness:edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["hold", ern_harness:name(B)]),
+    ern_harness:says(A, "the peer b connected"),
+    WaitCopy = ern_harness:start(Copy, Program, ["hold", ern_harness:name(B)]),
+    ern_harness:says(B, "the peer a's connection was replaced by another from the same node"),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{A, WaitA}, {Copy, WaitCopy}, {B, WaitB}]],
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(ErrB, "the peer a's connection was replaced by another from the same node"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "was replaced by another", [{"b", "a"}]).
 
@@ -1131,30 +433,30 @@ replaced(Base) ->
 %% line); a node without `listen` does not listen, says nothing of it, and
 %% dials
 listening_test_() ->
-    nodes_test({waits, 10}, fun listening/1).
+    ern_harness:nodes_test({waits, 10}, fun listening/1).
 
 listening(Base) ->
-    PortB = free_port(),
-    A = made(Base, "a", none),
-    B = made(Base, "b", PortB),
-    Z = made(Base, "z", 0),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, none}]),
-    Program = program(filename:join(Base, "build")),
-    WaitZ = start(Z, Program, []),
-    WaitB = start(B, Program, []),
-    says(B, "listening on 127.0.0.1:" ++ integer_to_list(PortB) ++ "\n"),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    PortB = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", PortB),
+    Z = ern_harness:made(Base, "z", 0),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, none}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitZ = ern_harness:start(Z, Program, []),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:says(B, "listening on 127.0.0.1:" ++ integer_to_list(PortB) ++ "\n"),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    says(Z, "listening on "),
-    says(B, "the peer a connected"),
-    stop(B, WaitB),
-    stop(Z, WaitZ),
-    {OutA, ErrA} = said(A),
-    {_, ErrB} = said(B),
-    {_, ErrZ} = said(Z),
-    has(OutA, "connect: true"),
-    has(ErrB, "the peer a connected"),
+    ern_harness:says(Z, "listening on "),
+    ern_harness:says(B, "the peer a connected"),
+    ern_harness:stop(B, WaitB),
+    ern_harness:stop(Z, WaitZ),
+    {OutA, ErrA} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    {_, ErrZ} = ern_harness:said(Z),
+    ern_harness:has(OutA, "connect: true"),
+    ern_harness:has(ErrB, "the peer a connected"),
     {match, [Bound]} = re:run(ErrZ, "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
                               [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Bound) > 0),
@@ -1166,30 +468,42 @@ listening(Base) ->
 %% message that names no peer's process names no connection, and is
 %% dropped, which the node says
 faulty_frame_test_() ->
-    nodes_test({waits, 8}, fun faulty_frame/1).
+    ern_harness:nodes_test({waits, 8}, fun faulty_frame/1).
 
 faulty_frame(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    {InputA, WaitA} = started(A, Program, ["frame", name(B)]),
-    says(B, "this node ends its connection"),
-    says(A, "the peer b was lost: it closed"),
-    true = port_command(InputA, "ended\n"),
-    ?assertEqual(0, WaitA()),
-    stop(B, WaitB),
-    {_, ErrA} = said(A),
-    {_, ErrB} = said(B),
-    has(ErrB, "a frame that names no peer's process came to the gateway, and was dropped"),
-    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection"),
-    has(ErrA, "the peer b was lost: it closed"),
+    {A, ErrB} = unread_by_b(Base, fun(_, B) -> ["frame", B] end),
+    {_, ErrA} = ern_harness:said(A),
+    ern_harness:has(ErrB,
+                    "a frame that names no peer's process came to the gateway, and was dropped"),
+    ern_harness:has(ErrA, "the peer b was lost: it closed"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "it closed", [{"b", "b"}]).
+
+%% Two nodes, a and b, listing each other and running the nodes' program,
+%% a with the arguments Arguments(Program, Name) gives for b's name: a
+%% sends b a frame b cannot read, b ends the connection, saying so, and a
+%% is told of the loss. Answered once both have ended and b's standard
+%% error holds the line that says so: a's directory and b's standard
+%% error.
+unread_by_b(Base, Arguments) ->
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    {InputA, WaitA} = ern_harness:started(A, Program, Arguments(Program, ern_harness:name(B))),
+    ern_harness:says(B, "this node ends its connection"),
+    ern_harness:says(A, "the peer b was lost: it closed"),
+    true = port_command(InputA, "ended\n"),
+    ?assertEqual(0, WaitA()),
+    ern_harness:stop(B, WaitB),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its"
+                          " connection"),
+    {A, ErrB}.
 
 %% report §12.6: a spawn frame whose site is not UTF-8 is a frame the node
 %% cannot read, though the node holds the function it names: the node ends
@@ -1198,29 +512,18 @@ faulty_frame(Base) ->
 %% node lacked the function, and a node that held it started the process
 %% under the site as it came
 unreadable_site_test_() ->
-    nodes_test({waits, 7}, fun unreadable_site/1).
+    ern_harness:nodes_test({waits, 7}, fun unreadable_site/1).
 
 unreadable_site(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    Program = program(filename:join(Base, "build")),
+    unread_by_b(Base, fun(Program, B) -> ["site", B, held(Program)] end).
+
+%% The hash of the program's Node.held, as a frame names it.
+held(Program) ->
     {ok, Beam} = file:read_file(Program),
     {ok, #recorded{definitions = Definitions}} = ern_canonical:read(Beam),
     [Held] = [binary_to_list(binary:encode_hex(Hash))
               || #definition{qualified_name = ['Node', held], hash = Hash} <- Definitions],
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    {InputA, WaitA} = started(A, Program, ["site", name(B), Held]),
-    says(B, "this node ends its connection"),
-    says(A, "the peer b was lost: it closed"),
-    true = port_command(InputA, "ended\n"),
-    ?assertEqual(0, WaitA()),
-    stop(B, WaitB),
-    {_, ErrB} = said(B),
-    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection").
+    Held.
 
 %% report §12.6, §8.7: a find frame whose alias is of another node than its
 %% sender's is a frame the node cannot read, as a compute's is, since a
@@ -1231,25 +534,10 @@ unreadable_site(Base) ->
 %% have held the sender's frames behind the answer (the log's *What a
 %% Peer's Worker Waits On*)
 unreadable_find_alias_test_() ->
-    nodes_test({waits, 7}, fun unreadable_find_alias/1).
+    ern_harness:nodes_test({waits, 7}, fun unreadable_find_alias/1).
 
 unreadable_find_alias(Base) ->
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    {InputA, WaitA} = started(A, Program, ["elsewhere", name(B)]),
-    says(B, "this node ends its connection"),
-    says(A, "the peer b was lost: it closed"),
-    true = port_command(InputA, "ended\n"),
-    ?assertEqual(0, WaitA()),
-    stop(B, WaitB),
-    {_, ErrB} = said(B),
-    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection").
+    unread_by_b(Base, fun(_, B) -> ["elsewhere", B] end).
 
 %% report §8.7, §11.2: a node reads every module of its load path at its
 %% start, and is refused where one of them needs a module the path lacks,
@@ -1261,10 +549,10 @@ unreadable_find_alias(Base) ->
 %% the refusal named neither the module that needed it nor the rule; the
 %% program's own text written before the code, which gave it the rule
 missing_module_test_() ->
-    nodes_test({waits, 6}, fun missing_module/1).
+    ern_harness:nodes_test({waits, 6}, fun missing_module/1).
 
 missing_module(Base) ->
-    Lone = made(Base, "lone", none),
+    Lone = ern_harness:made(Base, "lone", none),
     Source = filename:join(Base, "src"),
     Build = filename:join(Base, "build"),
     ok = filelib:ensure_path(Source),
@@ -1274,7 +562,7 @@ missing_module(Base) ->
                          {"old.ern", "export fn main() : Unit ="
                                      " Io.println(Int.toString(User.twice(1)))\n"},
                          {"extra.ern", "export fn double(n : Int) : Int = n * 2\n"}]],
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     ok = file:delete(filename:join(Build, "extra.erc")),
     Main = filename:join(Build, "main.erc"),
     Old = filename:join(Build, "old.erc"),
@@ -1283,7 +571,7 @@ missing_module(Base) ->
     Rule = "; a node reads every module of its load path",
     ?assertEqual({0, "ran\n"}, Run(Main)),
     ?assertEqual({1, Missing ++ Rule ++ "\n"}, Run(["--config-dir ", Lone, " ", Main])),
-    Bare = made(Base, "bare", 0),
+    Bare = ern_harness:made(Base, "bare", 0),
     ?assertEqual({1, Missing ++ Rule ++ "\n"},
                  Run(["--config-dir ", Bare, " --load-path ", Build])),
     ?assertEqual({1, Missing ++ "\n"}, Run(Old)),
@@ -1298,13 +586,13 @@ missing_module(Base) ->
 %% segments of the module it holds, as guide/deployment.md's section 5.1
 %% quotes it, and the removal alone where it does not; the same program run
 %% as no node does not read the file, and runs. A regression test, written
-%% after the fix (the release review before 0.4.0 found the node saying the
+%% after the fix (the release review found the node saying the
 %% module the file holds was not on the load path)
 misplaced_module_test_() ->
-    nodes_test({waits, 5}, fun misplaced_module/1).
+    ern_harness:nodes_test({waits, 5}, fun misplaced_module/1).
 
 misplaced_module(Base) ->
-    Lone = made(Base, "lone", none),
+    Lone = ern_harness:made(Base, "lone", none),
     Source = filename:join(Base, "src"),
     Build = filename:join(Base, "build"),
     ok = filelib:ensure_path(Source),
@@ -1312,7 +600,7 @@ misplaced_module(Base) ->
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
     ok = file:write_file(filename:join(Source, "extra.ern"),
                          "export fn double(n : Int) : Int = n * 2\n"),
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     Moved = filename:join(Build, "moved.erc"),
     ok = file:rename(filename:join(Build, "extra.erc"), Moved),
     Main = filename:join(Build, "main.erc"),
@@ -1326,7 +614,7 @@ misplaced_module(Base) ->
     %% beneath the program's root, the node run from the base
     ok = file:write_file(filename:join(Source, "counter.ern"),
                          "export fn next(n : Int) : Int = n + 1\n"),
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     ok = filelib:ensure_path(filename:join(Build, "old")),
     {ok, _} = file:copy(filename:join(Build, "counter.erc"),
                         filename:join([Build, "old", "counter.erc"])),
@@ -1342,15 +630,15 @@ misplaced_module(Base) ->
 %% the component that breaks it, before anything runs: a directory that is
 %% not lowercase, which would otherwise read as the namespace the file
 %% holds, and one that is no words joined by `_`. A regression test,
-%% written after the fix (the full review before 0.5.0 found the first
+%% written after the fix (the full review found the first
 %% refused as a module missing at its own path and the second as a file
 %% holding another module); it does not cover a file's own name, which
 %% the program's own load refuses the same way.
 misshapen_load_path_test_() ->
-    nodes_test({waits, 3}, fun misshapen_load_path/1).
+    ern_harness:nodes_test({waits, 3}, fun misshapen_load_path/1).
 
 misshapen_load_path(Base) ->
-    Lone = made(Base, "lone", none),
+    Lone = ern_harness:made(Base, "lone", none),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(filename:join(Source, "net")),
     ok = file:write_file(filename:join(Source, "main.ern"),
@@ -1358,7 +646,7 @@ misshapen_load_path(Base) ->
     ok = file:write_file(filename:join([Source, "net", "http.ern"]),
                          "export fn double(n : Int) : Int = n * 2\n"),
     Build = filename:join(Base, "build"),
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     Main = filename:join(Build, "main.erc"),
     Http = filename:join([Build, "net", "http.erc"]),
     Upper = filename:join([Base, "upper", "Net", "http.erc"]),
@@ -1389,16 +677,16 @@ misshapen_load_path(Base) ->
 %% not, and does not cover a device, a socket, or a pipe under a named
 %% package's build
 unopened_load_path_test_() ->
-    nodes_test({waits, 4}, fun unopened_load_path/1).
+    ern_harness:nodes_test({waits, 4}, fun unopened_load_path/1).
 
 unopened_load_path(Base) ->
-    Lone = made(Base, "lone", none),
+    Lone = ern_harness:made(Base, "lone", none),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "main.ern"),
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
     Build = filename:join(Base, "build"),
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     Pipes = filename:join(Base, "pipes"),
     ok = filelib:ensure_path(filename:join(Pipes, "walked.erc")),
     Run = fun() ->
@@ -1425,16 +713,16 @@ unopened_load_path(Base) ->
 %% test, written after the code; it does not cover a form a node finds
 %% under `--libs-dir`, nor `ern test` or `ern shell` given `--config-dir`
 hiding_a_library_test_() ->
-    nodes_test({waits, 4}, fun hiding_a_library/1).
+    ern_harness:nodes_test({waits, 4}, fun hiding_a_library/1).
 
 hiding_a_library(Base) ->
-    Lone = made(Base, "lone", none),
+    Lone = ern_harness:made(Base, "lone", none),
     Source = filename:join(Base, "src"),
     Build = filename:join(Base, "build"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "main.ern"),
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
-    0 = built(["--build-root", Build, Source]),
+    0 = ern_harness:built(["--build-root", Build, Source]),
     Time = current_time(Build),
     Main = filename:join(Build, "main.erc"),
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
@@ -1442,7 +730,7 @@ hiding_a_library(Base) ->
     Refusal = "ern run: " ++ ern_build:shown(Time) ++ ": Time hides the library Time, which the"
         " library Http uses\n",
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
-    Bare = made(Base, "bare", free_port()),
+    Bare = ern_harness:made(Base, "bare", ern_harness:free_port()),
     ?assertEqual({1, Refusal}, Run(["--config-dir ", Bare, " --load-path ", Build])),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))),
     ?assertNot(filelib:is_regular(filename:join(Bare, "ernest.pid"))).
@@ -1469,14 +757,14 @@ current_time(Root) ->
 %% from there, sent while a doc example runs in a directory of its own, is
 %% read and not refused. The example waits on a line of standard input,
 %% which the test writes once the reload has been said. A regression test,
-%% written after the fix (the full review before 0.5.0 found the node
+%% written after the fix (the full review found the node
 %% reading the example's directory); it does not cover a test's case,
 %% which runs where the job started.
 reload_in_example_test_() ->
-    nodes_test({waits, 6}, fun reload_in_example/1).
+    ern_harness:nodes_test({waits, 6}, fun reload_in_example/1).
 
 reload_in_example(Base) ->
-    Node = made(Base, "node", none),
+    Node = ern_harness:made(Base, "node", none),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "slow.ern"),
@@ -1488,16 +776,16 @@ reload_in_example(Base) ->
                           "/// // => Some(\"go\")\n"
                           "/// ```\n"
                           "export fn typed() : Optional(String) = Io.readLine()\n"]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
-    {Input, Wait} = launched(Node, ["cd ", Base, " && ", ?ERN,
-                                    " test --config-dir node build/slow.erc"]),
-    prints(Node, "waiting"),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
+    {Input, Wait} = ern_harness:launched(Node, ["cd ", Base, " && ", ?ERN,
+                                                " test --config-dir node build/slow.erc"]),
+    ern_harness:prints(Node, "waiting"),
     ?assertEqual({0, ""}, finished(["cd ", Base, " && ", ?ERN, " reload --config-dir node 2>&1"])),
-    says(Node, "ernest.conf was read again"),
+    ern_harness:says(Node, "ernest.conf was read again"),
     true = port_command(Input, "go\n"),
     ?assertEqual(0, Wait()),
-    {Out, Err} = said(Node),
-    has(Out, "Slow.typed example 1: passed"),
+    {Out, Err} = ern_harness:said(Node),
+    ern_harness:has(Out, "Slow.typed example 1: passed"),
     ?assertEqual(nomatch, string:find(Err, "refused")).
 
 %% report §12.5, Appendix C: a node holds the limits `limits` names, each
@@ -1514,10 +802,10 @@ reload_in_example(Base) ->
 %% (ern_cli_tests' node_limit_flags_test), nor a spawn or a port beyond a
 %% limit
 limits_test_() ->
-    nodes_test({waits, 14}, fun limits/1).
+    ern_harness:nodes_test({waits, 14}, fun limits/1).
 
 limits(Base) ->
-    Node = made(Base, "node", none),
+    Node = ern_harness:made(Base, "node", none),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "limits.ern"), <<"
@@ -1535,33 +823,34 @@ export fn main() : Unit =
       | None -> Unit
     }
 ">>),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     Program = filename:join([Base, "build", "limits.erc"]),
-    Limits = fun(Given) -> edit(Node, fun(Conf) -> Conf#{<<"limits">> => Given} end) end,
+    Limits = fun(Given) -> ern_harness:edit(Node,
+                                            fun(Conf) -> Conf#{<<"limits">> => Given} end) end,
     Limits(#{<<"processes">> => 50000, <<"ports">> => 4097}),
-    {Input, Wait} = started(Node, Program, []),
+    {Input, Wait} = ern_harness:started(Node, Program, []),
     true = port_command(Input, "limits\n"),
-    prints(Node, "#(65536, 8192)\n"),
+    ern_harness:prints(Node, "#(65536, 8192)\n"),
     Limits(#{<<"processes">> => 2000, <<"ports">> => 2000}),
     ?assertMatch({0, _}, signaled("reload", Node)),
-    says(Node, "ernest.conf was read again"),
-    says(Node, "the change to limits holds from the node's next start"),
+    ern_harness:says(Node, "ernest.conf was read again"),
+    ern_harness:says(Node, "the change to limits holds from the node's next start"),
     true = port_command(Input, "limits\nend\n"),
-    prints(Node, "#(65536, 8192)\n", 2, ?WAIT_MS),
+    ern_harness:prints(Node, "#(65536, 8192)\n", 2, ?WAIT_MS),
     ?assertEqual(0, Wait()),
-    {_, Err} = said(Node),
+    {_, Err} = ern_harness:said(Node),
     ?assertEqual(nomatch, string:find(Err, "refused")),
-    {Again, WaitAgain} = started(Node, Program, []),
+    {Again, WaitAgain} = ern_harness:started(Node, Program, []),
     true = port_command(Again, "limits\nend\n"),
-    prints(Node, "#(2048, 2048)\n"),
+    ern_harness:prints(Node, "#(2048, 2048)\n"),
     ?assertEqual(0, WaitAgain()),
-    edit(Node, fun(Conf) -> maps:remove(<<"limits">>, Conf) end),
+    ern_harness:edit(Node, fun(Conf) -> maps:remove(<<"limits">>, Conf) end),
     {0, Own} = finished("env -u ERL_AFLAGS -u ERL_FLAGS -u ERL_ZFLAGS erl -noshell -eval"
                         " 'io:format(\"#(~B, ~B)~n\", [erlang:system_info(process_limit),"
                         " erlang:system_info(port_limit)]), halt().'"),
-    {Unlimited, WaitUnlimited} = started(Node, Program, []),
+    {Unlimited, WaitUnlimited} = ern_harness:started(Node, Program, []),
     true = port_command(Unlimited, "limits\nend\n"),
-    prints(Node, Own),
+    ern_harness:prints(Node, Own),
     ?assertEqual(0, WaitUnlimited()),
     Limits(#{<<"processes">> => 1000}),
     ?assertEqual({1, "ern run: " ++ ern_build:shown(filename:join(Node, "ernest.conf"))
@@ -1579,11 +868,11 @@ export fn main() : Unit =
 %% `Tcp.accept` written after the code. It does not cover a read of
 %% standard input there, nor the terminal's subscription
 full_port_table_test_() ->
-    nodes_test({waits, 4}, fun full_port_table/1).
+    ern_harness:nodes_test({waits, 4}, fun full_port_table/1).
 
 full_port_table(Base) ->
-    Node = made(Base, "node", none),
-    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "full.ern"), [<<"
@@ -1651,12 +940,12 @@ export fn main() : Unit receiving Down =
         }
       | Left(error) -> Io.println(Io.show(error))
     }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
-    Wait = start(Node, filename:join([Base, "build", "full.erc"]), []),
-    prints(Node, "after a close: Right(0)\n"),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
+    Wait = ern_harness:start(Node, filename:join([Base, "build", "full.erc"]), []),
+    ern_harness:prints(Node, "after a close: Right(0)\n"),
     ?assertEqual(0, Wait()),
-    {Out, _} = said(Node),
+    {Out, _} = ern_harness:said(Node),
     Refused = "Io.Other(\"a system limit was hit, probably not enough ports\")",
     ?assertEqual(["client: Right(Unit)", "listen: " ++ Refused,
                   "connect: Left(" ++ Refused ++ ")", "accept: Left(" ++ Refused ++ ")",
@@ -1674,11 +963,11 @@ export fn main() : Unit receiving Down =
 %% not cover a read of bytes, which opens the input as a line's does, nor
 %% the keys, the terminal's tests'
 full_port_table_input_test_() ->
-    nodes_test({waits, 3}, fun full_port_table_input/1).
+    ern_harness:nodes_test({waits, 3}, fun full_port_table_input/1).
 
 full_port_table_input(Base) ->
-    Node = made(Base, "node", none),
-    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "input.ern"), <<"
@@ -1715,14 +1004,14 @@ export fn main() : Unit receiving Down = {
     }
 }
 ">>),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
-    {Input, Wait} = started(Node, filename:join([Base, "build", "input.erc"]), []),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
+    {Input, Wait} = ern_harness:started(Node, filename:join([Base, "build", "input.erc"]), []),
     true = port_command(Input, "first\n"),
     ?assertEqual(0, Wait()),
-    {Out, Err} = said(Node),
+    {Out, Err} = ern_harness:said(Node),
     ?assertEqual(["reader: Fault(\"error:system_limit\")", "read: Some(\"first\")", ""],
                  string:split(Out, "\n", all)),
-    has(Err, "the process of Input.main:22 faulted: error:system_limit").
+    ern_harness:has(Err, "the process of Input.main:22 faulted: error:system_limit").
 
 %% report §7.4, §12.5, §7.3: at a full table of processes, which a node's
 %% `limits` makes small, the process that took a request lives on: the
@@ -1756,11 +1045,11 @@ export fn main() : Unit receiving Down = {
 %% subscription, or a deadlock at a full table, which a node does not look
 %% for
 full_process_table_test_() ->
-    nodes_test({waits, 5}, fun full_process_table/1).
+    ern_harness:nodes_test({waits, 5}, fun full_process_table/1).
 
 full_process_table(Base) ->
-    Node = made(Base, "node", none),
-    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "full.ern"), [<<"
@@ -1844,7 +1133,7 @@ fn requested(step : Int, held : Address(HeldMsg)) : Unit receiving Int =
             Io.println(\"spawned\")
         }
     }
-">>, wait_ms_declaration()]),
+">>, ern_harness:wait_ms_declaration()]),
     ok = file:write_file(filename:join(Source, "ending.ern"), <<"
 // The subscriber of the program's end, which answers once told.
 fn subscribed() : Unit receiving Reply(Unit) = {
@@ -1890,9 +1179,9 @@ export fn main() : Unit = {
     Io.println(Io.show(isPid(target)))
 }
 ">>),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
-    ?assertEqual(0, (start(Node, filename:join([Base, "build", "full.erc"]), []))()),
-    {Out, Err} = said(Node),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
+    ?assertEqual(0, (ern_harness:start(Node, filename:join([Base, "build", "full.erc"]), []))()),
+    {Out, Err} = ern_harness:said(Node),
     Limited = "Left(Io.Other(\"error:system_limit\"))",
     ?assertEqual(lists:append([["step " ++ integer_to_list(Step)]
                                ++ [Limited || Step >= 2, Step =< 9]
@@ -1927,11 +1216,11 @@ export fn main() : Unit = {
 %% bytes are sent; a run in which it took every byte before the close
 %% holds only that the close answers
 full_table_close_lingers_test_() ->
-    nodes_test({waits, 2}, fun full_table_close_lingers/1).
+    ern_harness:nodes_test({waits, 2}, fun full_table_close_lingers/1).
 
 full_table_close_lingers(Base) ->
-    Node = made(Base, "node", none),
-    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "closer.ern"), [<<"
@@ -1998,8 +1287,8 @@ export fn main() : Unit receiving Down =
         }
       | Left(error) -> Io.println(Io.show(error))
     }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     ?assertEqual({0, ["taken 4000000, then Io.Closed"]},
                  lines_said(finished([?ERN, " run --config-dir ", Node, " ",
                                       filename:join([Base, "build", "closer.erc"]), " 2>&1"]))).
@@ -2020,7 +1309,7 @@ export fn main() : Unit receiving Down =
 %% TLS there (docs/otp_bugs.md, 17), nor a handshake, which over TLS 1.2 and 1.3
 %% makes no process once the connection's are made
 tls_at_a_full_table_test_() ->
-    nodes_test({waits, 9}, fun tls_at_a_full_table/1).
+    ern_harness:nodes_test({waits, 9}, fun tls_at_a_full_table/1).
 
 tls_at_a_full_table(Base) ->
     #{server := {Certificate, Key}} = ern_tcp_tests:pki(),
@@ -2077,14 +1366,16 @@ fn requested(door : Address(Tcp.ListenerMsg), port : Int) : Unit = {
       | _ -> Io.println(Io.show(Tcp.listenTls(\"127.0.0.1\", 0, path(3), path(4))))
     }
 }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     Program = filename:join([Base, "build", "full_tls.erc"]),
     Cases = [{Request, Free} || Request <- ["connect", "accept"], Free <- [1, 2, 3]]
         ++ [{"listen", Free} || Free <- [1, 2]],
     Runs = [begin
-                Node = made(Base, Request ++ integer_to_list(Free), none),
-                edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+                Node = ern_harness:made(Base, Request ++ integer_to_list(Free), none),
+                ern_harness:edit(Node, fun(Conf) ->
+                                           Conf#{<<"limits">> => #{<<"processes">> => 1024}}
+                                       end),
                 {Request, Free,
                  begun([?ERN, " run --config-dir ", Node, " ", Program, " ", Request, " ",
                         integer_to_list(Free), " ", integer_to_list(ServerPort), " ",
@@ -2105,7 +1396,7 @@ fn requested(door : Address(Tcp.ListenerMsg), port : Int) : Unit = {
 %% A regression test, written with the code: the code before made no
 %% writer, and a start with room for one process started
 start_at_a_full_table_test_() ->
-    nodes_test({waits, 3}, fun start_at_a_full_table/1).
+    ern_harness:nodes_test({waits, 3}, fun start_at_a_full_table/1).
 
 start_at_a_full_table(Base) ->
     Source = filename:join(Base, "src"),
@@ -2138,11 +1429,13 @@ export fn main() : Unit = {
     }
 }
 ">>),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     Program = filename:join([Base, "build", "full_start.erc"]),
     Runs = [begin
-                Node = made(Base, "free" ++ integer_to_list(Free), none),
-                edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+                Node = ern_harness:made(Base, "free" ++ integer_to_list(Free), none),
+                ern_harness:edit(Node, fun(Conf) ->
+                                           Conf#{<<"limits">> => #{<<"processes">> => 1024}}
+                                       end),
                 {Free, begun([?ERN, " run --config-dir ", Node, " ", Program, " ",
                               integer_to_list(Free), " 2>&1"])}
             end || Free <- [1, 2]],
@@ -2160,11 +1453,11 @@ export fn main() : Unit = {
 %% subscriber at its wait. It does not cover a wrap that does not finish,
 %% which delays its subscriber's reports alone
 fault_reports_at_a_full_table_test_() ->
-    nodes_test({waits, 2}, fun fault_reports_at_a_full_table/1).
+    ern_harness:nodes_test({waits, 2}, fun fault_reports_at_a_full_table/1).
 
 fault_reports_at_a_full_table(Base) ->
-    Node = made(Base, "node", none),
-    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "reports.ern"), <<"
@@ -2207,7 +1500,7 @@ export fn main() : Unit receiving Process.FaultReport = {
     said()
 }
 ">>),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     {0, Lines} = lines_said(finished([?ERN, " run --config-dir ", Node, " ",
                                       filename:join([Base, "build", "reports.erc"]),
                                       " 2> /dev/null"])),
@@ -2229,18 +1522,19 @@ export fn main() : Unit receiving Process.FaultReport = {
 %% dial with room to begin and none to serve its connection, which
 %% ern_tls_dist closes (*What it says*).
 dial_from_a_full_table_test_() ->
-    nodes_test({waits, 7}, fun dial_from_a_full_table/1).
+    ern_harness:nodes_test({waits, 7}, fun dial_from_a_full_table/1).
 
 dial_from_a_full_table(Base) ->
-    A = made(Base, "a", 0),
-    B = made(Base, "b", 0),
-    C = made(Base, "c", none),
-    lists(A, [{"c", C, none}]),
-    lists(B, [{"c", C, none}]),
-    WaitA = bare_started(A, []),
-    WaitB = bare_started(B, []),
-    lists(C, [{"a", A, bound_port(A)}, {"b", B, bound_port(B)}]),
-    edit(C, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    A = ern_harness:made(Base, "a", 0),
+    B = ern_harness:made(Base, "b", 0),
+    C = ern_harness:made(Base, "c", none),
+    ern_harness:lists(A, [{"c", C, none}]),
+    ern_harness:lists(B, [{"c", C, none}]),
+    WaitA = ern_harness:bare_started(A, []),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(C,
+                      [{"a", A, ern_harness:bound_port(A)}, {"b", B, ern_harness:bound_port(B)}]),
+    ern_harness:edit(C, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "dial.ern"), [<<"
@@ -2274,8 +1568,8 @@ export fn main() : Unit = {
     Io.println(\"full\");
     Io.println(asked(\"b\"))
 }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     {Status, Said} = finished([?ERN, " run --config-dir ", C, " ",
                                filename:join([Base, "build", "dial.erc"]),
                                " 2> ", C, ".err"]),
@@ -2288,9 +1582,9 @@ export fn main() : Unit = {
     [Connected | Rest] = string:split(Lines, "\n", all),
     ?assertEqual("the peer a connected", Connected),
     ?assert(lists:member(Rest, [[Host], ["the peer a was lost: it closed", Host]])),
-    says(A, "the peer c was lost"),
-    stop(A, WaitA),
-    stop(B, WaitB).
+    ern_harness:says(A, "the peer c was lost"),
+    ern_harness:stop(A, WaitA),
+    ern_harness:stop(B, WaitB).
 
 %% A server over TLS in the test's own host, at the port it answers, which
 %% shakes hands with each connection in a process of its own, so that no
@@ -2331,15 +1625,15 @@ served(Listener) ->
 %% 12), nor the frames of a restart of a peer's process, whose wait needs
 %% no process (ern_gateway_tests)
 full_table_with_a_peer_test_() ->
-    nodes_test({waits, 6}, fun full_table_with_a_peer/1).
+    ern_harness:nodes_test({waits, 6}, fun full_table_with_a_peer/1).
 
 full_table_with_a_peer(Base) ->
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
+    ern_harness:edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "store.ern"), <<"
@@ -2404,14 +1698,14 @@ export fn main() : Unit =
         }
       | Left(error) -> Io.println(\"no filler: \" <> Io.show(error))
     }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
-    WaitStore = start(Store, filename:join([Base, "build", "store.erc"]), []),
-    prints(Store, "ready"),
-    ?assertEqual(0, (start(Desk, filename:join([Base, "build", "desk.erc"]), []))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {_, StoreErr} = said(Store),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
+    WaitStore = ern_harness:start(Store, filename:join([Base, "build", "store.erc"]), []),
+    ern_harness:prints(Store, "ready"),
+    ?assertEqual(0, (ern_harness:start(Desk, filename:join([Base, "build", "desk.erc"]), []))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
     ?assertEqual(["held: Io.Other(\"error:system_limit\")",
                   "lacked: Io.Other(\"error:system_limit\")",
                   "held after: Right", "lacked after: Right", ""],
@@ -2426,7 +1720,7 @@ export fn main() : Unit =
 %% desk's next spawn starts. A regression test, written after the code. The
 %% table filled whole leaves no room for the acceptor's own process.
 accept_at_a_full_table_test_() ->
-    nodes_test({waits, 11}, fun accept_at_a_full_table/1).
+    ern_harness:nodes_test({waits, 11}, fun accept_at_a_full_table/1).
 
 accept_at_a_full_table(Base) ->
     accept_at(Base, 0, from_address).
@@ -2436,7 +1730,7 @@ accept_at_a_full_table(Base) ->
 %% so that the refusal holds the host's answer to a full table
 %% (docs/otp_bugs.md, 15). A regression test, written after the code.
 accept_at_the_hosts_tls_test_() ->
-    nodes_test({waits, 11}, fun accept_at_the_hosts_tls/1).
+    ern_harness:nodes_test({waits, 11}, fun accept_at_the_hosts_tls/1).
 
 accept_at_the_hosts_tls(Base) ->
     accept_at(Base, 2, from_address).
@@ -2445,7 +1739,7 @@ accept_at_the_hosts_tls(Base) ->
 %% handshake after its TLS has given the peer's key. A regression test,
 %% written after the code.
 accept_at_the_handshake_test_() ->
-    nodes_test({waits, 11}, fun accept_at_the_handshake/1).
+    ern_harness:nodes_test({waits, 11}, fun accept_at_the_handshake/1).
 
 accept_at_the_handshake(Base) ->
     accept_at(Base, 4, by_peer).
@@ -2453,7 +1747,7 @@ accept_at_the_handshake(Base) ->
 %% The same with five left free, which leave no room for the handshake's
 %% timer. A regression test, written after the code.
 accept_at_the_handshake_timer_test_() ->
-    nodes_test({waits, 11}, fun accept_at_the_handshake_timer/1).
+    ern_harness:nodes_test({waits, 11}, fun accept_at_the_handshake_timer/1).
 
 accept_at_the_handshake_timer(Base) ->
     accept_at(Base, 5, by_peer).
@@ -2464,23 +1758,23 @@ accept_at_the_handshake_timer(Base) ->
 %% started once the keeper frees the table.
 accept_at(Base, Left, Named) ->
     {Store, Keeper, Desk} = accepting_nodes(Base, <<"processes">>),
-    WaitStore = start(Store, filename:join([Base, "build", "store.erc"]), []),
-    prints(Store, "ready"),
-    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
-                                 ["processes", integer_to_list(Left)]),
-    prints(Keeper, "filled"),
-    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
-    prints(Desk, "full: "),
-    says(Store, "was refused: this node's table of processes is full"),
+    WaitStore = ern_harness:start(Store, filename:join([Base, "build", "store.erc"]), []),
+    ern_harness:prints(Store, "ready"),
+    {Keep, WaitKeeper} = ern_harness:started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                             ["processes", integer_to_list(Left)]),
+    ern_harness:prints(Keeper, "filled"),
+    {Dial, WaitDesk} = ern_harness:started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    ern_harness:prints(Desk, "full: "),
+    ern_harness:says(Store, "was refused: this node's table of processes is full"),
     true = port_command(Keep, "free\n"),
-    prints(Keeper, "freed"),
+    ern_harness:prints(Keeper, "freed"),
     true = port_command(Dial, "again\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(Keep, "end\n"),
     ?assertEqual(0, WaitKeeper()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {StoreOut, StoreErr} = said(Store),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {StoreOut, StoreErr} = ern_harness:said(Store),
     ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
     {_, Lines} = lines_said({0, StoreErr}),
     Refused = " was refused: this node's table of processes is full",
@@ -2509,29 +1803,31 @@ accept_at(Base, Left, Named) ->
 %% it does not cover a full table of ports met after the connection is
 %% taken, which no later step of the connection's opens a port for.
 accept_at_a_full_port_table_test_() ->
-    nodes_test({waits, 11}, fun accept_at_a_full_port_table/1).
+    ern_harness:nodes_test({waits, 11}, fun accept_at_a_full_port_table/1).
 
 accept_at_a_full_port_table(Base) ->
     {Store, Keeper, Desk} = accepting_nodes(Base, <<"ports">>),
-    {_, WaitStore} = launched(Store, ["ulimit -n 2048; exec ", ?ERN, " run --config-dir ",
-                                      Store, " ", filename:join([Base, "build", "store.erc"])]),
-    prints(Store, "ready"),
-    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
-                                 ["files"]),
-    prints(Keeper, "filled"),
-    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
-    prints(Desk, "full: "),
+    {_, WaitStore} = ern_harness:launched(Store,
+                                          ["ulimit -n 2048; exec ", ?ERN, " run --config-dir ",
+                                           Store, " ",
+                                           filename:join([Base, "build", "store.erc"])]),
+    ern_harness:prints(Store, "ready"),
+    {Keep, WaitKeeper} = ern_harness:started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                             ["files"]),
+    ern_harness:prints(Keeper, "filled"),
+    {Dial, WaitDesk} = ern_harness:started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    ern_harness:prints(Desk, "full: "),
     Refused = "a connection was refused: this node's table of ports is full",
-    says(Store, Refused),
+    ern_harness:says(Store, Refused),
     true = port_command(Keep, "free\n"),
-    prints(Keeper, "freed"),
+    ern_harness:prints(Keeper, "freed"),
     true = port_command(Dial, "again\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(Keep, "end\n"),
     ?assertEqual(0, WaitKeeper()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {StoreOut, StoreErr} = said(Store),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {StoreOut, StoreErr} = ern_harness:said(Store),
     ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
     {_, Lines} = lines_said({0, StoreErr}),
     ?assertEqual([Refused], [Line || Line <- Lines, string:find(Line, "refused") =/= nomatch]),
@@ -2547,33 +1843,34 @@ accept_at_a_full_port_table(Base) ->
 %% its spawn. A regression test, written after the code; the limit of the
 %% system's table of files, `enfile`, is not reached.
 accept_at_the_file_limit_test_() ->
-    nodes_test({waits, 11, 3 * ?DIAL_MS}, fun accept_at_the_file_limit/1).
+    ern_harness:nodes_test({waits, 11, 3 * ?DIAL_MS}, fun accept_at_the_file_limit/1).
 
 accept_at_the_file_limit(Base) ->
     {Store, Keeper, Desk} = accepting_nodes(Base, none),
-    {_, WaitStore} = launched(Store, ["ulimit -n 64; exec ", ?ERN, " run --config-dir ", Store,
-                                      " ", filename:join([Base, "build", "store.erc"])]),
-    prints(Store, "ready"),
-    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
-                                 ["files"]),
-    prints(Keeper, "filled"),
+    {_, WaitStore} = ern_harness:launched(Store,
+                                          ["ulimit -n 64; exec ", ?ERN, " run --config-dir ", Store,
+                                           " ", filename:join([Base, "build", "store.erc"])]),
+    ern_harness:prints(Store, "ready"),
+    {Keep, WaitKeeper} = ern_harness:started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                             ["files"]),
+    ern_harness:prints(Keeper, "filled"),
     Before = {erlang:monotonic_time(millisecond), processor_ticks(Store)},
-    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
-    prints(Desk, "full: ", 2 * ?DIAL_MS + ?WAIT_MS),
+    {Dial, WaitDesk} = ern_harness:started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    ern_harness:prints(Desk, "full: ", 2 * ?DIAL_MS + ?WAIT_MS),
     {Start, Ticks} = Before,
     Waited = erlang:monotonic_time(millisecond) - Start,
     %% a tick is a hundredth of a second, Linux's USER_HZ
     ?assert((processor_ticks(Store) - Ticks) * 10 < Waited div 10),
-    says(Store, "a connection waits: too many open files"),
+    ern_harness:says(Store, "a connection waits: too many open files"),
     true = port_command(Keep, "free\n"),
-    prints(Keeper, "freed"),
+    ern_harness:prints(Keeper, "freed"),
     true = port_command(Dial, "again\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(Keep, "end\n"),
     ?assertEqual(0, WaitKeeper()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {_, StoreErr} = said(Store),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
     ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
     ?assertEqual(1, length(string:split(StoreErr, "a connection waits", all)) - 1),
     %% the line as the deployment guide quotes it
@@ -2598,15 +1895,15 @@ processor_ticks(Dir) ->
 %% and the desk, which spawns on the store, then, at its line of input,
 %% once more, or twice where the first dial fails.
 accepting_nodes(Base, Limit) ->
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Keeper = made(Base, "keeper", none),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"keeper", Keeper, none}, {"desk", Desk, none}]),
-    lists(Keeper, [{"store", Store, PortStore}]),
-    lists(Desk, [{"store", Store, PortStore}]),
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Keeper = ern_harness:made(Base, "keeper", none),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"keeper", Keeper, none}, {"desk", Desk, none}]),
+    ern_harness:lists(Keeper, [{"store", Store, PortStore}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
     Limit =:= none
-        orelse edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{Limit => 1024}} end),
+        orelse ern_harness:edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{Limit => 1024}} end),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "store.ern"), <<"
@@ -2703,7 +2000,7 @@ export fn main() : Unit =
         }
       | Left(error) -> Io.println(\"no filler: \" <> Io.show(error))
     }
-">>, wait_ms_declaration()]),
+">>, ern_harness:wait_ms_declaration()]),
     ok = file:write_file(filename:join(Source, "desk.ern"), [<<"
 // A spawn's answer, its address left out.
 fn started(spawned : Either(Io.Error, Address(m))) : String =
@@ -2726,8 +2023,8 @@ export fn main() : Unit = {
     let _ = Io.readLine();
     Io.println(\"after: \" <> started(spawned(2)))
 }
-">>, wait_ms_declaration()]),
-    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built(["--build-root", filename:join(Base, "build"), Source]),
     {Store, Keeper, Desk}.
 
 %% A finished command's status, and the lines of its output that are no
@@ -2742,33 +2039,35 @@ lines_said({Status, Output}) ->
 %% report §12.5: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
-    nodes_test({waits, 8}, fun ipv6/1).
+    ern_harness:nodes_test({waits, 8}, fun ipv6/1).
 
 %% Each node listens on a port the host picks, `b`'s read once it listens,
 %% and `b` lists `a`, which dials it, without an address.
 ipv6(Base) ->
-    A = made(Base, "a", none),
-    B = made(Base, "b", none),
-    edit(B, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(0), <<"peers">> => [peer("a", A, none)]}
-            end),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    PortB = bound_port(B),
-    edit(A, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(0),
-                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
-                                                                 ipv6_loopback(PortB)}]}
-            end),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:edit(B, fun(Conf) ->
+                            Conf#{<<"listen">> => ipv6_loopback(0),
+                                  <<"peers">> => [ern_harness:peer("a", A, none)]}
+                        end),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    PortB = ern_harness:bound_port(B),
+    ern_harness:edit(A, fun(Conf) ->
+                            Conf#{<<"listen">> => ipv6_loopback(0),
+                                  <<"peers">> => [(ern_harness:peer("b", B, none))#{
+                                                       <<"network-address">> =>
+                                                           ipv6_loopback(PortB)}]}
+                        end),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "the peer a connected"),
-    stop(B, WaitB),
-    {OutA, _} = said(A),
-    {_, ErrB} = said(B),
-    has(OutA, "connect: true"),
-    has(ErrB, "the peer a connected").
+    ern_harness:says(B, "the peer a connected"),
+    ern_harness:stop(B, WaitB),
+    {OutA, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(OutA, "connect: true"),
+    ern_harness:has(ErrB, "the peer a connected").
 
 %% report §12.5, Appendix E.18: a node's listener on `::` takes connections
 %% of IPv6's family alone, so a listener on `0.0.0.0` stands beside it on
@@ -2777,39 +2076,40 @@ ipv6(Base) ->
 %% a listener on `0.0.0.0` its carrier did not start, its listen address
 %% in use. It does not cover an interface other than the loopback's
 ipv6_beside_ipv4_test_() ->
-    nodes_test({waits, 7}, fun ipv6_beside_ipv4/1).
+    ern_harness:nodes_test({waits, 7}, fun ipv6_beside_ipv4/1).
 
 ipv6_beside_ipv4(Base) ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {0, 0, 0, 0}}, {active, false}]),
     {ok, PortB} = inet:port(Held),
-    A = made(Base, "a", none),
-    B = made(Base, "b", none),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", none),
     %% `a` listens on a port the host picks, and `b` lists it, as the node
     %% that dials, without an address
-    edit(A, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(0),
-                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
-                                                                 ipv6_loopback(PortB)}]}
-            end),
-    edit(B, fun(Conf) ->
-                Conf#{<<"listen">> => list_to_binary("[::]:" ++ integer_to_list(PortB)),
-                      <<"peers">> => [peer("a", A, none)]}
-            end),
-    Program = program(filename:join(Base, "build")),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["connect", name(B)]),
+    ern_harness:edit(A, fun(Conf) ->
+                            Conf#{<<"listen">> => ipv6_loopback(0),
+                                  <<"peers">> => [(ern_harness:peer("b", B, none))#{
+                                                       <<"network-address">> =>
+                                                           ipv6_loopback(PortB)}]}
+                        end),
+    ern_harness:edit(B, fun(Conf) ->
+                            Conf#{<<"listen">> => list_to_binary("[::]:" ++ integer_to_list(PortB)),
+                                  <<"peers">> => [ern_harness:peer("a", A, none)]}
+                        end),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["connect", ern_harness:name(B)]),
     ?assertEqual(0, WaitA()),
-    says(B, "the peer a connected"),
-    step(ipv4_accepted),
+    ern_harness:says(B, "the peer a connected"),
+    ern_harness:step(ipv4_accepted),
     {ok, Client} = gen_tcp:connect({127, 0, 0, 1}, PortB, [{active, false}], ?WAIT_MS),
     Accepted = gen_tcp:accept(Held, ?WAIT_MS),
     ok = gen_tcp:close(Client),
     ok = gen_tcp:close(Held),
-    stop(B, WaitB),
+    ern_harness:stop(B, WaitB),
     ?assertMatch({ok, _}, Accepted),
-    {OutA, _} = said(A),
-    has(OutA, "connect: true").
+    {OutA, _} = ern_harness:said(A),
+    ern_harness:has(OutA, "connect: true").
 
 %% Report Appendix C: the `listen` or the `network-address` of a node at
 %% Port of IPv6's loopback.
@@ -2819,24 +2119,25 @@ ipv6_loopback(Port) ->
 %% report §8.6, §12.5, Appendix E.23: a node whose program ends by `Os.exit`
 %% exits with its status, and its ernest.pid, there while it runs, is gone
 os_exit_test_() ->
-    nodes_test({waits, 3}, fun os_exit/1).
+    ern_harness:nodes_test({waits, 3}, fun os_exit/1).
 
 os_exit(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     %% the list given the harness's time for one wait, the step it is of
     ok = file:write_file(filename:join(Root, "exits.ern"),
                          ["export fn main() : Unit = {\n"
-                          "    let listed = Fs.list(Path(\"", A, "\"), ", wait_ms_text(), ");\n"
+                          "    let listed = Fs.list(Path(\"", A, "\"), ",
+                          ern_harness:wait_ms_text(), ");\n"
                           "    Io.println(Io.show(Either.map(listed,\n"
                           "                                  fn(entries) = List.size(entries))));\n"
                           "    Os.exit(3)\n"
                           "}\n"]),
-    0 = built([Root]),
-    ?assertEqual(3, (start(A, filename:join(Root, "exits.erc"), []))()),
-    {Out, _} = said(A),
-    has(Out, "Right(4)"),
+    0 = ern_harness:built([Root]),
+    ?assertEqual(3, (ern_harness:start(A, filename:join(Root, "exits.erc"), []))()),
+    {Out, _} = ern_harness:said(A),
+    ern_harness:has(Out, "Right(4)"),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
 %% report §12.5, §11.2: a node whose `ernest.conf` is refused is refused with
@@ -2846,40 +2147,45 @@ os_exit(Base) ->
 %% refusal said the host had not been started as a node; the
 %% utilization's was written after the code
 refused_configuration_test_() ->
-    nodes_test({waits, 3}, fun refused_configuration/1).
+    ern_harness:nodes_test({waits, 3}, fun refused_configuration/1).
 
 refused_configuration(Base) ->
-    A = made(Base, "a", none),
-    edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
-    Program = program(filename:join(Base, "build")),
+    A = ern_harness:made(Base, "a", none),
+    ern_harness:edit(A, fun(Conf) -> Conf#{<<"peers">> => #{}} end),
+    Program = ern_harness:program(filename:join(Base, "build")),
     Run = ?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1",
     {1, Said} = finished(Run),
-    has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
-    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilization">> => <<"run-queue">>} end),
+    ern_harness:has(Said,
+                    "ern run: " ++ filename:join(A,
+                                                 "ernest.conf") ++ ": peers is not a JSON array"),
+    ern_harness:edit(A,
+                     fun(Conf) -> Conf#{<<"peers">> => [],
+                                        <<"utilization">> => <<"run-queue">>} end),
     {1, Measured} = finished(Run),
-    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": the file has the unknown"
-                  " field utilization").
+    ern_harness:has(Measured,
+                    "ern run: " ++ filename:join(A, "ernest.conf") ++ ": the file has the unknown"
+                    " field utilization").
 
 %% report §12.5, §11.2: a node refused once its start has begun, by a module
 %% on its load path the program never uses whose dependency the path lacks,
 %% removes the ernest.pid it wrote, as it does however it ends. A
 %% regression test: the file was left naming the process that had ended
 refused_after_start_test_() ->
-    nodes_test({waits, 2}, fun refused_after_start/1).
+    ern_harness:nodes_test({waits, 2}, fun refused_after_start/1).
 
 refused_after_start(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
     ok = file:write_file(filename:join(Root, "uses.ern"), "export fn f() : Int = Used.g()\n"),
     ok = file:write_file(filename:join(Root, "used.ern"), "export fn g() : Int = 1\n"),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     ok = file:delete(filename:join(Root, "used.erc")),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ filename:join(Root, "prog.erc")
                          ++ " 2>&1"),
-    has(Said, "Used"),
+    ern_harness:has(Said, "Used"),
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
@@ -2895,17 +2201,17 @@ refused_after_start(Base) ->
 %% Own Node*) the node's end was its entry process's fault, a shell's
 %% status 70
 carrier_not_started_test_() ->
-    nodes_test({waits, 3}, fun carrier_not_started/1).
+    ern_harness:nodes_test({waits, 3}, fun carrier_not_started/1).
 
 carrier_not_started(Base) ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Held),
-    A = made(Base, "a", Port),
+    A = ern_harness:made(Base, "a", Port),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Program = filename:join(Root, "prog.erc"),
     Out = filename:join(Base, "out"),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out),
@@ -2930,12 +2236,12 @@ carrier_not_started(Base) ->
 %% report named the end in §8.6 (the log's *The Release Review Before
 %% 0.7.0*, *The round*): the code already told it
 carrier_not_started_tells_test_() ->
-    nodes_test({waits, 2}, fun carrier_not_started_tells/1).
+    ern_harness:nodes_test({waits, 2}, fun carrier_not_started_tells/1).
 
 carrier_not_started_tells(Base) ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Held),
-    A = made(Base, "a", Port),
+    A = ern_harness:made(Base, "a", Port),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
@@ -2961,7 +2267,7 @@ carrier_not_started_tells(Base) ->
                          "    address\n"
                          "}\n\n"
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Out = filename:join(Base, "out"),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " "
                          ++ filename:join(Root, "prog.erc") ++ " 2>&1 >" ++ Out),
@@ -2980,10 +2286,10 @@ carrier_not_started_tells(Base) ->
 %% node (the log's *The Carrier*), the one wait here a time, since an
 %% absence shows itself by nothing else
 no_deadlock_test_() ->
-    nodes_test({waits, 6}, fun no_deadlock/1).
+    ern_harness:nodes_test({waits, 6}, fun no_deadlock/1).
 
 no_deadlock(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "waits.ern"),
@@ -2991,19 +2297,19 @@ no_deadlock(Base) ->
                          "    Io.println(\"waiting\");\n"
                          "    receive { n -> Unit }\n"
                          "}\n"),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Program = filename:join(Root, "waits.erc"),
     {Micros, {1, Plain}} = timer:tc(fun() -> finished(?ERN ++ " run " ++ Program ++ " 2>&1") end),
-    has(Plain, "deadlock"),
-    {Port, Wait} = started(A, Program, []),
-    prints(A, "waiting"),
+    ern_harness:has(Plain, "deadlock"),
+    {Port, Wait} = ern_harness:started(A, Program, []),
+    ern_harness:prints(A, "waiting"),
     %% an absence: no end within three times what the plain run took to
     %% find its deadlock
-    ?assertEqual(timeout, ended(Port, 3 * Micros div 1000)),
+    ?assertEqual(timeout, ern_harness:ended(Port, 3 * Micros div 1000)),
     {ok, Pid} = file:read_file(filename:join(A, "ernest.pid")),
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(143, Wait()),
-    {_, Err} = said(A),
+    {_, Err} = ern_harness:said(A),
     ?assertEqual(nomatch, string:find(Err, "deadlock")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
@@ -3016,7 +2322,7 @@ no_deadlock(Base) ->
 %% on the load path, so that every node runs one build.
 peers(Base) ->
     Root = filename:join(Base, "build"),
-    0 = built(["--build-root", Root, "fixtures/peers"]),
+    0 = ern_harness:built(["--build-root", Root, "fixtures/peers"]),
     {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
@@ -3042,29 +2348,30 @@ fixtures_times_test() ->
 %% gone, whose port nothing holds; the desk's services, each a name's
 %% peers in the order a find asks them.
 store_and_desk(Base) ->
-    {PortStore, PortGone} = {free_port(), free_port()},
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    Gone = made(Base, "gone", none),
-    Third = made(Base, "third", none),
-    lists(Store, [{"desk", Desk, none}, {"third", Third, none}]),
-    lists(Desk, [{"store", Store, PortStore}, {"gone", Gone, PortGone}]),
-    lists(Third, [{"store", Store, PortStore}]),
+    {PortStore, PortGone} = {ern_harness:free_port(), ern_harness:free_port()},
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    Gone = ern_harness:made(Base, "gone", none),
+    Third = ern_harness:made(Base, "third", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}, {"third", Third, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}, {"gone", Gone, PortGone}]),
+    ern_harness:lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
               <<"doomed">>, <<"adapter">>, <<"watcher">>, <<"gated">>, <<"opener">>,
               <<"herald">>, <<"herald-watcher">>],
-    edit(Desk, fun(Conf) ->
-                   Conf#{<<"services">> => maps:merge(
-                                              maps:from_list([{Name, [<<"store">>]}
-                                                              || Name <- Stored]),
-                                              #{<<"counter">> => [<<"gone">>, <<"store">>],
-                                                <<"lost">> => [<<"gone">>]})}
-               end),
-    edit(Third, fun(Conf) ->
-                    Conf#{<<"services">> => #{<<"counter-slot">> => [<<"store">>],
-                                              <<"echo-slot">> => [<<"store">>]}}
-                end),
+    ern_harness:edit(Desk, fun(Conf) ->
+                               Conf#{<<"services">> => maps:merge(
+                                                          maps:from_list([{Name, [<<"store">>]}
+                                                                          || Name <- Stored]),
+                                                          #{<<"counter">> => [<<"gone">>,
+                                                                              <<"store">>],
+                                                            <<"lost">> => [<<"gone">>]})}
+                           end),
+    ern_harness:edit(Third, fun(Conf) ->
+                                Conf#{<<"services">> => #{<<"counter-slot">> => [<<"store">>],
+                                                          <<"echo-slot">> => [<<"store">>]}}
+                            end),
     {Store, Desk}.
 
 %% A site of test/fixtures/peers/desk.ern as a node writes it: the
@@ -3091,25 +2398,25 @@ desk_site(Definition, Part) ->
 %% node killed outright, which tells its peers nothing, is said as lost,
 %% its connection closed
 find_test_() ->
-    nodes_test({waits, 7}, fun find/1).
+    ern_harness:nodes_test({waits, 7}, fun find/1).
 
 find(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    WaitDesk = start(Desk, DeskProgram, ["find"]),
-    prints(Desk, "now end the store"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    WaitDesk = ern_harness:start(Desk, DeskProgram, ["find"]),
+    ern_harness:prints(Desk, "now end the store"),
     {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
     _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(137, WaitStore()),
     ?assertEqual(0, WaitDesk()),
-    {Out, Err} = said(Desk),
-    {StoreOut, _} = said(Store),
-    has(Err, "the peer store was lost: it closed"),
+    {Out, Err} = ern_harness:said(Desk),
+    {StoreOut, _} = ern_harness:said(Store),
+    ern_harness:has(Err, "the peer store was lost: it closed"),
     ?assertEqual(nomatch, string:find(Err, "the peer store ended")),
-    has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
-    [has(Out, Line)
+    ern_harness:has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
+    [ern_harness:has(Out, Line)
      || Line <- ["early: Left(Io.Unreachable)", "peers: [\"store\", \"gone\"]", "status: None",
                  "unlisted: Left(Io.NotListed)", "other type: Left(Io.OtherType)",
                  "not offered: Left(Io.NotOffered)", "unreachable: Left(Io.Unreachable)",
@@ -3130,7 +2437,7 @@ find(Base) ->
 %% the service, and the client's next find reaches the newcomer. A regression test, written
 %% after the code, which faulted the newcomer's offer
 handover_test_() ->
-    nodes_test({waits, 8}, fun handover/1).
+    ern_harness:nodes_test({waits, 8}, fun handover/1).
 
 handover(Base) ->
     Root = filename:join(Base, "build"),
@@ -3211,27 +2518,28 @@ export fn main() : Unit =
 
 fn asked(service : Address(Server.Msg)) : String =
     Io.show(Address.call(service, fn(reply) = Server.Which(reply), waitMs()))
-"/utf8>>, wait_ms_declaration()]),
-    0 = built([Root]),
-    PortServer = free_port(),
-    Server = made(Base, "server", PortServer),
-    Client = made(Base, "client", none),
-    lists(Server, [{"client", Client, none}]),
-    lists(Client, [{"server", Server, PortServer}]),
-    edit(Client, fun(Conf) -> Conf#{<<"services">> => #{<<"handover">> => [<<"server">>]}} end),
-    WaitServer = start(Server, filename:join(Root, "server.erc"), []),
-    prints(Server, "held by the first: true"),
-    {Input, WaitClient} = started(Client, filename:join(Root, "client.erc"), []),
-    prints(Client, "killed"),
-    prints(Server, "then taken: Right(Unit)"),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    PortServer = ern_harness:free_port(),
+    Server = ern_harness:made(Base, "server", PortServer),
+    Client = ern_harness:made(Base, "client", none),
+    ern_harness:lists(Server, [{"client", Client, none}]),
+    ern_harness:lists(Client, [{"server", Server, PortServer}]),
+    ern_harness:edit(Client,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"handover">> => [<<"server">>]}} end),
+    WaitServer = ern_harness:start(Server, filename:join(Root, "server.erc"), []),
+    ern_harness:prints(Server, "held by the first: true"),
+    {Input, WaitClient} = ern_harness:started(Client, filename:join(Root, "client.erc"), []),
+    ern_harness:prints(Client, "killed"),
+    ern_harness:prints(Server, "then taken: Right(Unit)"),
     true = port_command(Input, "taken\n"),
     ?assertEqual(0, WaitClient()),
-    stop(Server, WaitServer),
-    {Out, _} = said(Client),
-    {ServerOut, _} = said(Server),
-    has(ServerOut, "taken: Right(Unit)"),
-    has(Out, "first: Some(\"first\")"),
-    has(Out, "then: Some(\"newcomer\")").
+    ern_harness:stop(Server, WaitServer),
+    {Out, _} = ern_harness:said(Client),
+    {ServerOut, _} = ern_harness:said(Server),
+    ern_harness:has(ServerOut, "taken: Right(Unit)"),
+    ern_harness:has(Out, "first: Some(\"first\")"),
+    ern_harness:has(Out, "then: Some(\"newcomer\")").
 
 %% report §8.7, §6.6: a reply crosses with a spawned function's captures,
 %% and the spawned process answers it: a process on a calls a service on
@@ -3243,22 +2551,22 @@ fn asked(service : Address(Server.Msg)) : String =
 %% test, written after the code, which refused the lambda; that a's note
 %% is let go by the call's end is read from the code and not seen here
 reply_crosses_test_() ->
-    nodes_test({waits, 8}, fun reply_crosses/1).
+    ern_harness:nodes_test({waits, 8}, fun reply_crosses/1).
 
 reply_crosses(Base) ->
     {Program, A, B} = squares(Base),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["ask", "b"]),
-    prints(B, "answered there: "),
-    stop(A, WaitA),
-    says(B, "the peer a ended"),
-    stop(B, WaitB),
-    {OutA, _} = said(A),
-    {OutB, ErrB} = said(B),
-    has(OutA, "answered here: Some(49)"),
-    has(OutA, "spawned there: true"),
-    has(OutB, "answered there: Some(64)"),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["ask", "b"]),
+    ern_harness:prints(B, "answered there: "),
+    ern_harness:stop(A, WaitA),
+    ern_harness:says(B, "the peer a ended"),
+    ern_harness:stop(B, WaitB),
+    {OutA, _} = ern_harness:said(A),
+    {OutB, ErrB} = ern_harness:said(B),
+    ern_harness:has(OutA, "answered here: Some(49)"),
+    ern_harness:has(OutA, "spawned there: true"),
+    ern_harness:has(OutB, "answered there: Some(64)"),
     ?assertEqual(nomatch, string:find(ErrB, "the peer a was lost")).
 
 %% report §11.2, §8.7: a process a peer spawned that faults is reported on
@@ -3267,21 +2575,22 @@ reply_crosses(Base) ->
 %% there is reported without it, its site this node's. A regression test,
 %% written after the code, whose line named the spawner's site alone
 peer_fault_test_() ->
-    nodes_test({waits, 8}, fun peer_fault/1).
+    ern_harness:nodes_test({waits, 8}, fun peer_fault/1).
 
 peer_fault(Base) ->
     {Program, A, B} = squares(Base),
-    WaitB = start(B, Program, []),
-    prints(B, "waiting"),
-    WaitA = start(A, Program, ["fault", "b"]),
-    prints(A, "faulting there: true"),
-    says(B, "the process of Squares.main:20 faulted: division by zero, spawned by the peer a"),
-    says(B, "the process of Squares.spawning:46 faulted: division by zero\n"),
-    stop(A, WaitA),
-    stop(B, WaitB),
-    {_, ErrB} = said(B),
-    has(ErrB, "the process of Squares.main:20 faulted, restarted: division by zero,"
-              " spawned by the peer a\n"),
+    WaitB = ern_harness:start(B, Program, []),
+    ern_harness:prints(B, "waiting"),
+    WaitA = ern_harness:start(A, Program, ["fault", "b"]),
+    ern_harness:prints(A, "faulting there: true"),
+    ern_harness:says(B, "the process of Squares.main:20 faulted: division by zero, spawned by the"
+                        " peer a"),
+    ern_harness:says(B, "the process of Squares.spawning:46 faulted: division by zero\n"),
+    ern_harness:stop(A, WaitA),
+    ern_harness:stop(B, WaitB),
+    {_, ErrB} = ern_harness:said(B),
+    ern_harness:has(ErrB, "the process of Squares.main:20 faulted, restarted: division by zero,"
+                          " spawned by the peer a\n"),
     ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "spawned by the peer",
@@ -3352,13 +2661,13 @@ fn divided() : Unit = {
 
 // Until the node is stopped: a node waiting for ever is no deadlock.
 fn held() : Unit receiving Unit = receive { _ -> held() }
-"/utf8>>, wait_ms_declaration()]),
-    0 = built([Root]),
-    PortB = free_port(),
-    A = made(Base, "a", none),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, none}]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    PortB = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, none}]),
     {filename:join(Root, "squares.erc"), A, B}.
 
 %% report §8.7, §6.7, Appendix E.27, §8.2: work on a peer is a process
@@ -3376,29 +2685,30 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 %% and a spawn given a time past the longest wait the host takes at once
 %% wait, a regression: each failed with the host's error
 spawn_test_() ->
-    nodes_test({waits, 7}, fun spawn_on_peer/1).
+    ern_harness:nodes_test({waits, 7}, fun spawn_on_peer/1).
 
 spawn_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["spawn"]))()),
-    prints(Store, "the peers here"),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {StoreOut, StoreErr} = said(Store),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["spawn"]))()),
+    ern_harness:prints(Store, "the peers here"),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {StoreOut, StoreErr} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line)
      || Line <- ["spawn: Right", "not listed: Io.NotListed",
                  "not loaded: Io.NotLoaded(\"the binding Lonely.greeting has no value here\")\n",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Io.Timeout", "no upper bound: Right"]],
     Spawned = desk_site("spawns", "spawn(\"store\", Lonely.speak"),
-    has(StoreErr, "the peer desk's spawn at " ++ Spawned ++ " was not loaded: the binding"
-                  " Lonely.greeting has no value here"),
-    has(StoreOut, "the store squares 49"),
-    has(StoreOut, "the store squares 64"),
-    has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
+    ern_harness:has(StoreErr,
+                    "the peer desk's spawn at " ++ Spawned ++ " was not loaded: the binding"
+                    " Lonely.greeting has no value here"),
+    ern_harness:has(StoreOut, "the store squares 49"),
+    ern_harness:has(StoreOut, "the store squares 64"),
+    ern_harness:has(StoreOut, "the peers here: [\"desk\", \"third\"]"),
     ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).
 
 %% report §8.7, §6.7, Appendix E.27, §11.2, E.21: work on a peer is a
@@ -3427,26 +2737,26 @@ spawn_on_peer(Base) ->
 %% which the store's gateway reads first, nor a loss while the caller
 %% waits, which reconnect_test_'s is
 compute_test_() ->
-    nodes_test({waits, 10}, fun compute_on_peer/1).
+    ern_harness:nodes_test({waits, 10}, fun compute_on_peer/1).
 
 compute_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    WaitDesk = start(Desk, DeskProgram, ["compute"]),
-    prints(Store, "the abandoned compute's process ended: Killed"),
-    prints(Store, "the killing compute's process ended: Killed"),
-    prints(Store, "the timed-out compute's process ended: Killed"),
-    prints(Desk, "now stop the store"),
-    stop(Store, WaitStore),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    WaitDesk = ern_harness:start(Desk, DeskProgram, ["compute"]),
+    ern_harness:prints(Store, "the abandoned compute's process ended: Killed"),
+    ern_harness:prints(Store, "the killing compute's process ended: Killed"),
+    ern_harness:prints(Store, "the timed-out compute's process ended: Killed"),
+    ern_harness:prints(Desk, "now stop the store"),
+    ern_harness:stop(Store, WaitStore),
     ?assertEqual(0, WaitDesk()),
-    {Out, Err} = said(Desk),
-    {StoreOut, StoreErr} = said(Store),
+    {Out, Err} = ern_harness:said(Desk),
+    {StoreOut, StoreErr} = ern_harness:said(Store),
     Faulted = desk_site("faulted", "spawnMonitored(f, Died)"),
     RaisedCause = " foreign function erlang:binary_to_integer/1 raised error:badarg",
     Raised = RaisedCause ++ ", on the peer store",
-    [has(Out, Line)
+    [ern_harness:has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(Io.NotListed)",
                  "not loaded: Left(Io.NotLoaded(\"the binding Lonely.greeting has no value"
                  " here\"))",
@@ -3463,15 +2773,17 @@ compute_on_peer(Base) ->
     %% the function's frame on the store, then the caller's, which stand at
     %% one line here
     Division = desk_site("computes", "fn() = 1 / List.size([])"),
-    has(Err, Divided ++ "    erlang:'div'/2\n    " ++ Division ++ "\n    " ++ Division ++ "\n"),
+    ern_harness:has(Err, Divided ++ "    erlang:'div'/2\n    " ++ Division ++ "\n    " ++ Division
+                         ++ "\n"),
     %% Appendix E.21: what the host says of the raise crosses with the
     %% trace, on its first line
-    has(Err, "the process of " ++ Faulted ++ " faulted:" ++ Raised
-             ++ "\n    erlang:binary_to_integer/1, argument 1: not a textual representation of"
-                " an integer\n"),
+    ern_harness:has(Err, "the process of " ++ Faulted ++ " faulted:" ++ Raised
+                         ++ "\n    erlang:binary_to_integer/1, argument 1: not a textual"
+                            " representation of an integer\n"),
     Computed = desk_site("computes", "compute(\"store\", Lonely.speak"),
-    has(StoreErr, "the peer desk's compute at " ++ Computed ++ " was not loaded: the binding"
-                  " Lonely.greeting has no value here"),
+    ern_harness:has(StoreErr,
+                    "the peer desk's compute at " ++ Computed ++ " was not loaded: the binding"
+                    " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
      || {Text, Part} <- [{StoreErr, "division by zero"}, {StoreErr, "badarg"},
                          {StoreOut, "the store's subscriber: division by zero"},
@@ -3488,31 +2800,31 @@ compute_on_peer(Base) ->
 %% queue over the schedulers is read from the code, since an idle node
 %% answers 0.0 or more
 utilization_test_() ->
-    nodes_test({waits, 11}, fun utilization_of_peer/1).
+    ern_harness:nodes_test({waits, 11}, fun utilization_of_peer/1).
 
 utilization_of_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["utilization"]),
-    prints(Store, "the store keeps the schedulers' time at the start: false"),
-    prints(Desk, "now refuse a reload"),
-    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"run-queue">>} end),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["utilization"]),
+    ern_harness:prints(Store, "the store keeps the schedulers' time at the start: false"),
+    ern_harness:prints(Desk, "now refuse a reload"),
+    ern_harness:edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"run-queue">>} end),
     ?assertEqual({1, refused_reload(Store, "the file has the unknown field utilization")},
                  signaled("reload", Store)),
     hungup(Store),
-    says(Store, "the reload was refused"),
+    ern_harness:says(Store, "the reload was refused"),
     true = port_command(DeskPort, "go\n"),
-    prints(Store, "the store keeps the schedulers' time after the refusal: false"),
+    ern_harness:prints(Store, "the store keeps the schedulers' time after the refusal: false"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {_, StoreErr} = said(Store),
-    [has(Out, Line) || Line <- ["not listed: Left(Io.NotListed)", "run queue: true",
-                                "after the refusal: true"]],
-    has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
-    has(StoreErr, "ernest.conf: the file has the unknown field utilization").
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line) || Line <- ["not listed: Left(Io.NotListed)", "run queue: true",
+                                            "after the refusal: true"]],
+    ern_harness:has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
+    ern_harness:has(StoreErr, "ernest.conf: the file has the unknown field utilization").
 
 %% report §8.7, §6.5, §6.9, §12.2, §3.11: a correct program's messages make
 %% no new atom on the node that receives them, a value of many shapes and
@@ -3540,40 +2852,40 @@ utilization_of_peer(Base) ->
 %% senders' messages between them, a send that waits at a full buffer, and a
 %% silence, which the detector finds in a minute
 across_test_() ->
-    nodes_test({waits, 12, ?DIAL_MS}, fun across/1).
+    ern_harness:nodes_test({waits, 12, ?DIAL_MS}, fun across/1).
 
 across(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     ThirdProgram = filename:join(filename:dirname(DeskProgram), "third.erc"),
     {Store, Desk} = store_and_desk(Base),
     Third = filename:join(Base, "third"),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    WaitThird = start(Third, ThirdProgram, []),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["across"]),
-    prints(Desk, "now kill the store"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    WaitThird = ern_harness:start(Third, ThirdProgram, []),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["across"]),
+    ern_harness:prints(Desk, "now kill the store"),
     {ok, Pid} = file:read_file(filename:join(Store, "ernest.pid")),
     _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(137, WaitStore()),
-    prints(Desk, "now silence the store's port"),
+    ern_harness:prints(Desk, "now silence the store's port"),
     {_, Silent} = nothing_answered(listened(Store)),
     true = port_command(DeskPort, "go\n"),
     %% the desk's monitor of the counter gives its Down once the host has
     %% given up the dial the silent port takes (report §8.7)
-    prints(Desk, "now restart the store", ?WAIT_MS + ?DIAL_MS),
+    ern_harness:prints(Desk, "now restart the store", ?WAIT_MS + ?DIAL_MS),
     stop_holding(Silent),
     %% the first start's lines kept, since the second writes its own there
     ok = file:rename(Store ++ ".out", Store ++ ".first.out"),
     ok = file:rename(Store ++ ".err", Store ++ ".first.err"),
-    WaitAgain = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
+    WaitAgain = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitAgain),
-    stop(Third, WaitThird),
-    {Out, _} = said(Desk),
-    {ThirdOut, _} = said(Third),
-    [has(Out, Line)
+    ern_harness:stop(Store, WaitAgain),
+    ern_harness:stop(Third, WaitThird),
+    {Out, _} = ern_harness:said(Desk),
+    {ThirdOut, _} = ern_harness:said(Third),
+    [ern_harness:has(Out, Line)
      || Line <- ["new atoms: 0", "through the third node: 10", "not listed: Unreachable \"\"",
                  "adapted: Fault(\"negative\") \"\"", "severed: Unreachable \"\"",
                  "severed service: Unreachable \"\"",
@@ -3582,8 +2894,8 @@ across(Base) ->
                  "old monitor: Unknown \"\"", "same process: false", "fresh total: 0",
                  "old adapted: 2"]],
     {ok, FirstErr} = file:read_file(Store ++ ".first.err"),
-    has(binary_to_list(FirstErr), "the peer desk sent a frame this node cannot read"),
-    has(ThirdOut, "sent through the third node"),
+    ern_harness:has(binary_to_list(FirstErr), "the peer desk sent a frame this node cannot read"),
+    ern_harness:has(ThirdOut, "sent through the third node"),
     ?assertEqual(nomatch, string:find(ThirdOut, "the echo got")).
 
 %% report §8.7, §12.6, §6.6, §6.9: a call to a process of another node leaves a
@@ -3597,17 +2909,17 @@ across(Base) ->
 %% the note is the race the note's order is there for, which a run may or
 %% may not meet; and a sender waiting at a full buffer is not covered
 calls_test_() ->
-    nodes_test({waits, 5}, fun calls/1).
+    ern_harness:nodes_test({waits, 5}, fun calls/1).
 
 calls(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["calls"]))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["calls"]))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["restarted: None true", "restarted forever: Fault(\"crashed\")",
                  "echo: Some(7)", "while it waits: 1", "its callee killed: Returned",
                  "after the callee's end: 0", "timed out: None 0", "answered here: Some(42) 0",
@@ -3642,23 +2954,23 @@ calls(Base) ->
 %% restart that tells no node, nor a telling whose watch dials a connection
 %% lost since the host listed the monitor, which no test can place there
 restart_told_test_() ->
-    nodes_test({waits, 6}, fun restart_told/1).
+    ern_harness:nodes_test({waits, 6}, fun restart_told/1).
 
 restart_told(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["restart"]))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {_, StoreErr} = said(Store),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["restart"]))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line)
      || Line <- ["the first run: a run began", "first after the crash: told Restarted \"\"",
                  "then: a run began", "the watcher: Returned", "the wrap holds the restart",
                  "severed: Unreachable \"\"", "the holding wrap: Unreachable \"\"",
                  "after the loss: Some(Unit)", "killed: Killed \"\"", "after the kill: nothing"]],
-    has(StoreErr, "faulted, restarted: crashed").
+    ern_harness:has(StoreErr, "faulted, restarted: crashed").
 
 %% report §8.7: a loss ends each wait on the peer that began before the
 %% node ran it: the desk ends its connection to the store by a frame the
@@ -3677,30 +2989,31 @@ restart_told(Base) ->
 %% wait that begins in the gap before the node runs the loss, which the
 %% loss ends as §8.7 says and no test can place there
 reconnect_test_() ->
-    nodes_test({waits, 10}, fun reconnect/1).
+    ern_harness:nodes_test({waits, 10}, fun reconnect/1).
 
 reconnect(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["reconnect"]),
-    prints(Desk, "now open the connection again"),
-    says(Desk, "the peer store was lost: it closed"),
-    says(Store, "the peer desk was lost: it closed"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["reconnect"]),
+    ern_harness:prints(Desk, "now open the connection again"),
+    ern_harness:says(Desk, "the peer store was lost: it closed"),
+    ern_harness:says(Store, "the peer desk was lost: it closed"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    prints(Store, "the store squares 36"),
-    stop(Store, WaitStore),
-    {Out, DeskErr} = said(Desk),
-    {_, StoreErr} = said(Store),
-    [has(Out, Line)
+    ern_harness:prints(Store, "the store squares 36"),
+    ern_harness:stop(Store, WaitStore),
+    {Out, DeskErr} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line)
      || Line <- ["the call: None true", "the compute: Left(Io.Unreachable)",
                  "its caller: Returned", "its computer: Returned",
                  "the same process: Some(3)", "computed after: Right(42)",
                  "spawned after: Right", "found after: Right", "measured after: true"]],
-    has(StoreErr, "the peer desk sent a frame this node cannot read, and this node ends its"
-                  " connection"),
+    ern_harness:has(StoreErr,
+                    "the peer desk sent a frame this node cannot read, and this node ends its"
+                    " connection"),
     [?assertEqual(2, length(string:split(Err, Line, all)) - 1)
      || {Err, Line} <- [{DeskErr, "the peer store connected"},
                         {StoreErr, "the peer desk connected"}]].
@@ -3728,27 +3041,27 @@ reconnect(Base) ->
 %% loss's path, nor a node that never connects again, whose check stands
 %% until the program ends
 check_through_a_loss_test_() ->
-    nodes_test({waits, 11}, fun check_through_a_loss/1).
+    ern_harness:nodes_test({waits, 11}, fun check_through_a_loss/1).
 
 check_through_a_loss(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-loss"]),
-    prints(Store, "the taker took 1"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["check-loss"]),
+    ern_harness:prints(Store, "the taker took 1"),
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now open the connection again"),
-    says(Desk, "the peer store was lost: it closed"),
-    says(Store, "the peer desk was lost: it closed"),
+    ern_harness:prints(Desk, "now open the connection again"),
+    ern_harness:says(Desk, "the peer store was lost: it closed"),
+    ern_harness:says(Store, "the peer desk was lost: it closed"),
     true = port_command(DeskPort, "go\n"),
-    prints(Store, "the taker took 2"),
+    ern_harness:prints(Store, "the taker took 2"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    prints(Store, "the taker ends"),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    ern_harness:prints(Store, "the taker ends"),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["lost: Unreachable", "alive after the loss: true", "found after: Right",
                  "the same process: true", "lookouts once connected: 0", "its end: ended",
                  "lookouts at its end: 0"]].
@@ -3767,25 +3080,25 @@ check_through_a_loss(Base) ->
 %% process the check's monitor made again finds no more, as it finds no
 %% more a process that ended
 check_of_an_end_out_of_reach_test_() ->
-    nodes_test({waits, 10}, fun check_of_an_end_out_of_reach/1).
+    ern_harness:nodes_test({waits, 10}, fun check_of_an_end_out_of_reach/1).
 
 check_of_an_end_out_of_reach(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-unreached"]),
-    prints(Store, "the taker took 1"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["check-unreached"]),
+    ern_harness:prints(Store, "the taker took 1"),
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now open the connection again"),
-    says(Desk, "the peer store was lost: it closed"),
-    says(Store, "the peer desk was lost: it closed"),
-    prints(Store, "the taker ends"),
+    ern_harness:prints(Desk, "now open the connection again"),
+    ern_harness:says(Desk, "the peer store was lost: it closed"),
+    ern_harness:says(Store, "the peer desk was lost: it closed"),
+    ern_harness:prints(Store, "the taker ends"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["lost: Unreachable", "alive after the loss: true", "found after: Right",
                  "its end: ended", "lookouts at its end: 0"]].
 
@@ -3800,21 +3113,21 @@ check_of_an_end_out_of_reach(Base) ->
 %% target that ends as the connection is lost, which the host's monitor
 %% tells as the loss
 check_ends_with_its_target_test_() ->
-    nodes_test({waits, 7}, fun check_ends_with_its_target/1).
+    ern_harness:nodes_test({waits, 7}, fun check_ends_with_its_target/1).
 
 check_ends_with_its_target(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-end"]),
-    prints(Store, "the taker took 1"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["check-end"]),
+    ern_harness:prints(Store, "the taker took 1"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    prints(Store, "the taker ends"),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line) || Line <- ["its end: ended", "lookouts at its end: 0"]].
+    ern_harness:prints(Store, "the taker ends"),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line) || Line <- ["its end: ended", "lookouts at its end: 0"]].
 
 %% report §8.4, Appendix E.21, §6.9: an address of the program's that
 %% foreign code gives back at another type than it crossed at is foreign,
@@ -3840,17 +3153,17 @@ check_ends_with_its_target(Base) ->
 %% with the check's cause. Each callForever ended with `callee returned
 %% without answering`, and the call waited its whole time
 retyped_address_on_another_node_test_() ->
-    nodes_test({waits, 5}, fun retyped_address_on_another_node/1).
+    ern_harness:nodes_test({waits, 5}, fun retyped_address_on_another_node/1).
 
 retyped_address_on_another_node(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["retyped"]))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["retyped"]))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["there, the process behind it is P: Right(true)",
                  "the monitor there: true Killed \"\"",
                  "a fault in f there: Fault(\"division by zero\")",
@@ -3878,17 +3191,17 @@ retyped_address_on_another_node(Base) ->
 %% each address sent through the other reached Q as a check, which Q did
 %% not name; and Q's answer reached the desk as a check on the store
 given_back_from_another_node_test_() ->
-    nodes_test({waits, 5}, fun given_back_from_another_node/1).
+    ern_harness:nodes_test({waits, 5}, fun given_back_from_another_node/1).
 
 given_back_from_another_node(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["given-back"]))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["given-back"]))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["in turn through both, in order: true", "q through the address given back: true",
                  "the address given back through q: true", "answered through it: Some(true)",
                  "given again, the same process: true",
@@ -3908,17 +3221,17 @@ given_back_from_another_node(Base) ->
 %% src/runtime/test/ern_rt_tests.erl's, and the order of one address's
 %% messages and the worker's count src/nodes/test/ern_gateway_tests.erl's
 adapted_calls_test_() ->
-    nodes_test({waits, 5}, fun adapted_calls/1).
+    ern_harness:nodes_test({waits, 5}, fun adapted_calls/1).
 
 adapted_calls(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["gated"]))()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["gated"]))()),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["found meanwhile: Right", "through the gate: 50", "gated: Returned"]].
 
 %% `ern <job> --config-dir Dir` run as a person runs it: its status, and
@@ -3945,26 +3258,26 @@ hungup(Dir) ->
 %% and its ernest.pid goes. A regression test, written after the code; it
 %% does not cover a peer that falls silent while the node stops
 stop_test_() ->
-    nodes_test({waits, 8}, fun stop_in_order/1).
+    ern_harness:nodes_test({waits, 8}, fun stop_in_order/1).
 
 stop_in_order(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["ending"]),
-    prints(Desk, "watching"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["ending"]),
+    ern_harness:prints(Desk, "watching"),
     ?assertMatch({0, _}, signaled("stop", Store)),
     ?assertEqual(143, WaitStore()),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    {Out, _} = said(Desk),
-    has(Out, "ended: ProgramEnd \"\""),
-    has(Out, "after: Unreachable \"\""),
+    {Out, _} = ern_harness:said(Desk),
+    ern_harness:has(Out, "ended: ProgramEnd \"\""),
+    ern_harness:has(Out, "after: Unreachable \"\""),
     ?assertNot(filelib:is_file(filename:join(Store, "ernest.pid"))),
     {Status, Said} = signaled("stop", Store),
     ?assertEqual(1, Status),
-    has(Said, "ernest.pid: no such file or directory: no node runs from the directory").
+    ern_harness:has(Said, "ernest.pid: no such file or directory: no node runs from the directory").
 
 %% report §12.5, §11.2: a node holds ernest.pid locked until its process
 %% has ended, however it ends, and the file is removed then: a node killed
@@ -3980,29 +3293,29 @@ stop_in_order(Base) ->
 %% start was refused by a file whose number a living process held, and the
 %% jobs signaled that process; and a node killed left its file
 pid_lock_test_() ->
-    nodes_test({waits, 12}, fun pid_lock/1).
+    ern_harness:nodes_test({waits, 12}, fun pid_lock/1).
 
 pid_lock(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
-    Program = program(filename:join(Base, "build")),
-    WaitKilled = start(A, Program, []),
-    prints(A, "waiting"),
+    Program = ern_harness:program(filename:join(Base, "build")),
+    WaitKilled = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
     {ok, Killed} = file:read_file(PidFile),
     [] = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Killed))),
     ?assertEqual(137, WaitKilled()),
-    _ = said(A),
+    _ = ern_harness:said(A),
     ?assertNot(filelib:is_file(PidFile)),
     ok = file:write_file(PidFile, Killed),
-    WaitA = start(A, Program, []),
-    prints(A, "waiting"),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
     {ok, Number} = file:read_file(PidFile),
     ?assertNotEqual(Killed, Number),
     {1, Again} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1"),
-    has(Again, " is the configuration directory of the running node "
-               ++ string:trim(binary_to_list(Number)) ++ ", which ernest.pid names"),
-    stop(A, WaitA),
-    {_, Err} = said(A),
+    ern_harness:has(Again, " is the configuration directory of the running node "
+                           ++ string:trim(binary_to_list(Number)) ++ ", which ernest.pid names"),
+    ern_harness:stop(A, WaitA),
+    {_, Err} = ern_harness:said(A),
     ?assertEqual(nomatch, string:find(Err, "configuration directory")),
     %% a living process that is no node, which reads its input and echoes it,
     %% named once it has echoed: until it first runs, the process the host
@@ -4016,7 +3329,7 @@ pid_lock(Base) ->
     [begin
          {Status, Said} = signaled(Job, A),
          ?assertEqual(1, Status),
-         has(Said, "ernest.pid: no node holds it: no node runs from the directory")
+         ern_harness:has(Said, "ernest.pid: no node holds it: no node runs from the directory")
      end || Job <- ["stop", "reload"]],
     true = port_command(Living, <<"alive">>),
     ?assertEqual(<<"alive">>, output(Living)),
@@ -4033,36 +3346,36 @@ pid_lock(Base) ->
 %% once the signal was sent, and a script's next start was refused by the
 %% node still ending
 stop_waits_test_() ->
-    nodes_test({waits, 12}, fun stop_waits/1).
+    ern_harness:nodes_test({waits, 12}, fun stop_waits/1).
 
 stop_waits(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
     Program = stopping(Base),
     %% a stop begun, and what waits for what it said once it has returned
     Stopping = fun() -> begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1") end,
-    {Port, Wait} = started(A, Program, []),
-    prints(A, "subscribed"),
+    {Port, Wait} = ern_harness:started(A, Program, []),
+    ern_harness:prints(A, "subscribed"),
     Stopped = Stopping(),
-    prints(A, "told"),
+    ern_harness:prints(A, "told"),
     ?assert(filelib:is_file(PidFile)),
     true = port_command(Port, "go\n"),
     ?assertMatch({0, _}, Stopped()),
     ?assertNot(filelib:is_file(PidFile)),
     ?assertEqual(143, Wait()),
-    {_, Err} = said(A),
-    has(Err, "the subscriber Stopping.main answered"),
+    {_, Err} = ern_harness:said(A),
+    ern_harness:has(Err, "the subscriber Stopping.main answered"),
     %% the next start, and two stops
-    {_Port, WaitAgain} = started(A, Program, []),
-    prints(A, "subscribed"),
+    {_Port, WaitAgain} = ern_harness:started(A, Program, []),
+    ern_harness:prints(A, "subscribed"),
     First = Stopping(),
-    prints(A, "told"),
+    ern_harness:prints(A, "told"),
     Second = Stopping(),
     [?assertMatch({0, _}, Stop()) || Stop <- [First, Second]],
     ?assertNot(filelib:is_file(PidFile)),
     ?assertEqual(143, WaitAgain()),
-    {_, ErrAgain} = said(A),
-    has(ErrAgain, "the end was cut short, 1 subscriber unanswered: Stopping.main").
+    {_, ErrAgain} = ern_harness:said(A),
+    ern_harness:has(ErrAgain, "the end was cut short, 1 subscriber unanswered: Stopping.main").
 
 %% Report §8.6: a program whose subscriber of the end answers once a line
 %% comes, built under Base: one step. Answers its compiled form.
@@ -4086,7 +3399,7 @@ export fn main() : Unit receiving Msg = {
     }
 }
 "/utf8>>),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "stopping.erc").
 
 %% report §12.5, §11.2, §8.6: a node killed while `ern stop` waits for its
@@ -4097,17 +3410,17 @@ export fn main() : Unit receiving Msg = {
 %% lock's helper with the node, a whole group's or a service manager's,
 %% which leaves the file for the next start
 killed_while_stopped_test_() ->
-    nodes_test({waits, 5}, fun killed_while_stopped/1).
+    ern_harness:nodes_test({waits, 5}, fun killed_while_stopped/1).
 
 killed_while_stopped(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
-    Wait = start(A, stopping(Base), []),
-    prints(A, "subscribed"),
+    Wait = ern_harness:start(A, stopping(Base), []),
+    ern_harness:prints(A, "subscribed"),
     Stopped = begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1"),
     %% told once the stop has sent the termination, after which it waits
     %% on the lock
-    prints(A, "told"),
+    ern_harness:prints(A, "told"),
     {ok, Number} = file:read_file(PidFile),
     [] = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Number))),
     ?assertMatch({0, _}, Stopped()),
@@ -4129,82 +3442,31 @@ killed_while_stopped(Base) ->
 %% the kernel's buffers took, which no rule states. A plain run's end is
 %% ern_integration_tests's run_ends_over_an_unread_socket_test_.
 node_ends_over_an_unread_socket_test_() ->
-    nodes_test({waits, 8}, fun node_ends_over_an_unread_socket/1).
+    ern_harness:nodes_test({waits, 8}, fun node_ends_over_an_unread_socket/1).
 
 node_ends_over_an_unread_socket(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
     Megabytes = 32,
-    {Input, Wait} = started(A, unread_writer(filename:join(Base, "build")),
-                            [integer_to_list(Megabytes)]),
-    prints(A, "listening on "),
-    {match, [Port]} = re:run(written(A, out), "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
+    {Input, Wait} = ern_harness:started(A, ern_harness:unread_writer(filename:join(Base, "build")),
+                                        [integer_to_list(Megabytes)]),
+    ern_harness:prints(A, "listening on "),
+    {match, [Port]} = re:run(ern_harness:written(A, out), "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
                              [{capture, all_but_first, list}]),
-    Client = connected(list_to_integer(Port), []),
-    prints(A, "accepted"),
+    Client = ern_harness:connected(list_to_integer(Port), []),
+    ern_harness:prints(A, "accepted"),
     {ok, Text} = file:read_file(PidFile),
     Number = list_to_integer(string:trim(binary_to_list(Text))),
     true = port_command(Input, "go\n"),
-    prints(A, "served: Right(Unit)"),
+    ern_harness:prints(A, "served: Right(Unit)"),
     ?assertEqual(0, Wait()),
-    _ = said(A),
+    _ = ern_harness:said(A),
     ?assertEqual(none, ern_os:signal(0, Number)),
     ?assertNot(filelib:is_file(PidFile)),
-    {Taken, End} = read_to_its_end(Client),
+    {Taken, End} = ern_harness:read_to_its_end(Client),
     ?assert(Taken < Megabytes * 1048576),
     ?assert(lists:member(End, [closed, econnreset])),
     ok = gen_tcp:close(Client).
-
-%% Report Appendix E.18: a program that listens on the port of the loopback
-%% interface the system gives it, which it prints as `listening on
-%% 127.0.0.1:port`, takes one connection, waits for a line, writes the
-%% megabytes its argument gives to the socket, says what the write
-%% answered, and ends with the connection open, built in Root: one step.
-%% Answers its compiled form.
--spec unread_writer(file:filename()) -> file:filename().
-unread_writer(Root) ->
-    ok = filelib:ensure_path(Root),
-    ok = file:write_file(filename:join(Root, "unread_writer.ern"), [<<"
-// Report Appendix E.18: a program that writes the megabytes it is given to
-// the one connection it takes, once a line comes, and ends with the
-// connection open.
-
-export fn main() : Unit =
-    match Os.arguments {
-        [megabytes] ->
-            Io.println(\"served: \"
-                           <> Io.show(served(Optional.withDefault(String.toInt(megabytes), 0))))
-      | _ ->
-            Unit
-    }
-
-fn served(megabytes : Int) : Either(Io.Error, Unit) = {
-    let listener <- Tcp.listen(\"127.0.0.1\", 0);
-    let port <- Tcp.port(listener);
-    Io.println(\"listening on 127.0.0.1:\" <> Int.toString(port));
-    let socket <- Tcp.accept(listener, waitMs());
-    Io.println(\"accepted\");
-    let _ = Io.readLine();
-    let _ <- Tcp.write(socket, Bytes.repeat(<<120>>, megabytes * 1048576), waitMs());
-    Right(Unit)
-}
-"/utf8>>, wait_ms_declaration()]),
-    0 = built([Root]),
-    filename:join(Root, "unread_writer.erc").
-
-%% What a passive socket takes until its connection ends, read as it comes,
-%% each read given the harness's time for one wait: the count of its bytes
-%% and the reason the reads ended. One step.
--spec read_to_its_end(gen_tcp:socket()) -> {non_neg_integer(), term()}.
-read_to_its_end(Socket) ->
-    step({read_to_its_end, Socket}),
-    read_to_its_end(Socket, 0).
-
-read_to_its_end(Socket, Taken) ->
-    case gen_tcp:recv(Socket, 0, ?WAIT_MS) of
-        {ok, Bytes} -> read_to_its_end(Socket, Taken + byte_size(Bytes));
-        {error, Reason} -> {Taken, Reason}
-    end.
 
 %% report §8.6, §12.5, §11.2: a termination once the end has begun ends
 %% the node at once, with the status of what began the end, where the end
@@ -4215,20 +3477,20 @@ read_to_its_end(Socket, Taken) ->
 %% file is gone. The program's end shows as the connection its process
 %% held closed, which the end closes with the program's processes.
 termination_ends_a_stalled_flush_test_() ->
-    nodes_test({waits, 5}, fun termination_ends_a_stalled_flush/1).
+    ern_harness:nodes_test({waits, 5}, fun termination_ends_a_stalled_flush/1).
 
 termination_ends_a_stalled_flush(Base) ->
     {A, Node, Socket, Holder} = stalled(Base, out, "return"),
     try
-        ?assertEqual({error, closed}, received(Socket, 0)),
+        ?assertEqual({error, closed}, ern_harness:received(Socket, 0)),
         PidFile = filename:join(A, "ernest.pid"),
         ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
         Stopped = begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1"),
         ?assertMatch({0, _}, Stopped()),
-        ?assertMatch({0, _}, collected(Node, 1)),
+        ?assertMatch({0, _}, ern_harness:collected(Node, 1)),
         ?assertNot(filelib:is_file(PidFile))
     after
-        closed(Holder)
+        ern_harness:closed(Holder)
     end.
 
 %% report §8.6, §12.5, §11.2: the same where a first `ern stop` began the
@@ -4237,24 +3499,24 @@ termination_ends_a_stalled_flush(Base) ->
 %% and each stop returns once the node has ended. The program says on the
 %% connection that its write was taken before the first stop is sent.
 second_stop_ends_a_stalled_flush_test_() ->
-    nodes_test({waits, 7}, fun second_stop_ends_a_stalled_flush/1).
+    ern_harness:nodes_test({waits, 7}, fun second_stop_ends_a_stalled_flush/1).
 
 second_stop_ends_a_stalled_flush(Base) ->
     {A, Node, Socket, Holder} = stalled(Base, err, "wait"),
     try
-        ?assertEqual({ok, <<"written\n">>}, received(Socket, 8)),
+        ?assertEqual({ok, <<"written\n">>}, ern_harness:received(Socket, 8)),
         Stop = ?ERN ++ " stop --config-dir " ++ A ++ " 2>&1",
         First = begun(Stop),
-        ?assertEqual({error, closed}, received(Socket, 0)),
+        ?assertEqual({error, closed}, ern_harness:received(Socket, 0)),
         PidFile = filename:join(A, "ernest.pid"),
         ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
         Second = begun(Stop),
         ?assertMatch({0, _}, Second()),
         ?assertMatch({0, _}, First()),
-        ?assertMatch({143, _}, collected(Node, 1)),
+        ?assertMatch({143, _}, ern_harness:collected(Node, 1)),
         ?assertNot(filelib:is_file(PidFile))
     after
-        closed(Holder)
+        ern_harness:closed(Holder)
     end.
 
 %% A node of Base's directory a running held_writer/1, given Stream and
@@ -4262,7 +3524,7 @@ second_stop_ends_a_stalled_flush(Base) ->
 %% started it, the program's connection and the holder of its stalled
 %% stream's reading end. Two steps.
 stalled(Base, Stream, Ending) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Program = held_writer(filename:join(Base, "build")),
     {Node, Socket, Holder} = held_run(A, [" --config-dir ", A], Program, Stream, Ending),
     {A, Node, Socket, Holder}.
@@ -4292,7 +3554,7 @@ held_run(Dir, Options, Program, Stream, Arguments) ->
     Run = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
     Holder = open_port({spawn_executable, "/bin/sh"},
                        [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
-    Socket = accepted(Listener),
+    Socket = ern_harness:accepted(Listener),
     ok = gen_tcp:close(Listener),
     true = port_command(Run, "go\n"),
     {Run, Socket, Holder}.
@@ -4411,8 +3673,8 @@ fn said(socket : Address(Tcp.SocketMsg), text : String) : Unit = {
     let _ = Tcp.write(socket, String.toUtf8(text <> \"\\n\"), waitMs());
     Unit
 }
-"/utf8>>, wait_ms_declaration()]),
-    0 = built([Root]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "held_writer.erc").
 
 %% report §8.6, §11.2: the runner says each line of the end's wait without
@@ -4431,14 +3693,15 @@ fn said(socket : Address(Tcp.SocketMsg), text : String) : Unit = {
 %% stays in its flush is read at one moment, once the connection has
 %% closed, by a signal 0 that reaches the run's process.
 termination_cuts_a_stalled_wait_test_() ->
-    nodes_test({waits, 17}, fun termination_cuts_a_stalled_wait/1).
+    ern_harness:nodes_test({waits, 17}, fun termination_cuts_a_stalled_wait/1).
 
 termination_cuts_a_stalled_wait(Base) ->
     Program = held_writer(filename:join(Base, "build")),
     lists:foreach(fun({Kind, Stream}) ->
                       waited_run(Base, Kind, Program, Stream, "return",
                                  fun(Run, Socket) ->
-                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     ?assertEqual({ok, <<"told\n">>},
+                                                  ern_harness:received(Socket, 5)),
                                      cut_and_ended(Run, Socket, 0)
                                  end)
                   end, stalled_runs()).
@@ -4448,16 +3711,18 @@ termination_cuts_a_stalled_wait(Base) ->
 %% the subscriber is told, a second termination cuts the wait, and a third
 %% ends the run with the signal's status, 143.
 second_termination_cuts_a_stalled_wait_test_() ->
-    nodes_test({waits, 21}, fun second_termination_cuts_a_stalled_wait/1).
+    ern_harness:nodes_test({waits, 21}, fun second_termination_cuts_a_stalled_wait/1).
 
 second_termination_cuts_a_stalled_wait(Base) ->
     Program = held_writer(filename:join(Base, "build")),
     lists:foreach(fun({Kind, Stream}) ->
                       waited_run(Base, Kind, Program, Stream, "wait",
                                  fun(Run, Socket) ->
-                                     ?assertEqual({ok, <<"written\n">>}, received(Socket, 8)),
-                                     true = run_signaled(Run, "TERM"),
-                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     ?assertEqual({ok, <<"written\n">>},
+                                                  ern_harness:received(Socket, 8)),
+                                     true = ern_harness:run_signaled(Run, "TERM"),
+                                     ?assertEqual({ok, <<"told\n">>},
+                                                  ern_harness:received(Socket, 5)),
                                      cut_and_ended(Run, Socket, 143)
                                  end)
                   end, stalled_runs()).
@@ -4469,14 +3734,15 @@ second_termination_cuts_a_stalled_wait(Base) ->
 %% the end's flush lasts, and a termination ends the run with the exit's
 %% status, which stands.
 exit_cuts_a_stalled_wait_test_() ->
-    nodes_test({waits, 17}, fun exit_cuts_a_stalled_wait/1).
+    ern_harness:nodes_test({waits, 17}, fun exit_cuts_a_stalled_wait/1).
 
 exit_cuts_a_stalled_wait(Base) ->
     Program = held_writer(filename:join(Base, "build")),
     lists:foreach(fun({Kind, Stream}) ->
                       waited_run(Base, Kind, Program, Stream, "exit",
                                  fun(Run, Socket) ->
-                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     ?assertEqual({ok, <<"told\n">>},
+                                                  ern_harness:received(Socket, 5)),
                                      flushed_and_ended(Run, Socket, 7)
                                  end)
                   end, stalled_runs()).
@@ -4490,7 +3756,7 @@ exit_cuts_a_stalled_wait(Base) ->
 %% written after the code that keeps the order: it does not cover standard
 %% output, a run under `ern test` or the shell, nor a stream that stalls.
 wait_lines_in_order_test_() ->
-    nodes_test({waits, 7}, fun wait_lines_in_order/1).
+    ern_harness:nodes_test({waits, 7}, fun wait_lines_in_order/1).
 
 wait_lines_in_order(Base) ->
     Root = filename:join(Base, "build"),
@@ -4536,9 +3802,9 @@ fn late(earlier : Address(Msg)) : Unit receiving Msg = {
     }
 }
 "/utf8>>),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Program = filename:join(Root, "told_in_order.erc"),
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     lists:foreach(fun(Options) ->
                       {0, Said} = finished([?ERN, " run", Options, " ", Program, " 2>&1"]),
                       [Waits, EarlyTold, Too, LateTold | Answers] =
@@ -4567,20 +3833,20 @@ waited_run(Base, Kind, Program, Stream, Ending, Check) ->
     Dir = filename:join(Base, atom_to_list(Kind) ++ "_" ++ atom_to_list(Stream)),
     Options = case Kind of
                   plain -> "";
-                  node -> [" --config-dir ", made(Base, filename:basename(Dir), none)]
+                  node -> [" --config-dir ", ern_harness:made(Base, filename:basename(Dir), none)]
               end,
     {Run, Socket, Holder} = held_run(Dir, Options, Program, Stream, Ending ++ " subscribed"),
     try
         Check(Run, Socket)
     after
-        closed(Holder),
-        closed(Run)
+        ern_harness:closed(Holder),
+        ern_harness:closed(Run)
     end.
 
 %% Report §8.6: a termination cuts the end's wait, and the run is ended from
 %% its flush (flushed_and_ended/3). Two steps.
 cut_and_ended(Run, Socket, Status) ->
-    true = run_signaled(Run, "TERM"),
+    true = ern_harness:run_signaled(Run, "TERM"),
     flushed_and_ended(Run, Socket, Status).
 
 %% Report §8.6: the end's wait is over, the program's processes ended,
@@ -4588,19 +3854,10 @@ cut_and_ended(Run, Socket, Status) ->
 %% end's flush, whose stream takes nothing; a termination ends it, with
 %% Status. Two steps.
 flushed_and_ended(Run, Socket, Status) ->
-    ?assertEqual({error, closed}, received(Socket, 0)),
-    ?assert(run_signaled(Run, "0")),
-    true = run_signaled(Run, "TERM"),
-    ?assertMatch({Status, _}, collected(Run, 1)).
-
-%% Whether the signal Name was sent to the run its port started, which is
-%% the port's own process; none is sent to a run whose port has ended.
--spec run_signaled(port(), string()) -> boolean().
-run_signaled(Run, Name) ->
-    case erlang:port_info(Run, os_pid) of
-        {os_pid, Number} -> os:cmd("kill -" ++ Name ++ " " ++ integer_to_list(Number)) =:= "";
-        undefined -> false
-    end.
+    ?assertEqual({error, closed}, ern_harness:received(Socket, 0)),
+    ?assert(ern_harness:run_signaled(Run, "0")),
+    true = ern_harness:run_signaled(Run, "TERM"),
+    ?assertMatch({Status, _}, ern_harness:collected(Run, 1)).
 
 %% report §11.8, §11: `ern test` ends by a termination that cut short the
 %% end of a launch, and runs no later launch. Here the first of two modules
@@ -4609,7 +3866,7 @@ run_signaled(Run, Name) ->
 %% termination cuts the wait, and the job ends by it, 143, the second
 %% module's name and lines never written.
 test_ends_at_a_cut_wait_test_() ->
-    nodes_test({waits, 4}, fun test_ends_at_a_cut_wait/1).
+    ern_harness:nodes_test({waits, 4}, fun test_ends_at_a_cut_wait/1).
 
 test_ends_at_a_cut_wait(Base) ->
     Root = two_modules(filename:join(Base, "build"), <<"
@@ -4640,16 +3897,16 @@ fn unanswered() : Unit receiving SubscriberMsg =
     }
 "/utf8>>),
     Dir = filename:join(Base, "job"),
-    {Job, Wait} = launched(Dir, ["exec ", ?ERN, " test ", Root]),
+    {Job, Wait} = ern_harness:launched(Dir, ["exec ", ?ERN, " test ", Root]),
     try
-        says(Dir, "the end waits for "),
-        true = run_signaled(Job, "TERM"),
+        ern_harness:says(Dir, "the end waits for "),
+        true = ern_harness:run_signaled(Job, "TERM"),
         ?assertEqual(143, Wait()),
-        {Out, Err} = said(Dir),
-        has(Out, "First\n"),
+        {Out, Err} = ern_harness:said(Dir),
+        ern_harness:has(Out, "First\n"),
         ?assertEqual({nomatch, nomatch}, {string:find(Out, "Second"), string:find(Err, "Second")})
     after
-        closed(Job)
+        ern_harness:closed(Job)
     end.
 
 %% report §11.8, §11: the same where the first module's test writes a
@@ -4660,7 +3917,7 @@ fn unanswered() : Unit receiving SubscriberMsg =
 %% held closed. The second module's test, which would connect too, never
 %% does.
 test_ends_at_an_ended_flush_test_() ->
-    nodes_test({waits, 4}, fun test_ends_at_an_ended_flush/1).
+    ern_harness:nodes_test({waits, 4}, fun test_ends_at_an_ended_flush/1).
 
 test_ends_at_an_ended_flush(Base) ->
     Root = two_modules(filename:join(Base, "build"), [<<"
@@ -4700,7 +3957,7 @@ fn held(connected : Either(Io.Error, Address(Tcp.SocketMsg)),
       | Left(error) ->
             Io.printlnError(\"not connected: \" <> Io.show(error))
     }
-"/utf8>>, wait_ms_declaration()]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
     {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Listener),
     Pipe = filename:join(Base, "stdout.pipe"),
@@ -4711,14 +3968,14 @@ fn held(connected : Either(Io.Error, Address(Tcp.SocketMsg)),
     Holder = open_port({spawn_executable, "/bin/sh"},
                        [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
     try
-        Socket = accepted(Listener),
-        ?assertEqual({error, closed}, received(Socket, 0)),
-        true = run_signaled(Job, "TERM"),
-        ?assertMatch({143, _}, collected(Job, 1)),
+        Socket = ern_harness:accepted(Listener),
+        ?assertEqual({error, closed}, ern_harness:received(Socket, 0)),
+        true = ern_harness:run_signaled(Job, "TERM"),
+        ?assertMatch({143, _}, ern_harness:collected(Job, 1)),
         ?assertEqual({error, timeout}, gen_tcp:accept(Listener, 0))
     after
-        closed(Holder),
-        closed(Job),
+        ern_harness:closed(Holder),
+        ern_harness:closed(Job),
         ok = gen_tcp:close(Listener)
     end.
 
@@ -4743,8 +4000,8 @@ let follows = Test.Case(name = \"follows\", run = fn() = {
     };
     Test.Passed
 })
-"/utf8>>, wait_ms_declaration()]),
-    0 = built([Root]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
     Root.
 
 %% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
@@ -4755,15 +4012,15 @@ let follows = Test.Case(name = \"follows\", run = fn() = {
 %% code; it does not run a kernel older than 5.3, nor a host the helper's
 %% watch has no code for, whose frame is the same
 unwatched_host_test_() ->
-    nodes_test({waits, 2}, fun unwatched_host/1).
+    ern_harness:nodes_test({waits, 2}, fun unwatched_host/1).
 
 unwatched_host(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "ran.ern"),
                          <<"export fn main() : Unit = Io.println(\"ran\")\n">>),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Shim = filename:join(Base, "no_pidfd_open.so"),
     ok = file:write_file(Shim ++ ".c", no_pidfd_open()),
     "" = os:cmd(lists:flatten(["cc -shared -fPIC -o ", Shim, " ", Shim, ".c -ldl"])),
@@ -4825,50 +4082,53 @@ long syscall(long number, ...)
 %% host warned on standard output at each reload of a message the handler
 %% did not take
 reload_test_() ->
-    nodes_test({waits, 20}, fun reload/1).
+    ern_harness:nodes_test({waits, 20}, fun reload/1).
 
 reload(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     Third = filename:join(Base, "third"),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["reload"]),
-    prints(Desk, "watching"),
-    lists(Store, [{"third", Third, none}]),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["reload"]),
+    ern_harness:prints(Desk, "watching"),
+    ern_harness:lists(Store, [{"third", Third, none}]),
     ?assertMatch({0, _}, signaled("reload", Store)),
-    says(Store, "the peer desk was removed"),
-    prints(Desk, "now list the desk again"),
-    lists(Store, [{"third", Third, none}, {"front", Desk, none}]),
+    ern_harness:says(Store, "the peer desk was removed"),
+    ern_harness:prints(Desk, "now list the desk again"),
+    ern_harness:lists(Store, [{"third", Third, none}, {"front", Desk, none}]),
     ?assertMatch({0, _}, signaled("reload", Store)),
-    says(Store, "the peer front was added"),
+    ern_harness:says(Store, "the peer front was added"),
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now rename the desk"),
-    lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
+    ern_harness:prints(Desk, "now rename the desk"),
+    ern_harness:lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
     ?assertMatch({0, _}, signaled("reload", Store)),
-    says(Store, "the peer front is now named window"),
+    ern_harness:says(Store, "the peer front is now named window"),
     true = port_command(DeskPort, "go\n"),
-    prints(Desk, "now refuse a reload"),
-    edit(Store, fun(#{<<"peers">> := Peers} = Conf) ->
-                    Broken = #{<<"name">> => <<"broken">>,
-                               <<"public-key">> => undecodable(public(Desk))},
-                    Conf#{<<"peers">> := Peers ++ [Broken]}
-                end),
+    ern_harness:prints(Desk, "now refuse a reload"),
+    ern_harness:edit(Store, fun(#{<<"peers">> := Peers} = Conf) ->
+                                Broken = #{<<"name">> => <<"broken">>,
+                                           <<"public-key">> =>
+                                               undecodable(ern_harness:public(Desk))},
+                                Conf#{<<"peers">> := Peers ++ [Broken]}
+                            end),
     ?assertEqual({1, refused_reload(Store, "peer \"broken\"'s public-key is not one public key"
                                            " in PEM")},
                  signaled("reload", Store)),
     hungup(Store),
-    says(Store, "is not one public key in PEM"),
-    lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
-    edit(Store, fun(Conf) -> Conf#{<<"listen">> => address(free_port())} end),
+    ern_harness:says(Store, "is not one public key in PEM"),
+    ern_harness:lists(Store, [{"third", Third, none}, {"window", Desk, none}]),
+    ern_harness:edit(Store, fun(Conf) ->
+                                Conf#{<<"listen">> => ern_harness:address(ern_harness:free_port())}
+                            end),
     ?assertMatch({0, _}, signaled("reload", Store)),
-    says(Store, "the reload was refused"),
+    ern_harness:says(Store, "the reload was refused"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {StoreOut, Err} = said(Store),
-    [has(Out, Line)
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {StoreOut, Err} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line)
      || Line <- ["removed: Unreachable \"\"", "unlisted: Left(Io.Unreachable)",
                  "listed again: true",
                  "renamed: Some(0)", "refused: Some(0)"]],
@@ -4876,9 +4136,9 @@ reload(Base) ->
                                      [multiline]))
      || Line <- ["ernest.conf was read again", "the peer desk was removed",
                  "the peer front was added", "the peer front is now named window"]],
-    has(Err, "the reload was refused, and the configuration stays as it was: "),
-    has(Err, "peer \"broken\"'s public-key is not one public key in PEM"),
-    has(Err, "listen cannot change while the node runs"),
+    ern_harness:has(Err, "the reload was refused, and the configuration stays as it was: "),
+    ern_harness:has(Err, "peer \"broken\"'s public-key is not one public key in PEM"),
+    ern_harness:has(Err, "listen cannot change while the node runs"),
     ?assertEqual(nomatch, string:find(Err, "the peer front was lost")),
     %% report §12.5: no reload here changed `limits`, and none says so
     ?assertEqual(nomatch, string:find(Err, "the change to limits")),
@@ -4903,26 +4163,26 @@ undecodable(Pem) ->
 %% running node's refuses it, as a changed `listen` does, and makes no
 %% certificate for that key
 reload_reads_directory_test_() ->
-    nodes_test({waits, 13}, fun reload_reads_directory/1).
+    ern_harness:nodes_test({waits, 13}, fun reload_reads_directory/1).
 
 reload_reads_directory(Base) ->
-    A = made(Base, "a", none),
+    A = ern_harness:made(Base, "a", none),
     Certificate = filename:join(A, "certificate.pem"),
     Conf = filename:join(A, "ernest.conf"),
     Key = filename:join(A, "private-key.pem"),
-    Program = program(filename:join(Base, "build")),
+    Program = ern_harness:program(filename:join(Base, "build")),
     ok = file:delete(Certificate),
     %% `ern reload` reads before it signals, and makes none
     {1, NoNode} = signaled("reload", A),
-    has(NoNode, "no node runs from the directory"),
+    ern_harness:has(NoNode, "no node runs from the directory"),
     ?assertNot(filelib:is_file(Certificate)),
-    Wait = start(A, Program, []),
-    prints(A, "waiting"),
+    Wait = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "waiting"),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Certificate),
     ?assertEqual(8#644, Mode band 8#777),
     ok = file:delete(Certificate),
     ?assertEqual({0, ""}, signaled("reload", A)),
-    says(A, "ernest.conf was read again"),
+    ern_harness:says(A, "ernest.conf was read again"),
     ?assert(filelib:is_regular(Certificate)),
     %% a mode that lets others write ernest.conf
     ok = file:change_mode(Conf, 8#664),
@@ -4930,23 +4190,25 @@ reload_reads_directory(Base) ->
         ++ ern_build:shown(Conf),
     ?assertEqual({1, "ern reload: " ++ Open ++ "\n"}, signaled("reload", A)),
     hungup(A),
-    says(A, "the reload was refused, and the configuration stays as it was: " ++ Open),
+    ern_harness:says(A, "the reload was refused, and the configuration stays as it was: " ++ Open),
     ok = file:change_mode(Conf, 8#644),
     %% another node's key, the certificate gone with it
     {ok, Own} = file:read_file(Key),
-    {ok, Other} = file:read_file(filename:join(made(Base, "b", none), "private-key.pem")),
+    {ok,
+     Other} = file:read_file(filename:join(ern_harness:made(Base, "b", none), "private-key.pem")),
     ok = file:write_file(Key, Other),
     ok = file:delete(Certificate),
     ?assertEqual({0, ""}, signaled("reload", A)),
-    says(A, "the reload was refused, and the configuration stays as it was: "
-         ++ ern_build:shown(Key) ++ ": the node's key cannot change while the node runs"),
+    ern_harness:says(A, "the reload was refused, and the configuration stays as it was: "
+                        ++ ern_build:shown(Key)
+                        ++ ": the node's key cannot change while the node runs"),
     ?assertNot(filelib:is_file(Certificate)),
     ok = file:write_file(Key, Own),
     ?assertEqual({0, ""}, signaled("reload", A)),
-    seen(A, err, "ernest.conf was read again", 2, ?WAIT_MS),
+    ern_harness:seen(A, err, "ernest.conf was read again", 2, ?WAIT_MS),
     ?assert(filelib:is_regular(Certificate)),
-    stop(A, Wait),
-    {_, Err} = said(A),
+    ern_harness:stop(A, Wait),
+    {_, Err} = ern_harness:said(A),
     ?assertEqual(nomatch, string:find(Err, "certifies another key")).
 
 %%
@@ -5074,8 +4336,8 @@ twins(Dir, Changed) ->
             "    }\n",
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {File, Text} <- [{"twin.ern", Twin}, {"aside.ern", Aside}, {"server.ern", Server},
-                         {"asker.ern", [Asker, wait_ms_declaration()]}]],
-    0 = built([Dir]),
+                         {"asker.ern", [Asker, ern_harness:wait_ms_declaration()]}]],
+    0 = ern_harness:built([Dir]),
     Changed orelse begin
                        ok = file:write_file(filename:join(Dir, "ern_twins_host.erl"),
                                             <<"-module(ern_twins_host).\n"
@@ -5102,41 +4364,41 @@ twins(Dir, Changed) ->
 %% spawn by identity with what they captured, and `restarting(limit, f)`
 %% spawns. Written with the code, after it: a regression test
 two_builds_test_() ->
-    nodes_test({waits, 8}, fun two_builds/1).
+    ern_harness:nodes_test({waits, 8}, fun two_builds/1).
 
 two_builds(Base) ->
     {AskerProgram, _} = twins(filename:join(Base, "first"), false),
     {_, ServerProgram} = twins(filename:join(Base, "second"), true),
-    PortServer = free_port(),
-    Asker = made(Base, "asker", none),
-    Server = made(Base, "server", PortServer),
-    lists(Asker, [{"server", Server, PortServer}]),
-    lists(Server, [{"asker", Asker, none}]),
-    edit(Asker, fun(Conf) ->
-                    Conf#{<<"services">> => #{<<"stable">> => [<<"server">>],
-                                              <<"shape">> => [<<"server">>]}}
-                end),
-    WaitServer = start(Server, ServerProgram, []),
-    prints(Server, "offered"),
-    ?assertEqual(0, (start(Asker, AskerProgram, ["server"]))()),
-    prints(Server, "restarting ran"),
-    stop(Server, WaitServer),
-    {Out, _} = said(Asker),
-    {ServerOut, ServerErr} = said(Server),
-    [has(Out, Line)
+    PortServer = ern_harness:free_port(),
+    Asker = ern_harness:made(Base, "asker", none),
+    Server = ern_harness:made(Base, "server", PortServer),
+    ern_harness:lists(Asker, [{"server", Server, PortServer}]),
+    ern_harness:lists(Server, [{"asker", Asker, none}]),
+    ern_harness:edit(Asker, fun(Conf) ->
+                                Conf#{<<"services">> => #{<<"stable">> => [<<"server">>],
+                                                          <<"shape">> => [<<"server">>]}}
+                            end),
+    WaitServer = ern_harness:start(Server, ServerProgram, []),
+    ern_harness:prints(Server, "offered"),
+    ?assertEqual(0, (ern_harness:start(Asker, AskerProgram, ["server"]))()),
+    ern_harness:prints(Server, "restarting ran"),
+    ern_harness:stop(Server, WaitServer),
+    {Out, _} = ern_harness:said(Asker),
+    {ServerOut, ServerErr} = ern_harness:said(Server),
+    [ern_harness:has(Out, Line)
      || Line <- ["stable: Some(42)", "shape: Io.OtherType", "same: Right",
                  "changed: Right",
                  "binding: Io.NotLoaded(\"the binding Aside.note has no value here\")\n",
                  "module: Io.NotLoaded(\"the module ern_twins_host, which Twin.absent calls, is"
                  " not here\")\n",
                  "names no binding: Right", "lambda: Right", "local: Right", "restarting: Right"]],
-    [has(ServerOut, Line)
+    [ern_harness:has(ServerOut, Line)
      || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran",
                  "the first build"]],
     ?assertEqual(nomatch, string:find(ServerOut, "the second build")),
     ?assertEqual(nomatch, string:find(ServerOut, "never run on the server")),
     ?assertEqual(nomatch, string:find(ServerErr, "Asker.spawned:25")),
-    [has(ServerErr, Line)
+    [ern_harness:has(ServerErr, Line)
      || Line <- ["the peer asker connected",
                  "the peer asker's spawn at Asker.spawned:26 was not loaded: the binding"
                  " Aside.note has no value here",
@@ -5289,7 +4551,7 @@ exchanged(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SenderDir, "lacked.ern", Lacked}, {SenderDir, "sender.ern", Sender},
                               {ReceiverDir, "receiver.ern", Receiver}]],
-    [0 = built([Dir]) || Dir <- [SenderDir, ReceiverDir]],
+    [0 = ern_harness:built([Dir]) || Dir <- [SenderDir, ReceiverDir]],
     Host = filename:join(SenderDir, "ern_sender_host.erl"),
     ok = file:write_file(Host, <<"-module(ern_sender_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
@@ -5329,18 +4591,20 @@ exchanged(Base) ->
 %% and its answer's line was missing; its builds are counted, and its host
 %% module's compile, which is no step, is not
 exchange_test_() ->
-    nodes_test({waits, 18}, fun exchange/1).
+    ern_harness:nodes_test({waits, 18}, fun exchange/1).
 
 exchange(Base) ->
     {SenderProgram, ReceiverProgram} = exchanged(Base),
-    PortReceiver = free_port(),
-    Sender = made(Base, "sender", none),
-    Receiver = made(Base, "receiver", PortReceiver),
-    lists(Sender, [{"receiver", Receiver, PortReceiver}]),
-    lists(Receiver, [{"sender", Sender, none}]),
-    WaitReceiver = start(Receiver, ReceiverProgram, []),
-    prints(Receiver, "ready"),
-    ?assertEqual(0, (start(Sender, SenderProgram, ["receiver", integer_to_list(?WAIT_MS)]))()),
+    PortReceiver = ern_harness:free_port(),
+    Sender = ern_harness:made(Base, "sender", none),
+    Receiver = ern_harness:made(Base, "receiver", PortReceiver),
+    ern_harness:lists(Sender, [{"receiver", Receiver, PortReceiver}]),
+    ern_harness:lists(Receiver, [{"sender", Sender, none}]),
+    WaitReceiver = ern_harness:start(Receiver, ReceiverProgram, []),
+    ern_harness:prints(Receiver, "ready"),
+    ?assertEqual(0,
+                 (ern_harness:start(Sender, SenderProgram,
+                                    ["receiver", integer_to_list(?WAIT_MS)]))()),
     Served = "the peer sender's spawn at Sender.serve:50 was not loaded: the binding Lacked.note"
              " has no value here",
     Lines = ["the peer sender's spawn at Sender.main:13 was not loaded: the binding Lacked.note"
@@ -5360,14 +4624,14 @@ exchange(Base) ->
              " erlang:yield/0 does not match Lacked.Count: is true, spawned by the peer sender",
              "the peer sender's spawn at Sender.received:36 was not loaded: the module lists,"
              " which Lacked.absent calls, has no function ern_absent_function/0 here"],
-    [says(Receiver, Line) || Line <- Lines],
-    prints(Receiver, "child at Lacked.spawner:22"),
-    stop(Receiver, WaitReceiver),
-    {Out, _} = said(Sender),
-    {ReceiverOut, ReceiverErr} = said(Receiver),
+    [ern_harness:says(Receiver, Line) || Line <- Lines],
+    ern_harness:prints(Receiver, "child at Lacked.spawner:22"),
+    ern_harness:stop(Receiver, WaitReceiver),
+    {Out, _} = ern_harness:said(Sender),
+    {ReceiverOut, ReceiverErr} = ern_harness:said(Receiver),
     Note = "Io.NotLoaded(\"the binding Lacked.note has no value here\")",
     Only = "Io.NotLoaded(\"the module ern_sender_host, which Lacked.only calls, is not here\")",
-    [has(Out, Line)
+    [ern_harness:has(Out, Line)
      || Line <- ["plain: Right", "counted: Right(Lacked.Count(2))",
                  "told: " ++ Note ++ "\n", "calls only: " ++ Only ++ "\n",
                  "server receiver: " ++ Note ++ "\n", "server nobody: Io.NotListed",
@@ -5377,7 +4641,7 @@ exchange(Base) ->
                  "only by name: " ++ Only ++ "\n", "counts: Right",
                  "absent function: Io.NotLoaded(\"the module lists, which Lacked.absent calls, has"
                  " no function ern_absent_function/0 here\")\n"]],
-    has(ReceiverOut, "Count(1)"),
+    ern_harness:has(ReceiverOut, "Count(1)"),
     ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),
@@ -5546,9 +4810,10 @@ bare_build(Base) ->
              "    }\n",
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SharedDir, "shared.ern", Shared},
-                              {ProgramDir, "bare.ern", [Source, wait_ms_declaration()]}]],
-    0 = built([SharedDir]),
-    0 = built(["--load-path", SharedDir, ProgramDir]),
+                              {ProgramDir, "bare.ern",
+                               [Source, ern_harness:wait_ms_declaration()]}]],
+    0 = ern_harness:built([SharedDir]),
+    0 = ern_harness:built(["--load-path", SharedDir, ProgramDir]),
     {SharedDir, filename:join(ProgramDir, "bare.erc"), Source}.
 
 %% The number of the first line of Text that holds Part.
@@ -5584,38 +4849,38 @@ line_of(Text, Part) ->
 %% cross with them, a function that calls a foreign function among them.
 %% Written after the code
 bare_node_test_() ->
-    nodes_test({waits, 20}, fun bare_node/1).
+    ern_harness:nodes_test({waits, 20}, fun bare_node/1).
 
 bare_node(Base) ->
     {SharedDir, Program, Source} = bare_build(Base),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
     %% how often the bare node tells its utilization, which the program
     %% waits one of before its pick: the scenario's, and no bound
     Interval = 200,
-    edit(B, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
-    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
-    WaitB = bare_started(B, [SharedDir]),
-    lists(A, [{"b", B, bound_port(B)}]),
+    ern_harness:edit(B, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
+    ern_harness:edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
+    WaitB = ern_harness:bare_started(B, [SharedDir]),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
     Placing = [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " ", Program, " b"],
-    {_, WaitA} = launched(A, [Placing, " ", integer_to_list(Interval)]),
+    {_, WaitA} = ern_harness:launched(A, [Placing, " ", integer_to_list(Interval)]),
     ?assertEqual(0, WaitA()),
     Site = fun(Part) -> "Bare.placed:" ++ integer_to_list(line_of(Source, Part)) end,
     Process = fun(Part) -> "the process of " ++ Site(Part) end,
     Raised = " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
              " by the peer a\n",
-    [says(B, Line)
+    [ern_harness:says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("Shared.greet") ++ " was not loaded: the"
                  " binding Shared.greeting has no value here",
                  Process("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
                  Process("\"raises: \"") ++ Raised, Process("\"raises again: \"") ++ Raised]],
-    [prints(B, Line) || Line <- ["counted 1", "counted 7", "bye"]],
+    [ern_harness:prints(B, Line) || Line <- ["counted 1", "counted 7", "bye"]],
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
-    {Out, _} = said(A),
-    {OutB, ErrB} = said(B),
-    [has(Out, Line)
+    {Out, _} = ern_harness:said(A),
+    {OutB, ErrB} = ern_harness:said(B),
+    [ern_harness:has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
                  "offering: Right", "found: Right", "utilization: Right",
                  "picked: Right(42)", "binding: Io.NotLoaded", "ground: Right",
@@ -5627,14 +4892,14 @@ bare_node(Base) ->
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["killed", "bare node"]],
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))),
     %% started again, ended by a process spawned there
-    WaitExit = bare_started(B, [SharedDir]),
-    lists(A, [{"b", B, bound_port(B)}]),
-    {_, WaitExiting} = launched(A, [Placing, " exit"]),
+    WaitExit = ern_harness:bare_started(B, [SharedDir]),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    {_, WaitExiting} = ern_harness:launched(A, [Placing, " exit"]),
     ?assertEqual(0, WaitExiting()),
     ?assertEqual(3, WaitExit()),
-    {OutExiting, _} = said(A),
-    {_, ErrExit} = said(B),
-    has(OutExiting, "exit: Right"),
+    {OutExiting, _} = ern_harness:said(A),
+    {_, ErrExit} = ern_harness:said(B),
+    ern_harness:has(OutExiting, "exit: Right"),
     ?assertEqual(nomatch, string:find(ErrExit, "faulted")),
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))).
 
@@ -5647,7 +4912,7 @@ bare_node(Base) ->
 %% full review's, written with the rule (the log's *The Review's
 %% Decisions*)
 constant_crosses_test_() ->
-    nodes_test({waits, 7}, fun constant_crosses/1).
+    ern_harness:nodes_test({waits, 7}, fun constant_crosses/1).
 
 constant_crosses(Base) ->
     ProgramDir = filename:join(Base, "program"),
@@ -5668,24 +4933,46 @@ constant_crosses(Base) ->
             "    let read = Peer.compute(\"b\", fn() = computed, waitMs());\n"
             "    Io.println(\"computed: \" <> Io.show(read))\n"
             "}\n",
-            wait_ms_declaration()]),
-    0 = built([ProgramDir]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    WaitB = bare_started(B, []),
-    lists(A, [{"b", B, bound_port(B)}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
-                              filename:join(ProgramDir, "main.erc")]),
+            ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([ProgramDir]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    {_, WaitA} = ern_harness:launched(A, [?ERN, " run --config-dir ", A, " ",
+                                          filename:join(ProgramDir, "main.erc")]),
     ?assertEqual(0, WaitA()),
-    says(B, "the binding Main.computed has no value here"),
+    ern_harness:says(B, "the binding Main.computed has no value here"),
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
-    {Out, _} = said(A),
-    [has(Out, Line) || Line <- ["limit: Right(11)", "origin: Right(3)",
-                                "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
-                                "computed: Left(Io.NotLoaded(\"the binding Main.computed has no"
-                                " value here\"))"]].
+    {Out, _} = ern_harness:said(A),
+    [ern_harness:has(Out, Line)
+     || Line <- ["limit: Right(11)", "origin: Right(3)",
+                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
+                 "computed: Left(Io.NotLoaded(\"the binding Main.computed has no value here\"))"]].
+
+%% A program of its own, File its name and Text its text, the declaration
+%% of waitMs() after it, built in Base's program/ and run to its end on a
+%% node, a, with the argument `b`, the name of a bare node that listens on
+%% a port of its choosing and lists a. Both nodes' directories and the
+%% bare node's wait.
+ran_beside_bare(Base, File, Text) ->
+    ProgramDir = filename:join(Base, "program"),
+    ok = filelib:ensure_path(ProgramDir),
+    ok = file:write_file(filename:join(ProgramDir, File ++ ".ern"),
+                         unicode:characters_to_binary([Text,
+                                                       ern_harness:wait_ms_declaration()])),
+    0 = ern_harness:built([ProgramDir]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    {_, WaitA} = ern_harness:launched(A, [?ERN, " run --config-dir ", A, " ",
+                                          filename:join(ProgramDir, File ++ ".erc"), " b"]),
+    ?assertEqual(0, WaitA()),
+    {A, B, WaitB}.
 
 %% report §4.6, §8.7, §12.7: libs/ansi's bindings are constants, so a
 %% program's lambda that names one has its value on a bare node, the form
@@ -5697,61 +4984,48 @@ constant_crosses(Base) ->
 %% program's own whose initializer computes has no value there,
 %% constant_crosses/1's
 lambda_reach_on_a_bare_node_test_() ->
-    nodes_test({waits, 9}, fun lambda_reach_on_a_bare_node/1).
+    ern_harness:nodes_test({waits, 9}, fun lambda_reach_on_a_bare_node/1).
 
 lambda_reach_on_a_bare_node(Base) ->
-    ProgramDir = filename:join(Base, "program"),
-    ok = filelib:ensure_path(ProgramDir),
-    ok = file:write_file(
-           filename:join(ProgramDir, "reach.ern"),
-           unicode:characters_to_binary(
-             ["// Report §8.7, §12.7: lambdas whose reach names a binding of libs/ansi's,\n"
-              "// spawned and computed on a bare node.\n"
-              "\n"
-              "export fn main() : Unit =\n"
-              "    match Os.arguments {\n"
-              "        [bare] -> placed(bare)\n"
-              "      | _ -> Unit\n"
-              "    }\n"
-              "\n"
-              "// The first spawn brings this definition, so the node holds the last\n"
-              "// spawn's lambda when it comes.\n"
-              "fn placed(bare : String) : Unit = {\n"
-              "    let cleared = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearScreen)),"
-              " waitMs());\n"
-              "    Io.println(\"spawned: \" <> outcome(cleared));\n"
-              "    computed(bare);\n"
-              "    let below = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearBelow)),"
-              " waitMs());\n"
-              "    Io.println(\"held: \" <> outcome(below))\n"
-              "}\n"
-              "\n"
-              "fn computed(bare : String) : Unit =\n"
-              "    Io.println(\"computed: \" <> Io.show(Peer.compute(bare,"
-              " fn() = Ansi.clearScreen, waitMs())))\n"
-              "\n"
-              "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
-              "    match spawned {\n"
-              "        Right(_) -> \"Right\"\n"
-              "      | Left(failure) -> Io.show(failure)\n"
-              "    }\n",
-              wait_ms_declaration()])),
-    0 = built([ProgramDir]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    WaitB = bare_started(B, []),
-    lists(A, [{"b", B, bound_port(B)}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
-                              filename:join(ProgramDir, "reach.erc"), " b"]),
-    ?assertEqual(0, WaitA()),
-    [prints(B, Line) || Line <- ["\"\\u{1B}[2J\\u{1B}[H\"", "\"\\u{1B}[J\""]],
+    Program = ["// Report §8.7, §12.7: lambdas whose reach names a binding of libs/ansi's,\n"
+               "// spawned and computed on a bare node.\n"
+               "\n"
+               "export fn main() : Unit =\n"
+               "    match Os.arguments {\n"
+               "        [bare] -> placed(bare)\n"
+               "      | _ -> Unit\n"
+               "    }\n"
+               "\n"
+               "// The first spawn brings this definition, so the node holds the last\n"
+               "// spawn's lambda when it comes.\n"
+               "fn placed(bare : String) : Unit = {\n"
+               "    let cleared = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearScreen)),"
+               " waitMs());\n"
+               "    Io.println(\"spawned: \" <> outcome(cleared));\n"
+               "    computed(bare);\n"
+               "    let below = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearBelow)),"
+               " waitMs());\n"
+               "    Io.println(\"held: \" <> outcome(below))\n"
+               "}\n"
+               "\n"
+               "fn computed(bare : String) : Unit =\n"
+               "    Io.println(\"computed: \" <> Io.show(Peer.compute(bare,"
+               " fn() = Ansi.clearScreen, waitMs())))\n"
+               "\n"
+               "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+               "    match spawned {\n"
+               "        Right(_) -> \"Right\"\n"
+               "      | Left(failure) -> Io.show(failure)\n"
+               "    }\n"],
+    {A, B, WaitB} = ran_beside_bare(Base, "reach", Program),
+    [ern_harness:prints(B, Line) || Line <- ["\"\\u{1B}[2J\\u{1B}[H\"", "\"\\u{1B}[J\""]],
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
-    [has(Out, Line) || Line <- ["spawned: Right", "computed: Right(\"\\u{1B}[2J\\u{1B}[H\")",
-                                "held: Right"]],
+    {Out, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    [ern_harness:has(Out, Line) || Line <- ["spawned: Right",
+                                            "computed: Right(\"\\u{1B}[2J\\u{1B}[H\")",
+                                            "held: Right"]],
     ?assertEqual(nomatch, string:find(ErrB, "was not loaded")).
 
 %% report §12.7, §8.7, Appendix E.28: a binding an arrival's code reads
@@ -5770,7 +5044,7 @@ lambda_reach_on_a_bare_node(Base) ->
 %% the check and faulted on the link. Where the node holds the binding in
 %% no unit the link is a fault still, beyond_reach/1's
 binding_linked_to_its_holder_test_() ->
-    nodes_test({waits, 12}, fun binding_linked_to_its_holder/1).
+    ern_harness:nodes_test({waits, 12}, fun binding_linked_to_its_holder/1).
 
 binding_linked_to_its_holder(Base) ->
     SharedDir = filename:join(Base, "shared"),
@@ -5823,29 +5097,31 @@ binding_linked_to_its_holder(Base) ->
              "      | Left(failure) -> Io.show(failure)\n"
              "    }\n",
     ok = file:write_file(filename:join(ProgramDir, "held.ern"),
-                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
-    0 = built([SharedDir]),
-    0 = built(["--load-path", SharedDir, ProgramDir]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    WaitB = bare_started(B, [SharedDir]),
-    lists(A, [{"b", B, bound_port(B)}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " ",
-                              filename:join(ProgramDir, "held.erc"), " b ",
-                              filename:join(SharedDir, "config.erc")]),
+                         unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
+    0 = ern_harness:built([SharedDir]),
+    0 = ern_harness:built(["--load-path", SharedDir, ProgramDir]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, [SharedDir]),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    {_, WaitA} = ern_harness:launched(A,
+                                      [?ERN, " run --config-dir ", A, " --load-path ", SharedDir,
+                                       " ",
+                                       filename:join(ProgramDir, "held.erc"), " b ",
+                                       filename:join(SharedDir, "config.erc")]),
     ?assertEqual(0, WaitA()),
-    [prints(B, Line) || Line <- ["PLAIN", "HELD"]],
+    [ern_harness:prints(B, Line) || Line <- ["PLAIN", "HELD"]],
     Site = fun(Part) -> "Held.placed:" ++ integer_to_list(line_of(Source, Part)) end,
-    [says(B, Line)
+    [ern_harness:says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("let greeted") ++ " was not loaded:"
                  " the binding Config.greeting has no value here",
                  "the peer a's compute at " ++ Site("let computed") ++ " was not loaded:"
                  " the binding Config.greeting has no value here"]],
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
+    {Out, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
     Lacked = "Io.NotLoaded(\"the binding Config.greeting has no value here\")",
     ?assertEqual(["shouted: Right", "greeted: " ++ Lacked, "computed: Left(" ++ Lacked ++ ")",
                   "loaded: Right(Right(Unit))", "greeted: Right", "computed: Right(\"HELD\")",
@@ -5865,63 +5141,49 @@ binding_linked_to_its_holder(Base) ->
 %% fail, the node's back end finding no unit for `Session`, and no test
 %% crossed a program's foreign type before
 foreign_type_crosses_test_() ->
-    nodes_test({waits, 7}, fun foreign_type_crosses/1).
+    ern_harness:nodes_test({waits, 7}, fun foreign_type_crosses/1).
 
 foreign_type_crosses(Base) ->
-    ProgramDir = filename:join(Base, "program"),
-    ok = filelib:ensure_path(ProgramDir),
-    ok = file:write_file(
-           filename:join(ProgramDir, "handle.ern"),
-           unicode:characters_to_binary(
-             ["// Report §12.7: lambdas whose definitions name a foreign type of the\n"
-              "// program's own, computed on a bare node.\n"
-              "\n"
-              "foreign type Token\n"
-              "\n"
-              "type Boxed = Boxed(Token)\n"
-              "\n"
-              "foreign fn token() : Token =\n"
-              "    \"erlang:make_ref/0\"\n"
-              "\n"
-              "foreign fn isToken(token : Token) : Bool =\n"
-              "    \"erlang:is_reference/1\"\n"
-              "\n"
-              "foreign fn unboxed(counts : List(Int)) : List(Boxed) =\n"
-              "    \"lists:reverse/1\"\n"
-              "\n"
-              "export fn main() : Unit =\n"
-              "    match Os.arguments {\n"
-              "        [bare] -> {\n"
-              "            Io.println(\"tokened: \" <> Io.show(tokened(bare)));\n"
-              "            Io.println(\"reversed: \" <> Io.show(reversed(bare)));\n"
-              "            Io.println(\"emptied: \" <> Io.show(emptied(bare)))\n"
-              "        }\n"
-              "      | _ -> Unit\n"
-              "    }\n"
-              "\n"
-              "fn tokened(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.compute(bare, fn() = isToken(token()), waitMs())\n"
-              "\n"
-              "fn reversed(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.compute(bare, fn() = List.isEmpty(List.reverse(unboxed([]))),"
-              " waitMs())\n"
-              "\n"
-              "fn emptied(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.compute(bare, fn() = List.isEmpty(unboxed([])), waitMs())\n",
-              wait_ms_declaration()])),
-    0 = built([ProgramDir]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    WaitB = bare_started(B, []),
-    lists(A, [{"b", B, bound_port(B)}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
-                              filename:join(ProgramDir, "handle.erc"), " b"]),
-    ?assertEqual(0, WaitA()),
+    Program = ["// Report §12.7: lambdas whose definitions name a foreign type of the\n"
+               "// program's own, computed on a bare node.\n"
+               "\n"
+               "foreign type Token\n"
+               "\n"
+               "type Boxed = Boxed(Token)\n"
+               "\n"
+               "foreign fn token() : Token =\n"
+               "    \"erlang:make_ref/0\"\n"
+               "\n"
+               "foreign fn isToken(token : Token) : Bool =\n"
+               "    \"erlang:is_reference/1\"\n"
+               "\n"
+               "foreign fn unboxed(counts : List(Int)) : List(Boxed) =\n"
+               "    \"lists:reverse/1\"\n"
+               "\n"
+               "export fn main() : Unit =\n"
+               "    match Os.arguments {\n"
+               "        [bare] -> {\n"
+               "            Io.println(\"tokened: \" <> Io.show(tokened(bare)));\n"
+               "            Io.println(\"reversed: \" <> Io.show(reversed(bare)));\n"
+               "            Io.println(\"emptied: \" <> Io.show(emptied(bare)))\n"
+               "        }\n"
+               "      | _ -> Unit\n"
+               "    }\n"
+               "\n"
+               "fn tokened(bare : String) : Either(Io.Error, Bool) =\n"
+               "    Peer.compute(bare, fn() = isToken(token()), waitMs())\n"
+               "\n"
+               "fn reversed(bare : String) : Either(Io.Error, Bool) =\n"
+               "    Peer.compute(bare, fn() = List.isEmpty(List.reverse(unboxed([]))),"
+               " waitMs())\n"
+               "\n"
+               "fn emptied(bare : String) : Either(Io.Error, Bool) =\n"
+               "    Peer.compute(bare, fn() = List.isEmpty(unboxed([])), waitMs())\n"],
+    {A, B, WaitB} = ran_beside_bare(Base, "handle", Program),
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
+    {Out, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
     ?assertEqual(["tokened: Right(true)", "reversed: Right(true)", "emptied: Right(true)", ""],
                  string:split(Out, "\n", all)),
     ?assertEqual(nomatch, string:find(ErrB, "was not loaded")).
@@ -5935,26 +5197,29 @@ foreign_type_crosses(Base) ->
 %% units as it loaded them from its own tree, `History.directory` faulted,
 %% and the attach was refused as `could not load the shell`
 attach_unreadable_home_test_() ->
-    nodes_test({waits, 5}, fun attach_unreadable_home/1).
+    ern_harness:nodes_test({waits, 5}, fun attach_unreadable_home/1).
 
 attach_unreadable_home(Base) ->
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, ["HOME=\"$(printf '\\377')\" ", ?ERN, " run --config-dir ",
-                                    Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node,
+                                         ["HOME=\"$(printf '\\377')\" ", ?ERN, " run --config-dir ",
+                                          Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    {Input, WaitShell} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
-                                        " --attach node"]),
+    {Input, WaitShell} = ern_harness:launched(Ops,
+                                              ["HOME=", Home, " ", ?ERN, " shell --config-dir ",
+                                               Ops,
+                                               " --attach node"]),
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitShell()),
-    {_, Err} = said(Ops),
+    {_, Err} = ern_harness:said(Ops),
     ?assertEqual(nomatch, string:find(Err, "ern shell:")),
     ?assertMatch({0, _}, signaled("stop", Node)),
     ?assertEqual(143, WaitNode()),
-    ?assertEqual(nomatch, string:find(written(Node, err), "faulted")).
+    ?assertEqual(nomatch, string:find(ern_harness:written(Node, err), "faulted")).
 
 %% report §11.2 *The attached shell*, §8.7, Appendix E.1: a node that lacks
 %% a module the shell's definitions call answers the attach's spawn
@@ -5965,7 +5230,7 @@ attach_unreadable_home(Base) ->
 %% the node's without `ern_shell`, the host module the shell's definitions
 %% call.
 attach_not_loaded_test_() ->
-    nodes_test({waits, 6}, fun attach_not_loaded/1).
+    ern_harness:nodes_test({waits, 6}, fun attach_not_loaded/1).
 
 attach_not_loaded(Base) ->
     {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
@@ -5973,22 +5238,23 @@ attach_not_loaded(Base) ->
     [Whole, Lacking] = [released(filename:join(Base, Dir), ern_tree:build("shell"), Version)
                         || Dir <- ["whole", "lacking"]],
     ok = file:delete(filename:join([Base, "lacking", "build", "shell", "ebin", "ern_shell.beam"])),
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [Lacking, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [Lacking, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    {_, WaitShell} = launched(Ops, ["HOME=", Home, " ", Whole, " shell --config-dir ", Ops,
-                                    " --attach node"]),
+    {_, WaitShell} = ern_harness:launched(Ops,
+                                          ["HOME=", Home, " ", Whole, " shell --config-dir ", Ops,
+                                           " --attach node"]),
     ?assertEqual(1, WaitShell()),
-    {_, Err} = said(Ops),
+    {_, Err} = ern_harness:said(Ops),
     Refused = "ern shell: the node node could not load the shell: the module ern_shell, which"
               " Ernest\\.Shell\\.",
     ?assertMatch({match, _}, re:run(Err, ["^", Refused, "[A-Za-z.]+ calls, is not here\n$"])),
     [_, Lacked] = string:split(Err, "could not load the shell: "),
-    says(Node, "was not loaded: " ++ Lacked),
+    ern_harness:says(Node, "was not loaded: " ++ Lacked),
     ?assertMatch({0, _}, signaled("stop", Node)),
     ?assertEqual(143, WaitNode()).
 
@@ -6000,7 +5266,7 @@ attach_not_loaded(Base) ->
 %% holds no unit of (ern_arrival:name/1), so that the count follows the
 %% pool's names.
 attach_ships_nothing_test_() ->
-    nodes_test({waits, 6}, fun attach_ships_nothing/1).
+    ern_harness:nodes_test({waits, 6}, fun attach_ships_nothing/1).
 
 attach_ships_nothing(Base) ->
     Root = filename:join(Base, "program"),
@@ -6024,20 +5290,20 @@ attach_ships_nothing(Base) ->
                            "    {_, Next} = ern_arrival:name(1),\n"
                            "    Next - 2.\n">>),
     {ok, _} = compile:file(Arrivals, [{outdir, Root}]),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    WaitNode = start(Node, filename:join(Root, "probe.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    WaitNode = ern_harness:start(Node, filename:join(Root, "probe.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {Input, WaitShell} = attached(Ops, "node", Base),
     entered(Input, Ops, ["Probe.arrivals()"], "> 0 : Int\n"),
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitShell()),
-    stop(Node, WaitNode),
-    {_, Err} = said(Ops),
+    ern_harness:stop(Node, WaitNode),
+    {_, Err} = ern_harness:said(Ops),
     ?assertEqual(nomatch, string:find(Err, "ern shell:")).
 
 %% report §8.7, §11.2: a node of a tree whose shell is not built is refused
@@ -6045,14 +5311,14 @@ attach_ships_nothing(Base) ->
 %% The tree is a release made from this one under Base with no unit of the
 %% shell's in its build.
 node_without_shell_test_() ->
-    nodes_test({waits, 1}, fun node_without_shell/1).
+    ern_harness:nodes_test({waits, 1}, fun node_without_shell/1).
 
 node_without_shell(Base) ->
     {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
     NoShell = filename:join(Base, "no-shell"),
     ok = filelib:ensure_path(NoShell),
     Ern = released(filename:join(Base, "tree"), NoShell, string:trim(binary_to_list(Text))),
-    Node = made(Base, "node", 0),
+    Node = ern_harness:made(Base, "node", 0),
     ?assertEqual({1, "ern run: the shell is not built; run make\n"},
                  finished([Ern, " run --config-dir ", Node, " 2>&1"])),
     ?assertNot(filelib:is_regular(filename:join(Node, "ernest.pid"))).
@@ -6067,7 +5333,7 @@ node_without_shell(Base) ->
 %% shell said the node ran another build of `ern`. It does not cover a
 %% plain shell beside such a program, whose units the same names keep apart
 attach_beside_a_program_shell_test_() ->
-    nodes_test({waits, 7}, fun attach_beside_a_program_shell/1).
+    ern_harness:nodes_test({waits, 7}, fun attach_beside_a_program_shell/1).
 
 attach_beside_a_program_shell(Base) ->
     Root = filename:join(Base, "program"),
@@ -6083,21 +5349,21 @@ attach_beside_a_program_shell(Base) ->
                           "        _ -> Unit\n"
                           "    }\n"
                           "}\n"]),
-    0 = built([Root]),
-    PortNode = free_port(),
-    Node = made(Base, "node", PortNode),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, PortNode}]),
-    WaitNode = start(Node, filename:join(Root, "shell.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    PortNode = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", PortNode),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, PortNode}]),
+    WaitNode = ern_harness:start(Node, filename:join(Root, "shell.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {Input, WaitShell} = attached(Ops, "node", Source),
-    prints(Ops, ". :help for help."),
+    ern_harness:prints(Ops, ". :help for help."),
     entered(Input, Ops, ["Shell.greeting"], "\"the program's own Shell\" : String"),
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitShell()),
-    stop(Node, WaitNode),
-    {_, Err} = said(Ops),
+    ern_harness:stop(Node, WaitNode),
+    {_, Err} = ern_harness:said(Ops),
     ?assertEqual(nomatch, string:find(Err, "ern shell:")).
 
 %% report §11.2 *The attached shell*, §12.1 *A session's screen*, §11.8: a
@@ -6116,7 +5382,7 @@ attach_beside_a_program_shell(Base) ->
 %% regression test of the attach; the tests after it hold the rest of an
 %% attached session.
 attached_shell_test_() ->
-    nodes_test({waits, 17}, fun attached_shell/1).
+    ern_harness:nodes_test({waits, 17}, fun attached_shell/1).
 
 attached_shell(Base) ->
     Root = filename:join(Base, "program"),
@@ -6140,49 +5406,50 @@ attached_shell(Base) ->
                           "    }\n"]),
     ok = file:write_file(filename:join(Source, "greet.ern"),
                          "export fn hello() : Unit = Io.println(\"hello from the operator\")\n"),
-    0 = built([Root]),
-    PortNode = free_port(),
-    Node = made(Base, "node", PortNode),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, PortNode}]),
-    {NodeInput, WaitNode} = started(Node, filename:join(Root, "echo.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    PortNode = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", PortNode),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, PortNode}]),
+    {NodeInput, WaitNode} = ern_harness:started(Node, filename:join(Root, "echo.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {ShellInput, WaitShell} = attached(Ops, "node", Source),
-    prints(Ops, ". :help for help."),
+    ern_harness:prints(Ops, ". :help for help."),
     true = port_command(ShellInput, "Io.println(\"written at the prompt\")\n"),
-    prints(Ops, "written at the prompt"),
+    ern_harness:prints(Ops, "written at the prompt"),
     true = port_command(NodeInput, "go\n"),
-    prints(Node, "the node's own: go"),
+    ern_harness:prints(Node, "the node's own: go"),
     true = port_command(ShellInput, ":detach\n"),
-    prints(Ops, "no command :detach; :help lists them"),
+    ern_harness:prints(Ops, "no command :detach; :help lists them"),
     true = port_command(ShellInput, ":load Greet\nGreet.hello()\n"),
-    prints(Ops, "hello from the operator"),
+    ern_harness:prints(Ops, "hello from the operator"),
     true = port_command(ShellInput, ["let p = Process.current()\n", "let q = p\n",
                                      "Optional.isSome(Process.status(q))\n"]),
-    prints(Ops, "true : Bool"),
+    ern_harness:prints(Ops, "true : Bool"),
     true = port_command(ShellInput, [":forget p\n",
                                      "{ monitor(q, fn(down) = down); receive { _ -> Unit } }\n",
                                      "Optional.isSome(Process.status(q))\n"]),
-    prints(Ops, "false : Bool"),
+    ern_harness:prints(Ops, "false : Bool"),
     true = port_command(ShellInput, ["let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n",
                                      ":processes\n"]),
-    prints(Ops, "$Session1.input 11:1 "),
-    prints(Ops, "Echo.main "),
+    ern_harness:prints(Ops, "$Session1.input 11:1 "),
+    ern_harness:prints(Ops, "Echo.main "),
     true = port_command(ShellInput, ":quit\n"),
     ?assertEqual(0, WaitShell()),
-    {Out, _} = said(Ops),
-    has(Out, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
+    {Out, _} = ern_harness:said(Ops),
+    ern_harness:has(Out,
+                    "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
     ?assertEqual(nomatch, string:find(Out, "the node's own")),
     ?assertEqual(nomatch, string:find(Out, "Ernest.Shell.")),
     %% report §11.2: what the session started stays the node's
     {SecondInput, WaitSecond} = attached(Ops, "node", Source),
     true = port_command(SecondInput, ":processes\n:quit\n"),
-    prints(Ops, "$Session1.input 11:1 "),
+    ern_harness:prints(Ops, "$Session1.input 11:1 "),
     ?assertEqual(0, WaitSecond()),
-    stop(Node, WaitNode),
-    {NodeOut, _} = said(Node),
-    has(NodeOut, "the node's own: go"),
+    ern_harness:stop(Node, WaitNode),
+    {NodeOut, _} = ern_harness:said(Node),
+    ern_harness:has(NodeOut, "the node's own: go"),
     ?assertEqual(nomatch, string:find(NodeOut, "written at the prompt")).
 
 %% report §11.2 *The attached shell*, §11.8: where the node an attached
@@ -6196,26 +5463,26 @@ attached_shell(Base) ->
 %% node ended` before it, in one run of sixteen. Each line is held to the
 %% deployment guide's section 6, which quotes it.
 attached_shell_ends_test_() ->
-    nodes_test({waits, 10}, fun attached_shell_ends/1).
+    ern_harness:nodes_test({waits, 10}, fun attached_shell_ends/1).
 
 attached_shell_ends(Base) ->
-    Ops = made(Base, "ops", none),
+    Ops = ern_harness:made(Base, "ops", none),
     [Ended, Lost] =
         lists:map(
           fun({Name, End, Status, Line}) ->
-              Node = made(Base, Name, 0),
-              lists(Node, [{"ops", Ops, none}]),
-              {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-              lists(Ops, [{"node", Node, bound_port(Node)}]),
+              Node = ern_harness:made(Base, Name, 0),
+              ern_harness:lists(Node, [{"ops", Ops, none}]),
+              {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+              ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
               {_, WaitShell} = attached(Ops, "node", Base),
-              prints(Ops, ":help for help.\n> "),
+              ern_harness:prints(Ops, ":help for help.\n> "),
               End(Node, WaitNode),
               ?assertEqual(Status, WaitShell()),
-              {Out, Err} = said(Ops),
+              {Out, Err} = ern_harness:said(Ops),
               ?assertMatch({true, _}, {lists:suffix(":help for help.\n> \n", Out), Out}),
               ?assertEqual(Line, Err),
               Err
-          end, [{"ended", fun stop/2, 0, "the node node ended\n"},
+          end, [{"ended", fun ern_harness:stop/2, 0, "the node node ended\n"},
                 {"lost", fun lost/2, 1, "the node node is lost\n"}]),
     %% the lines as the deployment guide's section 6 quotes them
     ern_deployment_tests:cataloged(Ended, "6", "ended", [{"b", "node"}]),
@@ -6229,27 +5496,27 @@ attached_shell_ends(Base) ->
 %% node's peers. Written before the fix, which the row for `ops` and the
 %% compute that ran on it failed.
 attached_utilization_test_() ->
-    nodes_test({waits, 6}, fun attached_utilization/1).
+    ern_harness:nodes_test({waits, 6}, fun attached_utilization/1).
 
 attached_utilization(Base) ->
-    Ops = made(Base, "ops", none),
-    Node = made(Base, "node", 0),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Ops = ern_harness:made(Base, "ops", none),
+    Node = ern_harness:made(Base, "node", 0),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     {Shell, WaitShell} = attached(Ops, "node", Base),
-    prints(Ops, ":help for help.\n> "),
-    Ms = wait_ms_text(),
+    ern_harness:prints(Ops, ":help for help.\n> "),
+    Ms = ern_harness:wait_ms_text(),
     true = port_command(Shell, ["Peer.compute(\"ops\", fn() = Peer.peers(), ", Ms, ")\n"]),
-    prints(Ops, "Right([\"node\"]) : Either(Io.Error, List(String))\n"),
+    ern_harness:prints(Ops, "Right([\"node\"]) : Either(Io.Error, List(String))\n"),
     true = port_command(Shell, ["Peer.utilizations()\n",
                                 "Peer.computeAnywhere(fn() = Peer.peers(), ", Ms, ")\n",
                                 ":quit\n"]),
     ?assertEqual(0, WaitShell()),
-    {Out, _} = said(Ops),
-    has(Out, "> [] : List(#(String, Float, Int))\n"),
-    has(Out, "> Left(Io.Unreachable) : Either(Io.Error, List(String))\n"),
-    stop(Node, WaitNode).
+    {Out, _} = ern_harness:said(Ops),
+    ern_harness:has(Out, "> [] : List(#(String, Float, Int))\n"),
+    ern_harness:has(Out, "> Left(Io.Unreachable) : Either(Io.Error, List(String))\n"),
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, §11.8, §8.6, §12.5: a shell whose
 %% node is lost ends with `the node node is lost` and status 1 within a
@@ -6261,29 +5528,29 @@ attached_utilization(Base) ->
 %% dials no lost node to reach it. Written before the fix, the shell
 %% ending a dial late.
 attached_lost_unanswered_test_() ->
-    nodes_test({waits, 7, ?DIAL_MS}, fun attached_lost_unanswered/1).
+    ern_harness:nodes_test({waits, 7, ?DIAL_MS}, fun attached_lost_unanswered/1).
 
 attached_lost_unanswered(Base) ->
-    Ops = made(Base, "ops", none),
-    Node = made(Base, "node", 0),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Ops = ern_harness:made(Base, "ops", none),
+    Node = ern_harness:made(Base, "node", 0),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     {_, WaitShell} = attached(Ops, "node", Base),
-    prints(Ops, ":help for help.\n> "),
+    ern_harness:prints(Ops, ":help for help.\n> "),
     {ok, Hole} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, HolePort} = inet:port(Hole),
-    lists(Ops, [{"node", Node, HolePort}]),
+    ern_harness:lists(Ops, [{"node", Node, HolePort}]),
     ?assertEqual({0, ""}, finished([?ERN, " reload --config-dir ", Ops, " 2>&1"])),
-    prints(Ops, "ernest.conf was read again"),
+    ern_harness:prints(Ops, "ernest.conf was read again"),
     Began = erlang:monotonic_time(millisecond),
     lost(Node, WaitNode),
     ?assertEqual(1, WaitShell()),
     Taken = erlang:monotonic_time(millisecond) - Began,
     ok = gen_tcp:close(Hole),
     ?assert(Taken < ern_carrier:dial_ms()),
-    {_, Err} = said(Ops),
-    has(Err, "the node node is lost\n").
+    {_, Err} = ern_harness:said(Ops),
+    ern_harness:has(Err, "the node node is lost\n").
 
 %% report §11.2 *The attached shell*, *Editing*, §11.8: the same at a
 %% terminal, through the pseudo-terminal's harness: the region is taken away
@@ -6296,29 +5563,29 @@ attached_lost_unanswered(Base) ->
 %% Written before the fixes, the second red in eight runs of eight with
 %% `the peer node ended` on a row of the screen.
 attached_terminal_ends_test_() ->
-    nodes_test({waits, 13}, fun attached_terminal_ends/1).
+    ern_harness:nodes_test({waits, 13}, fun attached_terminal_ends/1).
 
 attached_terminal_ends(Base) ->
     Root = filename:join(Base, "program"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "ender.ern"), ender()),
-    0 = built([Root]),
-    Ops = made(Base, "ops", none),
+    0 = ern_harness:built([Root]),
+    Ops = ern_harness:made(Base, "ops", none),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
                            " --attach node --source-root ", Base]),
     lists:foreach(
       fun({Name, NodeStatus, Status, Line}) ->
-          Port = free_port(),
-          Node = made(Base, Name, Port),
+          Port = ern_harness:free_port(),
+          Node = ern_harness:made(Base, Name, Port),
           Pipe = filename:join(Base, Name ++ ".pipe"),
           [] = os:cmd("mkfifo " ++ Pipe),
-          lists(Node, [{"ops", Ops, none}]),
-          lists(Ops, [{"node", Node, Port}]),
-          {_, WaitNode} = started(Node, filename:join(Root, "ender.erc"),
-                                  [Pipe, Name, filename:join(Node, "ernest.pid")]),
-          prints(Node, "ready"),
+          ern_harness:lists(Node, [{"ops", Ops, none}]),
+          ern_harness:lists(Ops, [{"node", Node, Port}]),
+          {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "ender.erc"),
+                                              [Pipe, Name, filename:join(Node, "ernest.pid")]),
+          ern_harness:prints(Node, "ready"),
           {Status, Screen} = ern_pty:run(Shell, [{expect, ":help for help."},
                                                  {expect, "> "},
                                                  {send, hex("abc")},
@@ -6358,7 +5625,7 @@ ender() ->
     "        }\n"
     "      | _ -> Unit\n"
     "    }\n",
-     wait_ms_declaration()].
+     ern_harness:wait_ms_declaration()].
 
 %% Text as the pseudo-terminal's harness sends it, its bytes in hex.
 hex(Text) ->
@@ -6382,17 +5649,20 @@ lost(Dir, Wait) ->
 %% (the log's *The Shell's Own Node*), whose answer was a race between the
 %% two
 attach_refused_test_() ->
-    nodes_test({waits, 6, ?DIAL_MS}, fun attach_refused/1).
+    ern_harness:nodes_test({waits, 6, ?DIAL_MS}, fun attach_refused/1).
 
 attach_refused(Base) ->
-    [Absent, Unanswering, Ops] = [made(Base, Name, none) || Name <- ["absent", "hole", "ops"]],
+    [Absent, Unanswering,
+     Ops] = [ern_harness:made(Base, Name, none) || Name <- ["absent", "hole", "ops"]],
     {ok, Hole} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, HolePort} = inet:port(Hole),
-    lists(Ops, [{"absent", Absent, free_port()}, {"hole", Unanswering, HolePort}]),
+    ern_harness:lists(Ops,
+                      [{"absent", Absent, ern_harness:free_port()},
+                       {"hole", Unanswering, HolePort}]),
     Refused = fun(Name) ->
                   {_, Wait} = attached(Ops, Name, Base),
                   ?assertEqual(1, Wait()),
-                  {Out, Err} = said(Ops),
+                  {Out, Err} = ern_harness:said(Ops),
                   ?assertEqual("", Out),
                   Err
               end,
@@ -6414,26 +5684,26 @@ attach_refused(Base) ->
 %% spawn's among them, so that the connection stands and the spawn waits.
 %% Written after the code, a regression test
 attach_unanswered_test_() ->
-    nodes_test({waits, 5, 2 * ?DIAL_MS}, fun attach_unanswered/1).
+    ern_harness:nodes_test({waits, 5, 2 * ?DIAL_MS}, fun attach_unanswered/1).
 
 attach_unanswered(Base) ->
     Root = filename:join(Base, "program"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "stall.ern"), stall()),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    {_, WaitNode} = started(Node, filename:join(Root, "stall.erc"), []),
-    prints(Node, "suspended: true"),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "stall.erc"), []),
+    ern_harness:prints(Node, "suspended: true"),
     {_, Wait} = attached(Ops, "node", Base),
     ?assertEqual(1, Wait()),
-    {Out, Err} = said(Ops),
+    {Out, Err} = ern_harness:said(Ops),
     ?assertEqual("the peer node connected\n", unstamped(Out)),
     ern_deployment_tests:cataloged(Err, "6", "did not answer in time", [{"b", "node"}]),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2, Appendix E.21, E.27, §8.3: on a shell that is a node,
 %% `Process.peer` answers None for a process of the node and the peer's name
@@ -6449,33 +5719,34 @@ attach_unanswered(Base) ->
 %% own process its number alone. A regression test, written after the code
 %% but for its printed values, which were written before
 processes_on_peers_test_() ->
-    nodes_test({waits, 12}, fun processes_on_peers/1).
+    ern_harness:nodes_test({waits, 12}, fun processes_on_peers/1).
 
 processes_on_peers(Base) ->
     Root = filename:join(Base, "program"),
     Source = filename:join(Base, "src"),
     [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
     ok = file:write_file(filename:join(Root, "stall.ern"), stall()),
-    0 = built([Root]),
-    [PortA, PortB] = [free_port(), free_port()],
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    S = made(Base, "s", none),
-    lists(A, [{"s", S, none}]),
-    lists(B, [{"s", S, none}]),
-    lists(S, [{"a", A, PortA}, {"b", B, PortB}]),
-    edit(S, fun(Conf) -> Conf#{<<"services">> => #{<<"stalled">> => [<<"b">>]}} end),
-    WaitA = bare_started(A, []),
-    {_, WaitB} = started(B, filename:join(Root, "stall.erc"), []),
-    prints(B, "suspended: true"),
-    {Input, WaitS} = shell_started(S, Source),
+    0 = ern_harness:built([Root]),
+    [PortA, PortB] = [ern_harness:free_port(), ern_harness:free_port()],
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    S = ern_harness:made(Base, "s", none),
+    ern_harness:lists(A, [{"s", S, none}]),
+    ern_harness:lists(B, [{"s", S, none}]),
+    ern_harness:lists(S, [{"a", A, PortA}, {"b", B, PortB}]),
+    ern_harness:edit(S, fun(Conf) -> Conf#{<<"services">> => #{<<"stalled">> => [<<"b">>]}} end),
+    WaitA = ern_harness:bare_started(A, []),
+    {_, WaitB} = ern_harness:started(B, filename:join(Root, "stall.erc"), []),
+    ern_harness:prints(B, "suspended: true"),
+    {Input, WaitS} = ern_harness:shell_started(S, Source),
     true = port_command(Input,
                         ["fn calling(process : Process) : Unit = match Process.status(process) {\n"
                          "    Some(Process.Status(activity = Process.Calling())) -> Unit\n"
                          "  | _ -> calling(process)\n"
                          "}\n",
                          "fn kept() : Unit receiving Reply(Int) = receive { _ -> kept() }\n",
-                         "let served = match Peer.spawn(\"a\", kept, ", wait_ms_text(), ") {\n"
+                         "let served = match Peer.spawn(\"a\", kept, ", ern_harness:wait_ms_text(),
+                         ") {\n"
                          "    Right(address) -> address\n"
                          "  | Left(failure) -> fault(Io.show(failure))\n"
                          "}\n",
@@ -6506,21 +5777,21 @@ processes_on_peers(Base) ->
                          "Process.current()\n",
                          "Process.fromAddress(served)\n",
                          ":processes\n:processes\n"]),
-    prints(S, "None : Optional(String)"),
-    prints(S, "Some(\"a\") : Optional(String)"),
-    prints(S, "$Session1.input 6:1 calling a process of the peer a without limit for "),
-    prints(S, "$Session1.input 7:1 calling for "),
-    prints(S, "$Session1.input 8:1 calling for "),
-    prints(S, "$Session1.input 9:1 calling for "),
-    prints(S, " : Process\n", 2, ?WAIT_MS),
-    Printed = written(S, out),
+    ern_harness:prints(S, "None : Optional(String)"),
+    ern_harness:prints(S, "Some(\"a\") : Optional(String)"),
+    ern_harness:prints(S, "$Session1.input 6:1 calling a process of the peer a without limit for "),
+    ern_harness:prints(S, "$Session1.input 7:1 calling for "),
+    ern_harness:prints(S, "$Session1.input 8:1 calling for "),
+    ern_harness:prints(S, "$Session1.input 9:1 calling for "),
+    ern_harness:prints(S, " : Process\n", 2, ?WAIT_MS),
+    Printed = ern_harness:written(S, out),
     [?assertMatch({match, _}, re:run(Printed, Line))
      || Line <- ["<address\\.a\\.[0-9]+> : Address\\(Reply\\(Int\\)\\)\n",
                  "<process\\.[0-9]+> : Process\n", "<process\\.a\\.[0-9]+> : Process\n"]],
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitS()),
-    stop(B, WaitB),
-    stop(A, WaitA).
+    ern_harness:stop(B, WaitB),
+    ern_harness:stop(A, WaitA).
 
 %% A node's program that suspends its node's gateway, which answers its
 %% peers' frames (report §12.6), and then waits.
@@ -6555,7 +5826,7 @@ stall() ->
 %% refused, the node saying that its tree held none of the definition the
 %% spawn named (the log's *The Shell Attaches as a Program Spawns*)
 attach_other_build_test_() ->
-    nodes_test({waits, 7}, fun attach_other_build/1).
+    ern_harness:nodes_test({waits, 7}, fun attach_other_build/1).
 
 attach_other_build(Base) ->
     {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
@@ -6568,26 +5839,28 @@ attach_other_build(Base) ->
                             <<"        Attaching(_) -> true\n      | Beside(_) -> false\n">>,
                             <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>,
                             Later),
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [Own, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [Own, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     Attached = fun(Ern, Line) ->
-                   {Input, Wait} = launched(Ops, ["HOME=", Home, " ", Ern, " shell --config-dir ",
-                                                  Ops, " --attach node"]),
+                   {Input, Wait} = ern_harness:launched(Ops,
+                                                        ["HOME=", Home, " ", Ern,
+                                                         " shell --config-dir ",
+                                                         Ops, " --attach node"]),
                    true = port_command(Input, ":quit\n"),
                    ?assertEqual(0, Wait()),
-                   {Out, Err} = said(Ops),
-                   has(Out, Line),
+                   {Out, Err} = ern_harness:said(Ops),
+                   ern_harness:has(Out, Line),
                    ?assertEqual(nomatch, string:find(Err, "ern shell:"))
                end,
     Attached(Other, "Ernest " ++ Later ++ ", session 1 on ern " ++ Version
              ++ ". :help for help.\n"),
     Attached(Own, "Ernest " ++ Version ++ ", session 2. :help for help.\n"),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% A release of `ern` of Version made in Dir as released/3 makes one, and
 %% its launcher, whose shell is compiled from the shell's source with Old
@@ -6678,53 +5951,56 @@ released(Dir, Shell, Version) ->
 %% evaluators' end a regression test (the log's *Sites, Sessions and Their
 %% Names*)
 attached_sessions_test_() ->
-    nodes_test({waits, 22}, fun attached_sessions/1).
+    ern_harness:nodes_test({waits, 22}, fun attached_sessions/1).
 
 attached_sessions(Base) ->
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     Greet = filename:join(Source, "greet.ern"),
     ok = file:write_file(Greet, greet("first", "")),
-    Node = made(Base, "node", 0),
-    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
-    lists(Node, [{"one", One, none}, {"two", Two, none}]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    Port = bound_port(Node),
-    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    Node = ern_harness:made(Base, "node", 0),
+    [One, Two] = [ern_harness:made(Base, Name, none) || Name <- ["one", "two"]],
+    ern_harness:lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    Port = ern_harness:bound_port(Node),
+    [ern_harness:lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
     Offered = "> Right(Unit) : Either(Process, Unit)\n",
     Waiting = ": Address(Ping) = spawn(fn() = receive { _ -> Unit })",
     {First, _} = Attached = sessioned(Base, One),
-    prints(One, "Ernest " ++ ern_release:version_text() ++ ", session 1. :help for help.\n"),
+    ern_harness:prints(One,
+                       "Ernest " ++ ern_release:version_text() ++ ", session 1. :help for help.\n"),
     entered(First, One, ["fn f() : Int = 1", "type Ping = Ping(Int)", "let p" ++ Waiting,
                          "Peer.offer(Peer.service(\"ping\"), p)", "f()"], "> 1 : Int\n"),
-    has(written(One, out), Offered),
+    ern_harness:has(ern_harness:written(One, out), Offered),
     {Second, WaitSecond} = sessioned(Base, Two),
-    prints(Two, ", session 2. :help"),
+    ern_harness:prints(Two, ", session 2. :help"),
     entered(Second, Two, ["fn f() : Int = 2", "type Ping = Ping(Int)", "let q" ++ Waiting,
                           "Peer.offer(Peer.service(\"ping\"), q)", "let r" ++ Waiting,
                           "Either.isRight(Peer.offer(Peer.service(\"ping\"), r))", "f()"],
             "> 2 : Int\n"),
-    has(written(Two, out), Offered ++ "> r : Address(Ping)\n> false : Bool\n"),
+    ern_harness:has(ern_harness:written(Two, out),
+                    Offered ++ "> r : Address(Ping)\n> false : Bool\n"),
     %% report §11.2: a load and a reload are the node's
     entered(First, One, [":load Greet", "let n = Greet.Bye"], "> n : Greet.Msg\n"),
-    has(written(One, out), "> Greet, compiled from src/greet.ern\n"),
+    ern_harness:has(ern_harness:written(One, out), "> Greet, compiled from src/greet.ern\n"),
     entered(Second, Two, ["Greet.hello()", "let m = Greet.Hello"], "> m : Greet.Msg\n"),
-    has(written(Two, out), "> \"hello, first\" : String\n"),
+    ern_harness:has(ern_harness:written(Two, out), "> \"hello, first\" : String\n"),
     ok = file:write_file(Greet, greet("second", " | Again")),
     entered(First, One, [":reload"],
             "Greet.Msg changed: the binding n is of its previous version, Greet$1.Msg\n"),
-    has(written(One, out), "> Greet, compiled again\n"),
+    ern_harness:has(ern_harness:written(One, out), "> Greet, compiled again\n"),
     entered(Second, Two, ["m", "Greet.hello()"], "> \"hello, second\" : String\n"),
-    has(written(Two, out), "Greet compiled again by session 1\nGreet.Msg changed: the binding m"
-        " is of its previous version, Greet$1.Msg\n"),
-    has(written(Two, out), "Hello : Greet$1.Msg\n"),
+    ern_harness:has(ern_harness:written(Two, out),
+                    "Greet compiled again by session 1\nGreet.Msg changed: the binding m"
+                    " is of its previous version, Greet$1.Msg\n"),
+    ern_harness:has(ern_harness:written(Two, out), "Hello : Greet$1.Msg\n"),
     %% report §11.2 *Faults*: the first session's tenth input faults the
     %% process its ninth spawned
     true = port_command(First, ["let w : Address(Int) = spawn(fn() = receive { n -> ",
                                 "Io.println(Int.toString(10 / n)) })\n", "send(w, 0)\n"]),
     Faulted = "the process of $Session1.input 9:1 faulted: division by zero\n",
-    [fault_line(Input, Ops, Faulted) || {Input, Ops} <- [{First, One}, {Second, Two}]],
-    says(Node, Faulted),
+    [ern_harness:fault_line(Input, Ops, Faulted) || {Input, Ops} <- [{First, One}, {Second, Two}]],
+    ern_harness:says(Node, Faulted),
     %% report Appendix E.21: no session's own process is live at a prompt
     [entered(Input, Ops, ["List.size(Process.live())"], "> 4 : Int\n")
      || {Input, Ops} <- [{First, One}, {Second, Two}]],
@@ -6735,14 +6011,14 @@ attached_sessions(Base) ->
                          "Peer.offer(Peer.service(\"ping\"), s)", ":processes",
                          "List.size(Process.live())"],
             "> 5 : Int\n"),
-    ThirdOut = string:find(written(One, out), ", session 3. :help"),
-    has(ThirdOut, Offered),
-    has(ThirdOut, "$Session1.input 3:1 "),
+    ThirdOut = string:find(ern_harness:written(One, out), ", session 3. :help"),
+    ern_harness:has(ThirdOut, Offered),
+    ern_harness:has(ThirdOut, "$Session1.input 3:1 "),
     ?assertEqual(nomatch, string:find(ThirdOut, "Greet")),
     _ = detached({Third, WaitThird}, One),
     {SecondOut, _} = detached({Second, WaitSecond}, Two),
     ?assertEqual(nomatch, string:find(SecondOut, "compiled again by session 2")),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% The module the sessions load: its type, Hello, Bye and the constructors
 %% More adds, its function, which says hello to Whom, and a binding a load
@@ -6757,15 +6033,16 @@ greet(Whom, More) ->
 sessioned(Base, Ops) ->
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
-                   " --attach node --source-root src"]).
+    ern_harness:launched(Ops,
+                         ["cd ", Base, " && HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                          " --attach node --source-root src"]).
 
 %% Inputs typed in line mode at the shell of Ops through Port, a line each,
 %% until its standard output holds Part, which the last of them prints:
 %% one step.
 entered(Port, Ops, Inputs, Part) ->
     true = port_command(Port, [[Input, "\n"] || Input <- Inputs]),
-    prints(Ops, Part).
+    ern_harness:prints(Ops, Part).
 
 %% A shell in line mode detached, which ends it with status 0 and leaves
 %% the cursor on a line of its own, and what it wrote, nothing on its
@@ -6773,7 +6050,7 @@ entered(Port, Ops, Inputs, Part) ->
 detached({Port, Wait}, Ops) ->
     true = port_command(Port, ":quit\n"),
     ?assertEqual(0, Wait()),
-    {Out, Err} = said(Ops),
+    {Out, Err} = ern_harness:said(Ops),
     ?assertEqual("", Err),
     ?assertMatch({true, _}, {lists:suffix("> \n", Out), Out}),
     {Out, Err}.
@@ -6793,21 +6070,21 @@ detached({Port, Wait}, Ops) ->
 %% none of its code, is attached_functions'. Written after the code, a
 %% regression test
 attached_service_test_() ->
-    nodes_test({waits, 9}, fun attached_service/1).
+    ern_harness:nodes_test({waits, 9}, fun attached_service/1).
 
 attached_service(Base) ->
     Root = filename:join(Base, "program"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "serve.ern"), serve()),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
-    lists(Node, [{"one", One, none}, {"two", Two, none}]),
-    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
-    {_, WaitNode} = started(Node, filename:join(Root, "serve.erc"), []),
-    prints(Node, "ready"),
-    Ms = wait_ms_text(),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    [One, Two] = [ern_harness:made(Base, Name, none) || Name <- ["one", "two"]],
+    ern_harness:lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    [ern_harness:lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "serve.erc"), []),
+    ern_harness:prints(Node, "ready"),
+    Ms = ern_harness:wait_ms_text(),
     Asked = fun(Number) ->
                 ["Address.call(c, fn(reply) = Serve.Ask(number = ", Number,
                  ", =reply), ", Ms, ")"]
@@ -6820,7 +6097,7 @@ attached_service(Base) ->
                                              "send(Serve.holder, Serve.Hold(c))",
                                              Asked("4")]]),
     {Out, _} = detached(Attached, One),
-    has(Out, "> counted 4\nSome(2) : Optional(Int)\n"),
+    ern_harness:has(Out, "> counted 4\nSome(2) : Optional(Int)\n"),
     {Second, _} = Again = attached(Two, "node", Base),
     true = port_command(Second, [[Input, "\n"]
                                  || Input <- [["let held <- Address.call(Serve.holder, ",
@@ -6828,11 +6105,11 @@ attached_service(Base) ->
                                                ")"],
                                               "let c <- held", Asked("6")]]),
     {SecondOut, _} = detached(Again, Two),
-    has(SecondOut, "> c : Address(Serve.ServerMsg)\n> Some(5) : Optional(Int)\n"),
+    ern_harness:has(SecondOut, "> c : Address(Serve.ServerMsg)\n> Some(5) : Optional(Int)\n"),
     ?assertEqual(nomatch, string:find(SecondOut, "counted")),
-    prints(Node, "counted 10\n"),
-    stop(Node, WaitNode),
-    {NodeOut, NodeErr} = said(Node),
+    ern_harness:prints(Node, "counted 10\n"),
+    ern_harness:stop(Node, WaitNode),
+    {NodeOut, NodeErr} = ern_harness:said(Node),
     ?assertEqual("ready\ncounted 10\n", NodeOut),
     ?assertEqual(nomatch, string:find(NodeErr, "faulted")).
 
@@ -6900,7 +6177,7 @@ serve() ->
 %% `tripled` builds no function value of its own, and went when the
 %% call's answer took `it`. Written before the code
 attached_functions_test_() ->
-    nodes_test({waits, 12}, fun attached_functions/1).
+    ern_harness:nodes_test({waits, 12}, fun attached_functions/1).
 
 attached_functions(Base) ->
     Root = filename:join(Base, "program"),
@@ -6909,18 +6186,18 @@ attached_functions(Base) ->
     Units = filename:join(Root, "ern_nodes_units.erl"),
     ok = file:write_file(Units, units_module()),
     {ok, _} = compile:file(Units, [{outdir, Root}]),
-    0 = built([Root]),
-    [Port, PeerPort] = [free_port(), free_port()],
-    Node = made(Base, "node", Port),
-    Peer = made(Base, "peer", PeerPort),
-    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
-    lists(Node, [{"one", One, none}, {"two", Two, none}, {"peer", Peer, PeerPort}]),
-    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two, Peer]],
-    {_, WaitPeer} = launched(Peer, [?ERN, " run --config-dir ", Peer]),
-    says(Peer, "listening on "),
-    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
-    prints(Node, "ready"),
-    Ms = wait_ms_text(),
+    0 = ern_harness:built([Root]),
+    [Port, PeerPort] = [ern_harness:free_port(), ern_harness:free_port()],
+    Node = ern_harness:made(Base, "node", Port),
+    Peer = ern_harness:made(Base, "peer", PeerPort),
+    [One, Two] = [ern_harness:made(Base, Name, none) || Name <- ["one", "two"]],
+    ern_harness:lists(Node, [{"one", One, none}, {"two", Two, none}, {"peer", Peer, PeerPort}]),
+    [ern_harness:lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two, Peer]],
+    {_, WaitPeer} = ern_harness:launched(Peer, [?ERN, " run --config-dir ", Peer]),
+    ern_harness:says(Peer, "listening on "),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "keep.erc"), []),
+    ern_harness:prints(Node, "ready"),
+    Ms = ern_harness:wait_ms_text(),
     Asked = fun(Address, Message) ->
                 ["Address.call(", Address, ", fn(reply) = Keep.", Message, "=reply), ", Ms,
                  ")"]
@@ -6947,26 +6224,27 @@ attached_functions(Base) ->
                                              "let x = 1", "x + 1",
                                              "let _ = Keep.printUnits()"]]),
     {Out, _} = detached(Attached, One),
-    has(Out, "serving squares\n"),
-    has(Out, "> Some(9) : Optional(Int)\n"),
-    has(Out, "> 2 : Int\n"),
+    ern_harness:has(Out, "serving squares\n"),
+    ern_harness:has(Out, "> Some(9) : Optional(Int)\n"),
+    ern_harness:has(Out, "> 2 : Int\n"),
     {Second, _} = Again = attached(Two, "node", Base),
     entered(Second, Two, [Asked("Keep.holder", "Apply(number = 5, "),
                           ["let #(p, s) <- ", Asked("Keep.holder", "Servers(")],
                           Asked("p", "Ask(number = 5, "), "send(s, Keep.Crash)"],
             "s : Address(Keep.Ask)\n> Some(15) : Optional(Int)\n"),
-    prints(Node, "serving squares\n"),
+    ern_harness:prints(Node, "serving squares\n"),
     true = port_command(Second, [Asked("s", "Ask(number = 5, "), "\n",
                                  "let _ = Keep.printUnits()\n"]),
     {SecondOut, _} = detached(Again, Two),
-    has(SecondOut, "> Some(15) : Optional(Int)\n> p : "),
+    ern_harness:has(SecondOut, "> Some(15) : Optional(Int)\n> p : "),
     %% the service's fault is said above its answer
-    has(SecondOut, "Some(25) : Optional(Int)\n"),
-    stop(Node, WaitNode),
-    stop(Peer, WaitPeer),
-    {NodeOut, NodeErr} = said(Node),
+    ern_harness:has(SecondOut, "Some(25) : Optional(Int)\n"),
+    ern_harness:stop(Node, WaitNode),
+    ern_harness:stop(Peer, WaitPeer),
+    {NodeOut, NodeErr} = ern_harness:said(Node),
     ?assertEqual("ready\nserving squares\n", NodeOut),
-    has(NodeErr, "the process of $Session1.input 7:1 faulted, restarted: asked to crash"),
+    ern_harness:has(NodeErr,
+                    "the process of $Session1.input 7:1 faulted, restarted: asked to crash"),
     ?assertEqual(nomatch, string:find(NodeErr, "undef")),
     %% report §11.2: the first session's units, before its detach and after
     Before = session_units(Out),
@@ -6990,7 +6268,7 @@ attached_functions(Base) ->
 %% read the rebuilt files, the value typed `String`, which faulted the
 %% session as it printed it.
 attached_checks_the_loaded_code_test_() ->
-    nodes_test({waits, 7}, fun attached_checks_the_loaded_code/1).
+    ern_harness:nodes_test({waits, 7}, fun attached_checks_the_loaded_code/1).
 
 attached_checks_the_loaded_code(Base) ->
     Root = filename:join(Base, "program"),
@@ -7001,24 +6279,24 @@ attached_checks_the_loaded_code(Base) ->
                                "    Io.println(\"ready\");\n",
                                "    receive { _ -> Unit }\n",
                                "}\n"]),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    {_, WaitNode} = started(Node, filename:join(Root, "app.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "app.erc"), []),
+    ern_harness:prints(Node, "ready"),
     ok = file:write_file(App, ["export fn g(n : Int) : String = \"a string\"\n\n",
                                "export fn main() : Unit receiving Unit = {\n",
                                "    Io.println(\"ready\");\n",
                                "    receive { _ -> Unit }\n",
                                "}\n"]),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     {Shell, _} = Attached = attached(Ops, "node", Base),
     entered(Shell, Ops, ["App.g(1)"], "> 100 : Int\n"),
     _ = detached(Attached, Ops),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, *Startup and history*, §11.5: a
 %% startup input's diagnostic quotes the file the shell's own node read it
@@ -7028,28 +6306,28 @@ attached_checks_the_loaded_code(Base) ->
 %% node, run from another directory, finds no file at. Written before the
 %% fix, the diagnostic quoting no line of the file.
 attached_startup_diagnostic_test_() ->
-    nodes_test({waits, 5}, fun attached_startup_diagnostic/1).
+    ern_harness:nodes_test({waits, 5}, fun attached_startup_diagnostic/1).
 
 attached_startup_diagnostic(Base) ->
-    Ops = made(Base, "ops", none),
-    Node = made(Base, "node", 0),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Ops = ern_harness:made(Base, "ops", none),
+    Node = ern_harness:made(Base, "node", 0),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     Startup = filename:join(Ops, "startup"),
     ok = file:write_file(Startup, "let a = 1\nlet b : Int = \"not an Int\"\n"),
     %% its owner's alone to write, whatever the umask, so that it runs
     ok = file:change_mode(Startup, 8#644),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    {Shell, _} = Attached = launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
-                                           " shell --config-dir ops --attach node"]),
-    prints(Ops, ":help for help.\n"),
+    {Shell, _} = Attached = ern_harness:launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
+                                                       " shell --config-dir ops --attach node"]),
+    ern_harness:prints(Ops, ":help for help.\n"),
     true = port_command(Shell, "a\n"),
     {Out, _} = detached(Attached, Ops),
-    has(Out, "ops/startup:2:"),
-    has(Out, "2 | let b : Int = \"not an Int\"\n"),
-    stop(Node, WaitNode).
+    ern_harness:has(Out, "ops/startup:2:"),
+    ern_harness:has(Out, "2 | let b : Int = \"not an Int\"\n"),
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, §12.1 *A session's screen*, Appendix
 %% E.28, E.21: a `Code.load` at an attached prompt evaluates in an
@@ -7062,7 +6340,7 @@ attached_startup_diagnostic(Base) ->
 %% taken from the input's chain and dropped with the session's
 %% (ern_rt:evaluate/2, drop_screens/1)
 attached_code_load_test_() ->
-    nodes_test({waits, 10}, fun attached_code_load/1).
+    ern_harness:nodes_test({waits, 10}, fun attached_code_load/1).
 
 attached_code_load(Base) ->
     Root = filename:join(Base, "program"),
@@ -7089,26 +6367,26 @@ attached_code_load(Base) ->
                          "}\n"
                          "\n"
                          "let teller : Address(Msg) = spawn(told)\n"),
-    0 = built([Root]),
-    0 = built([Lib]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    {_, WaitNode} = started(Node, filename:join(Root, "idle.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    0 = ern_harness:built([Lib]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "idle.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {Shell, _} = Attached = attached(Ops, "node", Base),
-    prints(Ops, ":help for help.\n"),
+    ern_harness:prints(Ops, ":help for help.\n"),
     entered(Shell, Ops, ["Code.load(Path(\"" ++ filename:join(Lib, "told.erc") ++ "\"))"],
             "Right(Unit)"),
     entered(Shell, Ops, [":processes"], "Told.teller:15 "),
     {Out, _} = detached(Attached, Ops),
-    has(Out, "evaluated at the prompt\n"),
+    ern_harness:has(Out, "evaluated at the prompt\n"),
     ?assertEqual(2, length(string:split(Out, "Told.teller:15", all))),
-    stop(Node, WaitNode),
-    {NodeOut, _} = said(Node),
-    has(NodeOut, "told at the end\n"),
+    ern_harness:stop(Node, WaitNode),
+    {NodeOut, _} = ern_harness:said(Node),
+    ern_harness:has(NodeOut, "told at the end\n"),
     ?assertEqual(nomatch, string:find(NodeOut, "evaluated at the prompt")),
     ?assertEqual(nomatch, string:find(Out, "told at the end")).
 
@@ -7122,7 +6400,7 @@ attached_code_load(Base) ->
 %% path, a hardening within the trust model, a listed peer being trusted
 %% whole.
 attached_local_files_test_() ->
-    nodes_test({waits, 6}, fun attached_local_files/1).
+    ern_harness:nodes_test({waits, 6}, fun attached_local_files/1).
 
 attached_local_files(Base) ->
     Root = filename:join(Base, "program"),
@@ -7131,7 +6409,7 @@ attached_local_files(Base) ->
     Units = filename:join(Root, "ern_nodes_units.erl"),
     ok = file:write_file(Units, units_module()),
     {ok, _} = compile:file(Units, [{outdir, Root}]),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     Inside = filename:join(Source, "inside.ern"),
@@ -7139,13 +6417,13 @@ attached_local_files(Base) ->
     Outside = filename:join(Base, "outside.txt"),
     ok = file:write_file(Outside, "the operator's own\n"),
     Output = filename:join(Base, "output.txt"),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
-    prints(Node, "ready"),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "keep.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {Shell, _} = Attached = attached(Ops, "node", Source),
     Asked = fun(Kind, Path) -> ["Keep.asked(\"", Kind, "\", \"", Path, "\")"] end,
     entered(Shell, Ops, [Asked("read", Inside), Asked("read", Outside),
@@ -7153,10 +6431,10 @@ attached_local_files(Base) ->
                          Asked("append", Output), ":output -"],
             "output goes to standard output\n"),
     {Out, _} = detached(Attached, Ops),
-    has(Out, "> \"taken\" : String\n> \"refused\" : String\n> \"refused\" : String\n"
-             "> output goes to " ++ Output ++ "\n> \"taken\" : String\n"),
+    ern_harness:has(Out, "> \"taken\" : String\n> \"refused\" : String\n> \"refused\" : String\n"
+                         "> output goes to " ++ Output ++ "\n> \"taken\" : String\n"),
     ?assertEqual({ok, <<"the operator's own\n">>}, file:read_file(Outside)),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, *Loading and reloading*, §11.1: an
 %% attached `:load` of a compiled form on the node's load path, which the
@@ -7174,7 +6452,7 @@ attached_local_files(Base) ->
 %% through a form: the node holds every library from its start, so the walk
 %% reaches none of their modules.
 attached_load_a_forms_source_test_() ->
-    nodes_test({waits, 7}, fun attached_load_a_forms_source/1).
+    ern_harness:nodes_test({waits, 7}, fun attached_load_a_forms_source/1).
 
 attached_load_a_forms_source(Base) ->
     [Built, Lib, Source] = [filename:join(Base, Leaf) || Leaf <- ["built", "lib", "src"]],
@@ -7183,22 +6461,24 @@ attached_load_a_forms_source(Base) ->
     ok = file:write_file(filename:join(Built, "helper.ern"), Helper),
     ok = file:write_file(filename:join(Built, "greeter.ern"),
                          "export fn greet() : String = Helper.name()\n"),
-    0 = built([Built]),
+    0 = ern_harness:built([Built]),
     ok = file:write_file(filename:join(Source, "helper.ern"), Helper),
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    WaitNode = bare_started(Node, [Lib]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    WaitNode = ern_harness:bare_started(Node, [Lib]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     {ok, _} = file:copy(filename:join(Built, "greeter.erc"), filename:join(Lib, "greeter.erc")),
     {Shell, _} = Attached = attached(Ops, "node", Source),
-    prints(Ops, ":help for help.\n"),
+    ern_harness:prints(Ops, ":help for help.\n"),
     entered(Shell, Ops, [":load Greeter", "Greeter.greet()"], "\"the operator's helper\""),
     {Out, _} = detached(Attached, Ops),
-    has(Out, "> Helper, compiled from " ++ ern_build:shown(filename:join(Source, "helper.ern"))
-             ++ "\nGreeter, from " ++ ern_build:shown(filename:join(Lib, "greeter.erc"))
-             ++ "\n> \"the operator's helper\" : String\n"),
-    stop(Node, WaitNode).
+    ern_harness:has(Out,
+                    "> Helper, compiled from " ++ ern_build:shown(filename:join(Source,
+                                                                                "helper.ern"))
+                    ++ "\nGreeter, from " ++ ern_build:shown(filename:join(Lib, "greeter.erc"))
+                    ++ "\n> \"the operator's helper\" : String\n"),
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, *Loading and reloading*: an attached
 %% `:load` of a module that uses one that fails names it in a line of its
@@ -7207,25 +6487,25 @@ attached_load_a_forms_source(Base) ->
 %% against the code before it, where it failed: the line said that Dep does
 %% not compile. It does not cover a reload in an attached session
 attached_load_names_a_user_of_a_failed_module_test_() ->
-    nodes_test({waits, 6}, fun attached_load_names_a_user_of_a_failed_module/1).
+    ern_harness:nodes_test({waits, 6}, fun attached_load_names_a_user_of_a_failed_module/1).
 
 attached_load_names_a_user_of_a_failed_module(Base) ->
     Source = filename:join(Base, "src"),
     ok = filelib:ensure_path(Source),
     ok = file:write_file(filename:join(Source, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Source, "dep.ern"), "export fn f() : Int = \"x\"\n"),
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    WaitNode = bare_started(Node, []),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    WaitNode = ern_harness:bare_started(Node, []),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     {Shell, _} = Attached = attached(Ops, "node", Source),
-    prints(Ops, ":help for help.\n"),
+    ern_harness:prints(Ops, ":help for help.\n"),
     entered(Shell, Ops, [":load Top", "1"], "1 : Int"),
     {Out, _} = detached(Attached, Ops),
-    has(Out, "expected Int, found String"),
-    has(Out, "\nTop is not loaded, since it uses Dep, which failed\n> 1 : Int\n"),
-    stop(Node, WaitNode).
+    ern_harness:has(Out, "expected Int, found String"),
+    ern_harness:has(Out, "\nTop is not loaded, since it uses Dep, which failed\n> 1 : Int\n"),
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, *Inputs*, §11.8: a session that ends
 %% by a fault detaches as one that leaves does. At the prompt of a
@@ -7238,7 +6518,7 @@ attached_load_names_a_user_of_a_failed_module(Base) ->
 %% Written before the fix: a session that faulted failed, leaving its
 %% units, its rows and its processes for the node's life.
 attached_fault_detaches_test_() ->
-    nodes_test({waits, 9}, fun attached_fault_detaches/1).
+    ern_harness:nodes_test({waits, 9}, fun attached_fault_detaches/1).
 
 attached_fault_detaches(Base) ->
     Root = filename:join(Base, "program"),
@@ -7247,27 +6527,27 @@ attached_fault_detaches(Base) ->
     Units = filename:join(Root, "ern_nodes_units.erl"),
     ok = file:write_file(Units, units_module()),
     {ok, _} = compile:file(Units, [{outdir, Root}]),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
-    lists(Node, [{"one", One, none}, {"two", Two, none}]),
-    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
-    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
-    prints(Node, "ready"),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    [One, Two] = [ern_harness:made(Base, Name, none) || Name <- ["one", "two"]],
+    ern_harness:lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    [ern_harness:lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "keep.erc"), []),
+    ern_harness:prints(Node, "ready"),
     {First, WaitFirst} = attached(One, "node", Base),
     entered(First, One, ["let x = 1", "x + 1", "let _ = Keep.printUnits()"], "> 2 : Int\n"),
-    prints(One, "ern@$bindings"),
+    ern_harness:prints(One, "ern@$bindings"),
     true = port_command(First, "Keep.endScreen()\n"),
     ?assertEqual(70, WaitFirst()),
-    {Out, Err} = said(One),
-    has(Err, "fault: the session on the node node: the shell's screen ended"),
+    {Out, Err} = ern_harness:said(One),
+    ern_harness:has(Err, "fault: the session on the node node: the shell's screen ended"),
     Before = session_units(Out),
     [Number] = lists:usort([Session || {_, Session} <- Before]),
     {Second, _} = Again = attached(Two, "node", Base),
     true = port_command(Second, "let _ = Keep.printUnits()\n"),
     {SecondOut, _} = detached(Again, Two),
-    stop(Node, WaitNode),
+    ern_harness:stop(Node, WaitNode),
     ?assertEqual({2, 1}, kinds(Before)),
     ?assertEqual([], [Unit || {_, Session} = Unit <- session_units_or_none(SecondOut),
                               Session =:= Number]).
@@ -7412,21 +6692,21 @@ is_session(_) -> false.
 %% `:processes` is spawned some inputs before, so that it waits by then.
 %% Written after the code, a regression test
 attached_session_test_() ->
-    nodes_test({waits, 4}, fun attached_session/1).
+    ern_harness:nodes_test({waits, 4}, fun attached_session/1).
 
 attached_session(Base) ->
-    Node = made(Base, "node", 0),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Node = ern_harness:made(Base, "node", 0),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:lists(Ops, [{"node", Node, ern_harness:bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    {_, Wait} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
-                               " --attach node --source-root fixtures/session"
-                               " < fixtures/session/attached.in"]),
+    {_, Wait} = ern_harness:launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                                           " --attach node --source-root fixtures/session"
+                                           " < fixtures/session/attached.in"]),
     ?assertEqual(0, Wait()),
-    {Out, Err} = said(Ops),
+    {Out, Err} = ern_harness:said(Ops),
     ?assertEqual("", Err),
     Unstamped = unstamped(Out),
     Connected = "the peer node connected\n",
@@ -7435,7 +6715,7 @@ attached_session(Base) ->
     Listed = re:replace(string:replace(Unstamped, Connected, "", all), " [0-9]+ bytes$", "",
                         [global, multiline, {return, list}]),
     ?assertEqual(binary_to_list(Expected), lists:flatten(Listed)),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% Report §11.2: Text without the time its lines begin with where the
 %% stream is no terminal, which only a line of the runtime's has.
@@ -7452,22 +6732,22 @@ unstamped(Text) ->
 %% leaves the node running, its own report of the fault on its standard
 %% error. Written after the code, a regression test
 attached_terminal_test_() ->
-    nodes_test({waits, 11}, fun attached_terminal/1).
+    ern_harness:nodes_test({waits, 11}, fun attached_terminal/1).
 
 attached_terminal(Base) ->
     Root = filename:join(Base, "program"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "faulter.ern"), faulter()),
-    0 = built([Root]),
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
+    0 = ern_harness:built([Root]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
     Pipe = filename:join(Base, "fault.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
-    {_, WaitNode} = started(Node, filename:join(Root, "faulter.erc"), [Pipe]),
-    prints(Node, "ready"),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = ern_harness:started(Node, filename:join(Root, "faulter.erc"), [Pipe]),
+    ern_harness:prints(Node, "ready"),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
@@ -7481,7 +6761,7 @@ attached_terminal(Base) ->
                                       {send, hex(":quit\r")}],
                               [screen]),
     Fault = "the process of Faulter.main:5 faulted: division by zero",
-    says(Node, Fault),
+    ern_harness:says(Node, Fault),
     Rows = [string:trim(Row, trailing)
             || Row <- string:split(binary_to_list(Screen), "\n", all)],
     ?assertEqual([Fault], [Row || Row <- Rows, string:find(Row, "faulted") =/= nomatch]),
@@ -7491,7 +6771,7 @@ attached_terminal(Base) ->
     ?assertMatch({["> 1 + 2", "3 : Int", "> :quit" | _], _},
                  {lists:nthtail(length(Trace), Under), Rows}),
     ?assertEqual(["> 1 + 2"], [Row || Row <- Rows, lists:prefix("> 1 +", Row)]),
-    stop(Node, WaitNode).
+    ern_harness:stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, Appendix E.16: `Terminal.size` in a
 %% session reads its node's standard output. A session at a terminal of 24
@@ -7502,27 +6782,28 @@ attached_terminal(Base) ->
 %% Sessions and Their Names*): the code read the node's standard output
 %% already
 attached_terminal_size_test_() ->
-    nodes_test({waits, 8}, fun attached_terminal_size/1).
+    ern_harness:nodes_test({waits, 8}, fun attached_terminal_size/1).
 
 attached_terminal_size(Base) ->
-    Port = free_port(),
-    Node = made(Base, "node", Port),
-    Ops = made(Base, "ops", none),
-    lists(Node, [{"ops", Ops, none}]),
-    lists(Ops, [{"node", Node, Port}]),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
                            " --attach node --source-root ", Base]),
-    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-    says(Node, "listening on "),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:says(Node, "listening on "),
     {0, Screen} = ern_pty:run(Shell, [{expect, ":help for help."}, {expect, "> "},
                                       {send, hex("Terminal.size()\r")},
                                       {expect, "Io.NotATerminal"},
                                       {send, hex(":quit\r")}],
                               [screen]),
-    has(binary_to_list(Screen), "Left(Io.NotATerminal) : Either(Io.Error, Terminal.Size)"),
-    stop(Node, WaitNode),
+    ern_harness:has(binary_to_list(Screen),
+                    "Left(Io.NotATerminal) : Either(Io.Error, Terminal.Size)"),
+    ern_harness:stop(Node, WaitNode),
     Pipe = filename:join(Base, "attach.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Input = filename:join(Base, "size.in"),
@@ -7533,8 +6814,8 @@ attached_terminal_size(Base) ->
                             ?ERN, " stop --config-dir ", Node, "; wait"]),
     {0, _} = ern_pty:run(Script, [{expect, "listening on "}, {put, Pipe}], [{size, 30, 100}]),
     {ok, Answered} = file:read_file(Output),
-    has(binary_to_list(Answered),
-        "Right(Terminal.Size(rows = 30, columns = 100)) : Either(Io.Error, Terminal.Size)").
+    ern_harness:has(binary_to_list(Answered), "Right(Terminal.Size(rows = 30, columns = 100))"
+                                              " : Either(Io.Error, Terminal.Size)").
 
 %% A node's program whose worker faults once the named pipe it is given
 %% has been opened and closed, each run of `cat` waiting the harness's time
@@ -7554,7 +6835,7 @@ faulter() ->
      "    let _ = Os.run(Os.command(\"cat\", [pipe]), waitMs());\n"
      "    Io.println(Int.toString(1 / (List.size(Os.arguments) - 1)))\n"
      "}\n",
-     wait_ms_declaration()].
+     ern_harness:wait_ms_declaration()].
 
 %% A shell attached from the node of Ops to its listed peer Name, in line
 %% mode, its source root SourceRoot and its HOME a directory of its own, so
@@ -7562,8 +6843,9 @@ faulter() ->
 attached(Ops, Name, SourceRoot) ->
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops, " --attach ", Name,
-                   " --source-root ", SourceRoot]).
+    ern_harness:launched(Ops,
+                         ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops, " --attach ", Name,
+                          " --source-root ", SourceRoot]).
 
 %% report §8.7, §11.2, §12.5, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
@@ -7573,21 +6855,22 @@ attached(Ops, Name, SourceRoot) ->
 %% the line that names it, and the job's line form with the log's *The
 %% Shell's Own Node*
 bare_node_refused_test_() ->
-    nodes_test({waits, 2}, fun bare_node_refused/1).
+    ern_harness:nodes_test({waits, 2}, fun bare_node_refused/1).
 
 bare_node_refused(Base) ->
-    C = made(Base, "c", none),
+    C = ern_harness:made(Base, "c", none),
     {1, Refused} = finished(?ERN ++ " run --config-dir " ++ C ++ " 2>&1"),
     ?assert(lists:suffix("ern run: a bare node listens: " ++ filename:join(C, "ernest.conf")
                          ++ " has no listen\n", Refused)),
     ?assertNot(filelib:is_file(filename:join(C, "ernest.pid"))),
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Held),
-    D = made(Base, "d", Port),
+    D = ern_harness:made(Base, "d", Port),
     {1, Taken} = finished(?ERN ++ " run --config-dir " ++ D ++ " 2>&1"),
     ok = gen_tcp:close(Held),
-    has(Taken, "ern run: the node's carrier did not start: its listen address 127.0.0.1:"
-               ++ integer_to_list(Port) ++ " is in use\n"),
+    ern_harness:has(Taken,
+                    "ern run: the node's carrier did not start: its listen address 127.0.0.1:"
+                    ++ integer_to_list(Port) ++ " is in use\n"),
     ?assertEqual(nomatch, string:find(Taken, "faulted")),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
@@ -7601,11 +6884,11 @@ bare_node_refused(Base) ->
 %% listen, two runs, what they printed and the line of the node each dialed, and two
 %% nodes' ends
 peer_option_test_() ->
-    nodes_test({waits, 15}, fun peer_option/1).
+    ern_harness:nodes_test({waits, 15}, fun peer_option/1).
 
 peer_option(Base) ->
     Program = spawner(filename:join(Base, "program")),
-    {PortA, PortFoo} = {free_port(), free_port()},
+    {PortA, PortFoo} = {ern_harness:free_port(), ern_harness:free_port()},
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
     Listen = fun(Port, Host) -> Host ++ ":" ++ integer_to_list(Port) end,
     [?assertMatch({0, _}, finished([?ERN, " config --config-dir ", Words]))
@@ -7613,16 +6896,18 @@ peer_option(Base) ->
                   [Foo, " --listen ", Listen(PortFoo, "127.0.0.1")],
                   [A, " --peer-dir ", Foo], [Foo, " --peer-dir ", A]]],
     lists:foreach(fun({Node, Address, Dialer}) ->
-                      Wait = bare_started(Node, []),
-                      says(Node, "listening on " ++ Address ++ "\n"),
+                      Wait = ern_harness:bare_started(Node, []),
+                      ern_harness:says(Node, "listening on " ++ Address ++ "\n"),
                       Name = filename:basename(Node),
-                      {_, Ran} = launched(Dialer, [?ERN, " run --config-dir ", Dialer, " ",
-                                                   Program, " ", Name]),
+                      {_, Ran} = ern_harness:launched(Dialer,
+                                                      [?ERN, " run --config-dir ", Dialer, " ",
+                                                       Program, " ", Name]),
                       ?assertEqual(0, Ran()),
-                      {Out, _} = said(Dialer),
-                      has(Out, Name ++ " computed 42"),
-                      says(Node, "the peer " ++ filename:basename(Dialer) ++ " connected"),
-                      stop(Node, Wait)
+                      {Out, _} = ern_harness:said(Dialer),
+                      ern_harness:has(Out, Name ++ " computed 42"),
+                      ern_harness:says(Node,
+                                       "the peer " ++ filename:basename(Dialer) ++ " connected"),
+                      ern_harness:stop(Node, Wait)
                   end, [{Foo, Listen(PortFoo, "127.0.0.1"), A},
                         {A, Listen(PortA, "0.0.0.0"), Foo}]).
 
@@ -7649,8 +6934,8 @@ export fn main() : Unit receiving Msg =
       | _ ->
             Unit
     }
-">>, wait_ms_declaration()]),
-    0 = built([Root]),
+">>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "spawner.erc").
 
 %% report §11.2, §8.7: `ern run --verbose` of a node names each module the
@@ -7663,17 +6948,17 @@ export fn main() : Unit receiving Msg =
 %% regression test: the launcher's first start, which writes what the job
 %% says to nothing, raised at such a line, and the node was given no flags
 verbose_node_start_test_() ->
-    nodes_test({waits, 2}, fun verbose_node_start/1).
+    ern_harness:nodes_test({waits, 2}, fun verbose_node_start/1).
 
 verbose_node_start(Base) ->
-    E = made(Base, "e", none),
+    E = ern_harness:made(Base, "e", none),
     Root = filename:join(Base, "r\x{2022}ot"),
     ok = filelib:ensure_path(filename:join(Root, "shelf")),
     [ok = file:write_file(filename:join(Root, File), Source)
      || {File, Source} <- [{"main.ern", "export fn main() : Unit = Io.println(Store.label)\n"},
                            {"store.ern", "export let label : String = \"ran\"\n"},
                            {"shelf/box.ern", "export fn size() : Int = 3\n"}]],
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     Main = filename:join(Root, "main.erc"),
     Err = E ++ ".err",
     ?assertEqual({0, "ran\n"},
@@ -7705,10 +6990,10 @@ verbose_node_start(Base) ->
 %% module's root is passed over, and so is a module at another namespace in
 %% the package's build, which provides none
 package_node_start_test_() ->
-    nodes_test({waits, 5}, fun package_node_start/1).
+    ern_harness:nodes_test({waits, 5}, fun package_node_start/1).
 
 package_node_start(Base) ->
-    E = made(Base, "e", none),
+    E = ern_harness:made(Base, "e", none),
     [Pkg, Root, Elsewhere] = [filename:join(Base, Leaf) || Leaf <- ["pkg", "root", "elsewhere"]],
     Package = filename:join(Pkg, "lib/ns_leaf"),
     [Src, Build] = [filename:join(Package, Sub) || Sub <- ["src", "build"]],
@@ -7719,17 +7004,17 @@ package_node_start(Base) ->
                 Path
             end,
     Write(Src, "ns_leaf.ern", "export let word : String = \"package\"\n"),
-    0 = built(["--source-root", Src, "--build-root", Build, Src]),
+    0 = ern_harness:built(["--source-root", Src, "--build-root", Build, Src]),
     Write(Pkg, "package.conf",
           "{\"ernest\": \"0.11.0\",\n"
           " \"packages\": [{\"name\": \"ns_leaf\", \"version\": \"1.0.0\"}]}\n"),
     Other = Write(Elsewhere, "ns_other.ern", "export let word : String = \"other\"\n"),
     Decoy = Write(Elsewhere, "ns_leaf.ern", "export let word : String = \"decoy\"\n"),
-    [0 = built(["--source-root", Elsewhere, File]) || File <- [Other, Decoy]],
+    [0 = ern_harness:built(["--source-root", Elsewhere, File]) || File <- [Other, Decoy]],
     {ok, _} = file:copy(filename:join(Elsewhere, "ns_other.erc"),
                         filename:join(Build, "ns_other.erc")),
     Main = Write(Root, "main.ern", "export fn main() : Unit = Io.println(NsLeaf.word)\n"),
-    0 = built(["--source-root", Root, "--load-path", Build, Main]),
+    0 = ern_harness:built(["--source-root", Root, "--load-path", Build, Main]),
     {ok, _} = file:copy(filename:join(Elsewhere, "ns_leaf.erc"),
                         filename:join(Root, "ns_leaf.erc")),
     Err = E ++ ".err",
@@ -7760,7 +7045,7 @@ package_node_start(Base) ->
 %% here without the function, which ern_exchange_tests'
 %% not_loaded_from_reach_test covers before code crosses
 beyond_reach_test_() ->
-    nodes_test({waits, 10}, fun beyond_reach/1).
+    ern_harness:nodes_test({waits, 10}, fun beyond_reach/1).
 
 beyond_reach(Base) ->
     Root = filename:join(Base, "probe"),
@@ -7804,29 +7089,29 @@ beyond_reach(Base) ->
              "      | Left(failure) -> Io.show(failure)\n"
              "    }\n",
     ok = file:write_file(filename:join(Root, "probe.ern"),
-                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
+                         unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
     Host = filename:join(Root, "ern_probe_host.erl"),
     ok = file:write_file(Host, <<"-module(ern_probe_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
     {ok, _} = compile:file(Host, [{outdir, Root}]),
-    0 = built([Root]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    WaitB = bare_started(B, []),
-    lists(A, [{"b", B, bound_port(B)}]),
-    ?assertEqual(0, (start(A, filename:join(Root, "probe.erc"), []))()),
-    [prints(B, Line) || Line <- ["the lambda ran", "the other lambda ran"]],
+    0 = ern_harness:built([Root]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    ?assertEqual(0, (ern_harness:start(A, filename:join(Root, "probe.erc"), []))()),
+    [ern_harness:prints(B, Line) || Line <- ["the lambda ran", "the other lambda ran"]],
     Site = fun(Part) -> "Probe.main:" ++ integer_to_list(line_of(Source, Part)) end,
-    [says(B, Line)
+    [ern_harness:says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("\"valued itself: \"") ++ " was not loaded:"
                  " the binding Probe.config has no value here",
                  "the peer a's spawn at " ++ Site("\"beside itself: \"") ++ " was not loaded:"
                  " the module ern_probe_host, which Probe.only calls, is not here"]],
-    stop(B, WaitB),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
-    [has(Out, Line)
+    ern_harness:stop(B, WaitB),
+    {Out, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    [ern_harness:has(Out, Line)
      || Line <- ["config: 6", "valued: Right", "valued itself: Io.NotLoaded", "beside: Right",
                  "beside itself: Io.NotLoaded"]],
     [?assertEqual(nomatch, string:find(ErrB, Part))
@@ -7849,7 +7134,7 @@ beyond_reach(Base) ->
 %% function spawned by its name, which it answers none as it holds nothing
 %% it could run
 relay_test_() ->
-    nodes_test({waits, 17}, fun relay/1).
+    ern_harness:nodes_test({waits, 17}, fun relay/1).
 
 relay(Base) ->
     Root = filename:join(Base, "relay"),
@@ -7894,40 +7179,43 @@ relay(Base) ->
              "      | Left(failure) -> Io.show(failure)\n"
              "    }\n",
     ok = file:write_file(filename:join(Root, "relay.ern"),
-                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
+                         unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
     Host = filename:join(HostDir, "ern_relay_host.erl"),
     ok = file:write_file(Host, <<"-module(ern_relay_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
     {ok, _} = compile:file(Host, [{outdir, HostDir}]),
-    0 = built([Root]),
-    A = made(Base, "a", none),
-    [B, C1, C2] = [made(Base, Name, 0) || Name <- ["b", "c1", "c2"]],
-    [lists(C, [{"a", A, none}, {"b", B, none}]) || C <- [C1, C2]],
-    {WaitC1, WaitC2} = {bare_started(C1, [HostDir]), bare_started(C2, [])},
-    {PortC1, PortC2} = {bound_port(C1), bound_port(C2)},
-    lists(B, [{"a", A, none}, {"c1", C1, PortC1}, {"c2", C2, PortC2}]),
-    WaitB = bare_started(B, []),
-    lists(A, [{"b", B, bound_port(B)}, {"c1", C1, PortC1}, {"c2", C2, PortC2}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --load-path ", HostDir, " ",
-                              filename:join(Root, "relay.erc")]),
+    0 = ern_harness:built([Root]),
+    A = ern_harness:made(Base, "a", none),
+    [B, C1, C2] = [ern_harness:made(Base, Name, 0) || Name <- ["b", "c1", "c2"]],
+    [ern_harness:lists(C, [{"a", A, none}, {"b", B, none}]) || C <- [C1, C2]],
+    {WaitC1, WaitC2} = {ern_harness:bare_started(C1, [HostDir]), ern_harness:bare_started(C2, [])},
+    {PortC1, PortC2} = {ern_harness:bound_port(C1), ern_harness:bound_port(C2)},
+    ern_harness:lists(B, [{"a", A, none}, {"c1", C1, PortC1}, {"c2", C2, PortC2}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A,
+                      [{"b", B, ern_harness:bound_port(B)}, {"c1", C1, PortC1},
+                       {"c2", C2, PortC2}]),
+    {_, WaitA} = ern_harness:launched(A,
+                                      [?ERN, " run --config-dir ", A, " --load-path ", HostDir, " ",
+                                       filename:join(Root, "relay.erc")]),
     ?assertEqual(0, WaitA()),
-    [prints(C, Line) || {C, Line} <- [{C1, "relayed to c1"}, {C2, "relayed to c2"},
-                                      {C1, "only ran"}]],
+    [ern_harness:prints(C, Line) || {C, Line} <- [{C1, "relayed to c1"}, {C2, "relayed to c2"},
+                                                  {C1, "only ran"}]],
     Lacked = fun(Part) ->
                  "the peer a's spawn at Relay.main:" ++ integer_to_list(line_of(Source, Part))
                      ++ " was not loaded: the module ern_relay_host, which Relay.only calls, is"
                         " not here"
              end,
-    says(B, Lacked("\"held on b: \"")),
-    says(C2, Lacked("\"held on c2: \"")),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{B, WaitB}, {C1, WaitC1}, {C2, WaitC2}]],
-    {Out, _} = said(A),
-    {OutB, ErrB} = said(B),
-    [{_, ErrC1}, {_, ErrC2}] = [said(C) || C <- [C1, C2]],
-    [has(Out, Line)
+    ern_harness:says(B, Lacked("\"held on b: \"")),
+    ern_harness:says(C2, Lacked("\"held on c2: \"")),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{B, WaitB}, {C1, WaitC1}, {C2, WaitC2}]],
+    {Out, _} = ern_harness:said(A),
+    {OutB, ErrB} = ern_harness:said(B),
+    [{_, ErrC1}, {_, ErrC2}] = [ern_harness:said(C) || C <- [C1, C2]],
+    [ern_harness:has(Out, Line)
      || Line <- ["b: Right", "held on b: Io.NotLoaded", "held on c1: Right",
                  "held on c2: Io.NotLoaded"]],
-    [has(OutB, Line) || Line <- ["c1: Right", "c2: Right"]],
+    [ern_harness:has(OutB, Line) || Line <- ["c1: Right", "c2: Right"]],
     [?assertEqual(nomatch, string:find(Err, Part))
      || Err <- [ErrB, ErrC1, ErrC2], Part <- ["could not take", "this node does not have",
                                                "no longer holds"]].
@@ -7945,7 +7233,7 @@ relay(Base) ->
 %% cross exactly is ern_exchange_tests' received_whole_test's, and the
 %% costs of a fix's callers ern_code_costs' (make bench)
 fix_from_shell_test_() ->
-    nodes_test({waits, 8}, fun fix_from_shell/1).
+    ern_harness:nodes_test({waits, 8}, fun fix_from_shell/1).
 
 fix_from_shell(Base) ->
     Root = filename:join(Base, "build"),
@@ -7979,28 +7267,30 @@ fix_from_shell(Base) ->
                          unicode:characters_to_binary(
                            Fix("// The fix, which raises, so that its trace shows each frame.\n"
                                "fn leaf(x : Int) : Int = parsed(\"fixed\") + x\n"))),
-    0 = built([Root]),
-    PortB = free_port(),
-    B = made(Base, "b", PortB),
-    Desk = made(Base, "desk", none),
-    lists(B, [{"desk", Desk, none}]),
-    lists(Desk, [{"b", B, PortB}]),
-    WaitB = start(B, filename:join(Root, "fix.erc"), []),
-    prints(B, "serving"),
-    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    0 = ern_harness:built([Root]),
+    PortB = ern_harness:free_port(),
+    B = ern_harness:made(Base, "b", PortB),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(B, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"b", B, PortB}]),
+    WaitB = ern_harness:start(B, filename:join(Root, "fix.erc"), []),
+    ern_harness:prints(B, "serving"),
+    {DeskInput, WaitDesk} = ern_harness:shell_started(Desk, Source, [Root]),
     true = port_command(DeskInput, ":load Fix\n"),
-    prints(Desk, "Fix, compiled from " ++ ern_build:shown(filename:join(Source, "fix.ern"))),
-    true = port_command(DeskInput, ["Peer.spawn(\"b\", Fix.top, ", wait_ms_text(), ")\n"]),
-    prints(Desk, ?SPAWNED),
-    says(B, " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
-            " by the peer desk"),
+    ern_harness:prints(Desk,
+                       "Fix, compiled from " ++ ern_build:shown(filename:join(Source, "fix.ern"))),
+    true = port_command(DeskInput,
+                        ["Peer.spawn(\"b\", Fix.top, ", ern_harness:wait_ms_text(), ")\n"]),
+    ern_harness:prints(Desk, ?SPAWNED),
+    ern_harness:says(B, " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg,"
+                        " spawned by the peer desk"),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(B, WaitB),
-    {_, ErrB} = said(B),
+    ern_harness:stop(B, WaitB),
+    {_, ErrB} = ern_harness:said(B),
     %% the fix's file has a line more above its leaf than the build's
-    [has(ErrB, Frame) || Frame <- ["\n    Fix.leaf:6\n", "\n    Fix.middle:8\n",
-                                   "\n    Fix.aside:12\n"]],
+    [ern_harness:has(ErrB, Frame) || Frame <- ["\n    Fix.leaf:6\n", "\n    Fix.middle:8\n",
+                                               "\n    Fix.aside:12\n"]],
     [?assertEqual(nomatch, string:find(ErrB, Part))
      || Part <- ["Fix.aside:13", "ern$", "was not loaded", "could not take"]].
 
@@ -8048,12 +7338,12 @@ lost_build(Root) ->
              "      | Left(failure) -> Io.show(failure)\n"
              "    }\n",
     ok = file:write_file(filename:join(Root, "lost.ern"),
-                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
-    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
+                         unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
+    ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), ern_harness:client()),
     ok = file:write_file(filename:join(Root, "ern_nodes_spawner.erl"), spawner()),
     [{ok, _} = compile:file(filename:join(Root, File), [{outdir, Root}])
      || File <- ["ern_nodes_client.erl", "ern_nodes_spawner.erl"]],
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     {filename:join(Root, "lost.erc"), Source}.
 
 %% A spawner of the test's own, run in a bare `erl` that holds a peer's key,
@@ -8167,7 +7457,7 @@ caught_up(Node) ->
 %% its spawner gave up, its process killed as its answer comes, is not
 %% observed
 broken_exchange_test_() ->
-    nodes_test({waits, 10}, fun broken_exchange/1).
+    ern_harness:nodes_test({waits, 10}, fun broken_exchange/1).
 
 broken_exchange(Base) ->
     Root = filename:join(Base, "build"),
@@ -8186,35 +7476,39 @@ broken_exchange(Base) ->
                                    term_to_binary([{[atom_to_binary(Segment)
                                                      || Segment <- OtherName],
                                                     Sourced, []}])})),
-    A = made(Base, "a", none),
-    Z = made(Base, "z", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}, {"z", Z, none}]),
-    WaitB = bare_started(B, []),
-    PortB = bound_port(B),
-    {_, Spawner} = client(Root, name(Z), key_files(Z), ern_carrier:cookie(), PortB, name(B),
-                          ["-ern_nodes_hash", binary_to_list(binary:encode_hex(Waits)),
-                           "-ern_nodes_frame", Frame],
-                          "ern_nodes_spawner"),
+    A = ern_harness:made(Base, "a", none),
+    Z = ern_harness:made(Base, "z", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}, {"z", Z, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    PortB = ern_harness:bound_port(B),
+    {_, Spawner} = ern_harness:client(Root, ern_harness:name(Z), ern_harness:key_files(Z),
+                                      ern_carrier:cookie(), PortB, ern_harness:name(B),
+                                      ["-ern_nodes_hash", binary_to_list(binary:encode_hex(Waits)),
+                                       "-ern_nodes_frame", Frame],
+                                      "ern_nodes_spawner"),
     {0, SpawnerOut} = Spawner(),
-    [has(SpawnerOut, Line) || Line <- ["no longer held: Other", "late frame: the connection lives",
-                                       "lacks: 2", "faulty: ended", "broken: closed",
-                                       "lacked again: true"]],
-    seen(B, err, "the peer z was lost", 2, ?WAIT_MS),
-    lists(A, [{"b", B, PortB}]),
-    {InputA, WaitA} = started(A, Program, ["b"]),
-    says(B, "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source, "late: "))
-            ++ " was not loaded: its time ran out before the function's reach arrived"),
+    [ern_harness:has(SpawnerOut, Line) || Line <- ["no longer held: Other",
+                                                   "late frame: the connection lives",
+                                                   "lacks: 2", "faulty: ended", "broken: closed",
+                                                   "lacked again: true"]],
+    ern_harness:seen(B, err, "the peer z was lost", 2, ?WAIT_MS),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    {InputA, WaitA} = ern_harness:started(A, Program, ["b"]),
+    ern_harness:says(B,
+                     "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source,
+                                                                                   "late: "))
+                     ++ " was not loaded: its time ran out before the function's reach arrived"),
     true = port_command(InputA, "dropped\n"),
     ?assertEqual(0, WaitA()),
     Site = "Lost.late:" ++ integer_to_list(line_of(Source, "let again")),
-    says(B, "the process of " ++ Site ++ " faulted: foreign function"
-            " erlang:binary_to_integer/1 raised error:badarg, spawned by the peer a"),
-    stop(B, WaitB),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
-    [has(Out, Line) || Line <- ["dialed: Right", "late: Io.Timeout", "again: Right"]],
-    [has(ErrB, Line)
+    ern_harness:says(B, "the process of " ++ Site ++ " faulted: foreign function"
+                        " erlang:binary_to_integer/1 raised error:badarg, spawned by the peer a"),
+    ern_harness:stop(B, WaitB),
+    {Out, _} = ern_harness:said(A),
+    {_, ErrB} = ern_harness:said(B),
+    [ern_harness:has(Out, Line) || Line <- ["dialed: Right", "late: Io.Timeout", "again: Right"]],
+    [ern_harness:has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
                  "the peer z sent a frame this node cannot read, and this node ends its connection",
@@ -8244,18 +7538,20 @@ broken_exchange(Base) ->
 %% log's *Sites, Sessions and Their Names*): the two nodes' `T` were one
 %% type, the two sessions' namespaces one
 shell_service_test_() ->
-    nodes_test({waits, 9}, fun shell_service/1).
+    ern_harness:nodes_test({waits, 9}, fun shell_service/1).
 
 shell_service(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "shared.ern"), "export type T = T(Int)\n"),
-    [PortA, PortB] = [free_port(), free_port()],
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", PortB),
-    lists(A, [{"b", B, PortB}]),
-    lists(B, [{"a", A, PortA}]),
-    [edit(Dir, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [Peer], <<"p">> => [Peer]}} end)
+    [PortA, PortB] = [ern_harness:free_port(), ern_harness:free_port()],
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
+    [ern_harness:edit(Dir,
+                      fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [Peer],
+                                                             <<"p">> => [Peer]}} end)
      || {Dir, Peer} <- [{A, <<"b">>}, {B, <<"a">>}]],
     Declared = ["type T = T(Int)\n",
                 "let prompt : Peer.Service(T) = Peer.service(\"p\")\n",
@@ -8272,8 +7568,8 @@ shell_service(Base) ->
                    "Io.println(\"offered\")\n"]
               end,
     Found = fun(Count) ->
-                ["Io.println(Io.show(Peer.find(prompt, ", wait_ms_text(), ")))\n",
-                 "match Peer.find(service, ", wait_ms_text(), ") {\n"
+                ["Io.println(Io.show(Peer.find(prompt, ", ern_harness:wait_ms_text(), ")))\n",
+                 "match Peer.find(service, ", ern_harness:wait_ms_text(), ") {\n"
                  "    Right(server) -> {\n"
                  "        send(server, Shared.T(", Count, "));\n"
                  "        Io.println(\"found\")\n"
@@ -8281,21 +7577,22 @@ shell_service(Base) ->
                  "  | Left(failure) -> Io.println(Io.show(failure))\n"
                  "}\n"]
             end,
-    {InputA, WaitA} = shell_started(A, Root),
+    {InputA, WaitA} = ern_harness:shell_started(A, Root),
     true = port_command(InputA, [Declared, Offered("a")]),
-    prints(A, "offered"),
-    {InputB, WaitB} = shell_started(B, Root),
+    ern_harness:prints(A, "offered"),
+    {InputB, WaitB} = ern_harness:shell_started(B, Root),
     true = port_command(InputB, ["type U = U\n", Declared, Offered("b"), Found("5")]),
-    prints(B, "found"),
-    prints(A, "a got 5"),
+    ern_harness:prints(B, "found"),
+    ern_harness:prints(A, "a got 5"),
     true = port_command(InputA, Found("7")),
-    prints(A, "found"),
-    prints(B, "b got 7"),
+    ern_harness:prints(A, "found"),
+    ern_harness:prints(B, "b got 7"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    [has(Out, "Left(Io.OtherType)\n") || {Out, _} <- [said(A), said(B)]].
+    [ern_harness:has(Out, "Left(Io.OtherType)\n") || {Out, _} <- [ern_harness:said(A),
+                                                                  ern_harness:said(B)]].
 
 %% report Appendix H, §11.2 *Inputs*, *The attached shell*, §8.7, §3.11:
 %% the form of a session's namespace carries its node's public key, so that
@@ -8318,37 +7615,46 @@ shell_service(Base) ->
 %% which no peer can now. The captured local's compute was added with the
 %% log's *The Input's Process*, which states the rule the code kept.
 shell_binding_spawned_test_() ->
-    nodes_test({waits, 7}, fun shell_binding_spawned/1).
+    ern_harness:nodes_test({waits, 7}, fun shell_binding_spawned/1).
 
 shell_binding_spawned(Base) ->
-    Root = filename:join(Base, "src"),
-    ok = filelib:ensure_path(Root),
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, none}]),
-    lists(B, [{"a", A, PortA}]),
     Typed = "let below = Clock.now()\nfn later() : Int = below + 1\n",
-    {InputA, WaitA} = shell_started(A, Root),
-    true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
-    prints(A, "typed"),
-    {InputB, WaitB} = shell_started(B, Root),
-    Limit = wait_ms_text(),
+    {{A, InputA, WaitA}, {B, InputB, WaitB}} = typed_shells(Base, {"a", "b"}, Typed),
+    Limit = ern_harness:wait_ms_text(),
     true = port_command(InputB, [Typed, "Peer.compute(\"a\", fn() = below + 1, ", Limit, ")\n",
                                  "Peer.compute(\"a\", later, ", Limit, ")\n",
                                  "{ let n = below; Peer.compute(\"a\", fn() = n + 1, ", Limit,
                                  ") == Right(below + 1) }\n",
                                  "later() == below + 1\n"]),
-    prints(B, "Left(Io.NotLoaded(\"the binding $Session1.below has no value here\")) :"
-              " Either(Io.Error, Int)", 2, ?WAIT_MS),
-    prints(B, "true : Bool", 2, ?WAIT_MS),
-    prints(A, "the binding $Session1.below has no value here"),
+    ern_harness:prints(B, "Left(Io.NotLoaded(\"the binding $Session1.below has no value here\")) :"
+                          " Either(Io.Error, Int)", 2, ?WAIT_MS),
+    ern_harness:prints(B, "true : Bool", 2, ?WAIT_MS),
+    ern_harness:prints(A, "the binding $Session1.below has no value here"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    {OutA, ErrA} = said(A),
+    {OutA, ErrA} = ern_harness:said(A),
     ?assertEqual(nomatch, string:find(OutA ++ ErrA, "$Session1@")).
+
+%% Two shells that are nodes over Base's src/, the first named First,
+%% listening and listing the second, named Second, which lists it by its
+%% port. The first's session has taken the inputs Typed, and printed
+%% `typed` after them, before the second starts. Each shell's directory,
+%% input and wait.
+typed_shells(Base, {First, Second}, Typed) ->
+    Root = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Root),
+    Port = ern_harness:free_port(),
+    One = ern_harness:made(Base, First, Port),
+    Two = ern_harness:made(Base, Second, none),
+    ern_harness:lists(One, [{Second, Two, none}]),
+    ern_harness:lists(Two, [{First, One, Port}]),
+    {InputOne, WaitOne} = ern_harness:shell_started(One, Root),
+    true = port_command(InputOne, [Typed, "Io.println(\"typed\")\n"]),
+    ern_harness:prints(One, "typed"),
+    {InputTwo, WaitTwo} = ern_harness:shell_started(Two, Root),
+    {{One, InputOne, WaitOne}, {Two, InputTwo, WaitTwo}}.
 
 %% report §11.2, §8.7, Appendix E.27: a shell that is a node computes on a
 %% peer as a program does: a function declared at its prompt has a hash,
@@ -8367,22 +7673,13 @@ shell_binding_spawned(Base) ->
 %% the desk's session, its key left out. A regression test, written after
 %% the code
 shell_compute_test_() ->
-    nodes_test({waits, 9}, fun shell_compute/1).
+    ern_harness:nodes_test({waits, 9}, fun shell_compute/1).
 
 shell_compute(Base) ->
-    Root = filename:join(Base, "src"),
-    ok = filelib:ensure_path(Root),
-    PortWorker = free_port(),
-    Worker = made(Base, "worker", PortWorker),
-    Desk = made(Base, "desk", none),
-    lists(Worker, [{"desk", Desk, none}]),
-    lists(Desk, [{"worker", Worker, PortWorker}]),
     Declared = "fn answer() : Int = 6 * 7\n",
-    {InputWorker, WaitWorker} = shell_started(Worker, Root),
-    true = port_command(InputWorker, [Declared, "Io.println(\"declared\")\n"]),
-    prints(Worker, "declared"),
-    {InputDesk, WaitDesk} = shell_started(Desk, Root),
-    Limit = wait_ms_text(),
+    {{Worker, InputWorker, WaitWorker}, {Desk, InputDesk, WaitDesk}} =
+        typed_shells(Base, {"worker", "desk"}, Declared),
+    Limit = ern_harness:wait_ms_text(),
     true = port_command(InputDesk, [Declared, "Peer.compute(\"worker\", answer, ", Limit, ")\n",
                                     "Peer.compute(\"worker\", fn() = 6 * 7, ", Limit, ")\n",
                                     "fn alone() : Int = 6 * 9\n",
@@ -8395,19 +7692,19 @@ shell_compute(Base) ->
                                     "    Unit\n"
                                     "}\n",
                                     "Peer.spawn(\"worker\", counts, ", Limit, ")\n"]),
-    prints(Desk, "Right(42) : Either(Io.Error, Int)", 2, ?WAIT_MS),
-    prints(Desk, "Right(54) : Either(Io.Error, Int)"),
-    prints(Desk, ?SPAWNED),
-    prints(Worker, "counting"),
-    fault_line(InputWorker, Worker,
-               "the process of $Session1.input 9:1 faulted: the return of foreign function"
-               " erlang:yield/0 does not match $Session1.Count: is true, spawned by the peer"
-               " desk\n    $Session1.counts:3\n"),
+    ern_harness:prints(Desk, "Right(42) : Either(Io.Error, Int)", 2, ?WAIT_MS),
+    ern_harness:prints(Desk, "Right(54) : Either(Io.Error, Int)"),
+    ern_harness:prints(Desk, ?SPAWNED),
+    ern_harness:prints(Worker, "counting"),
+    ern_harness:fault_line(InputWorker, Worker,
+                           "the process of $Session1.input 9:1 faulted: the return of foreign"
+                           " function erlang:yield/0 does not match $Session1.Count: is true,"
+                           " spawned by the peer desk\n    $Session1.counts:3\n"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),
     ?assertEqual(0, WaitWorker()),
-    {OutWorker, _} = said(Worker),
+    {OutWorker, _} = ern_harness:said(Worker),
     ?assertEqual(nomatch, string:find(OutWorker, "was not loaded")),
     ?assertEqual(nomatch, string:find(OutWorker, "$Session1@")).
 
@@ -8422,20 +7719,20 @@ shell_compute(Base) ->
 %% `undef`; the type a module's since two nodes' sessions declare two (the
 %% log's *Sites, Sessions and Their Names*)
 shell_offered_adapted_test_() ->
-    nodes_test({waits, 6}, fun shell_offered_adapted/1).
+    ern_harness:nodes_test({waits, 6}, fun shell_offered_adapted/1).
 
 shell_offered_adapted(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "shared.ern"), "export type T = T(Int)\n"),
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, none}]),
-    lists(B, [{"a", A, PortA}]),
-    edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
+    PortA = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, none}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
+    ern_harness:edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
     Declared = ":load Shared\nlet service : Peer.Service(Shared.T) = Peer.service(\"t\")\n",
-    {InputA, WaitA} = shell_started(A, Root),
+    {InputA, WaitA} = ern_harness:shell_started(A, Root),
     true = port_command(InputA,
                         [Declared,
                          "let store : Address(Int) = spawn(fn() : Unit receiving Int =\n"
@@ -8444,23 +7741,23 @@ shell_offered_adapted(Base) ->
                          " adapted(store, fn(t) = match t { Shared.T(n) -> n }))\n",
                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                          "Io.println(\"offered\")\n"]),
-    prints(A, "offered"),
-    {InputB, WaitB} = shell_started(B, Root),
+    ern_harness:prints(A, "offered"),
+    {InputB, WaitB} = ern_harness:shell_started(B, Root),
     true = port_command(InputB, [Declared,
-                                 "match Peer.find(service, ", wait_ms_text(), ") {\n"
+                                 "match Peer.find(service, ", ern_harness:wait_ms_text(), ") {\n"
                                  "    Right(server) -> {\n"
                                  "        send(server, Shared.T(5));\n"
                                  "        Io.println(\"found\")\n"
                                  "    }\n"
                                  "  | Left(failure) -> Io.println(Io.show(failure))\n"
                                  "}\n"]),
-    prints(B, "found"),
-    prints(A, "a got 5"),
+    ern_harness:prints(B, "found"),
+    ern_harness:prints(A, "a got 5"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    {OutA, ErrA} = said(A),
+    {OutA, ErrA} = ern_harness:said(A),
     [?assertEqual(nomatch, string:find(Text, "undef")) || Text <- [OutA, ErrA]].
 
 %% report §11.2, §8.7, Appendix E.21: a shell that is a node writes a
@@ -8472,36 +7769,59 @@ shell_offered_adapted(Base) ->
 %% until the line comes (fault_line/3). A local fault's report, which names
 %% no peer, is ern_rt_tests' fault_reports_test's
 shell_peer_fault_test_() ->
-    nodes_test({waits, 6}, fun shell_peer_fault/1).
+    ern_harness:nodes_test({waits, 6}, fun shell_peer_fault/1).
 
 shell_peer_fault(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
-    PortA = free_port(),
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, none}]),
-    lists(B, [{"a", A, PortA}]),
+    PortA = ern_harness:free_port(),
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, none}]),
+    ern_harness:lists(B, [{"a", A, PortA}]),
     Typed = "fn divided() : Unit = {\n"
             "    Io.println(\"dividing\");\n"
             "    let _ = 1 / List.size([]);\n"
             "    Unit\n"
             "}\n",
-    {InputA, WaitA} = shell_started(A, Root),
+    {InputA, WaitA} = ern_harness:shell_started(A, Root),
     true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
-    prints(A, "typed"),
-    {InputB, WaitB} = shell_started(B, Root),
-    true = port_command(InputB, [Typed, "match Peer.spawn(\"a\", divided, ", wait_ms_text(), ") {\n"
-                                        "    Right(_) -> Io.println(\"spawned\")\n"
-                                        "  | Left(failure) -> Io.println(Io.show(failure))\n"
-                                        "}\n"]),
-    prints(B, "spawned"),
-    prints(A, "dividing"),
-    fault_line(InputA, A, " faulted: division by zero, spawned by the peer b\n"),
+    ern_harness:prints(A, "typed"),
+    {InputB, WaitB} = ern_harness:shell_started(B, Root),
+    true = port_command(InputB,
+                        [Typed, "match Peer.spawn(\"a\", divided, ", ern_harness:wait_ms_text(),
+                         ") {\n"
+                                "    Right(_) -> Io.println(\"spawned\")\n"
+                                "  | Left(failure) -> Io.println(Io.show(failure))\n"
+                                "}\n"]),
+    ern_harness:prints(B, "spawned"),
+    ern_harness:prints(A, "dividing"),
+    ern_harness:fault_line(InputA, A, " faulted: division by zero, spawned by the peer b\n"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()).
+
+%% A node, the store, running Root's store.erc and listing the desk, and a
+%% shell over Source that is the desk, Root on its load path, listing the
+%% store by its port. The store has printed `ready`, and the desk has
+%% spawned a lambda on it, which the store did not hold and was sent. Each
+%% node's directory, input and wait.
+store_and_desk_shell(Base, Root, Source) ->
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = ern_harness:started(Store, filename:join(Root, "store.erc"), []),
+    ern_harness:prints(Store, "ready"),
+    {DeskInput, WaitDesk} = ern_harness:shell_started(Desk, Source, [Root]),
+    %% the desk dials the store, which does not hold the lambda, and is sent
+    %% its form, which it compiles and starts
+    true = port_command(DeskInput,
+                        ["Peer.spawn(\"store\", fn() = Unit, ", ern_harness:wait_ms_text(), ")\n"]),
+    ern_harness:prints(Desk, ?SPAWNED),
+    {{Store, StoreInput, WaitStore}, {Desk, DeskInput, WaitDesk}}.
 
 %% report §11.2, §8.7: a shell that is a node loads a module, and a peer
 %% of the build that holds the module spawns a function of it there by its
@@ -8511,7 +7831,7 @@ shell_peer_fault(Base) ->
 %% it and starts it. Written after the code: a peer found no value of a
 %% binding the shell's load had evaluated
 shell_node_test_() ->
-    nodes_test({waits, 9}, fun shell_node/1).
+    ern_harness:nodes_test({waits, 9}, fun shell_node/1).
 
 shell_node(Base) ->
     Root = filename:join(Base, "build"),
@@ -8536,30 +7856,31 @@ shell_node(Base) ->
                          "}\n"
                          "\n"
                          "fn held() : Unit receiving m = receive { _ -> held() }\n"
-                         ++ wait_ms_declaration()),
-    0 = built([Root]),
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
-    prints(Store, "ready"),
-    {DeskInput, WaitDesk} = shell_started(Desk, Root),
+                         ++ ern_harness:wait_ms_declaration()),
+    0 = ern_harness:built([Root]),
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = ern_harness:started(Store, filename:join(Root, "store.erc"), []),
+    ern_harness:prints(Store, "ready"),
+    {DeskInput, WaitDesk} = ern_harness:shell_started(Desk, Root),
     true = port_command(DeskInput, [":load Greet\n"
-                                    "Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
-    prints(Desk, ?SPAWNED),
+                                    "Peer.spawn(\"store\", fn() = Unit, ",
+                                    ern_harness:wait_ms_text(), ")\n"]),
+    ern_harness:prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "go\n"),
-    prints(Store, "spawned: Right"),
-    prints(Desk, "hello from the shell's load"),
+    ern_harness:prints(Store, "spawned: Right"),
+    ern_harness:prints(Desk, "hello from the shell's load"),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {DeskOut, _} = said(Desk),
-    {_, StoreErr} = said(Store),
+    ern_harness:stop(Store, WaitStore),
+    {DeskOut, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
     %% report §11.2: greet.erc stands beside its source and is as new as it,
     %% so the load takes it and compiles nothing
-    has(DeskOut, "Greet, from " ++ ern_build:shown(filename:join(Root, "greet.erc"))),
+    ern_harness:has(DeskOut, "Greet, from " ++ ern_build:shown(filename:join(Root, "greet.erc"))),
     ?assertEqual(nomatch, string:find(StoreErr, "was not loaded")).
 
 %% report §8.7, §11.2: a shell that is a node over a build answers a peer
@@ -8578,7 +7899,7 @@ shell_node(Base) ->
 %% refused with that line, then false, and the one after the `:reload`
 %% reached the previous version's service
 shell_node_versions_test_() ->
-    nodes_test({waits, 15}, fun shell_node_versions/1).
+    ern_harness:nodes_test({waits, 15}, fun shell_node_versions/1).
 
 shell_node_versions(Base) ->
     Root = filename:join(Base, "build"),
@@ -8632,52 +7953,44 @@ shell_node_versions(Base) ->
                          "    };\n"
                          "    Io.println(name <> \": \" <> answer);\n"
                          "    spawning()\n"
-                         "}\n" ++ wait_ms_declaration()),
-    0 = built([Root]),
+                         "}\n" ++ ern_harness:wait_ms_declaration()),
+    0 = ern_harness:built([Root]),
     Changed = fun(Text) ->
                   ok = file:write_file(filename:join(Source, "greet.ern"),
                                        Greet(["\nexport fn other() : Unit ="
                                               " Io.println(\"", Text, "\")\n"]))
               end,
     Changed("another function"),
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
-    prints(Store, "ready"),
-    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
-    %% the desk dials the store, which does not hold the lambda, and is sent
-    %% its form, which it compiles and starts
-    true = port_command(DeskInput,
-                        ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
-    prints(Desk, ?SPAWNED),
+    {{Store, StoreInput, WaitStore}, {Desk, DeskInput, WaitDesk}} =
+        store_and_desk_shell(Base, Root, Source),
     true = port_command(StoreInput, "first\n"),
-    prints(Store, "first: Io.NotLoaded"),
+    ern_harness:prints(Store, "first: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Greet\n"),
-    prints(Desk, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
+    ern_harness:prints(Desk,
+                       "Greet, compiled from " ++ ern_build:shown(filename:join(Source,
+                                                                                "greet.ern"))),
     true = port_command(StoreInput, "loaded\n"),
-    prints(Store, "loaded: Right"),
-    prints(Desk, "hello greeted 0"),
+    ern_harness:prints(Store, "loaded: Right"),
+    ern_harness:prints(Desk, "hello greeted 0"),
     true = port_command(DeskInput, "Greet.greet(\"prompt\")\n"),
-    prints(Desk, "prompt greeted 1"),
+    ern_harness:prints(Desk, "prompt greeted 1"),
     Changed("another function changed"),
     true = port_command(DeskInput, ":reload\n"),
-    prints(Desk, "Greet, compiled again"),
+    ern_harness:prints(Desk, "Greet, compiled again"),
     true = port_command(StoreInput, "wave\n"),
-    prints(Store, "wave: Right"),
-    prints(Desk, "wave greeted 0"),
+    ern_harness:prints(Store, "wave: Right"),
+    ern_harness:prints(Desk, "wave greeted 0"),
     true = port_command(DeskInput, "Greet.greet(\"again\")\n"),
-    prints(Desk, "again greeted 1"),
+    ern_harness:prints(Desk, "again greeted 1"),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {DeskOut, DeskErr} = said(Desk),
+    ern_harness:stop(Store, WaitStore),
+    {DeskOut, DeskErr} = ern_harness:said(Desk),
     ?assertEqual(nomatch, string:find(DeskOut, "wave greeted 2")),
     %% the shell writes the node's lines on its screen
-    has(DeskOut, "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
-                 " Greet.greeter has no value here"),
+    ern_harness:has(DeskOut,
+                    "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
+                    " Greet.greeter has no value here"),
     ?assertEqual(1, length(string:split(DeskOut ++ DeskErr, "has no value here", all)) - 1).
 
 %% report §8.7, §11.2: a shell that is a node over a build answers a peer's
@@ -8693,7 +8006,7 @@ shell_node_versions(Base) ->
 %% session's greeter, the build's caller ran, and its process faulted, the
 %% binding read in the build's greeter having no value
 shell_node_reach_test_() ->
-    nodes_test({waits, 11}, fun shell_node_reach/1).
+    ern_harness:nodes_test({waits, 11}, fun shell_node_reach/1).
 
 shell_node_reach(Base) ->
     Root = filename:join(Base, "build"),
@@ -8727,40 +8040,45 @@ shell_node_reach(Base) ->
                          "            spawning()\n"
                          "        }\n"
                          "      | None -> Unit\n"
-                         "    }\n" ++ wait_ms_declaration()),
-    0 = built([Root]),
+                         "    }\n" ++ ern_harness:wait_ms_declaration()),
+    0 = ern_harness:built([Root]),
     Other = "\nexport fn other() : Unit = Io.println(\"other\")\n",
     ok = file:write_file(filename:join(Source, "greet.ern"), [Greet, Other]),
     ok = file:write_file(filename:join(Source, "caller.ern"), Caller),
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
-    prints(Store, "ready"),
-    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
+    {StoreInput, WaitStore} = ern_harness:started(Store, filename:join(Root, "store.erc"), []),
+    ern_harness:prints(Store, "ready"),
+    {DeskInput, WaitDesk} = ern_harness:shell_started(Desk, Source, [Root]),
     true = port_command(DeskInput, ":load Greet\n"),
-    prints(Desk, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
+    ern_harness:prints(Desk,
+                       "Greet, compiled from " ++ ern_build:shown(filename:join(Source,
+                                                                                "greet.ern"))),
     %% the desk dials the store, which does not hold the lambda, and is sent
     %% its form, which it compiles and starts
     true = port_command(DeskInput,
-                        ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
-    prints(Desk, ?SPAWNED),
+                        ["Peer.spawn(\"store\", fn() = Unit, ", ern_harness:wait_ms_text(), ")\n"]),
+    ern_harness:prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
-    prints(Store, "first: Io.NotLoaded"),
+    ern_harness:prints(Store, "first: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Caller\n"),
-    prints(Desk, "Caller, compiled from " ++ ern_build:shown(filename:join(Source, "caller.ern"))),
+    ern_harness:prints(Desk,
+                       "Caller, compiled from " ++ ern_build:shown(filename:join(Source,
+                                                                                 "caller.ern"))),
     true = port_command(StoreInput, "second\n"),
-    prints(Store, "second: Right"),
-    prints(Desk, "hello from the greeter"),
+    ern_harness:prints(Store, "second: Right"),
+    ern_harness:prints(Desk, "hello from the greeter"),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {DeskOut, DeskErr} = said(Desk),
+    ern_harness:stop(Store, WaitStore),
+    {DeskOut, DeskErr} = ern_harness:said(Desk),
     %% the shell writes the node's lines on its screen
-    has(DeskOut, "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
-                 " Greet.greeting has no value here"),
+    ern_harness:has(DeskOut,
+                    "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
+                    " Greet.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, "fault")) || Text <- [DeskOut, DeskErr]].
 
 %% report §11.2, §6.9, §8.7: on a shell that is a node over a build, a
@@ -8773,7 +8091,7 @@ shell_node_reach(Base) ->
 %% since it ran no code the load brought, while the load erased the unit's
 %% values
 refused_build_load_test_() ->
-    nodes_test({waits, 11}, fun refused_build_load/1).
+    ern_harness:nodes_test({waits, 11}, fun refused_build_load/1).
 
 refused_build_load(Base) ->
     Root = filename:join(Base, "build"),
@@ -8816,44 +8134,34 @@ refused_build_load(Base) ->
                          "            spawning()\n"
                          "        }\n"
                          "      | None -> Unit\n"
-                         "    }\n" ++ wait_ms_declaration()),
-    0 = built([Root]),
+                         "    }\n" ++ ern_harness:wait_ms_declaration()),
+    0 = ern_harness:built([Root]),
     ok = file:write_file(filename:join(Source, "bad.ern"),
                          "export let greeted : Unit = Greet.hello()\n"
                          "\n"
                          "export let broken : Int = 1 / List.size([])\n"),
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    {StoreInput, WaitStore} = started(Store, filename:join(Root, "store.erc"), []),
-    prints(Store, "ready"),
-    {DeskInput, WaitDesk} = shell_started(Desk, Source, [Root]),
-    %% the desk dials the store, which does not hold the lambda, and is sent
-    %% its form, which it compiles and starts
-    true = port_command(DeskInput,
-                        ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
-    prints(Desk, ?SPAWNED),
+    {{Store, StoreInput, WaitStore}, {Desk, DeskInput, WaitDesk}} =
+        store_and_desk_shell(Base, Root, Source),
     true = port_command(StoreInput, "before\n"),
-    prints(Store, "before: Io.NotLoaded"),
+    ern_harness:prints(Store, "before: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Bad\n"),
-    prints(Desk, "Bad.broken:3 faulted: division by zero; nothing was loaded, and the process"
-                 " spawned at Greet.greeter:5 was killed"),
+    ern_harness:prints(Desk,
+                       "Bad.broken:3 faulted: division by zero; nothing was loaded, and the process"
+                       " spawned at Greet.greeter:5 was killed"),
     true = port_command(DeskInput, ":processes\n"),
-    prints(Desk, "no process of the session's is running"),
+    ern_harness:prints(Desk, "no process of the session's is running"),
     true = port_command(StoreInput, "after\n"),
-    prints(Store, "after: Io.NotLoaded"),
+    ern_harness:prints(Store, "after: Io.NotLoaded"),
     %% the shell writes the node's lines on its screen, this one after the
     %% desk's worker has answered the store, so it is waited for before the
     %% session is ended
     NotLoaded = "the peer store's spawn at Store.spawning:11 was not loaded: the binding"
                 " Greet.greeter has no value here",
-    prints(Desk, NotLoaded, 2, ?WAIT_MS),
+    ern_harness:prints(Desk, NotLoaded, 2, ?WAIT_MS),
     true = port_command(DeskInput, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {DeskOut, DeskErr} = said(Desk),
+    ern_harness:stop(Store, WaitStore),
+    {DeskOut, DeskErr} = ern_harness:said(Desk),
     ?assertEqual(2, length(string:split(DeskOut, NotLoaded, all)) - 1),
     ?assertEqual(nomatch, string:find(DeskErr, "fault")).
 
@@ -8867,7 +8175,7 @@ refused_build_load(Base) ->
 %% fault killed the target by an exit signal, so it ended without a restart,
 %% and the next message was lost
 adapted_fault_test_() ->
-    nodes_test({waits, 11}, fun adapted_fault/1).
+    ern_harness:nodes_test({waits, 11}, fun adapted_fault/1).
 
 adapted_fault(Base) ->
     Root = filename:join(Base, "build"),
@@ -8938,30 +8246,31 @@ adapted_fault(Base) ->
                          "            sent(work)\n"
                          "        }\n"
                          "      | None -> Unit\n"
-                         "    }\n" ++ wait_ms_declaration()),
-    0 = built([Root]),
+                         "    }\n" ++ ern_harness:wait_ms_declaration()),
+    0 = ern_harness:built([Root]),
     Program = filename:join(Root, "adapted.erc"),
-    PortMaker = free_port(),
-    Maker = made(Base, "maker", PortMaker),
-    Sender = made(Base, "sender", none),
-    lists(Maker, [{"sender", Sender, none}]),
-    lists(Sender, [{"maker", Maker, PortMaker}]),
-    edit(Sender, fun(Conf) -> Conf#{<<"services">> => #{<<"work">> => [<<"maker">>]}} end),
-    WaitMaker = start(Maker, Program, ["make"]),
-    prints(Maker, "run 1"),
-    {SenderInput, WaitSender} = started(Sender, Program, []),
-    prints(Sender, "found"),
+    PortMaker = ern_harness:free_port(),
+    Maker = ern_harness:made(Base, "maker", PortMaker),
+    Sender = ern_harness:made(Base, "sender", none),
+    ern_harness:lists(Maker, [{"sender", Sender, none}]),
+    ern_harness:lists(Sender, [{"maker", Maker, PortMaker}]),
+    ern_harness:edit(Sender,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"work">> => [<<"maker">>]}} end),
+    WaitMaker = ern_harness:start(Maker, Program, ["make"]),
+    ern_harness:prints(Maker, "run 1"),
+    {SenderInput, WaitSender} = ern_harness:started(Sender, Program, []),
+    ern_harness:prints(Sender, "found"),
     true = port_command(SenderInput, "zero\n"),
-    prints(Sender, "sent 0"),
-    says(Maker, "faulted, restarted: division by zero"),
+    ern_harness:prints(Sender, "sent 0"),
+    ern_harness:says(Maker, "faulted, restarted: division by zero"),
     %% the new run has begun, its mailbox emptied of the old (§6.9)
-    prints(Maker, "run 2"),
+    ern_harness:prints(Maker, "run 2"),
     true = port_command(SenderInput, "five\n"),
-    prints(Sender, "sent 5"),
-    prints(Maker, "took 20"),
-    stop(Sender, WaitSender),
-    stop(Maker, WaitMaker),
-    {_, SenderErr} = said(Sender),
+    ern_harness:prints(Sender, "sent 5"),
+    ern_harness:prints(Maker, "took 20"),
+    ern_harness:stop(Sender, WaitSender),
+    ern_harness:stop(Maker, WaitMaker),
+    {_, SenderErr} = ern_harness:said(Sender),
     ?assertEqual(nomatch, string:find(SenderErr, "fault")).
 
 %% report §6.5: an adapted address held on another node keeps nothing alive
@@ -8976,44 +8285,44 @@ adapted_fault(Base) ->
 %% resource that has ended, nor a cell the host lets go while the function
 %% is applied
 capture_gone_test_() ->
-    nodes_test({waits, 12}, fun capture_gone/1).
+    ern_harness:nodes_test({waits, 12}, fun capture_gone/1).
 
 capture_gone(Base) ->
     {Program, Source} = capture_build(Base),
-    PortMaker = free_port(),
-    Maker = made(Base, "maker", PortMaker),
-    Sender = made(Base, "sender", none),
-    lists(Maker, [{"sender", Sender, none}]),
-    lists(Sender, [{"maker", Maker, PortMaker}]),
-    edit(Sender, fun(Conf) ->
-                     Conf#{<<"services">> => #{<<"alone">> => [<<"maker">>],
-                                               <<"shared">> => [<<"maker">>]}}
-                 end),
-    WaitMaker = start(Maker, Program, ["make"]),
-    prints(Maker, "offered"),
-    {SenderInput, WaitSender} = started(Sender, Program, []),
-    prints(Sender, "given"),
+    PortMaker = ern_harness:free_port(),
+    Maker = ern_harness:made(Base, "maker", PortMaker),
+    Sender = ern_harness:made(Base, "sender", none),
+    ern_harness:lists(Maker, [{"sender", Sender, none}]),
+    ern_harness:lists(Sender, [{"maker", Maker, PortMaker}]),
+    ern_harness:edit(Sender, fun(Conf) ->
+                                 Conf#{<<"services">> => #{<<"alone">> => [<<"maker">>],
+                                                           <<"shared">> => [<<"maker">>]}}
+                             end),
+    WaitMaker = ern_harness:start(Maker, Program, ["make"]),
+    ern_harness:prints(Maker, "offered"),
+    {SenderInput, WaitSender} = ern_harness:started(Sender, Program, []),
+    ern_harness:prints(Sender, "given"),
     %% the cell the alone holder made is held by nothing of the maker's now
-    prints(Maker, "the alone holder ended"),
-    prints(Maker, "the shared holder ended"),
+    ern_harness:prints(Maker, "the alone holder ended"),
+    ern_harness:prints(Maker, "the shared holder ended"),
     true = port_command(SenderInput, "alone\n"),
-    prints(Sender, "sent to the alone address"),
+    ern_harness:prints(Sender, "sent to the alone address"),
     %% the target's site, where the holder spawned it, and the function's
     %% frame in the trace
     [Target, Function] = ["Capture.holdingAlone:" ++ integer_to_list(line_of(Source, Part))
                           || Part <- ["spawn(fn() = seeing())", "answer(reply, adapted("]],
-    says(Maker, "the process of " ++ Target ++ " faulted: foreign function atomics:get/2 raised"
-                " error:badarg"),
+    ern_harness:says(Maker, "the process of " ++ Target
+                            ++ " faulted: foreign function atomics:get/2 raised error:badarg"),
     true = port_command(SenderInput, "shared\n"),
-    prints(Maker, "the shared target saw 47 beside 42"),
+    ern_harness:prints(Maker, "the shared target saw 47 beside 42"),
     ?assertEqual(0, WaitSender()),
-    stop(Maker, WaitMaker),
-    {SenderOut, SenderErr} = said(Sender),
-    {MakerOut, MakerErr} = said(Maker),
+    ern_harness:stop(Maker, WaitMaker),
+    {SenderOut, SenderErr} = ern_harness:said(Sender),
+    {MakerOut, MakerErr} = ern_harness:said(Maker),
     ?assertEqual(["given", "sent to the alone address", "sent to the shared address", ""],
                  string:split(SenderOut, "\n", all)),
     ?assertEqual(nomatch, string:find(SenderErr, "fault")),
-    has(MakerErr, "\n    " ++ Function ++ "\n"),
+    ern_harness:has(MakerErr, "\n    " ++ Function ++ "\n"),
     ?assertEqual(nomatch, string:find(MakerOut, "the alone target saw")).
 
 %% The program of capture_gone/1, built in Base: the maker's two holders and
@@ -9148,8 +8457,9 @@ fn given(service : Peer.Service(HolderMsg)) : Address(Int) =
             fault(Io.show(failure))
     }
 "/utf8>>,
-    ok = file:write_file(filename:join(Root, "capture.ern"), [Source, wait_ms_declaration()]),
-    0 = built([Root]),
+    ok = file:write_file(filename:join(Root, "capture.ern"),
+                         [Source, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
     {filename:join(Root, "capture.erc"), unicode:characters_to_list(Source)}.
 
 %%
@@ -9168,28 +8478,30 @@ peers_built(Base) ->
 %% the subscriber has answered, by the signal, and says the answer. Written
 %% after the code
 end_told_on_a_node_test_() ->
-    nodes_test({waits, 8}, fun end_told_on_a_node/1).
+    ern_harness:nodes_test({waits, 8}, fun end_told_on_a_node/1).
 
 end_told_on_a_node(Base) ->
     Root = peers_built(Base),
-    PortStore = free_port(),
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}]),
-    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}} end),
-    {StoreInput, WaitStore} = started(Store, filename:join(Root, "keeper.erc"), ["wait"]),
-    prints(Store, "offered"),
-    terminated(Store),
-    prints(Store, "told"),
-    says(Store, "the end waits for 1 subscriber: Keeper.main"),
-    ?assertEqual(0, (start(Desk, filename:join(Root, "asker.erc"), []))()),
+    PortStore = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}]),
+    ern_harness:edit(Desk,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}} end),
+    {StoreInput, WaitStore} = ern_harness:started(Store, filename:join(Root, "keeper.erc"),
+                                                  ["wait"]),
+    ern_harness:prints(Store, "offered"),
+    ern_harness:terminated(Store),
+    ern_harness:prints(Store, "told"),
+    ern_harness:says(Store, "the end waits for 1 subscriber: Keeper.main"),
+    ?assertEqual(0, (ern_harness:start(Desk, filename:join(Root, "asker.erc"), []))()),
     true = port_command(StoreInput, "go\n"),
     ?assertEqual(143, WaitStore()),
-    {DeskOut, _} = said(Desk),
-    {_, StoreErr} = said(Store),
-    has(DeskOut, "asked: Some(3)"),
-    has(StoreErr, "the subscriber Keeper.main answered"),
+    {DeskOut, _} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
+    ern_harness:has(DeskOut, "asked: Some(3)"),
+    ern_harness:has(StoreErr, "the subscriber Keeper.main answered"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(StoreErr, "7", "the end waits for", []).
 
@@ -9197,19 +8509,19 @@ end_told_on_a_node(Base) ->
 %% subscriber that does not answer, which the node says. Written after the
 %% code, the line after that
 second_termination_test_() ->
-    nodes_test({waits, 5}, fun second_termination/1).
+    ern_harness:nodes_test({waits, 5}, fun second_termination/1).
 
 second_termination(Base) ->
     Root = peers_built(Base),
-    Store = made(Base, "store", none),
-    WaitStore = start(Store, filename:join(Root, "keeper.erc"), ["hold"]),
-    prints(Store, "offered"),
-    terminated(Store),
-    says(Store, "the end waits for 1 subscriber: Keeper.main"),
-    terminated(Store),
+    Store = ern_harness:made(Base, "store", none),
+    WaitStore = ern_harness:start(Store, filename:join(Root, "keeper.erc"), ["hold"]),
+    ern_harness:prints(Store, "offered"),
+    ern_harness:terminated(Store),
+    ern_harness:says(Store, "the end waits for 1 subscriber: Keeper.main"),
+    ern_harness:terminated(Store),
     ?assertEqual(143, WaitStore()),
-    {_, Err} = said(Store),
-    has(Err, "the end was cut short, 1 subscriber unanswered: Keeper.main"),
+    {_, Err} = ern_harness:said(Store),
+    ern_harness:has(Err, "the end was cut short, 1 subscriber unanswered: Keeper.main"),
     ?assertEqual(nomatch, string:find(Err, "the subscriber Keeper.main")).
 
 %% Appendix G.7, report §8.7: a proxy reaches the counter, a
@@ -9220,38 +8532,39 @@ second_termination(Base) ->
 %% back: the counter started again counts from 0, and answers 0. Written
 %% after the code, the add a regression test written after that
 proxy_finds_again_test_() ->
-    nodes_test({waits, 13}, fun proxy_finds_again/1).
+    ern_harness:nodes_test({waits, 13}, fun proxy_finds_again/1).
 
 proxy_finds_again(Base) ->
     Root = peers_built(Base),
-    {PortStore, PortOther} = {free_port(), free_port()},
-    Store = made(Base, "store", PortStore),
-    Other = made(Base, "other", PortOther),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Other, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, PortStore}, {"other", Other, PortOther}]),
-    edit(Desk, fun(Conf) ->
-                   Conf#{<<"services">> => #{<<"counter">> => [<<"store">>, <<"other">>]}}
-               end),
+    {PortStore, PortOther} = {ern_harness:free_port(), ern_harness:free_port()},
+    Store = ern_harness:made(Base, "store", PortStore),
+    Other = ern_harness:made(Base, "other", PortOther),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Other, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, PortStore}, {"other", Other, PortOther}]),
+    ern_harness:edit(Desk, fun(Conf) ->
+                               Conf#{<<"services">> => #{<<"counter">> => [<<"store">>,
+                                                                           <<"other">>]}}
+                           end),
     Keeper = filename:join(Root, "keeper.erc"),
-    WaitStore = start(Store, Keeper, []),
-    prints(Store, "offered"),
-    {DeskInput, WaitDesk} = started(Desk, filename:join(Root, "client.erc"), []),
-    prints(Desk, "proxy started"),
-    Ask = fun(Line) -> true = port_command(DeskInput, "go\n"), prints(Desk, Line) end,
+    WaitStore = ern_harness:start(Store, Keeper, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, filename:join(Root, "client.erc"), []),
+    ern_harness:prints(Desk, "proxy started"),
+    Ask = fun(Line) -> true = port_command(DeskInput, "go\n"), ern_harness:prints(Desk, Line) end,
     Ask("first: Some(0)"),
-    stop(Store, WaitStore),
+    ern_harness:stop(Store, WaitStore),
     Ask("away: None"),
-    WaitStoreAgain = start(Store, Keeper, []),
-    prints(Store, "offered"),
+    WaitStoreAgain = ern_harness:start(Store, Keeper, []),
+    ern_harness:prints(Store, "offered"),
     Ask("back: Some(0)"),
-    stop(Store, WaitStoreAgain),
-    WaitOther = start(Other, Keeper, []),
-    prints(Other, "offered"),
+    ern_harness:stop(Store, WaitStoreAgain),
+    WaitOther = ern_harness:start(Other, Keeper, []),
+    ern_harness:prints(Other, "offered"),
     Ask("other: Some(0)"),
     ?assertEqual(0, WaitDesk()),
-    stop(Other, WaitOther).
+    ern_harness:stop(Other, WaitOther).
 
 %% report §8.7, §6.6, Appendix E.27: examples/remote_counter.ern as
 %% two nodes, as its first comment runs them: b runs serve, which offers
@@ -9259,28 +8572,29 @@ proxy_finds_again(Base) ->
 %% b and calls it across the nodes. A regression test, written with the
 %% example; a find at another type is program_test_'s
 remote_counter_test_() ->
-    nodes_test({waits, 5}, fun remote_counter/1).
+    ern_harness:nodes_test({waits, 5}, fun remote_counter/1).
 
 remote_counter(Base) ->
     BuildRoot = filename:join(Base, "build"),
-    0 = built(["--source-root", "../examples", "--build-root", BuildRoot,
-               "../examples/remote_counter.ern"]),
+    0 = ern_harness:built(["--source-root", "../examples", "--build-root", BuildRoot,
+                           "../examples/remote_counter.ern"]),
     Program = filename:join(BuildRoot, "remote_counter.erc"),
-    PortB = free_port(),
-    ConfigDirA = made(Base, "a", none),
-    ConfigDirB = made(Base, "b", PortB),
-    lists(ConfigDirA, [{"b", ConfigDirB, PortB}]),
-    lists(ConfigDirB, [{"a", ConfigDirA, none}]),
-    edit(ConfigDirA, fun(Configuration) ->
-                             Configuration#{<<"services">> => #{<<"counter">> => [<<"b">>]}}
+    PortB = ern_harness:free_port(),
+    ConfigDirA = ern_harness:made(Base, "a", none),
+    ConfigDirB = ern_harness:made(Base, "b", PortB),
+    ern_harness:lists(ConfigDirA, [{"b", ConfigDirB, PortB}]),
+    ern_harness:lists(ConfigDirB, [{"a", ConfigDirA, none}]),
+    ern_harness:edit(ConfigDirA,
+                     fun(Configuration) ->
+                         Configuration#{<<"services">> => #{<<"counter">> => [<<"b">>]}}
                      end),
-    {_, WaitB} = launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
-                                       " --main serve ", Program]),
-    prints(ConfigDirB, "offered"),
-    ?assertEqual(0, (start(ConfigDirA, Program, []))()),
-    stop(ConfigDirB, WaitB),
-    {OutA, _} = said(ConfigDirA),
-    has(OutA, "total on b: Some(5)").
+    {_, WaitB} = ern_harness:launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
+                                                   " --main serve ", Program]),
+    ern_harness:prints(ConfigDirB, "offered"),
+    ?assertEqual(0, (ern_harness:start(ConfigDirA, Program, []))()),
+    ern_harness:stop(ConfigDirB, WaitB),
+    {OutA, _} = ern_harness:said(ConfigDirA),
+    ern_harness:has(OutA, "total on b: Some(5)").
 
 %% report §6.6, §6.9, §8.7, Appendix E.27: examples/lease_broker.ern as two
 %% nodes, as its first comment runs them. b runs serve, which offers the
@@ -9298,30 +8612,30 @@ remote_counter(Base) ->
 %% regression test, written with the example; a loss, which the comment
 %% says a service monitor is told of, is across/1's
 lease_broker_test_() ->
-    nodes_test({waits, 9}, fun lease_broker/1).
+    ern_harness:nodes_test({waits, 9}, fun lease_broker/1).
 
 lease_broker(Base) ->
     BuildRoot = filename:join(Base, "build"),
-    0 = built(["--source-root", "../examples", "--build-root", BuildRoot,
-               "../examples/lease_broker.ern"]),
+    0 = ern_harness:built(["--source-root", "../examples", "--build-root", BuildRoot,
+                           "../examples/lease_broker.ern"]),
     Program = filename:join(BuildRoot, "lease_broker.erc"),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    lists(B, [{"a", A, none}]),
-    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
-                              Program]),
-    PortB = bound_port(B),
-    lists(A, [{"b", B, PortB}]),
-    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"leases">> => [<<"b">>]}} end),
-    prints(B, "offered"),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --main visit ",
-                              Program]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    {_, WaitB} = ern_harness:launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
+                                          Program]),
+    PortB = ern_harness:bound_port(B),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"leases">> => [<<"b">>]}} end),
+    ern_harness:prints(B, "offered"),
+    {_, WaitA} = ern_harness:launched(A, [?ERN, " run --config-dir ", A, " --main visit ",
+                                          Program]),
     ?assertEqual(0, WaitA()),
-    prints(B, "the broker took back 2 from bob: Restarted"),
-    prints(B, "the broker took back 1 from ann: ProgramEnd"),
-    stop(B, WaitB),
-    {OutA, ErrA} = said(A),
-    {OutB, ErrB} = said(B),
+    ern_harness:prints(B, "the broker took back 2 from bob: Restarted"),
+    ern_harness:prints(B, "the broker took back 1 from ann: ProgramEnd"),
+    ern_harness:stop(B, WaitB),
+    {OutA, ErrA} = ern_harness:said(A),
+    {OutB, ErrB} = ern_harness:said(B),
     Shown = fun(Command) -> ern_integration_tests:shown("lease_broker.ern", Command) end,
     ?assertEqual(Shown("ern run --config-dir a --main visit lease_broker.erc")
                      -- [<<"listening on 0.0.0.0:8654">>],
@@ -9351,7 +8665,7 @@ lease_broker(Base) ->
 %% by reading its utilizations at each interval, so that the telling's
 %% coming within one interval is held by no time here
 placed_test_() ->
-    nodes_test({waits, 7}, fun placed/1).
+    ern_harness:nodes_test({waits, 7}, fun placed/1).
 
 placed(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -9359,28 +8673,28 @@ placed(Base) ->
     %% how often the store and the desk tell their utilizations, which the
     %% desk waits one of before its pick: the scenario's, and no bound
     Interval = 200,
-    [edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end)
+    [ern_harness:edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end)
      || Dir <- [Store, Desk]],
-    edit(Store, fun(Conf) ->
-                    Conf#{<<"measures">> => #{<<"cpu">> => #{}, <<"memory">> => #{},
-                                              <<"disk">> => #{}}}
-                end),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    ?assertEqual(0, (start(Desk, DeskProgram, ["place", integer_to_list(Interval)]))()),
-    prints(Store, "readings there"),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    {StoreOut, StoreErr} = said(Store),
+    ern_harness:edit(Store, fun(Conf) ->
+                                Conf#{<<"measures">> => #{<<"cpu">> => #{}, <<"memory">> => #{},
+                                                          <<"disk">> => #{}}}
+                            end),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    ?assertEqual(0, (ern_harness:start(Desk, DeskProgram, ["place", integer_to_list(Interval)]))()),
+    ern_harness:prints(Store, "readings there"),
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    {StoreOut, StoreErr} = ern_harness:said(Store),
     %% report §12.5: the host's own reports are not written; a regression:
     %% the program the host runs for the cpu measure said, as the host
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
-    [has(Out, Line)
+    [ern_harness:has(Out, Line)
      || Line <- ["before a telling: Left(Io.Unreachable)", "readings: Right",
                  "computed: Right([\"desk\", \"third\"])", "held: [\"store\"]",
                  "readings here: #(false, false, false)"]],
-    has(StoreOut, "readings there: #(true, true, true)").
+    ern_harness:has(StoreOut, "readings there: #(true, true, true)").
 
 %% The program of three nodes of one build, each started with its name, and
 %% of a node that lists no peer, built in Base: the `.erc`.
@@ -9454,8 +8768,8 @@ pick_build(Base) ->
              "        _ -> waits()\n"
              "    }\n",
     ok = file:write_file(filename:join(Dir, "pick.ern"),
-                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
-    0 = built([Dir]),
+                         unicode:characters_to_binary([Source, ern_harness:wait_ms_declaration()])),
+    0 = ern_harness:built([Dir]),
     filename:join(Dir, "pick.erc").
 
 %% report §8.7, Appendix E.27, C: three nodes telling each other every
@@ -9480,43 +8794,44 @@ pick_build(Base) ->
 %% no time here, and the draw among more than two peers and the age of a
 %% utilization are ern_peer_tests'
 pick_test_() ->
-    nodes_test({waits, 11}, fun pick/1).
+    ern_harness:nodes_test({waits, 11}, fun pick/1).
 
 pick(Base) ->
     Program = pick_build(Base),
-    {Port1, Port2} = {free_port(), free_port()},
-    S = made(Base, "s", none),
-    P1 = made(Base, "p1", Port1),
-    P2 = made(Base, "p2", Port2),
-    Alone = made(Base, "alone", none),
+    {Port1, Port2} = {ern_harness:free_port(), ern_harness:free_port()},
+    S = ern_harness:made(Base, "s", none),
+    P1 = ern_harness:made(Base, "p1", Port1),
+    P2 = ern_harness:made(Base, "p2", Port2),
+    Alone = ern_harness:made(Base, "alone", none),
     %% how often p1 and p2 tell, which the spawner waits one of for each,
     %% and how often the spawner does, by which their utilizations would be
     %% too old: the scenario's, and no bound
     {Interval, SpawnersInterval} = {200, 20},
-    lists(S, [{"p1", P1, Port1}, {"p2", P2, Port2}]),
-    [lists(Dir, [{"s", S, none}]) || Dir <- [P1, P2]],
-    [edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Ms} end)
+    ern_harness:lists(S, [{"p1", P1, Port1}, {"p2", P2, Port2}]),
+    [ern_harness:lists(Dir, [{"s", S, none}]) || Dir <- [P1, P2]],
+    [ern_harness:edit(Dir, fun(Conf) -> Conf#{<<"utilization-interval">> => Ms} end)
      || {Dir, Ms} <- [{S, SpawnersInterval}, {P1, Interval}, {P2, Interval}]],
-    Wait1 = start(P1, Program, ["p1"]),
-    Wait2 = start(P2, Program, ["p2"]),
-    [prints(Dir, "waiting") || Dir <- [P1, P2]],
-    {SPort, WaitS} = started(S, Program, ["s", integer_to_list(Interval)]),
-    prints(S, "now stop p2"),
-    stop(P2, Wait2),
-    says(S, "the peer p2 ended"),
+    Wait1 = ern_harness:start(P1, Program, ["p1"]),
+    Wait2 = ern_harness:start(P2, Program, ["p2"]),
+    [ern_harness:prints(Dir, "waiting") || Dir <- [P1, P2]],
+    {SPort, WaitS} = ern_harness:started(S, Program, ["s", integer_to_list(Interval)]),
+    ern_harness:prints(S, "now stop p2"),
+    ern_harness:stop(P2, Wait2),
+    ern_harness:says(S, "the peer p2 ended"),
     true = port_command(SPort, "go\n"),
     ?assertEqual(0, WaitS()),
-    stop(P1, Wait1),
-    ?assertEqual(0, (start(Alone, Program, ["alone"]))()),
-    {Out, _} = said(S),
-    [has(Out, Line)
+    ern_harness:stop(P1, Wait1),
+    ?assertEqual(0, (ern_harness:start(Alone, Program, ["alone"]))()),
+    {Out, _} = ern_harness:said(S),
+    [ern_harness:has(Out, Line)
      || Line <- ["before a telling: Left(Io.Unreachable)", "p1 set: Right(Unit)",
                  "p2 set: Right(Unit)", "utilizations: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
                  "utilization of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
                  "named: Right([\"p1\"])", "after the loss: [\"p1\"]",
                  "computed alone: Right([\"p1\"])"]],
-    {AloneOut, _} = said(Alone),
-    [has(AloneOut, Line) || Line <- ["no peer: Left(Io.NotListed)", "no utilization: []"]].
+    {AloneOut, _} = ern_harness:said(Alone),
+    [ern_harness:has(AloneOut, Line) || Line <- ["no peer: Left(Io.NotListed)",
+                                                 "no utilization: []"]].
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
@@ -9536,16 +8851,16 @@ pick(Base) ->
 %% reload, whose end a program cannot see (§12.5: the signal carries
 %% nothing back)
 program_test_() ->
-    nodes_test({waits, 30}, fun pair_program/1).
+    ern_harness:nodes_test({waits, 30}, fun pair_program/1).
 
 pair_program(Base) ->
     _ = peers(Base),
     second_build(Base),
-    {PortA, PortB} = {free_port(), free_port()},
-    A = made(Base, "a", PortA),
-    B = made(Base, "b", none),
-    lists(A, [{"b", B, PortB}]),
-    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"pair">> => [<<"b">>]}} end),
+    {PortA, PortB} = {ern_harness:free_port(), ern_harness:free_port()},
+    A = ern_harness:made(Base, "a", PortA),
+    B = ern_harness:made(Base, "b", none),
+    ern_harness:lists(A, [{"b", B, PortB}]),
+    ern_harness:edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"pair">> => [<<"b">>]}} end),
     Settings = #{<<"port">> => PortB,
                  <<"build">> => <<"build/pair.erc">>,
                  <<"second-build">> => <<"second-build/pair.erc">>},
@@ -9562,16 +8877,19 @@ pair_program(Base) ->
     %% `ern config` prints and the file written before it, its stop and its
     %% end; a find and a call in the first, a find in the second, and in the
     %% third two calls through the proxy and the wait for the proxy's end
-    {Status, Output} = collected(Port, 28),
+    {Status, Output} = ern_harness:collected(Port, 28),
     %% no case failed, and the job's count of its cases says so (report §11.2)
     ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<": failed">>)}),
-    has(binary_to_list(Output), "3 cases, 0 failed\n"),
-    has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"
-                                " passed"),
-    has(binary_to_list(Output), "a second node of another build, started with Os, offers at another"
-                                " type: passed"),
-    has(binary_to_list(Output), "a proxy for a service offered at another type faults, and is"
-                                " dead: passed"),
+    ern_harness:has(binary_to_list(Output), "3 cases, 0 failed\n"),
+    ern_harness:has(binary_to_list(Output),
+                    "a second node made, started with Os, found, called and stopped:"
+                    " passed"),
+    ern_harness:has(binary_to_list(Output),
+                    "a second node of another build, started with Os, offers at another"
+                    " type: passed"),
+    ern_harness:has(binary_to_list(Output),
+                    "a proxy for a service offered at another type faults, and is"
+                    " dead: passed"),
     ?assertMatch({match, _}, re:run(Output, "the process of Proxy\\.start:[0-9]+ faulted: the"
                                             " service pair is offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
@@ -9588,8 +8906,9 @@ second_build(Base) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "pair.ern"), Changed),
     {ok, _} = file:copy("fixtures/peers/harness.ern", filename:join(Root, "harness.ern")),
-    0 = built(["--source-root", Root, "--build-root", filename:join(Base, "second-build"),
-               Root]).
+    0 = ern_harness:built(["--source-root", Root, "--build-root",
+                           filename:join(Base, "second-build"),
+                           Root]).
 
 %% A command run by /bin/sh to its end, as a person runs it: its status,
 %% and what it wrote on its standard output, its standard error among it
@@ -9606,55 +8925,22 @@ begun(Command) ->
     Port = open_port({spawn_executable, "/bin/sh"},
                      [{args, ["-c", lists:flatten(Command)]}, exit_status, binary]),
     fun() ->
-        {Status, Said} = collected(Port, 1),
+        {Status, Said} = ern_harness:collected(Port, 1),
         {Status, binary_to_list(Said)}
     end.
 
 %% What a port the test opened writes next, or none where it writes nothing
 %% within the harness's time for one wait: one step.
 output(Port) ->
-    step({output, Port}),
+    ern_harness:step({output, Port}),
     receive {Port, {data, Data}} -> Data after ?WAIT_MS -> none end.
-
-%% A port's output to its end, and its exit status, within Steps steps,
-%% each given the harness's time for one wait: one, or a run's own steps,
-%% which the harness cannot see. The port is opened with `binary` and
-%% `exit_status`; one that has not ended by then is closed with what it
-%% started (closed/1) and fails the test, naming what it wrote.
--spec collected(port(), pos_integer()) -> {integer(), binary()}.
-collected(Port, Steps) ->
-    step({collected, Port}, Steps),
-    collected(Port, <<>>, erlang:monotonic_time(millisecond) + Steps * ?WAIT_MS).
-
-collected(Port, Acc, Deadline) ->
-    receive
-        {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>, Deadline);
-        {Port, {exit_status, Status}} -> {Status, Acc}
-    after max(Deadline - erlang:monotonic_time(millisecond), 0) ->
-        closed(Port),
-        erlang:error({still_running, Port, Acc})
-    end.
-
-%% A port the test opened closed, its process killed first with each process
-%% of its group, which the host makes for that process alone: closing the
-%% port alone leaves a command that does not read its input running past
-%% its test and the run. The kill can close the port first, as its process
-%% ends. A node leaves the group, and is the test's cleanup's (killed/1).
--spec closed(port()) -> ok.
-closed(Port) ->
-    case erlang:port_info(Port, os_pid) of
-        {os_pid, Number} -> _ = os:cmd("kill -KILL -" ++ integer_to_list(Number));
-        undefined -> ok
-    end,
-    try port_close(Port) catch error:badarg -> true end,
-    ok.
 
 %% The process number in a node's ernest.pid.
 pid(Dir) ->
     {ok, Text} = file:read_file(filename:join(Dir, "ernest.pid")),
     string:trim(binary_to_list(Text)).
 
-%% report §8.7, §12.6, the proposal's sections 4, 7 and 8: a peer stopped stands
+%% report §8.7, §10, §12.6: a peer stopped stands
 %% for a silent one. Before the silence ten thousand messages arrive, none
 %% lost and none twice; the detector gives the peer up within 45 to 75
 %% seconds of its last word, the monitor on its process giving one Down,
@@ -9665,26 +8951,26 @@ pid(Dir) ->
 %% here that is a time is the detector's own, which the test reads and
 %% does not choose
 silence_test_() ->
-    nodes_test({waits, 8, ?DETECTOR_MS}, fun silence/1).
+    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS}, fun silence/1).
 
 silence(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["silence"]),
-    prints(Desk, "now stop the store"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["silence"]),
+    ern_harness:prints(Desk, "now stop the store"),
     _ = os:cmd("kill -STOP " ++ pid(Store)),
     true = port_command(DeskPort, "go\n"),
     %% the desk's word comes once the detector has given the store up
-    prints(Desk, "now let the store run", ?WAIT_MS + ?DETECTOR_MS),
+    ern_harness:prints(Desk, "now let the store run", ?WAIT_MS + ?DETECTOR_MS),
     _ = os:cmd("kill -CONT " ++ pid(Store)),
-    says(Store, "the peer desk was lost"),
+    ern_harness:says(Store, "the peer desk was lost"),
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {Out, _} = said(Desk),
-    [has(Out, Line)
+    ern_harness:stop(Store, WaitStore),
+    {Out, _} = ern_harness:said(Desk),
+    [ern_harness:has(Out, Line)
      || Line <- ["counted: Some(10000)", "silent: Unreachable \"\"", "the call: None",
                  "its caller: Returned", "its forever caller: Fault(\"callee is unreachable\")",
                  "own process: Some(0)", "again: Some(10000)"]],
@@ -9765,14 +9051,15 @@ listen_port(Dir) ->
 
 %% Dir dials the peer of that name at the loopback's port.
 readdressed(Dir, Name, Port) ->
-    edit(Dir, fun(#{<<"peers">> := Peers} = Conf) ->
-                  Conf#{<<"peers">> := [case Peer of
-                                            #{<<"name">> := Name} ->
-                                                Peer#{<<"network-address">> => address(Port)};
-                                            _ ->
-                                                Peer
-                                        end || Peer <- Peers]}
-              end).
+    ern_harness:edit(Dir, fun(#{<<"peers">> := Peers} = Conf) ->
+                              Conf#{<<"peers">> := [case Peer of
+                                                        #{<<"name">> := Name} ->
+                                                            Peer#{<<"network-address">> =>
+                                                                      ern_harness:address(Port)};
+                                                        _ ->
+                                                            Peer
+                                                    end || Peer <- Peers]}
+                          end).
 
 %% A listener on the loopback that takes connections and answers nothing.
 answers_nothing() ->
@@ -9807,72 +9094,73 @@ listened(Dir) ->
     [_, Port] = string:split(maps:get(<<"listen">>, json:decode(Text)), <<":">>, trailing),
     binary_to_integer(Port).
 
-%% report §8.7, the proposal's sections 4 and 8: a network parted through
+%% report §8.7, §12.6: a network parted through
 %% a proxy that drops what passes from the desk to the store: the store,
 %% hearing nothing, gives the desk up within the detector's time and closes
 %% the connection, so that the desk learns of the loss too, and what the
 %% silence test holds of a loss holds; the proxy healed, the address reaches
 %% its process again. A regression test, written after the code
 parted_one_way_test_() ->
-    nodes_test({waits, 8, ?DETECTOR_MS}, fun(Base) -> parted(Base, true, false, "closed") end).
+    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS},
+                           fun(Base) -> parted(Base, true, false, "closed") end).
 
-%% report §8.7, the proposal's sections 4 and 8: the same, the proxy
+%% report §8.7, §12.6: the same, the proxy
 %% dropping what passes both ways, so that each node gives the other up by
 %% its own detector. A regression test, written after the code
 parted_both_ways_test_() ->
-    nodes_test({waits, 8, ?DETECTOR_MS},
-               fun(Base) -> parted(Base, true, true, "fell silent") end).
+    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS},
+                           fun(Base) -> parted(Base, true, true, "fell silent") end).
 
 parted(Base, ToStore, FromStore, DeskSays) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
     {ProxyPort, Proxy} = proxy(listen_port(Store)),
     readdressed(Desk, <<"store">>, ProxyPort),
-    WaitStore = start(Store, StoreProgram, []),
-    prints(Store, "offered"),
-    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["silence"]),
-    prints(Desk, "now stop the store"),
+    WaitStore = ern_harness:start(Store, StoreProgram, []),
+    ern_harness:prints(Store, "offered"),
+    {DeskPort, WaitDesk} = ern_harness:started(Desk, DeskProgram, ["silence"]),
+    ern_harness:prints(Desk, "now stop the store"),
     Proxy ! {drop, ToStore, FromStore},
     true = port_command(DeskPort, "go\n"),
     %% the desk's word comes once a detector has given a node up
-    prints(Desk, "now let the store run", ?WAIT_MS + ?DETECTOR_MS),
+    ern_harness:prints(Desk, "now let the store run", ?WAIT_MS + ?DETECTOR_MS),
     Proxy ! heal,
     true = port_command(DeskPort, "go\n"),
     ?assertEqual(0, WaitDesk()),
-    stop(Store, WaitStore),
-    {Out, Err} = said(Desk),
-    {_, StoreErr} = said(Store),
-    [has(Out, Line)
+    ern_harness:stop(Store, WaitStore),
+    {Out, Err} = ern_harness:said(Desk),
+    {_, StoreErr} = ern_harness:said(Store),
+    [ern_harness:has(Out, Line)
      || Line <- ["counted: Some(10000)", "silent: Unreachable \"\"", "the call: None",
                  "its forever caller: Fault(\"callee is unreachable\")", "own process: Some(0)",
                  "again: Some(10000)"]],
-    has(StoreErr, "the peer desk was lost: it fell silent"),
-    has(Err, "the peer store was lost: it " ++ DeskSays),
+    ern_harness:has(StoreErr, "the peer desk was lost: it fell silent"),
+    ern_harness:has(Err, "the peer store was lost: it " ++ DeskSays),
     given_up_within_the_detectors_time(Out).
 
-%% report §8.7, the proposal's section 7: a dial that nothing answers, to a
+%% report §8.7: a dial that nothing answers, to a
 %% listener that takes the connection and says nothing, is given up after
 %% the host's 7 seconds, and a find on that peer answers Unreachable, not
 %% Timeout, though its time is longer. A regression test, written after the
 %% code
 dial_test_() ->
-    nodes_test({waits, 3, ?DIAL_MS}, fun dial/1).
+    ern_harness:nodes_test({waits, 3, ?DIAL_MS}, fun dial/1).
 
 dial(Base) ->
     {_, DeskProgram} = peers(Base),
     {_, Desk} = store_and_desk(Base),
     readdressed(Desk, <<"store">>, answers_nothing()),
     %% the desk ends once the host has given its dial up
-    {Port, _} = started(Desk, DeskProgram, ["dial"]),
-    ?assertEqual(0, ended(Port, ?WAIT_MS + ?DIAL_MS)),
-    {Out, _} = said(Desk),
+    {Port, _} = ern_harness:started(Desk, DeskProgram, ["dial"]),
+    ?assertEqual(0, ern_harness:ended(Port, ?WAIT_MS + ?DIAL_MS)),
+    {Out, _} = ern_harness:said(Desk),
     {match, [Seconds]} = re:run(Out, "dialed: Left\\(Io\\.Unreachable\\) after ([0-9]+)",
                                 [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Seconds) >= 6),
     ?assert(list_to_integer(Seconds) =< 9).
 
 %% The seconds the desk says the detector took, held to the detector's 45 to
-%% 75 (the proposal's section 7): no fewer than 44, the desk counting whole
+%% 75 (report §12.6): no fewer than 44, the desk counting whole
 %% seconds from just after the silence began, and no more than 80, the 75
 %% and the test's own steps around it, the desk's read of its standard input
 %% and the three Downs it waits for.
@@ -9889,20 +9177,20 @@ given_up_within_the_detectors_time(Out) ->
 %% message in its buffer whole or a part at a time, which the sender's wait
 %% does not tell apart, nor a message larger than the peer's host can take
 above_the_buffer_test_() ->
-    nodes_test({waits, 8}, fun above_the_buffer/1).
+    ern_harness:nodes_test({waits, 8}, fun above_the_buffer/1).
 
 above_the_buffer(Base) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    WaitDesk = start(Desk, Program, ["above"]),
-    prints(Desk, "the host says the send waited"),
-    prints(Store, "took the next"),
-    stop(Desk, WaitDesk),
-    stop(Store, WaitStore),
-    {DeskOut, _} = said(Desk),
-    {StoreOut, _} = said(Store),
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    WaitDesk = ern_harness:start(Desk, Program, ["above"]),
+    ern_harness:prints(Desk, "the host says the send waited"),
+    ern_harness:prints(Store, "took the next"),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Store, WaitStore),
+    {DeskOut, _} = ern_harness:said(Desk),
+    {StoreOut, _} = ern_harness:said(Store),
     ?assertEqual(["sent 16777216 bytes", "sent the next", "the host says the send waited", ""],
                  string:split(DeskOut, "\n", all)),
     ?assertEqual(["offered", "took 16777216 bytes, whole: true", "took the next", ""],
@@ -9929,31 +9217,31 @@ above_the_buffer(Base) ->
 %% a spawn that waits so, nor a system process of the desk's that sends to
 %% the store meanwhile
 wait_ended_by_a_loss_test_() ->
-    nodes_test({waits, 8, ?DETECTOR_MS}, fun wait_ended_by_a_loss/1).
+    ern_harness:nodes_test({waits, 8, ?DETECTOR_MS}, fun wait_ended_by_a_loss/1).
 
 wait_ended_by_a_loss(Base) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["wait"]),
-    prints(Desk, "found"),
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["wait"]),
+    ern_harness:prints(Desk, "found"),
     StoreNumber = pid(Store),
     _ = os:cmd("kill -STOP " ++ StoreNumber),
     try
         true = port_command(DeskInput, "go\n"),
-        prints(Desk, "the host says the sender waits in a send"),
+        ern_harness:prints(Desk, "the host says the sender waits in a send"),
         %% the desk's word comes once the loss has ended the wait, its
         %% numbers the summary's last line
-        prints(Desk, "given up after: ", ?WAIT_MS + ?DETECTOR_MS),
-        says(Desk, "the peer store was lost: it fell silent"),
-        Out = written(Desk, out),
+        ern_harness:prints(Desk, "given up after: ", ?WAIT_MS + ?DETECTOR_MS),
+        ern_harness:says(Desk, "the peer store was lost: it fell silent"),
+        Out = ern_harness:written(Desk, out),
         [Returned, During] = [list_to_integer(Count)
                               || Part <- ["returned before the wait", "served after it"],
                                  {match, [Count]} <- [re:run(Out, Part ++ ": ([0-9]+)",
                                                              [{capture, all_but_first, list}])]],
         ?assert(Returned * 262144 > 1048576),
-        has(Out, "the sender went on after send " ++ integer_to_list(Returned + 1)),
+        ern_harness:has(Out, "the sender went on after send " ++ integer_to_list(Returned + 1)),
         ?assert(During >= 1),
         {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)",
                                     [{capture, all_but_first, list}]),
@@ -9965,7 +9253,7 @@ wait_ended_by_a_loss(Base) ->
     after
         os:cmd("kill -CONT " ++ StoreNumber)
     end,
-    stop(Store, WaitStore).
+    ern_harness:stop(Store, WaitStore).
 
 %% report Appendix E.27, §8.7: where more waits to be sent to the peer than
 %% §8.7 states, a spawn waits as a send waits, before its wait for the peer
@@ -9984,7 +9272,8 @@ wait_ended_by_a_loss(Base) ->
 %% does not cover a find, a compute or a utilization, which send the same
 %% way, nor a spawn whose wait the peer ends by running again.
 spawn_waits_in_its_send_test_() ->
-    nodes_test({waits, 7, ?DETECTOR_MS}, fun(Base) -> waited_in_its_send(Base, "spawn") end).
+    ern_harness:nodes_test({waits, 7, ?DETECTOR_MS},
+                           fun(Base) -> waited_in_its_send(Base, "spawn") end).
 
 %% report §6.6, §8.7: where more waits to be sent to the callee's node than
 %% §8.7 states, a call waits as a send waits there, before its wait for the
@@ -10003,7 +9292,8 @@ spawn_waits_in_its_send_test_() ->
 %% and so ends at the loss whether or not a send of its waited, nor a call
 %% whose wait the callee's node ends by running again.
 call_waits_in_its_send_test_() ->
-    nodes_test({waits, 7, ?DETECTOR_MS}, fun(Base) -> waited_in_its_send(Base, "call") end).
+    ern_harness:nodes_test({waits, 7, ?DETECTOR_MS},
+                           fun(Base) -> waited_in_its_send(Base, "call") end).
 
 %% The store stopped and the desk's sender waiting, the desk's ask of the
 %% store, Ask a spawn or a call given a second, which says what it answered
@@ -10011,21 +9301,21 @@ call_waits_in_its_send_test_() ->
 waited_in_its_send(Base, Ask) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    {DeskInput, WaitDesk} = started(Desk, Program, [Ask]),
-    prints(Desk, "found"),
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, [Ask]),
+    ern_harness:prints(Desk, "found"),
     StoreNumber = pid(Store),
     _ = os:cmd("kill -STOP " ++ StoreNumber),
     try
         true = port_command(DeskInput, "go\n"),
         %% the desk's word comes once the loss has ended the ask's wait
-        prints(Desk, "the " ++ Ask ++ " took: ", ?WAIT_MS + ?DETECTOR_MS),
-        says(Desk, "the peer store was lost: it fell silent"),
-        Out = written(Desk, out),
+        ern_harness:prints(Desk, "the " ++ Ask ++ " took: ", ?WAIT_MS + ?DETECTOR_MS),
+        ern_harness:says(Desk, "the peer store was lost: it fell silent"),
+        Out = ern_harness:written(Desk, out),
         %% a spawn's `Timeout` or `Unreachable`, by which signal waited, and
         %% a call's `None`
-        has(Out, "the " ++ Ask ++ " answered: " ++ answered_in_the_wait(Ask)),
+        ern_harness:has(Out, "the " ++ Ask ++ " answered: " ++ answered_in_the_wait(Ask)),
         [Began, Took] = [list_to_integer(Ms)
                          || Part <- [" began after", " took"],
                             {match, [Ms]} <- [re:run(Out, "the " ++ Ask ++ Part ++ ": ([0-9]+) ms",
@@ -10041,7 +9331,7 @@ waited_in_its_send(Base, Ask) ->
     after
         os:cmd("kill -CONT " ++ StoreNumber)
     end,
-    stop(Store, WaitStore).
+    ern_harness:stop(Store, WaitStore).
 
 answered_in_the_wait("spawn") -> "Left(Io.";
 answered_in_the_wait("call") -> "None".
@@ -10060,7 +9350,7 @@ answered_in_the_wait("call") -> "None".
 %% nor a telling or an answer behind a dial, nor the runtime's other
 %% processes that serve more than one peer.
 gateway_waits_on_no_peer_test_() ->
-    nodes_test({waits, 10}, fun gateway_waits_on_no_peer/1).
+    ern_harness:nodes_test({waits, 10}, fun gateway_waits_on_no_peer/1).
 
 gateway_waits_on_no_peer(Base) ->
     Program = buffer_build(Base),
@@ -10069,33 +9359,34 @@ gateway_waits_on_no_peer(Base) ->
     %% node waits one of between its reads of its utilizations: the
     %% scenario's, and no bound
     Interval = 200,
-    edit(Desk, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    {ThirdInput, WaitThird} = started(Third, Program, ["third", integer_to_list(Interval)]),
-    prints(Third, "ready"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["gateway"]),
-    prints(Desk, "found"),
+    ern_harness:edit(Desk, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    {ThirdInput, WaitThird} = ern_harness:started(Third, Program,
+                                                  ["third", integer_to_list(Interval)]),
+    ern_harness:prints(Third, "ready"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["gateway"]),
+    ern_harness:prints(Desk, "found"),
     StoreNumber = pid(Store),
     _ = os:cmd("kill -STOP " ++ StoreNumber),
     try
         true = port_command(DeskInput, "go\n"),
-        prints(Desk, "the host says the sender waits in a send"),
+        ern_harness:prints(Desk, "the host says the sender waits in a send"),
         true = port_command(ThirdInput, "go\n"),
-        prints(Third, "utilization: "),
+        ern_harness:prints(Third, "utilization: "),
         true = port_command(DeskInput, "go\n"),
-        prints(Desk, "spawned on the third: "),
-        ThirdOut = written(Third, out),
-        [has(ThirdOut, Line)
+        ern_harness:prints(Desk, "spawned on the third: "),
+        ThirdOut = ern_harness:written(Third, out),
+        [ern_harness:has(ThirdOut, Line)
          || Line <- ["the desk told after its sender waited", "found: Right(",
                      "utilization: Right("]],
-        has(written(Desk, out), "spawned on the third: Right(")
+        ern_harness:has(ern_harness:written(Desk, out), "spawned on the third: Right(")
     after
         os:cmd("kill -CONT " ++ StoreNumber)
     end,
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §6.9, §8.7: a kill waits on no peer. The desk's connection to the
 %% store held back, so that nothing leaves the host's buffer for the store
@@ -10109,24 +9400,25 @@ gateway_waits_on_no_peer(Base) ->
 %% nor the kill of a compute's process, whose note goes the same way, nor a
 %% peer that is stopped, whose wait the kernel's buffers put off.
 killer_waits_on_no_peer_test_() ->
-    nodes_test({waits, 9}, fun killer_waits_on_no_peer/1).
+    ern_harness:nodes_test({waits, 9}, fun killer_waits_on_no_peer/1).
 
 killer_waits_on_no_peer(Base) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["kill"]),
-    prints(Desk, "found"),
-    prints(Store, "holds a call"),
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["kill"]),
+    ern_harness:prints(Desk, "found"),
+    ern_harness:prints(Store, "holds a call"),
     true = port_command(DeskInput, "go\n"),
-    prints(Desk, "the host says the sender waits in a send"),
-    prints(Desk, "the caller ended: "),
-    prints(Desk, "the idle process ended: "),
-    Out = written(Desk, out),
-    [has(Out, Line) || Line <- ["the caller ended: Killed", "the idle process ended: Killed"]],
-    stop(Desk, WaitDesk),
-    stop(Store, WaitStore).
+    ern_harness:prints(Desk, "the host says the sender waits in a send"),
+    ern_harness:prints(Desk, "the caller ended: "),
+    ern_harness:prints(Desk, "the idle process ended: "),
+    Out = ern_harness:written(Desk, out),
+    [ern_harness:has(Out, Line) || Line <- ["the caller ended: Killed",
+                                            "the idle process ended: Killed"]],
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §6.9, §8.7: the reaper waits on no peer. The desk's connection to
 %% the store held back and a sender of the desk's waiting in a send to it,
@@ -10138,13 +9430,13 @@ killer_waits_on_no_peer(Base) ->
 %% cover the reaper's second note of a call, which it sends for a caller
 %% the host ended, nor its answer to a compute's caller.
 reaper_waits_on_no_peer_in_a_monitor_test_() ->
-    nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "monitor") end).
+    ern_harness:nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "monitor") end).
 
 %% report §6.9, §8.7: the same, the ask the end of a monitor of the store's
 %% sink that the process made while the connection ran. A regression test,
 %% with what the monitor's does not cover.
 reaper_waits_on_no_peer_in_a_demonitor_test_() ->
-    nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "demonitor") end).
+    ern_harness:nodes_test({waits, 7}, fun(Base) -> reaper_waited(Base, "demonitor") end).
 
 %% The desk's ask of the reaper, Ask a monitor or a demonitor of the store's
 %% sink, and the Down of the process the desk spawns once the reaper has
@@ -10152,15 +9444,15 @@ reaper_waits_on_no_peer_in_a_demonitor_test_() ->
 reaper_waited(Base, Ask) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    WaitDesk = start(Desk, Program, [Ask]),
-    prints(Desk, "found"),
-    prints(Desk, "the host says the sender waits in a send"),
-    prints(Desk, "the local process ended: "),
-    has(written(Desk, out), "the local process ended: Returned"),
-    stop(Desk, WaitDesk),
-    stop(Store, WaitStore).
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    WaitDesk = ern_harness:start(Desk, Program, [Ask]),
+    ern_harness:prints(Desk, "found"),
+    ern_harness:prints(Desk, "the host says the sender waits in a send"),
+    ern_harness:prints(Desk, "the local process ended: "),
+    ern_harness:has(ern_harness:written(Desk, out), "the local process ended: Returned"),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §12.7, §8.7: the exchange waits on no peer. The store and the
 %% third node bare, the desk spawns the store's sink there, its code
@@ -10175,23 +9467,23 @@ reaper_waited(Base, Ask) ->
 %% exchange's other frames, the lacks and a code frame, nor a spawn's
 %% answer the exchange gives, which wait the same way.
 exchange_waits_on_no_peer_test_() ->
-    nodes_test({waits, 9}, fun exchange_waits_on_no_peer/1).
+    ern_harness:nodes_test({waits, 9}, fun exchange_waits_on_no_peer/1).
 
 exchange_waits_on_no_peer(Base) ->
     Program = buffer_build(Base),
     {Store, Desk, Third} = buffer_nodes_and_third(Base),
-    WaitStore = bare_started(Store, []),
-    says(Store, "listening on "),
-    WaitThird = bare_started(Third, []),
-    says(Third, "listening on "),
-    WaitDesk = start(Desk, Program, ["exchange"]),
-    prints(Desk, "the store asked"),
-    prints(Desk, "the host says the sender waits in a send"),
-    prints(Desk, "spawned on the third: "),
-    has(written(Desk, out), "spawned on the third: Right("),
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    WaitStore = ern_harness:bare_started(Store, []),
+    ern_harness:says(Store, "listening on "),
+    WaitThird = ern_harness:bare_started(Third, []),
+    ern_harness:says(Third, "listening on "),
+    WaitDesk = ern_harness:start(Desk, Program, ["exchange"]),
+    ern_harness:prints(Desk, "the store asked"),
+    ern_harness:prints(Desk, "the host says the sender waits in a send"),
+    ern_harness:prints(Desk, "spawned on the third: "),
+    ern_harness:has(ern_harness:written(Desk, out), "spawned on the third: Right("),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report Appendix E.21, §8.7: a process the host holds in a send to
 %% another node that takes no more is Suspended. The desk's connection to
@@ -10205,20 +9497,21 @@ exchange_waits_on_no_peer(Base) ->
 %% is stopped, whose wait the kernel's buffers put off, nor the sender once
 %% the connection is let go.
 sender_held_in_its_send_test_() ->
-    nodes_test({waits, 7}, fun sender_held_in_its_send/1).
+    ern_harness:nodes_test({waits, 7}, fun sender_held_in_its_send/1).
 
 sender_held_in_its_send(Base) ->
     Program = buffer_build(Base),
     {Store, Desk} = buffer_nodes(Base),
-    WaitStore = start(Store, Program, ["sink"]),
-    prints(Store, "offered"),
-    WaitDesk = start(Desk, Program, ["status"]),
-    prints(Desk, "found"),
-    prints(Desk, "the host says the sender waits in a send"),
-    prints(Desk, "the sender's activity: "),
-    has(written(Desk, out), "the sender's activity: Some(Process.Suspended)"),
-    stop(Desk, WaitDesk),
-    stop(Store, WaitStore).
+    WaitStore = ern_harness:start(Store, Program, ["sink"]),
+    ern_harness:prints(Store, "offered"),
+    WaitDesk = ern_harness:start(Desk, Program, ["status"]),
+    ern_harness:prints(Desk, "found"),
+    ern_harness:prints(Desk, "the host says the sender waits in a send"),
+    ern_harness:prints(Desk, "the sender's activity: "),
+    ern_harness:has(ern_harness:written(Desk, out),
+                    "the sender's activity: Some(Process.Suspended)"),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §6.9, §6.6, §8.7, §12.2: the answer to a call is not overtaken by
 %% the callee's Down. A caller of the store's waits on the desk's callee.
@@ -10241,17 +9534,19 @@ sender_held_in_its_send(Base) ->
 %% which reads the same Down, nor a callee that faults or ends with its
 %% program while its answer waits.
 answer_behind_the_buffer_test_() ->
-    nodes_test({waits, 6},
-               fun(Base) -> answered_and_killed(Base, "small", "Some(8 bytes, whole: true)") end).
+    ern_harness:nodes_test({waits, 6},
+                           fun(Base) -> answered_and_killed(Base, "small",
+                                                            "Some(8 bytes, whole: true)") end).
 
 %% report §6.9, §6.6, §8.7, §12.2: the same, the callee's answer above the
 %% buffer and placed in part when the callee is killed. A regression test,
 %% with what the first does not cover.
 answer_above_the_buffer_test_() ->
-    nodes_test({waits, 6},
-               fun(Base) ->
-                   answered_and_killed(Base, "large", "Some(16777216 bytes, whole: true)")
-               end).
+    ern_harness:nodes_test({waits, 6},
+                           fun(Base) ->
+                               answered_and_killed(Base, "large",
+                                                   "Some(16777216 bytes, whole: true)")
+                           end).
 
 %% The desk's callee killed while its answer, Answer, waits, and what the
 %% store's caller got, Got.
@@ -10259,15 +9554,16 @@ answered_and_killed(Base, Answer, Got) ->
     Program = buffer_build(Base),
     {Store, Desk, _} = watched_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
-    WaitDesk = start(Desk, Program, ["answered", Answer]),
-    prints(Desk, "the callee ended: "),
-    prints(Store, "the store's caller got: "),
-    DeskOut = written(Desk, out),
-    [has(DeskOut, Line)
+    WaitDesk = ern_harness:start(Desk, Program, ["answered", Answer]),
+    ern_harness:prints(Desk, "the callee ended: "),
+    ern_harness:prints(Store, "the store's caller got: "),
+    DeskOut = ern_harness:written(Desk, out),
+    [ern_harness:has(DeskOut, Line)
      || Line <- ["the host says the callee waits in a send", "the callee ended: Killed"]],
-    has(written(Store, out), "the store's caller got: " ++ Got ++ " after "),
-    stop(Desk, WaitDesk),
-    stop(Store, WaitStore).
+    ern_harness:has(ern_harness:written(Store, out),
+                    "the store's caller got: " ++ Got ++ " after "),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §8.7, §6.9: a process that dies while what it sends waits to be
 %% placed has sent it, here one that dies with Killed, and the Downs its
@@ -10298,34 +9594,34 @@ answered_and_killed(Base, Answer, Got) ->
 %% than a kill; a node's end waits for no send, which end_waits_for_no_send
 %% holds (§8.6).
 killed_sender_has_sent_test_() ->
-    nodes_test({waits, 12}, fun killed_sender_has_sent/1).
+    ern_harness:nodes_test({waits, 12}, fun killed_sender_has_sent/1).
 
 killed_sender_has_sent(Base) ->
     Program = buffer_build(Base),
     {Store, Desk, Third} = watched_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
     WaitThird = offering(Third, Program, "watcher"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["sent"]),
-    prints(Desk, "the idle process ended: "),
-    prints(Third, "the third saw the idle process: "),
-    ThirdOut = written(Third, out),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["sent"]),
+    ern_harness:prints(Desk, "the idle process ended: "),
+    ern_harness:prints(Third, "the third saw the idle process: "),
+    ThirdOut = ern_harness:written(Third, out),
     [?assertEqual(nomatch, string:find(ThirdOut, "the third saw the " ++ Sender))
      || Sender <- ["large sender", "small sender"]],
-    has(ThirdOut, "the third saw the idle process: Killed"),
-    DeskOut = written(Desk, out),
-    [has(DeskOut, Line)
+    ern_harness:has(ThirdOut, "the third saw the idle process: Killed"),
+    DeskOut = ern_harness:written(Desk, out),
+    [ern_harness:has(DeskOut, Line)
      || Line <- ["the host says the large sender waits in a send",
                  "the host says the small sender waits in a send",
                  "the large sender ended: Killed", "the small sender ended: Killed",
                  "the idle process ended: Killed"]],
     true = port_command(DeskInput, "go\n"),
-    prints(Store, "took 16777216 bytes, whole: true"),
-    prints(Store, "took the next"),
-    prints(Third, "the third saw the large sender: Killed"),
-    prints(Third, "the third saw the small sender: Killed"),
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    ern_harness:prints(Store, "took 16777216 bytes, whole: true"),
+    ern_harness:prints(Store, "took the next"),
+    ern_harness:prints(Third, "the third saw the large sender: Killed"),
+    ern_harness:prints(Third, "the third saw the small sender: Killed"),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §8.7, §6.9: a Down that a death gives a watcher on another node
 %% may wait in the buffer for that node, and those of the same death for
@@ -10345,25 +9641,27 @@ killed_sender_has_sent(Base) ->
 %% Down waiting, which turns on the host's tree of the process's monitors
 %% (the log's *A Down Follows the Send*), nor a loss in place of the take.
 fault_down_behind_the_buffer_test_() ->
-    nodes_test({waits, 9}, fun fault_down_behind_the_buffer/1).
+    ern_harness:nodes_test({waits, 9}, fun fault_down_behind_the_buffer/1).
 
 fault_down_behind_the_buffer(Base) ->
     Program = buffer_build(Base),
     {Store, Desk, Third} = watched_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
     WaitThird = offering(Third, Program, "watcher"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["faulted"]),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["faulted"]),
     Faulted = "Fault(\"the faulting process faulted\")",
-    prints(Desk, "the faulting process ended: "),
-    has(written(Desk, out), "the faulting process ended: " ++ Faulted),
+    ern_harness:prints(Desk, "the faulting process ended: "),
+    ern_harness:has(ern_harness:written(Desk, out), "the faulting process ended: " ++ Faulted),
     true = port_command(DeskInput, "go\n"),
-    prints(Third, "the third saw the faulting process: "),
-    prints(Store, "the store saw the faulting process: "),
-    has(written(Third, out), "the third saw the faulting process: " ++ Faulted),
-    has(written(Store, out), "the store saw the faulting process: " ++ Faulted),
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    ern_harness:prints(Third, "the third saw the faulting process: "),
+    ern_harness:prints(Store, "the store saw the faulting process: "),
+    ern_harness:has(ern_harness:written(Third, out),
+                    "the third saw the faulting process: " ++ Faulted),
+    ern_harness:has(ern_harness:written(Store, out),
+                    "the store saw the faulting process: " ++ Faulted),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §8.7: the Downs that a death gives watchers on other nodes are
 %% sent once a loss has dropped what the dead process had not placed. The
@@ -10384,27 +9682,27 @@ fault_down_behind_the_buffer(Base) ->
 %% detector finds, which ends the wait the same way, only later, nor a peer
 %% that is stopped.
 lost_sender_down_test_() ->
-    nodes_test({waits, 11}, fun lost_sender_down/1).
+    ern_harness:nodes_test({waits, 11}, fun lost_sender_down/1).
 
 lost_sender_down(Base) ->
     Program = buffer_build(Base),
     {Store, Desk, Third} = watched_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
     WaitThird = offering(Third, Program, "watcher"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["lost"]),
-    prints(Desk, "the large sender ended: "),
-    says(Desk, "the peer store was lost: it closed"),
-    says(Store, "the peer desk was lost: it closed"),
-    prints(Third, "the third saw the large sender: "),
-    has(written(Third, out), "the third saw the large sender: Killed"),
-    has(written(Desk, out), "the large sender ended: Killed"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["lost"]),
+    ern_harness:prints(Desk, "the large sender ended: "),
+    ern_harness:says(Desk, "the peer store was lost: it closed"),
+    ern_harness:says(Store, "the peer desk was lost: it closed"),
+    ern_harness:prints(Third, "the third saw the large sender: "),
+    ern_harness:has(ern_harness:written(Third, out), "the third saw the large sender: Killed"),
+    ern_harness:has(ern_harness:written(Desk, out), "the large sender ended: Killed"),
     true = port_command(DeskInput, "go\n"),
-    prints(Desk, "the sink has taken: "),
-    has(written(Desk, out), "the sink has taken: Some(0)"),
-    ?assertEqual(nomatch, string:find(written(Store, out), "took ")),
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    ern_harness:prints(Desk, "the sink has taken: "),
+    ern_harness:has(ern_harness:written(Desk, out), "the sink has taken: Some(0)"),
+    ?assertEqual(nomatch, string:find(ern_harness:written(Store, out), "took ")),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §6.6, §8.7: where the callee is on another node, its death ends a
 %% call's wait when a Down to the caller would be sent, which may wait on a
@@ -10419,26 +9717,26 @@ lost_sender_down(Base) ->
 %% wait lasting while the connection is held back, an absence only a time
 %% would show, nor callForever, nor a loss.
 call_from_a_third_node_test_() ->
-    nodes_test({waits, 9}, fun call_from_a_third_node/1).
+    ern_harness:nodes_test({waits, 9}, fun call_from_a_third_node/1).
 
 call_from_a_third_node(Base) ->
     Program = buffer_build(Base),
     {Store, Desk, Third} = watched_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
     WaitThird = offering(Third, Program, "watcher"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["called"]),
-    prints(Desk, "the callee ended: "),
-    prints(Desk, "the desk's caller got: "),
-    DeskOut = written(Desk, out),
-    [has(DeskOut, Line)
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["called"]),
+    ern_harness:prints(Desk, "the callee ended: "),
+    ern_harness:prints(Desk, "the desk's caller got: "),
+    DeskOut = ern_harness:written(Desk, out),
+    [ern_harness:has(DeskOut, Line)
      || Line <- ["the host says the callee waits in a send", "the callee ended: Killed",
                  "the desk's caller got: None after "]],
     true = port_command(DeskInput, "go\n"),
-    prints(Third, "the third's caller got: "),
-    has(written(Third, out), "the third's caller got: None after "),
-    stop(Desk, WaitDesk),
-    stop(Third, WaitThird),
-    stop(Store, WaitStore).
+    ern_harness:prints(Third, "the third's caller got: "),
+    ern_harness:has(ern_harness:written(Third, out), "the third's caller got: None after "),
+    ern_harness:stop(Desk, WaitDesk),
+    ern_harness:stop(Third, WaitThird),
+    ern_harness:stop(Store, WaitStore).
 
 %% report §8.6, §8.7, §12.6, §6.9: a node's end waits for no send. The
 %% desk's connection to the store held back by a process of the host's, a
@@ -10466,31 +9764,32 @@ call_from_a_third_node(Base) ->
 %% a peer that falls silent during the end, an `Os.exit` or a termination,
 %% nor what waits for several peers at once.
 end_waits_for_no_send_test_() ->
-    nodes_test({waits, 19}, fun end_waits_for_no_send/1).
+    ern_harness:nodes_test({waits, 19}, fun end_waits_for_no_send/1).
 
 end_waits_for_no_send(Base) ->
     Program = ending_build(Base),
     Pipe = held_pipe(Base),
     {Store, Desk, Third} = watched_nodes(Base),
-    {StoreInput, WaitStore} = started(Store, Program, ["store"]),
-    prints(Store, "offered"),
+    {StoreInput, WaitStore} = ern_harness:started(Store, Program, ["store"]),
+    ern_harness:prints(Store, "offered"),
     WaitThird = offering(Third, Program, "third"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["desk", "ended", sent_bytes(), Pipe]),
-    prints(Desk, "the host says the sender waits in a send"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program,
+                                                ["desk", "ended", sent_bytes(), Pipe]),
+    ern_harness:prints(Desk, "the host says the sender waits in a send"),
     true = port_command(DeskInput, "end\n"),
-    prints(Third, "the third saw the idle process: "),
+    ern_harness:prints(Third, "the third saw the idle process: "),
     let_go(Pipe),
     ?assertEqual(0, WaitDesk()),
-    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
-    prints(Store, "the store saw the sender: "),
-    [prints(Third, Part) || Part <- ["the third saw the sender: ",
-                                     "the third saw the forever caller: ",
-                                     "the third's caller got: "]],
+    [ern_harness:says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    ern_harness:prints(Store, "the store saw the sender: "),
+    [ern_harness:prints(Third, Part) || Part <- ["the third saw the sender: ",
+                                                 "the third saw the forever caller: ",
+                                                 "the third's caller got: "]],
     true = port_command(StoreInput, "count\n"),
-    prints(Store, "the sink has taken: "),
-    stop(Store, WaitStore),
-    stop(Third, WaitThird),
-    [{StoreOut, _}, {ThirdOut, _}, _] = [said(Dir) || Dir <- [Store, Third, Desk]],
+    ern_harness:prints(Store, "the sink has taken: "),
+    ern_harness:stop(Store, WaitStore),
+    ern_harness:stop(Third, WaitThird),
+    [{StoreOut, _}, {ThirdOut, _}, _] = [ern_harness:said(Dir) || Dir <- [Store, Third, Desk]],
     taken_where_told(StoreOut, "the sender", "ProgramEnd"),
     ?assertEqual(["ProgramEnd"], said_after(ThirdOut, "the third saw the idle process: ")),
     [Reason] = said_after(ThirdOut, "the third saw the sender: "),
@@ -10525,33 +9824,33 @@ forever_fault("Unreachable") ->
 %% A regression test, written after the report said it. It does not cover
 %% a fault the entry process raises itself, nor a fault in another process.
 faulted_end_waits_for_no_send_test_() ->
-    nodes_test({waits, 16}, fun faulted_end_waits_for_no_send/1).
+    ern_harness:nodes_test({waits, 16}, fun faulted_end_waits_for_no_send/1).
 
 faulted_end_waits_for_no_send(Base) ->
     Program = ending_build(Base),
     Pipe = held_pipe(Base),
     {Store, Desk, Third} = watched_nodes(Base),
-    {StoreInput, WaitStore} = started(Store, Program, ["store"]),
-    prints(Store, "offered"),
+    {StoreInput, WaitStore} = ern_harness:started(Store, Program, ["store"]),
+    ern_harness:prints(Store, "offered"),
     WaitThird = offering(Third, Program, "third"),
     WaitDesk = under_a_terminal(["exec ", ?ERN, " run --config-dir ", Desk, " ", Program,
                                  " desk faulted ", sent_bytes(), " ", Pipe],
                                 [{expect, "the host says the entry process waits in a send"},
                                  {send, "ff"}]),
-    prints(Third, "the third saw the idle process: "),
+    ern_harness:prints(Third, "the third saw the idle process: "),
     let_go(Pipe),
     {Status, Data, Unmet} = WaitDesk(),
     ?assertEqual({1, []}, {Status, Unmet}),
     Cause = "the standard input is not UTF-8",
-    has(binary_to_list(Data), "Ending.main faulted: " ++ Cause),
-    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
-    prints(Store, "the store saw the entry process: "),
-    prints(Third, "the third saw the entry process: "),
+    ern_harness:has(binary_to_list(Data), "Ending.main faulted: " ++ Cause),
+    [ern_harness:says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    ern_harness:prints(Store, "the store saw the entry process: "),
+    ern_harness:prints(Third, "the third saw the entry process: "),
     true = port_command(StoreInput, "count\n"),
-    prints(Store, "the sink has taken: "),
-    stop(Store, WaitStore),
-    stop(Third, WaitThird),
-    [{StoreOut, _}, {ThirdOut, _}] = [said(Dir) || Dir <- [Store, Third]],
+    ern_harness:prints(Store, "the sink has taken: "),
+    ern_harness:stop(Store, WaitStore),
+    ern_harness:stop(Third, WaitThird),
+    [{StoreOut, _}, {ThirdOut, _}] = [ern_harness:said(Dir) || Dir <- [Store, Third]],
     Faulted = "Fault(\"" ++ Cause ++ "\")",
     taken_where_told(StoreOut, "the entry process", Faulted),
     ?assertEqual(["ProgramEnd"], said_after(ThirdOut, "the third saw the idle process: ")),
@@ -10582,39 +9881,40 @@ faulted_end_waits_for_no_send(Base) ->
 %% dials, or a utilization asked, between the processes' deaths and the
 %% flush's end.
 connected_while_stopping_test_() ->
-    nodes_test({waits, 24}, fun connected_while_stopping/1).
+    ern_harness:nodes_test({waits, 24}, fun connected_while_stopping/1).
 
 connected_while_stopping(Base) ->
     Program = ending_build(Base),
     Pipe = held_pipe(Base),
     {Store, Desk, Third, Late} = window_nodes(Base),
     WaitStore = offering(Store, Program, "store"),
-    {ThirdInput, WaitThird} = started(Third, Program, ["third"]),
-    prints(Third, "offered"),
-    {LateInput, WaitLate} = started(Late, Program, ["late"]),
-    prints(Late, "ready"),
-    {DeskInput, WaitDesk} = started(Desk, Program, ["desk", "window", Pipe]),
-    prints(Desk, "held"),
+    {ThirdInput, WaitThird} = ern_harness:started(Third, Program, ["third"]),
+    ern_harness:prints(Third, "offered"),
+    {LateInput, WaitLate} = ern_harness:started(Late, Program, ["late"]),
+    ern_harness:prints(Late, "ready"),
+    {DeskInput, WaitDesk} = ern_harness:started(Desk, Program, ["desk", "window", Pipe]),
+    ern_harness:prints(Desk, "held"),
     true = port_command(LateInput, "fetch\n"),
-    prints(Late, "fetched"),
+    ern_harness:prints(Late, "fetched"),
     true = port_command(DeskInput, "end\n"),
-    prints(Third, "the third saw the idle process: "),
+    ern_harness:prints(Third, "the third saw the idle process: "),
     true = port_command(ThirdInput, "find\n"),
-    prints(Third, "found: "),
+    ern_harness:prints(Third, "found: "),
     true = port_command(LateInput, "ask\n"),
-    prints(Late, "asked in the window"),
-    says(Late, "the peer desk connected"),
+    ern_harness:prints(Late, "asked in the window"),
+    ern_harness:says(Late, "the peer desk connected"),
     true = port_command(ThirdInput, "utilization\n"),
-    prints(Third, "utilization: "),
+    ern_harness:prints(Third, "utilization: "),
     let_go(Pipe),
     ?assertEqual(0, WaitDesk()),
-    says(Late, "the peer desk was lost: it closed"),
-    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    ern_harness:says(Late, "the peer desk was lost: it closed"),
+    [ern_harness:says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
     true = port_command(LateInput, "again\n"),
-    prints(Late, "the late node saw the idle process, after the end: "),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{Late, WaitLate}, {Third, WaitThird},
-                                       {Store, WaitStore}]],
-    [{LateOut, _}, {ThirdOut, _}, _, _] = [said(Dir) || Dir <- [Late, Third, Store, Desk]],
+    ern_harness:prints(Late, "the late node saw the idle process, after the end: "),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{Late, WaitLate}, {Third, WaitThird},
+                                                   {Store, WaitStore}]],
+    [{LateOut, _}, {ThirdOut, _}, _,
+     _] = [ern_harness:said(Dir) || Dir <- [Late, Third, Store, Desk]],
     Unreachable = "Left(Io.Unreachable)",
     [?assertEqual([Answer], said_after(ThirdOut, Prefix))
      || {Prefix, Answer} <- [{"found: ", Unreachable}, {"utilization: ", Unreachable},
@@ -10643,33 +9943,35 @@ connected_while_stopping(Base) ->
 %% a peer whose key changed, which a reload ends alike, nor a frame the
 %% exchange cannot read.
 reload_waits_on_no_connection_test_() ->
-    nodes_test({waits, 18}, fun reload_waits_on_no_connection/1).
+    ern_harness:nodes_test({waits, 18}, fun reload_waits_on_no_connection/1).
 
 reload_waits_on_no_connection(Base) ->
     Program = disconnect_build(Base),
     {Asker, Maker, Third} = disconnect_nodes(Base),
     WaitThird = offering(Third, Program, "third"),
-    {MakerInput, WaitMaker} = started(Maker, Program, ["held"]),
-    prints(Maker, "found"),
-    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
-    prints(Asker, "found: "),
+    {MakerInput, WaitMaker} = ern_harness:started(Maker, Program, ["held"]),
+    ern_harness:prints(Maker, "found"),
+    {AskerInput, WaitAsker} = ern_harness:started(Asker, Program,
+                                                  ["asker", ern_harness:name(Maker)]),
+    ern_harness:prints(Asker, "found: "),
     true = port_command(MakerInput, "hold\n"),
-    prints(Maker, "held back"),
+    ern_harness:prints(Maker, "held back"),
     reloaded_without_the_third(Maker, MakerInput),
-    says(Maker, "the peer third was removed"),
+    ern_harness:says(Maker, "the peer third was removed"),
     true = port_command(AskerInput, "frame\n"),
-    says(Asker, "the peer maker was lost: it closed"),
+    ern_harness:says(Asker, "the peer maker was lost: it closed"),
     true = port_command(AskerInput, "find\n"),
-    prints(Asker, "found again: "),
+    ern_harness:prints(Asker, "found again: "),
     true = port_command(MakerInput, "free\n"),
-    says(Maker, "the node " ++ digest(Third) ++ " was lost: it closed"),
-    says(Third, "the peer maker was lost: it closed"),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
-                                       {Third, WaitThird}]],
-    [{AskerOut, _}, {_, MakerErr}, _] = [said(Dir) || Dir <- [Asker, Maker, Third]],
-    [has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
-    has(MakerErr, "the peer asker sent a frame this node cannot read, and this node ends its"
-                  " connection").
+    ern_harness:says(Maker, "the node " ++ ern_harness:digest(Third) ++ " was lost: it closed"),
+    ern_harness:says(Third, "the peer maker was lost: it closed"),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
+                                                   {Third, WaitThird}]],
+    [{AskerOut, _}, {_, MakerErr}, _] = [ern_harness:said(Dir) || Dir <- [Asker, Maker, Third]],
+    [ern_harness:has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
+    ern_harness:has(MakerErr,
+                    "the peer asker sent a frame this node cannot read, and this node ends its"
+                    " connection").
 
 %% report §8.6, §8.7, §12.5: a reload holds no termination. The maker's
 %% connection to the third held back and a reload removing the third, as
@@ -10685,22 +9987,22 @@ reload_waits_on_no_connection(Base) ->
 %% cover a hangup or an interrupt then, nor the end of a node whose
 %% connection to the removed peer stays held past its processes' end.
 reload_holds_no_termination_test_() ->
-    nodes_test({waits, 9}, fun reload_holds_no_termination/1).
+    ern_harness:nodes_test({waits, 9}, fun reload_holds_no_termination/1).
 
 reload_holds_no_termination(Base) ->
     Program = disconnect_build(Base),
     {_, Maker, Third} = disconnect_nodes(Base),
     WaitThird = offering(Third, Program, "third"),
-    {MakerInput, WaitMaker} = started(Maker, Program, ["held"]),
-    prints(Maker, "found"),
+    {MakerInput, WaitMaker} = ern_harness:started(Maker, Program, ["held"]),
+    ern_harness:prints(Maker, "found"),
     true = port_command(MakerInput, "hold\n"),
-    prints(Maker, "held back"),
+    ern_harness:prints(Maker, "held back"),
     reloaded_without_the_third(Maker, MakerInput),
-    terminated(Maker),
-    prints(Maker, "told of the end"),
+    ern_harness:terminated(Maker),
+    ern_harness:prints(Maker, "told of the end"),
     ?assertEqual(143, WaitMaker()),
-    ?assertEqual(nomatch, string:find(written(Maker, out), "let go")),
-    stop(Third, WaitThird).
+    ?assertEqual(nomatch, string:find(ern_harness:written(Maker, out), "let go")),
+    ern_harness:stop(Third, WaitThird).
 
 %% report §12.5, §8.7, §12.6: a reload waits on no peer that stands still.
 %% The third stopped, the maker sends it more than its connection takes,
@@ -10720,38 +10022,39 @@ reload_holds_no_termination(Base) ->
 %% for the loss while the third stands still, which comes in the host's
 %% time.
 reload_waits_on_no_stopped_peer_test_() ->
-    nodes_test({waits, 17}, fun reload_waits_on_no_stopped_peer/1).
+    ern_harness:nodes_test({waits, 17}, fun reload_waits_on_no_stopped_peer/1).
 
 reload_waits_on_no_stopped_peer(Base) ->
     Program = disconnect_build(Base),
     {Asker, Maker, Third} = disconnect_nodes(Base),
     WaitThird = offering(Third, Program, "third"),
-    {MakerInput, WaitMaker} = started(Maker, Program, ["stopped"]),
-    prints(Maker, "found"),
-    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
-    prints(Asker, "found: "),
+    {MakerInput, WaitMaker} = ern_harness:started(Maker, Program, ["stopped"]),
+    ern_harness:prints(Maker, "found"),
+    {AskerInput, WaitAsker} = ern_harness:started(Asker, Program,
+                                                  ["asker", ern_harness:name(Maker)]),
+    ern_harness:prints(Asker, "found: "),
     ThirdNumber = pid(Third),
     _ = os:cmd("kill -STOP " ++ ThirdNumber),
     try
         true = port_command(MakerInput, "flood\n"),
-        prints(Maker, "the host holds the flooder in its send to the third"),
+        ern_harness:prints(Maker, "the host holds the flooder in its send to the third"),
         reloaded_without_the_third(Maker, MakerInput),
-        says(Maker, "the peer third was removed"),
+        ern_harness:says(Maker, "the peer third was removed"),
         true = port_command(AskerInput, "frame\n"),
-        says(Asker, "the peer maker was lost: it closed"),
+        ern_harness:says(Asker, "the peer maker was lost: it closed"),
         true = port_command(AskerInput, "find\n"),
-        prints(Asker, "found again: "),
-        stop(Asker, WaitAsker)
+        ern_harness:prints(Asker, "found again: "),
+        ern_harness:stop(Asker, WaitAsker)
     after
         os:cmd("kill -CONT " ++ ThirdNumber)
     end,
-    Loss = "the node " ++ digest(Third) ++ " was lost",
-    says(Maker, Loss),
-    says(Third, "the peer maker was lost"),
-    stop(Maker, WaitMaker),
-    stop(Third, WaitThird),
-    [{AskerOut, _}, {_, MakerErr}] = [said(Dir) || Dir <- [Asker, Maker]],
-    [has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
+    Loss = "the node " ++ ern_harness:digest(Third) ++ " was lost",
+    ern_harness:says(Maker, Loss),
+    ern_harness:says(Third, "the peer maker was lost"),
+    ern_harness:stop(Maker, WaitMaker),
+    ern_harness:stop(Third, WaitThird),
+    [{AskerOut, _}, {_, MakerErr}] = [ern_harness:said(Dir) || Dir <- [Asker, Maker]],
+    [ern_harness:has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
     %% the third's connection stood until the third ran again, after the
     %% asker's end: the maker's sends had filled it
     {_, MakerLines} = lines_said({0, MakerErr}),
@@ -10774,39 +10077,41 @@ reload_waits_on_no_stopped_peer(Base) ->
 %% cannot take its exit otherwise than held, which a dial a large message
 %% waits behind meets.
 refusal_waits_on_no_connection_test_() ->
-    nodes_test({waits, 15}, fun refusal_waits_on_no_connection/1).
+    ern_harness:nodes_test({waits, 15}, fun refusal_waits_on_no_connection/1).
 
 refusal_waits_on_no_connection(Base) ->
     Program = disconnect_build(Base),
-    [PortAsker, PortMaker] = [free_port() || _ <- [asker, maker]],
-    Asker = made(Base, "asker", PortAsker),
-    Maker = made(Base, "maker", PortMaker),
-    Dialer = made(Base, "dialer", none),
-    lists(Asker, [{"maker", Maker, PortMaker}]),
-    lists(Maker, [{"asker", Asker, PortAsker}, {"dialer", Dialer, none}]),
-    lists(Dialer, [{"maker", Maker, PortMaker}]),
-    edit(Asker, fun(Conf) -> Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>]}} end),
-    edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
-    {MakerInput, WaitMaker} = started(Maker, Program, ["refusing"]),
-    prints(Maker, "offered"),
-    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
-    prints(Asker, "found: "),
+    [PortAsker, PortMaker] = [ern_harness:free_port() || _ <- [asker, maker]],
+    Asker = ern_harness:made(Base, "asker", PortAsker),
+    Maker = ern_harness:made(Base, "maker", PortMaker),
+    Dialer = ern_harness:made(Base, "dialer", none),
+    ern_harness:lists(Asker, [{"maker", Maker, PortMaker}]),
+    ern_harness:lists(Maker, [{"asker", Asker, PortAsker}, {"dialer", Dialer, none}]),
+    ern_harness:lists(Dialer, [{"maker", Maker, PortMaker}]),
+    ern_harness:edit(Asker,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>]}} end),
+    ern_harness:edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    {MakerInput, WaitMaker} = ern_harness:started(Maker, Program, ["refusing"]),
+    ern_harness:prints(Maker, "offered"),
+    {AskerInput, WaitAsker} = ern_harness:started(Asker, Program,
+                                                  ["asker", ern_harness:name(Maker)]),
+    ern_harness:prints(Asker, "found: "),
     true = port_command(MakerInput, "hold\n"),
-    prints(Maker, "the gateway held back"),
-    {_, WaitDialer} = started(Dialer, Program, ["dialer", name(Maker)]),
-    prints(Dialer, "connect: "),
-    true = port_command(MakerInput, name(Dialer) ++ "\n"),
-    prints(Maker, "the table filled, and the gateway let go"),
-    says(Maker, "the peer dialer was refused: this node's table of processes is full"),
+    ern_harness:prints(Maker, "the gateway held back"),
+    {_, WaitDialer} = ern_harness:started(Dialer, Program, ["dialer", ern_harness:name(Maker)]),
+    ern_harness:prints(Dialer, "connect: "),
+    true = port_command(MakerInput, ern_harness:name(Dialer) ++ "\n"),
+    ern_harness:prints(Maker, "the table filled, and the gateway let go"),
+    ern_harness:says(Maker, "the peer dialer was refused: this node's table of processes is full"),
     true = port_command(AskerInput, "utilization\n"),
-    prints(Asker, "utilization: "),
+    ern_harness:prints(Asker, "utilization: "),
     true = port_command(MakerInput, "free\n"),
-    says(Dialer, "the peer maker was lost: it closed"),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Dialer, WaitDialer},
-                                       {Maker, WaitMaker}]],
-    [{AskerOut, _}, {DialerOut, _}, _] = [said(Dir) || Dir <- [Asker, Dialer, Maker]],
-    [has(AskerOut, Line) || Line <- ["found: Right(", "utilization: Right("]],
-    has(DialerOut, "connect: true").
+    ern_harness:says(Dialer, "the peer maker was lost: it closed"),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Dialer, WaitDialer},
+                                                   {Maker, WaitMaker}]],
+    [{AskerOut, _}, {DialerOut, _}, _] = [ern_harness:said(Dir) || Dir <- [Asker, Dialer, Maker]],
+    [ern_harness:has(AskerOut, Line) || Line <- ["found: Right(", "utilization: Right("]],
+    ern_harness:has(DialerOut, "connect: true").
 
 %% report §6.5, §7.4, §8.7, §12.5: a peer's worker waits on no third node.
 %% The maker's holder gives the asker an address adapted over the third's
@@ -10826,47 +10131,47 @@ refusal_waits_on_no_connection(Base) ->
 %% Worker Waits On*). It does not cover a third node that is stopped, nor
 %% the fault dropped at the third's loss.
 worker_waits_on_no_third_node_test_() ->
-    nodes_test({waits, 13}, fun worker_waits_on_no_third_node/1).
+    ern_harness:nodes_test({waits, 13}, fun worker_waits_on_no_third_node/1).
 
 worker_waits_on_no_third_node(Base) ->
     Program = disconnect_build(Base),
     {Asker, Maker, Third} = disconnect_nodes(Base),
-    edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    ern_harness:edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
     WaitThird = offering(Third, Program, "third"),
-    {MakerInput, WaitMaker} = started(Maker, Program, ["kept"]),
-    prints(Maker, "found"),
-    {AskerInput, WaitAsker} = started(Asker, Program, ["sender"]),
-    prints(Asker, "found: "),
+    {MakerInput, WaitMaker} = ern_harness:started(Maker, Program, ["kept"]),
+    ern_harness:prints(Maker, "found"),
+    {AskerInput, WaitAsker} = ern_harness:started(Asker, Program, ["sender"]),
+    ern_harness:prints(Asker, "found: "),
     true = port_command(MakerInput, "hold\n"),
-    prints(Maker, "held back, and the table filled"),
+    ern_harness:prints(Maker, "held back, and the table filled"),
     true = port_command(AskerInput, "send\n"),
-    prints(Asker, "found while held: "),
+    ern_harness:prints(Asker, "found while held: "),
     true = port_command(MakerInput, "free\n"),
-    says(Third, "faulted: error:system_limit"),
-    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
-                                       {Third, WaitThird}]],
-    [{AskerOut, _}, _, _] = [said(Dir) || Dir <- [Asker, Maker, Third]],
-    [has(AskerOut, Line) || Line <- ["found: Right(", "found while held: Right("]].
+    ern_harness:says(Third, "faulted: error:system_limit"),
+    [ern_harness:stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
+                                                   {Third, WaitThird}]],
+    [{AskerOut, _}, _, _] = [ern_harness:said(Dir) || Dir <- [Asker, Maker, Third]],
+    [ern_harness:has(AskerOut, Line) || Line <- ["found: Right(", "found while held: Right("]].
 
 %% The disconnect's three nodes, each listening: the asker, which finds the
 %% maker's probe and its holder, the maker, which finds the third's sink and
 %% bulk, and the third.
 disconnect_nodes(Base) ->
-    [PortAsker, PortMaker, PortThird] = [free_port() || _ <- [asker, maker, third]],
-    Asker = made(Base, "asker", PortAsker),
-    Maker = made(Base, "maker", PortMaker),
-    Third = made(Base, "third", PortThird),
-    lists(Asker, [{"maker", Maker, PortMaker}]),
-    lists(Maker, [{"asker", Asker, PortAsker}, {"third", Third, PortThird}]),
-    lists(Third, [{"maker", Maker, PortMaker}]),
-    edit(Asker, fun(Conf) ->
-                    Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>],
-                                              <<"holder">> => [<<"maker">>]}}
-                end),
-    edit(Maker, fun(Conf) ->
-                    Conf#{<<"services">> => #{<<"sink">> => [<<"third">>],
-                                              <<"bulk">> => [<<"third">>]}}
-                end),
+    [PortAsker, PortMaker, PortThird] = [ern_harness:free_port() || _ <- [asker, maker, third]],
+    Asker = ern_harness:made(Base, "asker", PortAsker),
+    Maker = ern_harness:made(Base, "maker", PortMaker),
+    Third = ern_harness:made(Base, "third", PortThird),
+    ern_harness:lists(Asker, [{"maker", Maker, PortMaker}]),
+    ern_harness:lists(Maker, [{"asker", Asker, PortAsker}, {"third", Third, PortThird}]),
+    ern_harness:lists(Third, [{"maker", Maker, PortMaker}]),
+    ern_harness:edit(Asker, fun(Conf) ->
+                                Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>],
+                                                          <<"holder">> => [<<"maker">>]}}
+                            end),
+    ern_harness:edit(Maker, fun(Conf) ->
+                                Conf#{<<"services">> => #{<<"sink">> => [<<"third">>],
+                                                          <<"bulk">> => [<<"third">>]}}
+                            end),
     {Asker, Maker, Third}.
 
 %% Report §12.5: the maker's ernest.conf with the third and its services
@@ -10874,14 +10179,14 @@ disconnect_nodes(Base) ->
 %% until the maker says the host was asked to end its connection to the
 %% third, which it watches for once its connection is held or full.
 reloaded_without_the_third(Maker, MakerInput) ->
-    edit(Maker, fun(#{<<"peers">> := Peers} = Conf) ->
-                    Conf#{<<"peers">> := [Peer || #{<<"name">> := Name} = Peer <- Peers,
-                                                  Name =/= <<"third">>],
-                          <<"services">> := #{}}
-                end),
+    ern_harness:edit(Maker, fun(#{<<"peers">> := Peers} = Conf) ->
+                                Conf#{<<"peers">> := [Peer || #{<<"name">> := Name} = Peer <- Peers,
+                                                              Name =/= <<"third">>],
+                                      <<"services">> := #{}}
+                            end),
     ?assertMatch({0, _}, signaled("reload", Maker)),
     true = port_command(MakerInput, "asked\n"),
-    prints(Maker, "the host was asked to end the connection to the third").
+    ern_harness:prints(Maker, "the host was asked to end the connection to the third").
 
 %% The disconnect's tests' program, built in Base beside the host modules
 %% it asks of the host, the buffer's (buffer_host/0) and its own
@@ -11189,14 +10494,14 @@ fn sending() : Unit receiving MakerMsg = {
     Io.println(\"found while held: \" <> Io.show(Peer.find(probe, waitMs())));
     held()
 }
-"/utf8>>, wait_ms_declaration()]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
     [begin
          Source = filename:join(Root, Module ++ ".erl"),
          ok = file:write_file(Source, Text),
          {ok, _} = compile:file(Source, [{outdir, Root}])
      end || {Module, Text} <- [{"ern_nodes_buffer", buffer_host()},
                                {"ern_nodes_disconnect", disconnect_host()}]],
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "disconnect.erc").
 
 %% A host module for the disconnect's program. It answers the process of the
@@ -11254,42 +10559,45 @@ unreadable(Node) ->
 %% A node of the buffer's program started in Mode, once it has offered its
 %% services; answers what waits for its end.
 offering(Dir, Program, Mode) ->
-    Wait = start(Dir, Program, [Mode]),
-    prints(Dir, "offered"),
+    Wait = ern_harness:start(Dir, Program, [Mode]),
+    ern_harness:prints(Dir, "offered"),
     Wait.
 
 %% A store that listens and a desk that dials it, the desk finding the
 %% store's sink there.
 buffer_nodes(Base) ->
-    Port = free_port(),
-    Store = made(Base, "store", Port),
-    Desk = made(Base, "desk", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Desk, [{"store", Store, Port}]),
-    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
+    Port = ern_harness:free_port(),
+    Store = ern_harness:made(Base, "store", Port),
+    Desk = ern_harness:made(Base, "desk", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Desk, [{"store", Store, Port}]),
+    ern_harness:edit(Desk,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
     {Store, Desk}.
 
 %% The same, and a third node that listens, which the desk dials too, and
 %% which finds the desk's own sink at the desk.
 buffer_nodes_and_third(Base) ->
-    {PortStore, PortThird} = {free_port(), free_port()},
-    Store = made(Base, "store", PortStore),
-    Desk = made(Base, "desk", none),
-    Third = made(Base, "third", PortThird),
-    [lists(Dir, [{"desk", Desk, none}]) || Dir <- [Store, Third]],
-    lists(Desk, [{"store", Store, PortStore}, {"third", Third, PortThird}]),
-    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
-    edit(Third, fun(Conf) -> Conf#{<<"services">> => #{<<"desk-sink">> => [<<"desk">>]}} end),
+    {PortStore, PortThird} = {ern_harness:free_port(), ern_harness:free_port()},
+    Store = ern_harness:made(Base, "store", PortStore),
+    Desk = ern_harness:made(Base, "desk", none),
+    Third = ern_harness:made(Base, "third", PortThird),
+    [ern_harness:lists(Dir, [{"desk", Desk, none}]) || Dir <- [Store, Third]],
+    ern_harness:lists(Desk, [{"store", Store, PortStore}, {"third", Third, PortThird}]),
+    ern_harness:edit(Desk,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
+    ern_harness:edit(Third,
+                     fun(Conf) -> Conf#{<<"services">> => #{<<"desk-sink">> => [<<"desk">>]}} end),
     {Store, Desk, Third}.
 
 %% The same, the desk finding the store's watcher at the store and the
 %% third node's at the third node.
 watched_nodes(Base) ->
     {Store, Desk, Third} = buffer_nodes_and_third(Base),
-    edit(Desk, fun(#{<<"services">> := Services} = Conf) ->
-                   Conf#{<<"services">> := Services#{<<"store-watch">> => [<<"store">>],
-                                                    <<"third-watch">> => [<<"third">>]}}
-               end),
+    ern_harness:edit(Desk, fun(#{<<"services">> := Services} = Conf) ->
+                               Conf#{<<"services">> := Services#{<<"store-watch">> => [<<"store">>],
+                                                                <<"third-watch">> => [<<"third">>]}}
+                           end),
     {Store, Desk, Third}.
 
 %% The buffer's tests' program, built in Base beside the host module it
@@ -12074,10 +11382,10 @@ fn served(acc : List(Int)) : List(Int) receiving SenderMsg =
         Asked(moment) -> served(moment :: acc)
       | after 0 -> acc
     }
-"/utf8>>, wait_ms_declaration()]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
     ok = file:write_file(filename:join(Root, "ern_nodes_buffer.erl"), buffer_host()),
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_buffer.erl"), [{outdir, Root}]),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "buffer.erc").
 
 %% A host module for the buffer's program. It gives the host's report of
@@ -12569,10 +11877,10 @@ fn askedInTheWindow(watcher : Address(WatchMsg),
     Io.println(\"computed: \" <> Io.show(Peer.compute(\"desk\", fn() = 42, waitMs())));
     Io.println(\"asked in the window\")
 }
-"/utf8>>, wait_ms_declaration()]),
+"/utf8>>, ern_harness:wait_ms_declaration()]),
     ok = file:write_file(filename:join(Root, "ern_nodes_buffer.erl"), buffer_host()),
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_buffer.erl"), [{outdir, Root}]),
-    0 = built([Root]),
+    0 = ern_harness:built([Root]),
     filename:join(Root, "ending.erc").
 
 %% The size of the message the desk's sender waits to send in the ending's
@@ -12587,16 +11895,18 @@ sent_bytes() ->
 %% third's watcher at the third and the desk's echo at the desk, and so does
 %% the third the desk's echo.
 window_nodes(Base) ->
-    [PortStore, PortThird, PortDesk] = [free_port() || _ <- [1, 2, 3]],
-    Store = made(Base, "store", PortStore),
-    Third = made(Base, "third", PortThird),
-    Desk = made(Base, "desk", PortDesk),
-    Late = made(Base, "late", none),
-    lists(Store, [{"desk", Desk, none}]),
-    lists(Third, [{"desk", Desk, none}, {"late", Late, none}]),
-    lists(Desk, [{"store", Store, PortStore}, {"third", Third, PortThird}, {"late", Late, none}]),
-    lists(Late, [{"third", Third, PortThird}, {"desk", Desk, PortDesk}]),
-    [edit(Dir, fun(Conf) -> Conf#{<<"services">> => Services} end)
+    [PortStore, PortThird, PortDesk] = [ern_harness:free_port() || _ <- [1, 2, 3]],
+    Store = ern_harness:made(Base, "store", PortStore),
+    Third = ern_harness:made(Base, "third", PortThird),
+    Desk = ern_harness:made(Base, "desk", PortDesk),
+    Late = ern_harness:made(Base, "late", none),
+    ern_harness:lists(Store, [{"desk", Desk, none}]),
+    ern_harness:lists(Third, [{"desk", Desk, none}, {"late", Late, none}]),
+    ern_harness:lists(Desk,
+                      [{"store", Store, PortStore}, {"third", Third, PortThird},
+                       {"late", Late, none}]),
+    ern_harness:lists(Late, [{"third", Third, PortThird}, {"desk", Desk, PortDesk}]),
+    [ern_harness:edit(Dir, fun(Conf) -> Conf#{<<"services">> => Services} end)
      || {Dir, Services} <- [{Desk, #{<<"sink">> => [<<"store">>],
                                     <<"third-watch">> => [<<"third">>]}},
                             {Third, #{<<"desk-echo">> => [<<"desk">>]}},
@@ -12630,10 +11940,10 @@ taken_where_told(StoreOut, Name, Reason) ->
     case said_after(StoreOut, "the store saw " ++ Name ++ ": ") of
         [Reason] ->
             ?assertEqual([sent_bytes() ++ " bytes, whole: true"], Took),
-            has(StoreOut, "the sink has taken: Some(1)");
+            ern_harness:has(StoreOut, "the sink has taken: Some(1)");
         ["Unreachable"] ->
             ?assertEqual([], Took),
-            has(StoreOut, "the sink has taken: Some(0)")
+            ern_harness:has(StoreOut, "the sink has taken: Some(0)")
     end.
 
 %% Words run under a terminal of their own through the pseudo-terminal's
@@ -12647,7 +11957,7 @@ under_a_terminal(Words, Steps) ->
     Runner = spawn_link(fun() -> Test ! {self(), ern_pty:tried(Command, Steps, [])} end),
     Waits = length([Text || {expect, Text} <- Steps]) + 1,
     fun() ->
-        step({under_a_terminal, Command}, Waits),
+        ern_harness:step({under_a_terminal, Command}, Waits),
         receive
             {Runner, Ran} -> Ran
         after (Waits + 1) * ?WAIT_MS ->
@@ -12792,14 +12102,14 @@ upgraded_builds(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{One, "counter.ern", Count},
                               {Two, "counter.ern", Count ++ CountAloud},
-                              {Two, "tool.ern", [Tool, wait_ms_declaration()]}]],
-    0 = built([One]),
-    0 = built([Two]),
+                              {Two, "tool.ern", [Tool, ern_harness:wait_ms_declaration()]}]],
+    0 = ern_harness:built([One]),
+    0 = ern_harness:built([Two]),
     {filename:join(One, "counter.erc"), filename:join(Two, "counter.erc"),
      filename:join(Two, "tool.erc")}.
 
-%% report §6.10, §8.7, §3.11, §6.5, Appendix E.28: the upgrade tool of the
-%% proposal's section 3. A node runs the first build's counters on `count`,
+%% report §6.10, §8.7, §3.11, §6.5, Appendix E.28: an upgrade tool. A node
+%% runs the first build's counters on `count`,
 %% the entry process's offered through an adapted address of a type without
 %% Upgrade; the tool, of the second build, finds it, adds to it and asks its
 %% total, and spawns on the node a process that lists them by Code.running,
@@ -12819,27 +12129,30 @@ upgraded_builds(Base) ->
 %% after the add, another (§6.4, §6.5): the counter's node applied each
 %% message in a process of its own, and the call passed the add
 code_upgrade_test_() ->
-    nodes_test({waits, 13}, fun code_upgrade/1).
+    ern_harness:nodes_test({waits, 13}, fun code_upgrade/1).
 
 code_upgrade(Base) ->
     {CounterOne, CounterTwo, Tool} = upgraded_builds(Base),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    C = made(Base, "c", 0),
-    [lists(Dir, [{"a", A, none}]) || Dir <- [B, C]],
-    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
-                              CounterOne]),
-    prints(B, "serving"),
-    PortB = bound_port(B),
-    WaitC = bare_started(C, []),
-    lists(A, [{"b", B, PortB}, {"c", C, bound_port(C)}]),
-    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ", Tool, " b c ", CounterTwo]),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    C = ern_harness:made(Base, "c", 0),
+    [ern_harness:lists(Dir, [{"a", A, none}]) || Dir <- [B, C]],
+    {_, WaitB} = ern_harness:launched(B, [?ERN, " run --config-dir ", B, " --main serve ",
+                                          CounterOne]),
+    ern_harness:prints(B, "serving"),
+    PortB = ern_harness:bound_port(B),
+    WaitC = ern_harness:bare_started(C, []),
+    ern_harness:lists(A, [{"b", B, PortB}, {"c", C, ern_harness:bound_port(C)}]),
+    ern_harness:edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
+    {_, WaitA} = ern_harness:launched(A,
+                                      [?ERN, " run --config-dir ", A, " ", Tool, " b c ",
+                                       CounterTwo]),
     ?assertEqual(0, WaitA()),
-    [prints(B, Line) || Line <- ["countAloud 5", "countAloud 11", "countAloud 21", "countAloud 9"]],
-    stop(B, WaitB),
-    stop(C, WaitC),
-    {Out, _} = said(A),
-    [has(Out, Line) || Line <- ["before: Some(4)", "moved 3, left 0", "after: Some(9)",
-                                "before load: Io.NotLoaded", "load: Right(Right(Unit))",
-                                "after load: Right"]].
+    [ern_harness:prints(B, Line) || Line <- ["countAloud 5", "countAloud 11", "countAloud 21",
+                                             "countAloud 9"]],
+    ern_harness:stop(B, WaitB),
+    ern_harness:stop(C, WaitC),
+    {Out, _} = ern_harness:said(A),
+    [ern_harness:has(Out, Line) || Line <- ["before: Some(4)", "moved 3, left 0", "after: Some(9)",
+                                            "before load: Io.NotLoaded", "load: Right(Right(Unit))",
+                                            "after load: Right"]].

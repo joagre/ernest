@@ -36,10 +36,10 @@
 %% parallel.
 programs_test_() ->
     {inparallel,
-     [{Name, ern_nodes_tests:counted_test({waits, 2},
+     [{Name, ern_harness:counted_test({waits, 2},
               fun() -> program(?BUILD ++ "../examples/", Name) end)}
       || Name <- ?EXAMPLES]
-     ++ [{Name, ern_nodes_tests:counted_test({waits, 2},
+     ++ [{Name, ern_harness:counted_test({waits, 2},
                  fun() -> program(?BUILD_PROGRAM ++ "fixtures/programs/", Name) end)}
          || Name <- ?PROGRAMS]}.
 
@@ -50,29 +50,49 @@ program(Build, Name) ->
 
 %% The examples compiled here: snake waits for a terminal, so it is only
 %% compiled here and ern_terminal_tests plays it under a pseudo-terminal;
-%% fetch reaches a host on the network, so it is only compiled; the others
+%% fetch reaches a host on the network, so it is compiled here and run
+%% only where its file of certificates cannot be read; the others
 %% run below. The echo measurement, kept for the tests, prints timings, so
 %% it is compiled alone.
 -define(COMPILES, ["fetch", "file_sync", "interpreter", "snake", "web_server"]).
 
+%% report §11.1: each example of ?COMPILES, and the echo measurement,
+%% compiles as `ern build` compiles a program.
 compiles_test_() ->
     {inparallel,
-     [{Name, ern_nodes_tests:counted_test({waits, 1},
+     [{Name, ern_harness:counted_test({waits, 1},
               fun() -> compiles(?BUILD ++ "../examples/", Name) end)}
       || Name <- ?COMPILES]
-     ++ [{"echo", ern_nodes_tests:counted_test({waits, 1},
+     ++ [{"echo", ern_harness:counted_test({waits, 1},
                    fun() -> compiles(?BUILD_PROGRAM ++ "fixtures/programs/", "echo") end)}]}.
 
 compiles(Build, Name) ->
     0 = build(Build ++ Name ++ ".ern"),
     ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
 
+%% report Appendix E.18, examples/fetch.ern: a file of certificates fetch
+%% cannot read is named, with what is wrong, before any dial, on standard
+%% error, and the status is 1. A regression test, written after the fix:
+%% the example matched errors `connectTls` never answers for the file, and
+%% said it could not connect
+fetch_unread_certificates_test_() ->
+    ern_harness:counted_test({waits, 2},
+     fun() ->
+         0 = build(?BUILD ++ "../examples/fetch.ern"),
+         ?assertEqual({1, <<"fetch: cannot read the certificates in fixtures/input/absent.pem:"
+                            " NotFound\n">>},
+                      sh("../bin/ern run build/fetch.erc https://localhost:1/"
+                         " fixtures/input/absent.pem"))
+     end).
+
 %% report §8.1, §8.6, Appendix E.17, E.23: wc counts the files its
 %% command line names, a total last; a file it cannot read is named on
 %% standard error and the status is 1; with no file it says how it is
-%% called and the status is 2. A regression test, written with the example
+%% called and the status is 2. A regression test, written with the example.
+%% A last line with no line feed counts for no line, as `wc` counts it: a
+%% regression test, written after the fix, which counted it
 wc_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun wc/0).
+    ern_harness:counted_test({waits, 5}, fun wc/0).
 
 wc() ->
     0 = build(?BUILD ++ "../examples/wc.ern"),
@@ -82,24 +102,27 @@ wc() ->
                        "2 5 24 fixtures/input/two_lines.txt\n2 5 24 total\n">>},
                  sh("../bin/ern run build/wc.erc fixtures/input/absent.txt"
                     " fixtures/input/two_lines.txt")),
-    ?assertEqual({2, <<"usage: wc file...\n">>}, sh("../bin/ern run build/wc.erc")).
+    ?assertEqual({2, <<"usage: wc file...\n">>}, sh("../bin/ern run build/wc.erc")),
+    ?assertEqual({0, <<"1 3 13 fixtures/input/unended.txt\n1 3 13 total\n">>},
+                 sh("../bin/ern run build/wc.erc fixtures/input/unended.txt")).
 
 %% report §12.1, E.16: without a terminal snake has no keys, so it says so
 %% and ends with status 1 before it draws. A regression test: it drew a
 %% frame and ended with status 0
 snake_without_terminal_test_() ->
-    ern_nodes_tests:counted_test({waits, 2},
+    ern_harness:counted_test({waits, 2},
      fun() ->
          0 = build(?BUILD ++ "../examples/snake.ern"),
          ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
                       sh("../bin/ern run build/snake.erc < /dev/null"))
      end).
 
-%% snake's own tests: two turns within a tick do not reverse the last move,
+%% report Appendix E.24, examples/snake.ern: snake's own tests, which `ern
+%% test` runs: two turns within a tick do not reverse the last move,
 %% and an apple goes on a free cell. Regression tests: two quick keys made
 %% a U-turn that killed the snake, and an apple could land on the snake
 snake_own_tests_test_() ->
-    ern_nodes_tests:counted_test({waits, 2},
+    ern_harness:counted_test({waits, 2},
      fun() ->
          0 = build("--source-root ../examples --build-root build/snake_own"
                    " ../examples/snake.ern"),
@@ -120,7 +143,7 @@ snake_own_tests_test_() ->
 %% answers once its group has restarted whole (Appendix E.22); a command
 %% that asks the audit before the restart is done is not covered
 services_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun services/0).
+    ern_harness:counted_test({waits, 2}, fun services/0).
 
 services() ->
     0 = build(?BUILD ++ "../examples/services.ern"),
@@ -143,7 +166,7 @@ services() ->
 %% before the lease that would answer it; the two nodes are
 %% ern_nodes_tests' lease_broker_test_.
 lease_broker_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun lease_broker/0).
+    ern_harness:counted_test({waits, 5}, fun lease_broker/0).
 
 lease_broker() ->
     0 = build(?BUILD ++ "../examples/lease_broker.ern"),
@@ -166,7 +189,7 @@ lease_broker() ->
 %% named on standard error, status 1. A regression test, written with the
 %% example
 word_frequency_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun word_frequency/0).
+    ern_harness:counted_test({waits, 4}, fun word_frequency/0).
 
 word_frequency() ->
     0 = build(?BUILD ++ "../examples/word_frequency.ern"),
@@ -189,7 +212,7 @@ word_frequency() ->
 %% ern_deployment_tests runs beside the second's tool. A regression test,
 %% written with the example. Its steps: the two builds and the run.
 upgrade_example_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun upgrade_example/0).
+    ern_harness:counted_test({waits, 3}, fun upgrade_example/0).
 
 upgrade_example() ->
     [0 = build("--build-root build/upgrade/" ++ Build ++ " ../examples/upgrade/" ++ Build)
@@ -199,27 +222,30 @@ upgrade_example() ->
     ?assertEqual(lists:sort([<<"here: 1 moved">>, <<"inc 3">>, <<"total: Some(5)">>]),
                  unstamped(lines(Output))).
 
-%% Paper program 4: the interpreter reads stdin and ends at end of input, so
+%% examples/interpreter.ern: the interpreter reads stdin and ends at end of input, so
 %% its run is bounded by its input. The last two lines are the point of the
 %% program: an expression that does not terminate is killed after two
-%% seconds, and the next expression still works.
+%% seconds, and the next expression still works. An application's argument
+%% that does not parse is the line's error, `f (1 +` an end of input: a
+%% regression test, written after the fix, which read it as no argument and
+%% said `unexpected (`.
 %% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
 interpreter_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun interpreter/0).
+    ern_harness:counted_test({waits, 2}, fun interpreter/0).
 
 interpreter() ->
     0 = build(?BUILD ++ "../examples/interpreter.ern"),
     {0, Output} = sh("../bin/ern run build/interpreter.erc < fixtures/input/interpreter.in"),
     ?assertEqual(expected("interpreter"), lines(Output)).
 
-%% Paper program 2: the syncer runs until it is stopped, so the harness
+%% examples/file_sync.ern: the syncer runs until it is stopped, so the harness
 %% gives it two prepared directories, lets it run, stops it, and reads the
 %% directories back. One file on each side crosses, and the pair that
 %% differs leaves a conflict beside the newer copy.
 %% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
 %% Its steps: the build, its own tests' run, run_for/4's wait and the end.
 file_sync_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun file_sync/0).
+    ern_harness:counted_test({waits, 4}, fun file_sync/0).
 
 file_sync() ->
     0 = build(?BUILD ++ "../examples/file_sync.ern"),
@@ -283,7 +309,7 @@ file_sync() ->
 %% which the same reading covers. Its steps: the build, run_for/4's wait and
 %% the end.
 file_sync_first_listing_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun file_sync_first_listing/0).
+    ern_harness:counted_test({waits, 3}, fun file_sync_first_listing/0).
 
 file_sync_first_listing() ->
     %% a build root of its own, since file_sync_test_ builds beside it
@@ -363,24 +389,24 @@ del_read_only_test() ->
 %% the files under Dir, a line the program writes among them, so that a
 %% test can wait for a file the program writes without a word. Where it
 %% does not hold within one step of the harness's
-%% (ern_nodes_tests:wait_ms/0), the signal is sent then, and the test's
+%% (ern_harness:wait_ms/0), the signal is sent then, and the test's
 %% checks say what did not come. Its status and its output are returned.
 %% The wait for Until is one step of the harness's, and the program's end
 %% another, after the signal (ended/2) or before it.
 run_for(Dir, Command, Until, Signal) ->
-    ern_nodes_tests:step({run_for, Command}),
+    ern_harness:step({run_for, Command}),
     Out = filename:join(Dir, "run.out"),
     %% an earlier run's output goes first, since Until may read it before
     %% the program has written anything
     _ = file:delete(Out),
     Changes = changes(Dir),
     Program = open_port({spawn, Command ++ " > run.out 2>&1"}, [exit_status, {cd, Dir}]),
-    Deadline = erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms(),
+    Deadline = erlang:monotonic_time(millisecond) + ern_harness:wait_ms(),
     Waited = waited(Changes, Program, Until, Deadline),
     port_close(Changes),
     Status = case Waited of
                  {ended, Ended} ->
-                     ern_nodes_tests:step({ended, Program}),
+                     ern_harness:step({ended, Program}),
                      Ended;
                  due ->
                      {os_pid, ProcessNumber} = erlang:port_info(Program, os_pid),
@@ -395,10 +421,10 @@ run_for(Dir, Command, Until, Signal) ->
 %% 137, so that a program that does not end at its signal fails the test
 %% and is not left running: one step.
 ended(Program, ProcessNumber) ->
-    ern_nodes_tests:step({ended, Program}),
+    ern_harness:step({ended, Program}),
     receive
         {Program, {exit_status, Status}} -> Status
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         _ = os:cmd("kill -KILL " ++ integer_to_list(ProcessNumber)),
         receive {Program, {exit_status, Status}} -> Status end
     end.
@@ -443,7 +469,7 @@ has_printed(Dir, Line) ->
 %% hangup is sent once the program has said it runs, as signal_end's are.
 %% Its steps: the build, run_for/4's wait and the end.
 hangup_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun hangup/0).
+    ern_harness:counted_test({waits, 3}, fun hangup/0).
 
 hangup() ->
     Dir = "build/hangup",
@@ -455,7 +481,7 @@ hangup() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    Clock.sleep(", ern_nodes_tests:wait_ms_text(), ");\n"
+                          "    Clock.sleep(", ern_harness:wait_ms_text(), ");\n"
                           "    Io.println(\"late\")\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
@@ -475,7 +501,7 @@ hangup() ->
 %% test runs where the helper is the plain build, in `make test-full`
 out_of_memory_test_() ->
     case os:getenv("ASAN_OPTIONS") of
-        false -> ern_nodes_tests:counted_test({waits, 2}, fun out_of_memory/0);
+        false -> ern_harness:counted_test({waits, 2}, fun out_of_memory/0);
         _ -> []
     end.
 
@@ -519,7 +545,7 @@ out_of_memory() ->
 %% (docs/otp_bugs.md, 14), a TLS handshake at the limit, nor the system's
 %% own limit of files, `enfile`.
 file_limit_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun file_limit/0).
+    ern_harness:counted_test({waits, 2}, fun file_limit/0).
 
 file_limit() ->
     Dir = "build/file_limit",
@@ -622,7 +648,7 @@ export fn main() : Unit receiving Down =
 %% whole at its first request. It does not cover an accepted socket's
 %% handshake in the same window, which answers its read `Left(Closed)`.
 tls_window_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun tls_window/0).
+    ern_harness:counted_test({waits, 2}, fun tls_window/0).
 
 tls_window() ->
     Dir = "build/tls_window",
@@ -692,7 +718,7 @@ export fn main() : Unit receiving Down =
 %% the sentence of §11.2 that states the status. Its steps: the build, the
 %% wait for the program's line and its end.
 interrupt_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun interrupt/0).
+    ern_harness:counted_test({waits, 3}, fun interrupt/0).
 
 interrupt() ->
     Dir = "build/interrupt",
@@ -712,7 +738,7 @@ interrupt() ->
     _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
     ?assertEqual({130, <<>>}, finished(Program)).
 
-%% Paper program 1: the server serves until it is stopped, so the harness
+%% examples/web_server.ern: the server serves until it is stopped, so the harness
 %% starts it, makes three requests over one session, and stops it. The
 %% second request carries the cookie the first set, and the visit count
 %% proves the session store kept it between connections. The third carries
@@ -724,7 +750,7 @@ interrupt() ->
 %% Its steps: the build, the wait for the server's line, and each request's
 %% connection and answer.
 web_server_test_() ->
-    ern_nodes_tests:counted_test({waits, 8}, fun web_server/0).
+    ern_harness:counted_test({waits, 8}, fun web_server/0).
 
 web_server() ->
     0 = build(?BUILD ++ "../examples/web_server.ern"),
@@ -757,7 +783,7 @@ web_server() ->
 %% connection silent past the server's minute. Its steps: the build, the
 %% wait for the server's line, the connection and the two answers.
 shout_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun shout/0).
+    ern_harness:counted_test({waits, 5}, fun shout/0).
 
 shout() ->
     0 = build(?BUILD ++ "../examples/shout.ern"),
@@ -766,11 +792,11 @@ shout() ->
     {os_pid, OsPid} = erlang:port_info(Server, os_pid),
     try
         Port = listening_port(Server),
-        Socket = ern_nodes_tests:connected(Port, [{packet, line}]),
+        Socket = ern_harness:connected(Port, [{packet, line}]),
         ok = gen_tcp:send(Socket, <<"hello\n">>),
-        ?assertEqual({ok, <<"HELLO\n">>}, ern_nodes_tests:received(Socket, 0)),
+        ?assertEqual({ok, <<"HELLO\n">>}, ern_harness:received(Socket, 0)),
         ok = gen_tcp:send(Socket, <<"ernest\n">>),
-        ?assertEqual({ok, <<"ERNEST\n">>}, ern_nodes_tests:received(Socket, 0)),
+        ?assertEqual({ok, <<"ERNEST\n">>}, ern_harness:received(Socket, 0)),
         gen_tcp:close(Socket)
     after
         os:cmd("kill " ++ integer_to_list(OsPid)),
@@ -781,7 +807,7 @@ shout() ->
 %% arrived whole: one step of the harness's, which fails where nothing more
 %% comes within it, as said_line/2's does.
 listening_port(Server) ->
-    ern_nodes_tests:step({listening, Server}),
+    ern_harness:step({listening, Server}),
     listening_port(Server, <<>>).
 
 listening_port(Server, Said) ->
@@ -791,21 +817,21 @@ listening_port(Server, Said) ->
             list_to_integer(Digits);
         nomatch ->
             receive {Server, {data, Bytes}} -> listening_port(Server, <<Said/binary, Bytes/binary>>)
-            after ern_nodes_tests:wait_ms() -> erlang:error({not_said, Said})
+            after ern_harness:wait_ms() -> erlang:error({not_said, Said})
             end
     end.
 
 %% Until the program the port runs has written Line: one step of the
 %% harness's, which fails where nothing more comes within it.
 said_line(Port, Line) ->
-    ern_nodes_tests:step({said, Port, Line}),
+    ern_harness:step({said, Port, Line}),
     said_line(Port, Line, <<>>).
 
 said_line(Port, Line, Said) ->
     case binary:match(Said, Line) of
         nomatch ->
             receive {Port, {data, Bytes}} -> said_line(Port, Line, <<Said/binary, Bytes/binary>>)
-            after ern_nodes_tests:wait_ms() -> {error, {not_said, Said}}
+            after ern_harness:wait_ms() -> {error, {not_said, Said}}
             end;
         _ ->
             ok
@@ -814,9 +840,9 @@ said_line(Port, Line, Said) ->
 %% The web server's answer to a request with Headers, over a connection of
 %% its own, each of the connection and the answer a step of the harness's.
 request(Headers) ->
-    Socket = ern_nodes_tests:connected(8080, []),
+    Socket = ern_harness:connected(8080, []),
     ok = gen_tcp:send(Socket, [<<"GET / HTTP/1.1\r\nhost: localhost\r\n">>, Headers, <<"\r\n">>]),
-    ern_nodes_tests:step({answer, Socket}),
+    ern_harness:step({answer, Socket}),
     Answer = recv_all(Socket, []),
     gen_tcp:close(Socket),
     Answer.
@@ -825,7 +851,7 @@ request(Headers) ->
 %% once it has answered; a wait of the harness's in which nothing more
 %% comes fails the test.
 recv_all(Socket, Acc) ->
-    case gen_tcp:recv(Socket, 0, ern_nodes_tests:wait_ms()) of
+    case gen_tcp:recv(Socket, 0, ern_harness:wait_ms()) of
         {ok, Bytes} -> recv_all(Socket, [Bytes | Acc]);
         {error, closed} -> iolist_to_binary(lists:reverse(Acc))
     end.
@@ -859,7 +885,7 @@ directories(Path) ->
 %% sections; and `size` of an ended table faulted with "foreign return
 %% does not match Int"
 ets_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun ets/0).
+    ern_harness:counted_test({waits, 4}, fun ets/0).
 
 ets() ->
     Dir = "build/ets",
@@ -902,7 +928,7 @@ ets() ->
 %% faults; lines and bytes are one stream, and bytes go out as they are.
 %% Its steps: three builds and four runs.
 stdin_test_() ->
-    ern_nodes_tests:counted_test({waits, 7}, fun stdin/0).
+    ern_harness:counted_test({waits, 7}, fun stdin/0).
 
 stdin() ->
     [0 = build("--source-root fixtures/stdin --build-root build/stdin fixtures/stdin/"
@@ -930,12 +956,12 @@ stdin() ->
     %% start, about as long as the one second the writer had paused, plays
     %% no part (it had failed when the start took longer); the status is the
     %% program's. Its run is one step of the harness's
-    %% (ern_nodes_tests:wait_ms/0), so that a read that waits for more, which
+    %% (ern_harness:wait_ms/0), so that a read that waits for more, which
     %% never says its line, is killed and fails the test, and is not left
     %% running
     {In, Out} = {fifo("build/stdin/in"), fifo("build/stdin/out")},
     ?assertEqual({0, <<"1\n1\nend\n">>},
-                 sh("sh -c 'timeout -s KILL " ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000)
+                 sh("sh -c 'timeout -s KILL " ++ integer_to_list(ern_harness:wait_ms() div 1000)
                     ++ " ../bin/ern run build/stdin/chunks.erc < " ++ In ++ " > " ++ Out
                     ++ " & p=$!; exec 3> " ++ In ++ " 4< " ++ Out ++ "; printf a >&3; "
                     "read first <&4; printf b >&3; exec 3>&-; echo \"$first\"; cat <&4; "
@@ -953,7 +979,7 @@ stdin() ->
 %% gives twice is not covered, since a shell cannot give one. Its steps:
 %% the build and four runs in each of the two locales.
 os_test_() ->
-    ern_nodes_tests:counted_test({waits, 9}, fun os/0).
+    ern_harness:counted_test({waits, 9}, fun os/0).
 
 os() ->
     SourceRoot = "build/os/src",
@@ -999,7 +1025,7 @@ os() ->
 %% Review's Questions, One by One*, and the release's flags, the host's
 %% installation and its limit of ports, which it clears, after them
 given_environment_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun given_environment/0).
+    ern_harness:counted_test({waits, 2}, fun given_environment/0).
 
 given_environment() ->
     SourceRoot = "build/given/src",
@@ -1018,7 +1044,7 @@ given_environment() ->
             " echo \\\"$ERL_ROOTDIR\\\"; echo \\\"$ERL_MAX_PORTS\\\";"
             " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
             "    let command = Os.command(\"sh\", [\"-c\", script]);\n"
-            "    match Os.run(command, ", ern_nodes_tests:wait_ms_text(), ") {\n"
+            "    match Os.run(command, ", ern_harness:wait_ms_text(), ") {\n"
             "        Right(finished) ->\n"
             "            Io.print(String.fromUtf8Lossy(finished.stdout))\n"
             "      | Left(_) -> Io.println(\"not run\")\n"
@@ -1041,7 +1067,7 @@ given_environment() ->
 %% host's limit through a `foreign fn` of the host's. A regression test,
 %% written with the fix: ERL_MAX_PORTS=2048 moved the limit to 2048
 host_port_limit_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun host_port_limit/0).
+    ern_harness:counted_test({waits, 4}, fun host_port_limit/0).
 
 host_port_limit() ->
     Dir = "build/port_limit",
@@ -1068,13 +1094,13 @@ host_port_limit() ->
 %% a size the host cannot take `Left(Invalid)`. Written with the code. Its
 %% steps: the build and the run
 terminal_program_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun terminal_program/0).
+    ern_harness:counted_test({waits, 2}, fun terminal_program/0).
 
 terminal_program() ->
     SourceRoot = "build/sized/src",
     ok = filelib:ensure_path(SourceRoot),
     %% each wait given the harness's time for one wait
-    Ms = ern_nodes_tests:wait_ms_text(),
+    Ms = ern_harness:wait_ms_text(),
     ok = file:write_file(
            SourceRoot ++ "/sized.ern",
            ["export fn main() : Unit = {\n"
@@ -1124,7 +1150,7 @@ terminal_program() ->
 %% unset, or naming another. Written after the code, which the shell
 %% decides: the launcher cannot see what the shell replaced
 pwd_is_the_shells_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun pwd_is_the_shells/0).
+    ern_harness:counted_test({waits, 4}, fun pwd_is_the_shells/0).
 
 pwd_is_the_shells() ->
     Dir = "build/pwd",
@@ -1154,7 +1180,7 @@ pwd_is_the_shells() ->
 %% directory of the load path held. Its steps: the build and the run; the
 %% stub's compile is no step.
 host_takes_nothing_from_where_it_runs_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun host_takes_nothing_from_where_it_runs/0).
+    ern_harness:counted_test({waits, 2}, fun host_takes_nothing_from_where_it_runs/0).
 
 host_takes_nothing_from_where_it_runs() ->
     Dir = "build/hostcwd",
@@ -1183,7 +1209,7 @@ host_takes_nothing_from_where_it_runs() ->
 %% Written with the code; a directory removed as the program starts is not
 %% covered. Its steps: the build and two runs in each of the two locales.
 working_directory_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun working_directory/0).
+    ern_harness:counted_test({waits, 5}, fun working_directory/0).
 
 working_directory() ->
     Dir = "build/cwd",
@@ -1193,7 +1219,7 @@ working_directory() ->
                          ["export fn main() : Unit = {\n"
                           "    Io.println(Path.toString(Os.workingDirectory));\n"
                           "    match Fs.read(Path(\"notes.txt\"), ",
-                          ern_nodes_tests:wait_ms_text(), ") {\n"
+                          ern_harness:wait_ms_text(), ") {\n"
                           "        Right(bytes) -> Io.println(Io.show(String.fromUtf8(bytes)))\n"
                           "      | Left(_) -> Io.println(\"no notes\")\n"
                           "    }\n"
@@ -1223,7 +1249,7 @@ working_directory() ->
 %% there; it does not cover a job's `--help`, which the launcher refuses as
 %% it refuses the job. Its steps: the four commands.
 launcher_options_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun launcher_options/0).
+    ern_harness:counted_test({waits, 4}, fun launcher_options/0).
 
 launcher_options() ->
     Bad = <<"build/cwd_options/bad", 16#e9>>,
@@ -1278,7 +1304,7 @@ launcher_names_a_missing_iconv_test() ->
 %% nor a machine whose possible processors outnumber its online ones, which
 %% this one may not be.
 schedulers_follow_the_processors_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun schedulers_follow_the_processors/0).
+    ern_harness:counted_test({waits, 3}, fun schedulers_follow_the_processors/0).
 
 schedulers_follow_the_processors() ->
     Dir = "build/schedulers",
@@ -1293,9 +1319,9 @@ schedulers_follow_the_processors() ->
     Run = open_port({spawn_executable, os:find_executable("taskset")},
                     [{args, ["-c", "0", filename:absname("../bin/ern"), "run", Dir ++ "/held.erc"]},
                      exit_status, binary, use_stdio, {line, 80}]),
-    ern_nodes_tests:step(ready),
+    ern_harness:step(ready),
     receive {Run, {data, {eol, <<"ready">>}}} -> ok
-    after ern_nodes_tests:wait_ms() -> error(not_ready)
+    after ern_harness:wait_ms() -> error(not_ready)
     end,
     %% taskset, the launcher, erl and erlexec each give way to the next, so
     %% the port's process is the host's
@@ -1305,9 +1331,9 @@ schedulers_follow_the_processors() ->
     Count = fun(Prefix) -> length([N || N <- Names, string:prefix(N, Prefix) =/= nomatch]) end,
     ?assertEqual({1, 1}, {Count("erts_sched_"), Count("erts_dcpus_")}),
     true = port_command(Run, <<"\n">>),
-    ern_nodes_tests:step(ended),
+    ern_harness:step(ended),
     receive {Run, {exit_status, Status}} -> ?assertEqual(0, Status)
-    after ern_nodes_tests:wait_ms() -> error(not_ended)
+    after ern_harness:wait_ms() -> error(not_ended)
     end.
 
 %% report §12.1, §8.6, §11.2: a run whose standard output has lost its
@@ -1316,7 +1342,7 @@ schedulers_follow_the_processors() ->
 %% the code: the run went on to its end and then hung, and the host printed
 %% its report of the failed write among the program's output.
 stream_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun stream_gone/0).
+    ern_harness:counted_test({waits, 2}, fun stream_gone/0).
 
 stream_gone() ->
     Dir = "build/gone",
@@ -1342,13 +1368,13 @@ stream_gone() ->
 %%
 %% The reader closes its end of the pipe and then says so through a FIFO,
 %% which the program's side waits on before the program starts. Each run is
-%% one step of the harness's (ern_nodes_tests:wait_ms/0), after which a
+%% one step of the harness's (ern_harness:wait_ms/0), after which a
 %% program that has not ended is killed, its status 137 then among the
 %% others'. Its steps: three builds and nine runs. The test does not cover
 %% a device that fails, which only some hosts have one of, nor a reader
 %% that goes while the program writes, which drained_output_test_ holds.
 stream_lost_at_end_test_() ->
-    ern_nodes_tests:counted_test({waits, 12}, fun stream_lost_at_end/0).
+    ern_harness:counted_test({waits, 12}, fun stream_lost_at_end/0).
 
 stream_lost_at_end() ->
     Dir = "build/lost",
@@ -1366,7 +1392,7 @@ stream_lost_at_end() ->
     Gone = fifo(Dir ++ "/gone"),
     Statuses = [begin
                     {0, <<>>} = sh("sh -c '{ read gone < " ++ Gone ++ "; timeout -s KILL "
-                                   ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000)
+                                   ++ integer_to_list(ern_harness:wait_ms() div 1000)
                                    ++ " ../bin/ern run " ++ Dir ++ "/" ++ Name ++ ".erc "
                                    ++ Redirect ++ "; echo $? > " ++ Dir
                                    ++ "/status; } | { exec <&-; echo > " ++ Gone ++ "; }'"),
@@ -1392,7 +1418,7 @@ stream_lost_at_end() ->
 %% fails, which only some hosts have one of. Its steps: each program's
 %% build and two runs.
 drained_output_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun drained_output/0).
+    ern_harness:counted_test({waits, 6}, fun drained_output/0).
 
 drained_output() ->
     Dir = "build/drained",
@@ -1424,7 +1450,7 @@ drained_output() ->
 %% millisecond (the log's *The Sitting on §8.6's Bookkeeping*); an end that
 %% did not wait gave status 0.
 job_output_drained_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun job_output_drained/0).
+    ern_harness:counted_test({waits, 2}, fun job_output_drained/0).
 
 job_output_drained() ->
     Dir = "build/job_drained",
@@ -1456,7 +1482,7 @@ job_output_drained() ->
 %% It does not cover a reader that stops, a line said after the job's last
 %% wait, nor standard output. Its steps: the build and the run.
 slow_standard_error_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun slow_standard_error/0).
+    ern_harness:counted_test({waits, 2}, fun slow_standard_error/0).
 
 slow_standard_error() ->
     Dir = "build/slow_stderr",
@@ -1532,25 +1558,25 @@ ssize_t write(int fd, const void *bytes, size_t count)
 %% the build, the port's line, the connection, two lines, the run's end and
 %% the client's reads.
 run_ends_over_an_unread_socket_test_() ->
-    ern_nodes_tests:counted_test({waits, 7}, fun run_ends_over_an_unread_socket/0).
+    ern_harness:counted_test({waits, 7}, fun run_ends_over_an_unread_socket/0).
 
 run_ends_over_an_unread_socket() ->
     Root = filename:absname("build/unread_socket"),
     ok = del(Root),
-    Program = ern_nodes_tests:unread_writer(Root),
+    Program = ern_harness:unread_writer(Root),
     Megabytes = 32,
     Server = open_port({spawn, "../bin/ern run " ++ Program ++ " " ++ integer_to_list(Megabytes)},
                        [exit_status, stderr_to_stdout, binary]),
     try
-        Client = ern_nodes_tests:connected(listening_port(Server), []),
+        Client = ern_harness:connected(listening_port(Server), []),
         ?assertEqual(ok, said_line(Server, <<"accepted">>)),
         true = port_command(Server, "go\n"),
         ?assertEqual(ok, said_line(Server, <<"served: Right(Unit)">>)),
-        ern_nodes_tests:step({ended, Server}),
+        ern_harness:step({ended, Server}),
         ?assertEqual(0, receive {Server, {exit_status, Status}} -> Status
-                        after ern_nodes_tests:wait_ms() -> timeout
+                        after ern_harness:wait_ms() -> timeout
                         end),
-        {Taken, End} = ern_nodes_tests:read_to_its_end(Client),
+        {Taken, End} = ern_harness:read_to_its_end(Client),
         ?assert(Taken < Megabytes * 1048576),
         ?assert(lists:member(End, [closed, econnreset])),
         ok = gen_tcp:close(Client)
@@ -1575,7 +1601,7 @@ run_ends_over_an_unread_socket() ->
 %% steps: the build, the connection, the program's line, the far end's
 %% reads and the run's end.
 close_sends_before_the_run_ends_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun close_sends_before_the_run_ends/0).
+    ern_harness:counted_test({waits, 5}, fun close_sends_before_the_run_ends/0).
 
 close_sends_before_the_run_ends() ->
     Dir = close_sends_built("build/close_sends"),
@@ -1584,9 +1610,9 @@ close_sends_before_the_run_ends() ->
     Megabytes = 64,
     Program = close_sends_run(Dir, [Port, Megabytes]),
     try
-        FarEnd = ern_nodes_tests:accepted(Listen),
+        FarEnd = ern_harness:accepted(Listen),
         ?assertEqual(ok, said_line(Program, <<"closing\n">>)),
-        ?assertEqual({Megabytes * 1048576, closed}, ern_nodes_tests:read_to_its_end(FarEnd)),
+        ?assertEqual({Megabytes * 1048576, closed}, ern_harness:read_to_its_end(FarEnd)),
         ?assertEqual({0, <<>>}, finished(Program)),
         ok = gen_tcp:close(FarEnd)
     after
@@ -1608,7 +1634,7 @@ close_sends_before_the_run_ends() ->
 %% it passed too. Its steps: the build, the program's line and the run's
 %% end.
 close_sends_its_record_before_the_run_ends_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun close_sends_its_record_before_the_run_ends/0).
+    ern_harness:counted_test({waits, 3}, fun close_sends_its_record_before_the_run_ends/0).
 
 close_sends_its_record_before_the_run_ends() ->
     Dir = close_sends_built("build/close_sends_tls"),
@@ -1706,7 +1732,7 @@ killed(Program) ->
 %% error. Its steps: the build, and the command that runs the program to
 %% the reader's word and to its end.
 paced_output_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun paced_output/0).
+    ern_harness:counted_test({waits, 2}, fun paced_output/0).
 
 paced_output() ->
     Dir = "build/paced",
@@ -1739,7 +1765,7 @@ paced_output() ->
 %% cover `ern test` and `ern shell`, which set the path the same way. Its
 %% steps: the two probes' compiles, the build and the run.
 foreign_module_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun foreign_module/0).
+    ern_harness:counted_test({waits, 4}, fun foreign_module/0).
 
 foreign_module() ->
     Dir = filename:absname("build/foreign"),
@@ -1771,7 +1797,7 @@ foreign_module() ->
 %% stream gone and the other read. Its steps: the seven jobs and the
 %% shell's.
 closed_pipe_test_() ->
-    ern_nodes_tests:counted_test({waits, 8}, fun closed_pipe/0).
+    ern_harness:counted_test({waits, 8}, fun closed_pipe/0).
 
 closed_pipe() ->
     Dir = filename:absname("build/closed_pipe"),
@@ -1802,7 +1828,7 @@ closed_pipe() ->
 %% regression test: the host opened /dev/null in the stream's place, and
 %% the job wrote there and ended with status 0
 closed_stream_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun closed_stream/0).
+    ern_harness:counted_test({waits, 3}, fun closed_stream/0).
 
 closed_stream() ->
     Ern = filename:absname("../bin/ern"),
@@ -1822,7 +1848,7 @@ closed_stream() ->
 %% cover an error the host logs of its own process, which takes the same
 %% way.
 host_warning_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun host_warning/0).
+    ern_harness:counted_test({waits, 2}, fun host_warning/0).
 
 host_warning() ->
     Dir = "build/warned",
@@ -1859,7 +1885,7 @@ host_warning() ->
 %% label a line of it. It does not cover a formatter that crashes, which a
 %% job's host is never given.
 host_formatting_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun host_formatting/0).
+    ern_harness:counted_test({waits, 2}, fun host_formatting/0).
 
 host_formatting() ->
     Dir = "build/host_formatting",
@@ -1908,7 +1934,7 @@ host_formatting() ->
 %% regression test: a cause's line feed wrote a second line, which forged
 %% another fault, and its escape reached the terminal as itself
 fault_line_escaped_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun fault_line_escaped/0).
+    ern_harness:counted_test({waits, 2}, fun fault_line_escaped/0).
 
 fault_line_escaped() ->
     Dir = "build/escaped",
@@ -1932,7 +1958,7 @@ fault_line_escaped() ->
 %% not stamped, a regression test written after the code, where a cause
 %% stated with its rule (§7.4) had none
 stamped_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun stamped/0).
+    ern_harness:counted_test({waits, 3}, fun stamped/0).
 
 stamped() ->
     Dir = "build/stamped",
@@ -1968,7 +1994,7 @@ stamped() ->
 %% after the start, it came then under load. Its steps: the build, and for
 %% each signal the wait for the program's line and its end.
 signal_end_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun signal_end/0).
+    ern_harness:counted_test({waits, 5}, fun signal_end/0).
 
 signal_end() ->
     Dir = "build/signal_end",
@@ -1979,7 +2005,7 @@ signal_end() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    Clock.sleep(", ern_nodes_tests:wait_ms_text(), ");\n"
+                          "    Clock.sleep(", ern_harness:wait_ms_text(), ");\n"
                           "    Io.println(\"late\")\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
@@ -1990,7 +2016,7 @@ signal_end() ->
              "    p.stdout.readline()\n"
              "    p.send_signal(s)\n"
              "    print(p.wait(timeout="
-             ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000) ++ "))\n",
+             ++ integer_to_list(ern_harness:wait_ms() div 1000) ++ "))\n",
     ok = file:write_file(Dir ++ "/signals.py", Python),
     ?assertEqual({0, <<"-15\n-1\n">>}, scripted("python3 " ++ Dir ++ "/signals.py", 4)).
 
@@ -2011,7 +2037,7 @@ signal_end() ->
 %% Its steps: the build, and for each of the five runs the wait for its
 %% line and its end.
 end_status_test_() ->
-    ern_nodes_tests:counted_test({waits, 11}, fun end_status/0).
+    ern_harness:counted_test({waits, 11}, fun end_status/0).
 
 end_status() ->
     Dir = "build/end_status",
@@ -2081,7 +2107,7 @@ end_status() ->
              "    for s in signals:\n"
              "        p.send_signal(s)\n"
              "    status = p.wait(timeout="
-             ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000) ++ ")\n"
+             ++ integer_to_list(ern_harness:wait_ms() div 1000) ++ ")\n"
              "    cut = [re.sub(rb'^\\S+Z ', b'', line).decode()\n"
              "           for line in p.stderr.read().splitlines() if b'cut short' in line]\n"
              "    print(name, status, *cut)\n"
@@ -2109,7 +2135,7 @@ end_status() ->
 %% subscription is made before the end looks for it. Its steps: the build
 %% and the five runs.
 fault_before_its_end_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun fault_before_its_end/0).
+    ern_harness:counted_test({waits, 6}, fun fault_before_its_end/0).
 
 fault_before_its_end() ->
     Dir = "build/fault_before_its_end",
@@ -2153,7 +2179,7 @@ fault_before_its_end() ->
 %% restarted run's subscription was never told, and the end went on
 %% without it.
 restarted_subscriber_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun restarted_subscriber/0).
+    ern_harness:counted_test({waits, 2}, fun restarted_subscriber/0).
 
 restarted_subscriber() ->
     Dir = "build/restarted_subscriber",
@@ -2220,7 +2246,7 @@ restarted_subscriber() ->
 %% the worker's Down said so, and no line was written. Its steps:
 %% waiting_program/1's build and the run.
 fault_while_the_end_waits_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun fault_while_the_end_waits/0).
+    ern_harness:counted_test({waits, 2}, fun fault_while_the_end_waits/0).
 
 fault_while_the_end_waits() ->
     Dir = "build/fault_while_the_end_waits",
@@ -2246,7 +2272,7 @@ fault_while_the_end_waits() ->
 %% steps: waiting_program/1's build, the wait for main's line and the
 %% program's end.
 fault_while_a_termination_waits_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun fault_while_a_termination_waits/0).
+    ern_harness:counted_test({waits, 3}, fun fault_while_a_termination_waits/0).
 
 fault_while_a_termination_waits() ->
     Dir = "build/fault_while_a_termination_waits",
@@ -2260,7 +2286,7 @@ fault_while_a_termination_waits() ->
              "    p.send_signal(signal.SIGTERM)\n"
              "    rest = p.stdout.read()\n"
              "    sys.stdout.buffer.write(running + rest + b'%d\\n'"
-             " % p.wait(timeout=" ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000) ++ "))\n",
+             " % p.wait(timeout=" ++ integer_to_list(ern_harness:wait_ms() div 1000) ++ "))\n",
     ok = file:write_file(Dir ++ "/terminated.py", Python),
     ?assertEqual({0, <<"running\nFault(\"division by zero\")\n-15\n">>},
                  scripted("python3 " ++ Dir ++ "/terminated.py", 2)),
@@ -2344,7 +2370,7 @@ unstamped_lines(Text) ->
 %% program's binding makes the atoms that bring the host there, as many as
 %% the host's own counts say. A regression test, written after the code.
 limits_line_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun limits_line/0).
+    ern_harness:counted_test({waits, 2}, fun limits_line/0).
 
 limits_line() ->
     Dir = "build/limits_line",
@@ -2382,7 +2408,7 @@ limits_line() ->
 %% which no test reaches within its time, nor an arrival, the shell's
 %% loads or a build.
 load_past_atoms_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun load_past_atoms/0).
+    ern_harness:counted_test({waits, 3}, fun load_past_atoms/0).
 
 load_past_atoms() ->
     Dir = "build/load_past_atoms",
@@ -2428,13 +2454,13 @@ load_past_atoms() ->
 %% first module is written, which the build's --verbose line says (report
 %% §11.1), read as it is written; standard error holds no line but the
 %% build's own. The build's end after the signal is one step of the
-%% harness's (ern_nodes_tests:wait_ms/0), after which it is killed, so that
+%% harness's (ern_harness:wait_ms/0), after which it is killed, so that
 %% one that does not end fails the test and is not left running. The test
 %% does not cover a signal that comes as the host itself starts, which the
 %% host drops (docs/otp_bugs.md, report 2). Its steps: the build to its
 %% first module and its end.
 job_signal_end_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun job_signal_end/0).
+    ern_harness:counted_test({waits, 2}, fun job_signal_end/0).
 
 job_signal_end() ->
     Dir = "build/job_signal_end",
@@ -2456,7 +2482,7 @@ job_signal_end() ->
              "p.send_signal(signal.SIGTERM)\n"
              "try:\n"
              "    said += p.communicate(timeout="
-             ++ integer_to_list(ern_nodes_tests:wait_ms() div 1000) ++ ")[1].splitlines(True)\n"
+             ++ integer_to_list(ern_harness:wait_ms() div 1000) ++ ")[1].splitlines(True)\n"
              "except subprocess.TimeoutExpired:\n"
              "    p.kill()\n"
              "    said += p.communicate()[1].splitlines(True)\n"
@@ -2468,7 +2494,7 @@ job_signal_end() ->
 
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun modules/0).
+    ern_harness:counted_test({waits, 2}, fun modules/0).
 
 modules() ->
     {0, _} = sh("../bin/ern build --build-root build/modules fixtures/programs/modules"),
@@ -2480,7 +2506,7 @@ modules() ->
 %% from the interface that carries the type. A regression test: the build
 %% ended with an internal error, its link holding no such type
 private_mailbox_shown_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun private_mailbox_shown/0).
+    ern_harness:counted_test({waits, 2}, fun private_mailbox_shown/0).
 
 private_mailbox_shown() ->
     {0, Output} = private_mailbox_printed("shown"),
@@ -2493,7 +2519,7 @@ private_mailbox_shown() ->
 %% regression test: the build ended with an internal error, as the shown
 %% program's did
 private_mailbox_exposed_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun private_mailbox_exposed/0).
+    ern_harness:counted_test({waits, 2}, fun private_mailbox_exposed/0).
 
 private_mailbox_exposed() ->
     {0, Output} = private_mailbox_printed("exposed"),
@@ -2510,7 +2536,7 @@ private_mailbox_exposed() ->
 %% does not cover a spawn that reaches a peer, which was run by hand on a
 %% bare node and has no test
 private_mailbox_spawned_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun private_mailbox_spawned/0).
+    ern_harness:counted_test({waits, 2}, fun private_mailbox_spawned/0).
 
 private_mailbox_spawned() ->
     ?assertEqual({0, <<"Io.NotListed\n">>}, private_mailbox_printed("spawned")).
@@ -2532,7 +2558,7 @@ private_mailbox_printed(Name) ->
 %% the module that did not parse, which wrote nothing to standard output,
 %% and of `- x.ern`, which was refused as a missing file `-`.
 format_input_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun format_input/0).
+    ern_harness:counted_test({waits, 5}, fun format_input/0).
 
 format_input() ->
     Loose = "sh -c 'printf \"fn f(x) = x+1\\n\" | ../bin/ern format ",
@@ -2550,7 +2576,7 @@ format_input() ->
 %% and a diagnostic's source line came out as Latin-1 and escapes, which an
 %% earlier change to the ports had fixed unseen
 locale_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun locale/0).
+    ern_harness:counted_test({waits, 2}, fun locale/0).
 
 locale() ->
     Source = <<"let s = \"caf", 16#C3, 16#A9, " ", 16#E2, 16#80, 16#A2, "\"\n">>,
@@ -2571,13 +2597,11 @@ locale() ->
 %% its encoding, to the catalog. A regression test, written after the code;
 %% it holds one example, and the catalog's others stay its own test's
 diagnostic_as_cataloged_test_() ->
-    ern_nodes_tests:counted_test({waits, 1}, fun diagnostic_as_cataloged/0).
+    ern_harness:counted_test({waits, 1}, fun diagnostic_as_cataloged/0).
 
 diagnostic_as_cataloged() ->
     {Code, Console} = catalog_example(<<"### A character outside the language (">>),
-    Dir = filename:join(ern_pty:run_dir(), "ern_cataloged_" ++ os:getpid() ++ "_"
-                                           ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = ern_helpers:tmp("ern_cataloged_"),
     File = filename:join(Dir, "example.ern"),
     ok = file:write_file(File, Code),
     {1, Output} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ File),
@@ -2651,14 +2675,14 @@ printed(Output) ->
 %% the start of a host, which the builds here, which only ready what a test
 %% runs through the launcher, need not pay. The launcher's own build is
 %% tested where it is the point, a word it refuses and a directory's build.
-%% One step of the harness's (ern_nodes_tests:built/1).
+%% One step of the harness's (ern_harness:built/1).
 -spec build(string()) -> integer().
 build(Args) ->
-    ern_nodes_tests:built(string:lexemes(Args, " ")).
+    ern_harness:built(string:lexemes(Args, " ")).
 
 %% A command run by the host's shell to its end: its status, and what it
 %% wrote, its standard error beside its standard output, Options given to
-%% its port beside. One step of the harness's (ern_nodes_tests:collected/2).
+%% its port beside. One step of the harness's (ern_harness:collected/2).
 -spec sh(string()) -> {integer(), binary()}.
 sh(Command) ->
     sh(Command, []).
@@ -2666,7 +2690,7 @@ sh(Command) ->
 -spec sh(string(), [term()]) -> {integer(), binary()}.
 sh(Command, Options) ->
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
-    ern_nodes_tests:collected(Shell, 1).
+    ern_harness:collected(Shell, 1).
 
 %% A script run by the host's shell to its end, as sh/1 runs a command,
 %% which gives each of Steps waits of its own, its runs of `ern` and their
@@ -2674,7 +2698,7 @@ sh(Command, Options) ->
 %% which cannot see them.
 scripted(Command, Steps) ->
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
-    ern_nodes_tests:collected(Shell, Steps).
+    ern_harness:collected(Shell, Steps).
 
 %% A FIFO at Path, made anew: two sides of a test's command line meet at
 %% it, the one that reads it waiting until the other has written its line.
@@ -2706,4 +2730,4 @@ succeed(Command, Options) ->
 %% What the program the port Program runs wrote, to its end, and its
 %% status: one step of the harness's.
 finished(Program) ->
-    ern_nodes_tests:collected(Program, 1).
+    ern_harness:collected(Program, 1).

@@ -20,7 +20,7 @@
 %% paste arrives as one `Pasted` with its line endings as line feeds, not
 %% as the keys of its characters.
 keys_test_() ->
-    ern_nodes_tests:counted_test({waits, 8}, fun keys/0).
+    ern_harness:counted_test({waits, 8}, fun keys/0).
 
 keys() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -54,7 +54,7 @@ keys() ->
 %% later is nothing, which a key after it, shown, marks. A regression test:
 %% the paste took in every key after it
 unended_paste_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun unended_paste/0).
+    ern_harness:counted_test({waits, 6}, fun unended_paste/0).
 
 unended_paste() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -77,7 +77,7 @@ unended_paste() ->
 %% standard output is not one, the size is `Left(NotATerminal)`, a
 %% regression test of the rule, before which it was `None`
 not_a_terminal_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun not_a_terminal/0).
+    ern_harness:counted_test({waits, 2}, fun not_a_terminal/0).
 
 not_a_terminal() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -90,7 +90,7 @@ not_a_terminal() ->
 %% regression test: the host answered the terminal's size through a pipe,
 %% so the shell painted its region into it
 no_size_test_() ->
-    ern_nodes_tests:counted_test({waits, 7}, fun no_size/0).
+    ern_harness:counted_test({waits, 7}, fun no_size/0).
 
 no_size() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -106,7 +106,7 @@ no_size() ->
 %% regression test: the mode's start and its end were written into a
 %% standard output sent elsewhere
 paste_mode_at_a_terminal_alone_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun paste_mode_at_a_terminal_alone/0).
+    ern_harness:counted_test({waits, 4}, fun paste_mode_at_a_terminal_alone/0).
 
 paste_mode_at_a_terminal_alone() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -118,7 +118,7 @@ paste_mode_at_a_terminal_alone() ->
 %% report §11.2: at a terminal a fault line is as the reader watches it
 %% happen, without the time it begins with in a file. Written with the code.
 unstamped_at_a_terminal_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun unstamped_at_a_terminal/0).
+    ern_harness:counted_test({waits, 3}, fun unstamped_at_a_terminal/0).
 
 unstamped_at_a_terminal() ->
     ok = build("fixtures/terminal/faulty.ern", "fixtures/terminal"),
@@ -132,7 +132,7 @@ unstamped_at_a_terminal() ->
 %% keys. A regression test: the interrupt's signal was turned back on for
 %% all but the shell, and ended such a program, where §12.1 delivers it
 utf8_key_interrupt_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun utf8_key_interrupt/0).
+    ern_harness:counted_test({waits, 5}, fun utf8_key_interrupt/0).
 
 utf8_key_interrupt() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -152,7 +152,7 @@ utf8_key_interrupt() ->
 %% regression test of the end's write, written with a change to it, which
 %% does not cover an end that a termination or a hangup began
 terminal_restored_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun terminal_restored/0).
+    ern_harness:counted_test({waits, 3}, fun terminal_restored/0).
 
 terminal_restored() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -175,7 +175,7 @@ terminal_restored() ->
 %% program's output goes through a pipe, since the host puts back the
 %% terminal it found as it halts where its own output is the terminal
 settings_kept_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun settings_kept/0).
+    ern_harness:counted_test({waits, 3}, fun settings_kept/0).
 
 settings_kept() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -193,7 +193,7 @@ settings_kept() ->
 %% regression test, written after the fix: the end gave the settings back,
 %% and a host killed left the terminal raw
 killed_host_restored_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun killed_host_restored/0).
+    ern_harness:counted_test({waits, 3}, fun killed_host_restored/0).
 
 killed_host_restored() ->
     ok = build("fixtures/terminal/killed.ern", "fixtures/terminal"),
@@ -221,20 +221,18 @@ killed_host_restored() ->
 %% the end while the harness reads nothing (ern_pty:watched/5); then the
 %% harness reads again, and the status is the termination's.
 stalled_terminal_ends_at_once_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun stalled_terminal_ends_at_once/0).
+    ern_harness:counted_test({waits, 3}, fun stalled_terminal_ends_at_once/0).
 
 stalled_terminal_ends_at_once() ->
     ok = build("fixtures/terminal/stalled.ern", "fixtures/terminal"),
-    Base = filename:join(ern_pty:run_dir(), "terminal_stalled_" ++ os:getpid() ++ "_"
-                         ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Base),
+    Base = ern_helpers:tmp("terminal_stalled_"),
     [Written, Told, Watched, Ended] =
         [filename:join(Base, Name ++ ".pipe") || Name <- ["written", "told", "watched", "ended"]],
     lists:foreach(fun(Pipe) -> [] = os:cmd("mkfifo " ++ Pipe) end, [Written, Told, Watched, Ended]),
     Watcher = filename:join(Base, "watcher"),
     {Status, Screen} = ern_pty:watched(Watcher, Watched, Ended,
                                        "exec ../bin/ern run build/terminal/stalled.erc " ++ Written
-                                       ++ " " ++ Told ++ " " ++ ern_nodes_tests:wait_ms_text(),
+                                       ++ " " ++ Told ++ " " ++ ern_harness:wait_ms_text(),
                                        [{expect, "ready"},
                                         stall,
                                         {send, "78"},
@@ -263,14 +261,14 @@ stalled_terminal_ends_at_once() ->
 %% room to read after the first is ern_tty_tests' to hold, since the first
 %% read gives its port back as it ends
 full_port_table_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun full_port_table/0).
+    ern_harness:counted_test({waits, 3}, fun full_port_table/0).
 
 full_port_table() ->
     Program = on_node("fixtures/terminal/limited.ern"),
-    Base = filename:join(ern_pty:run_dir(), "terminal_limited_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_limited_" ++ os:getpid()),
     ok = filelib:ensure_path(Base),
-    Node = ern_nodes_tests:made(Base, "node", none),
-    ern_nodes_tests:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    Node = ern_harness:made(Base, "node", none),
+    ern_harness:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
     {0, Screen} = pty("../bin/ern run --config-dir " ++ Node
                       ++ " " ++ Program ++ "; echo status $?; stty -a",
                       [{expect, "Right(Unit)"}]),
@@ -294,11 +292,11 @@ full_port_table() ->
 %% whose read fails while it is still there, a device failing, which no
 %% test can make.
 terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun terminal_gone/0).
+    ern_harness:counted_test({waits, 3}, fun terminal_gone/0).
 
 terminal_gone() ->
     ok = build("fixtures/terminal/gone.ern", "fixtures/terminal"),
-    Err = filename:join(ern_pty:run_dir(), "terminal_gone_" ++ os:getpid() ++ ".err"),
+    Err = filename:join(ern_helpers:run_dir(), "terminal_gone_" ++ os:getpid() ++ ".err"),
     {129, _} = pty("exec ../bin/ern run build/terminal/gone.erc 2> " ++ Err,
                    [{expect, "Right(Unit)"}, hangup]),
     ?assertEqual({ok, <<>>}, file:read_file(Err)).
@@ -313,13 +311,13 @@ terminal_gone() ->
 %% A regression test, written after the code, under which the shell's keys
 %% ended and the shell went on with no terminal, holding its node.
 shell_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun shell_terminal_gone/0).
+    ern_harness:counted_test({waits, 2}, fun shell_terminal_gone/0).
 
 shell_terminal_gone() ->
-    Base = filename:join(ern_pty:run_dir(), "terminal_shell_gone_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_gone_" ++ os:getpid()),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
-    Node = ern_nodes_tests:made(Base, "node", none),
+    Node = ern_harness:made(Base, "node", none),
     Err = filename:join(Base, "shell.err"),
     {129, _} = pty("HOME=" ++ Home ++ " exec ../bin/ern shell --config-dir " ++ Node
                    ++ " 2> " ++ Err,
@@ -338,18 +336,18 @@ shell_terminal_gone() ->
 %% line may stand. It does not cover a terminal whose write fails while it
 %% is still there, a device failing, which no test can make.
 write_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun write_terminal_gone/0).
+    ern_harness:counted_test({waits, 3}, fun write_terminal_gone/0).
 
 write_terminal_gone() ->
     Program = on_node("fixtures/terminal/writes.ern"),
-    Base = filename:join(ern_pty:run_dir(), "terminal_write_gone_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_write_gone_" ++ os:getpid()),
     ok = filelib:ensure_path(Base),
-    Node = ern_nodes_tests:made(Base, "node", none),
+    Node = ern_harness:made(Base, "node", none),
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Err = filename:join(Base, "node.err"),
     {129, _} = pty("exec ../bin/ern run --config-dir " ++ Node ++ " " ++ Program ++ " "
-                   ++ Pipe ++ " " ++ ern_nodes_tests:wait_ms_text() ++ " 2> " ++ Err,
+                   ++ Pipe ++ " " ++ ern_harness:wait_ms_text() ++ " 2> " ++ Err,
                    [{expect, "ready"}, hangup, {put, Pipe}]),
     {ok, Said} = file:read_file(Err),
     Lines = [re:replace(Line, ?STAMP, "", [{return, binary}])
@@ -371,17 +369,17 @@ write_terminal_gone() ->
 %% Written before the code, under which the host wrote its warning on
 %% standard output, the file, and the program went on.
 log_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun log_terminal_gone/0).
+    ern_harness:counted_test({waits, 3}, fun log_terminal_gone/0).
 
 log_terminal_gone() ->
     ok = build("fixtures/terminal/warns.ern", "fixtures/terminal"),
-    Base = filename:join(ern_pty:run_dir(), "terminal_log_gone_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_log_gone_" ++ os:getpid()),
     ok = filelib:ensure_path(Base),
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Out = filename:join(Base, "written.out"),
     {129, _} = pty("trap '' HUP; (exec setsid ../bin/ern run build/terminal/warns.erc " ++ Pipe
-                   ++ " " ++ ern_nodes_tests:wait_ms_text() ++ " > " ++ Out ++ ")",
+                   ++ " " ++ ern_harness:wait_ms_text() ++ " > " ++ Out ++ ")",
                    [{expect, "ready"}, hangup, {put, Pipe}]),
     ?assertEqual({ok, <<>>}, file:read_file(Out)).
 
@@ -401,10 +399,10 @@ log_terminal_gone() ->
 %% its screen through the host's own output, which said that its writer had
 %% crashed, and the shell ended with status 0.
 shell_write_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
+    ern_harness:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
 
 shell_write_terminal_gone() ->
-    Base = filename:join(ern_pty:run_dir(), "terminal_shell_write_gone_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_write_gone_" ++ os:getpid()),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Pipe = filename:join(Base, "written.pipe"),
@@ -412,7 +410,7 @@ shell_write_terminal_gone() ->
     Inputs = filename:join(Base, "inputs"),
     Reader = ["Os.command(\"cat\", [\"", Pipe, "\"])"],
     Written = ["Io.println(\"ready\"); let _ = Os.run(", Reader, ", ",
-               ern_nodes_tests:wait_ms_text(), "); Io.println(\"written\")"],
+               ern_harness:wait_ms_text(), "); Io.println(\"written\")"],
     ok = file:write_file(Inputs, ["{ ", Written, " }\n"]),
     Err = filename:join(Base, "shell.err"),
     {129, _} = pty("trap '' HUP; (HOME=" ++ Home ++ " exec setsid ../bin/ern shell < "
@@ -431,13 +429,13 @@ shell_write_terminal_gone() ->
 %%
 %% A regression test, written after the code, under which the shell went on.
 shell_reload_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun shell_reload_terminal_gone/0).
+    ern_harness:counted_test({waits, 2}, fun shell_reload_terminal_gone/0).
 
 shell_reload_terminal_gone() ->
-    Base = filename:join(ern_pty:run_dir(), "terminal_shell_reload_gone_" ++ os:getpid()),
+    Base = filename:join(ern_helpers:run_dir(), "terminal_shell_reload_gone_" ++ os:getpid()),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
-    Node = ern_nodes_tests:made(Base, "node", none),
+    Node = ern_harness:made(Base, "node", none),
     Inputs = filename:join(Base, "inputs"),
     ok = file:write_file(Inputs, "{ Io.println(\"ready\"); receive { Unit -> Unit } }\n"),
     Err = filename:join(Base, "shell.err"),
@@ -451,7 +449,7 @@ shell_reload_terminal_gone() ->
 %% leaves, and the board's rows each start at the left, which full raw mode
 %% would have broken
 snake_test_() ->
-    ern_nodes_tests:counted_test({waits, 5}, fun snake/0).
+    ern_harness:counted_test({waits, 5}, fun snake/0).
 
 snake() ->
     ok = build("../examples/snake.ern", "../examples"),
@@ -485,7 +483,7 @@ snake() ->
 %% subscriber claims it, leaves the game as `Escape` does. A regression
 %% test: the game ignored it
 snake_interrupt_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun snake_interrupt/0).
+    ern_harness:counted_test({waits, 3}, fun snake_interrupt/0).
 
 snake_interrupt() ->
     ok = build("../examples/snake.ern", "../examples"),

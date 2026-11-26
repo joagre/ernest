@@ -1,15 +1,17 @@
 %% The waits the tests share, each on what it means rather than on a time
-%% (CLAUDE.md, *What the user wants of Ernest*): a process in a state,
-%% blocked in a receive or in a call, or watching another or no longer,
-%% among them, a process's mailbox holding messages, a process having
-%% called a function or returned from it, the runtime's reaper having
-%% looked for a deadlock, the deliveries to a process having
-%% delivered, and processes having ended. All but the last two read what
-%% the host reports of a process by tracing it, and stop tracing when they
-%% return. Beside them, the timers a process arms and cancels, read by
-%% tracing it, so that an absence of a timer left armed needs no wait; a
-%% wait for a message, which gives up after a limit; and the trace
-%% messages of a process taken out.
+%% (the log's *The Tests Wait on What They Mean*): a process in a state
+%% (until/2), waiting in a receive, running, waiting in a call, watching
+%% another or no longer (waiting/1, running/1, calling/1, watching/2,
+%% unwatched/2); holding no large binary (freed/2); with messages in its
+%% mailbox (queued/2); having called or returned from a function
+%% (called/3, returned/3); the reaper having looked (looked/1); the
+%% deliveries to a process delivered (delivered/1); processes ended
+%% (ended/1). All but the last two trace the process (traced/3) and stop
+%% as they return. Beside them: a heap with room (with_room/1), whether a
+%% process holds a large binary (references/2), the timers a process arms
+%% and cancels (timers/3), a wait as an Ernest process waits (forever/0),
+%% a wait for a message with a limit (wait/1), and a process's trace
+%% messages taken out (flushed/1).
 -module(ern_waits).
 
 -export([with_room/1, until/2, freed/2, references/2, waiting/1, running/1, calling/1,
@@ -37,20 +39,7 @@ with_room(Work) ->
 %% trace turned off.
 -spec until(pid(), fun(() -> boolean())) -> ok | ended.
 until(Pid, Test) ->
-    MonitorRef = erlang:monitor(process, Pid),
-    try erlang:trace(Pid, true, [running]) of
-        _ ->
-            try
-                held(Pid, MonitorRef, Test)
-            after
-                untraced(Pid),
-                flushed(Pid)
-            end
-    catch
-        error:badarg -> ended
-    after
-        erlang:demonitor(MonitorRef, [flush])
-    end.
+    traced(Pid, [running], fun(MonitorRef) -> held(Pid, MonitorRef, Test) end).
 
 held(Pid, MonitorRef, Test) ->
     case erlang:is_process_alive(Pid) andalso Test() of
@@ -63,8 +52,25 @@ held(Pid, MonitorRef, Test) ->
             end
     end.
 
-untraced(Pid) ->
-    untraced(Pid, [running]).
+%% What Wait answers, given the monitor's reference, while Pid is traced by
+%% Flags and monitored, the trace turned off, its messages taken out and
+%% the monitor gone as it returns; ended where Pid had ended before, which
+%% can be neither traced nor have its trace turned off.
+traced(Pid, Flags, Wait) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    try erlang:trace(Pid, true, Flags) of
+        _ ->
+            try
+                Wait(MonitorRef)
+            after
+                untraced(Pid, Flags),
+                flushed(Pid)
+            end
+    catch
+        error:badarg -> ended
+    after
+        erlang:demonitor(MonitorRef, [flush])
+    end.
 
 untraced(Pid, Flags) ->
     try erlang:trace(Pid, false, Flags)
@@ -77,21 +83,8 @@ untraced(Pid, Flags) ->
 %% loop.
 -spec freed(pid(), non_neg_integer()) -> ok | ended.
 freed(Pid, Size) ->
-    Flags = [garbage_collection, running],
-    MonitorRef = erlang:monitor(process, Pid),
-    try erlang:trace(Pid, true, Flags) of
-        _ ->
-            try
-                unreferenced(Pid, Size, MonitorRef)
-            after
-                untraced(Pid, Flags),
-                flushed(Pid)
-            end
-    catch
-        error:badarg -> ended
-    after
-        erlang:demonitor(MonitorRef, [flush])
-    end.
+    traced(Pid, [garbage_collection, running],
+           fun(MonitorRef) -> unreferenced(Pid, Size, MonitorRef) end).
 
 unreferenced(Pid, Size, MonitorRef) ->
     case references(Pid, Size) of
@@ -167,20 +160,7 @@ is_watching(Pid, Watched) ->
 %% message that comes after it is not seen until the process runs again.
 -spec queued(pid(), pos_integer()) -> ok | ended.
 queued(Pid, Count) ->
-    MonitorRef = erlang:monitor(process, Pid),
-    try erlang:trace(Pid, true, ['receive']) of
-        _ ->
-            try
-                holding(Pid, Count, MonitorRef)
-            after
-                untraced(Pid, ['receive']),
-                flushed(Pid)
-            end
-    catch
-        error:badarg -> ended
-    after
-        erlang:demonitor(MonitorRef, [flush])
-    end.
+    traced(Pid, ['receive'], fun(MonitorRef) -> holding(Pid, Count, MonitorRef) end).
 
 holding(Pid, Count, MonitorRef) ->
     case erlang:process_info(Pid, message_queue_len) of
@@ -200,20 +180,10 @@ holding(Pid, Count, MonitorRef) ->
 -spec called(pid(), mfa(), pos_integer()) -> ok | ended.
 called(Pid, {Module, Function, _} = MFA, Count) ->
     1 = erlang:trace_pattern(MFA, true, [local]),
-    MonitorRef = erlang:monitor(process, Pid),
-    try erlang:trace(Pid, true, [call]) of
-        _ ->
-            try
-                calls(Pid, Module, Function, Count, MonitorRef)
-            after
-                untraced(Pid, [call]),
-                flushed(Pid)
-            end
-    catch
-        error:badarg -> ended
+    try
+        traced(Pid, [call], fun(MonitorRef) -> calls(Pid, Module, Function, Count, MonitorRef) end)
     after
-        erlang:trace_pattern(MFA, false, [local]),
-        erlang:demonitor(MonitorRef, [flush])
+        erlang:trace_pattern(MFA, false, [local])
     end.
 
 calls(_, _, _, 0, _) -> ok;
@@ -226,19 +196,22 @@ calls(Pid, Module, Function, Count, MonitorRef) ->
     end.
 
 %% Until Pid has returned from Module:Function called with Arguments, a
-%% call made after Action, which runs once the call is traced.
--spec returned(pid(), {module(), atom(), list()}, fun(() -> term())) -> ok.
+%% call made after Action, which runs once the call is traced, or Pid has
+%% ended, Action then not run where it had ended before.
+-spec returned(pid(), {module(), atom(), list()}, fun(() -> term())) -> ok | ended.
 returned(Pid, {Module, Function, Arguments}, Action) ->
     MFA = {Module, Function, length(Arguments)},
     1 = erlang:trace_pattern(MFA, [{Arguments, [], [{return_trace}]}], [local]),
-    erlang:trace(Pid, true, [call]),
     try
-        _ = Action(),
-        receive {trace, Pid, return_from, MFA, _} -> ok end
+        traced(Pid, [call], fun(MonitorRef) ->
+                                _ = Action(),
+                                receive
+                                    {trace, Pid, return_from, MFA, _} -> ok;
+                                    {'DOWN', MonitorRef, process, Pid, _} -> ended
+                                end
+                            end)
     after
-        erlang:trace(Pid, false, [call]),
-        erlang:trace_pattern(MFA, false, [local]),
-        flushed(Pid)
+        erlang:trace_pattern(MFA, false, [local])
     end.
 
 %% Report §8.6: until the runtime's reaper has looked for a deadlock Count

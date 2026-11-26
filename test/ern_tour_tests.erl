@@ -30,7 +30,7 @@
 -define(SENT, "\"ok\" : String").
 
 %% A shell the test types at, named by the directory its streams are
-%% written beside (ern_nodes_tests:launched/2): the port its inputs are
+%% written beside (ern_harness:launched/2): the port its inputs are
 %% written to, what waits for its end, all it has printed that the test
 %% has read, and the parts the input before printed none of, which nothing
 %% ordered against its prompt, and which the next input's lines hold.
@@ -57,7 +57,7 @@
 %% bounded by the harness's time for one wait: the start, six inputs, the
 %% end and what the shell said
 chapter_1_test_() ->
-    ern_nodes_tests:nodes_test({waits, 9}, fun chapter_1/1).
+    ern_harness:nodes_test({waits, 9}, fun chapter_1/1).
 
 chapter_1(Base) ->
     copied(1, Base),
@@ -93,7 +93,7 @@ chapter_1(Base) ->
 %% frames it takes as frames and does not read. Its limit is the sum of its
 %% five waits: the start, two inputs, the end and what the shell said
 told_boundary_test_() ->
-    ern_nodes_tests:nodes_test({waits, 5}, fun told_boundary/1).
+    ern_harness:nodes_test({waits, 5}, fun told_boundary/1).
 
 told_boundary(Base) ->
     Shell = started(Base, filename:join(Base, "shell"), ""),
@@ -131,13 +131,13 @@ told_boundary(Base) ->
 %% the shell's start, four inputs, the shell's end and what it said, the
 %% stop, `foo`'s end and what it said.
 readme_test_() ->
-    ern_nodes_tests:nodes_test({waits, 15}, fun readme/1).
+    ern_harness:nodes_test({waits, 15}, fun readme/1).
 
 readme(Base) ->
     [_, Start | Session] = readme_console(<<"$ ern shell --config-dir a">>),
     ?assertEqual(readme_start(), Start),
-    PortFoo = ern_nodes_tests:free_port(),
-    AddressFoo = ern_nodes_tests:address(PortFoo),
+    PortFoo = ern_harness:free_port(),
+    AddressFoo = ern_harness:address(PortFoo),
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
     created(Base, "config --config-dir a"),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
@@ -145,13 +145,13 @@ readme(Base) ->
      || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
     {ok, _} = file:copy(filename:join([?TOUR, "2", "counter.ern"]),
                         filename:join(Base, "counter.ern")),
-    WaitFoo = ern_nodes_tests:bare_started(Foo, []),
+    WaitFoo = ern_harness:bare_started(Foo, []),
     ern_deployment_tests:listens(Foo, PortFoo),
     Shell = started(Base, A, " --config-dir a", []),
     quit(session(Shell, inputs(Session))),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
-    {"", Err} = ern_nodes_tests:said(Foo),
+    {"", Err} = ern_harness:said(Foo),
     ?assertEqual([<<"listening on ", AddressFoo/binary>>, <<"the peer a connected">>,
                   <<"the peer a ended">>],
                  stamped(Err)).
@@ -175,7 +175,7 @@ readme(Base) ->
 %% `foo`'s listening, the shell's start, two declarations, three inputs, the
 %% shell's end and what it said, the stop, `foo`'s end and what it said.
 home_example_test_() ->
-    ern_nodes_tests:nodes_test({waits, 16}, fun home_example/1).
+    ern_harness:nodes_test({waits, 16}, fun home_example/1).
 
 home_example(Base) ->
     {ok, Text} = file:read_file("../site/example.md"),
@@ -188,20 +188,20 @@ home_example(Base) ->
                        <- lists:zip(declarations(Code),
                                     ["type CounterMsg",
                                      "count : (Int) -> Unit receiving CounterMsg"])],
-    PortFoo = ern_nodes_tests:free_port(),
-    AddressFoo = ern_nodes_tests:address(PortFoo),
+    PortFoo = ern_harness:free_port(),
+    AddressFoo = ern_harness:address(PortFoo),
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
     created(Base, "config --config-dir a"),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
-    WaitFoo = ern_nodes_tests:bare_started(Foo, []),
+    WaitFoo = ern_harness:bare_started(Foo, []),
     ern_deployment_tests:listens(Foo, PortFoo),
     Shell = started(Base, A, " --config-dir a", []),
     quit(session(Shell, Declared ++ inputs(Session))),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
-    {"", Err} = ern_nodes_tests:said(Foo),
+    {"", Err} = ern_harness:said(Foo),
     ?assertEqual([<<"listening on ", AddressFoo/binary>>, <<"the peer a connected">>,
                   <<"the peer a ended">>],
                  stamped(Err)).
@@ -285,14 +285,14 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% four said. Chapter 8's attach was written with the guides over the
 %% attached shell.
 tour_test_() ->
-    ern_nodes_tests:nodes_test({waits, 95}, fun tour/1).
+    ern_harness:nodes_test({waits, 95}, fun tour/1).
 
 tour(Base) ->
-    [PortFoo, PortBar] = [ern_nodes_tests:free_port() || _ <- [foo, bar]],
+    [PortFoo, PortBar] = [ern_harness:free_port() || _ <- [foo, bar]],
     configured(Base, PortFoo, PortBar),
     [Foo, Bar] = [filename:join(Base, Name) || Name <- ["foo", "bar"]],
-    WaitFoo = ern_nodes_tests:bare_started(Foo, []),
-    WaitBar = ern_nodes_tests:bare_started(Bar, []),
+    WaitFoo = ern_harness:bare_started(Foo, []),
+    WaitBar = ern_harness:bare_started(Bar, []),
     [ern_deployment_tests:listens(Dir, Port) || {Dir, Port} <- [{Foo, PortFoo}, {Bar, PortBar}]],
     Shell = started(Base, filename:join(Base, "a"), " --config-dir a", []),
     Chapters = [{2, fun far/1}, {3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1},
@@ -304,15 +304,15 @@ tour(Base) ->
                                            Run(Before)
                                        end, Tour, Chapters),
     quit(Ended),
-    {FooOut, FooErr} = ern_nodes_tests:said(Foo),
-    {BarOut, BarErr} = ern_nodes_tests:said(Bar),
+    {FooOut, FooErr} = ern_harness:said(Foo),
+    {BarOut, BarErr} = ern_harness:said(Bar),
     %% each said where it listens and its peer's connection, foo the reload
     %% that listed ops and ops's connection too, and nothing else but, on
     %% foo, the end of ops, which comes as foo ends or not at all; and each
     %% of chapter 7's three computes printed its line where it ran
-    ?assertEqual([<<"listening on ", (ern_nodes_tests:address(PortBar))/binary>>,
+    ?assertEqual([<<"listening on ", (ern_harness:address(PortBar))/binary>>,
                   <<"the peer a connected">>], stamped(BarErr)),
-    SaidFoo = [<<"listening on ", (ern_nodes_tests:address(PortFoo))/binary>>,
+    SaidFoo = [<<"listening on ", (ern_harness:address(PortFoo))/binary>>,
                <<"the peer a connected">>, <<"ernest.conf was read again">>,
                <<"the peer ops was added">>, <<"the peer ops connected">>],
     ?assert(lists:member(stamped(FooErr), [SaidFoo, SaidFoo ++ [<<"the peer ops ended">>]])),
@@ -328,18 +328,18 @@ tour(Base) ->
 %% lists `a` at its port (report §8.7, §11.3).
 configured(Base, PortFoo, PortBar) ->
     [A, Foo, Bar] = [filename:join(Base, Name) || Name <- ["a", "foo", "bar"]],
-    [AddressFoo, AddressBar] = [ern_nodes_tests:address(Port) || Port <- [PortFoo, PortBar]],
+    [AddressFoo, AddressBar] = [ern_harness:address(Port) || Port <- [PortFoo, PortBar]],
     created(Base, "config --config-dir a"),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     created(Base, "config --config-dir bar --listen " ++ binary_to_list(AddressBar)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "a --peer-dir bar", "foo --peer-dir a", "bar --peer-dir a"]],
-    ?assertEqual(#{<<"peers">> => [ern_nodes_tests:peer("foo", Foo, PortFoo),
-                                   ern_nodes_tests:peer("bar", Bar, PortBar)],
+    ?assertEqual(#{<<"peers">> => [ern_harness:peer("foo", Foo, PortFoo),
+                                   ern_harness:peer("bar", Bar, PortBar)],
                    <<"services">> => #{}},
-                 ern_nodes_tests:configuration(A)),
-    [?assertEqual([ern_nodes_tests:peer("a", A, none)],
-                  maps:get(<<"peers">>, ern_nodes_tests:configuration(Dir)))
+                 ern_harness:configuration(A)),
+    [?assertEqual([ern_harness:peer("a", A, none)],
+                  maps:get(<<"peers">>, ern_harness:configuration(Dir)))
      || Dir <- [Foo, Bar]].
 
 created(Base, Words) ->
@@ -362,9 +362,9 @@ far(#tour{foo = Foo, shell = Shell} = Tour) ->
                       [["the peer foo connected"]]},
                      {"send(far, Counter.Inc(5))", []},
                      {"Address.call(far, Counter.Get, 1000)", ["Some(5) : Optional(Int)"]}]),
-    ern_nodes_tests:says(Foo, "the peer a connected"),
+    ern_harness:says(Foo, "the peer a connected"),
     ?assertMatch([<<"listening on ", _/binary>>, <<"the peer a connected">>],
-                 untimed_lines(ern_nodes_tests:written(Foo, err))),
+                 untimed_lines(ern_harness:written(Foo, err))),
     Tour#tour{shell = Typed}.
 
 %% Chapter 3: a reload that changes no type says the module compiled
@@ -503,7 +503,7 @@ anywhere(#tour{bar = Bar, shell = Shell} = Tour) ->
          Primes,
          Primes,
          Primes]),
-    ern_nodes_tests:says(Bar, "the peer a connected"),
+    ern_harness:says(Bar, "the peer a connected"),
     Tour#tour{shell = Typed}.
 
 %% Chapter 8: the fix, a second loop, moved to on this node and on foo,
@@ -553,7 +553,7 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir ops --peer-dir foo",
                   "config --config-dir foo --peer-dir ops", "reload --config-dir foo"]],
-    ern_nodes_tests:says(Foo, "the peer ops was added"),
+    ern_harness:says(Foo, "the peer ops was added"),
     Attached = started(Base, Ops, " --config-dir ops --attach foo",
                        [<<"the peer foo connected">>]),
     Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
@@ -565,7 +565,7 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
          {"Code.running(Counter.count)", [{re, Running}]},
          {"Code.running(Counter.countGuarded)", [Empty]},
          {"Counter.move()", []}]),
-    ern_nodes_tests:says(Foo, "the peer ops connected"),
+    ern_harness:says(Foo, "the peer ops connected"),
     Called = session(Shell,
                      [{"Counter.apply(far, \"inc apples -1\")", [?SENT]},
                       {"Counter.apply(far, \"report\")",
@@ -592,7 +592,7 @@ stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
     ?assertEqual(0, WaitAttached()),
-    {Out, Err} = ern_nodes_tests:said(Ops),
+    {Out, Err} = ern_harness:said(Ops),
     ?assertEqual(Read, binary:part(list_to_binary(Out), 0, byte_size(Read))),
     ern_deployment_tests:ended(["> ", "the node foo ended"], {Out, Err}, "the node foo ended"),
     Lost = session(unasked(Shell, ["the peer foo ended"]),
@@ -626,9 +626,9 @@ started(Base, Dir, Options) ->
 started(Base, Dir, Options, Said) ->
     Home = Dir ++ ".home",
     ok = filelib:ensure_path(Home),
-    {Port, Wait} = ern_nodes_tests:launched(Dir, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
-                                                  " shell", Options]),
-    ern_nodes_tests:prints(Dir, "> "),
+    {Port, Wait} = ern_harness:launched(Dir, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
+                                              " shell", Options]),
+    ern_harness:prints(Dir, "> "),
     Started = written(Dir),
     Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
                               ", session 1. :help for help.\n> "]),
@@ -659,7 +659,7 @@ typed({Input, Shown, Unordered},
     true = port_command(Port, [Input, "\n"]),
     Prompts = count(Read, "> ") + 1
         + lists:sum([count(Line, "> ") || Line <- Shown, not is_tuple(Line)]),
-    ern_nodes_tests:prints(Dir, "> ", Prompts, ern_nodes_tests:wait_ms()),
+    ern_harness:prints(Dir, "> ", Prompts, ern_harness:wait_ms()),
     {Lines, Text} = since(Shell, 1),
     Shell#shell{read = Text, carried = held(Lines, [Shown | Carried], Unordered)}.
 
@@ -670,7 +670,7 @@ typed({Input, Shown, Unordered},
 %% does not read.
 faulted(#shell{dir = Dir, port = Port, read = Read, carried = []} = Shell, Input, Line) ->
     true = port_command(Port, [Input, "\n"]),
-    ern_nodes_tests:prints(Dir, "> ", count(Read, "> ") + 1, ern_nodes_tests:wait_ms()),
+    ern_harness:prints(Dir, "> ", count(Read, "> ") + 1, ern_harness:wait_ms()),
     {[Fault | Frames], Text} = since(Shell, 1),
     ?assertMatch({match, _}, re:run(Fault, Line, [unicode])),
     ?assertEqual([], [Frame || Frame <- Frames, string:prefix(Frame, "    ") =:= nomatch]),
@@ -679,7 +679,7 @@ faulted(#shell{dir = Dir, port = Port, read = Read, carried = []} = Shell, Input
 %% Lines the shell prints unasked after its prompt, a node's end, once its
 %% stream holds them.
 unasked(#shell{dir = Dir, read = Read, carried = Carried} = Shell, Lines) ->
-    [ern_nodes_tests:prints(Dir, Line, count(Read, Line) + 1, ern_nodes_tests:wait_ms())
+    [ern_harness:prints(Dir, Line, count(Read, Line) + 1, ern_harness:wait_ms())
      || Line <- Lines],
     {Written, Text} = since(Shell, 0),
     Shell#shell{read = Text, carried = held(Written, [Lines | Carried], [])}.
@@ -691,7 +691,7 @@ quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read, carried = Carried}
     ?assertEqual([], Carried),
     true = port_command(Port, ":quit\n"),
     ?assertEqual(0, Wait()),
-    {Out, Err} = ern_nodes_tests:said(Dir),
+    {Out, Err} = ern_harness:said(Dir),
     ?assertEqual(<<Read/binary, "\n">>, list_to_binary(Out)),
     ?assertEqual("", Err).
 
@@ -741,7 +741,7 @@ fit({{re, Pattern}, Line}) -> re:run(Line, ["^(?:", Pattern, ")$"]) =/= nomatch;
 fit({Expected, Line}) -> Expected =:= Line.
 
 written(Dir) ->
-    list_to_binary(ern_nodes_tests:written(Dir, out)).
+    list_to_binary(ern_harness:written(Dir, out)).
 
 count(Text, Part) ->
     length(binary:matches(iolist_to_binary(Text), unicode:characters_to_binary(Part))).

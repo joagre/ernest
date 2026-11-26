@@ -199,8 +199,8 @@ uninstall() {
 # uncommitted changes; a document's links into the repository go to the
 # same tag or commit. ern_release is compiled again into it with the mark
 # given and without the repository's DEVELOPMENT, and stripped as the
-# stage strips it, and its module pages are written again with it before
-# the helper goes.
+# stage strips it, and its module pages and ern(1) are written again with
+# its version text before the helper goes.
 release() {
     dir=$1
     version=$2
@@ -220,6 +220,9 @@ release() {
         src/toolchain/builder/ern_release.erl
     escript tools/strip.escript "$dir/$name/lib/ernest/build/toolchain/builder/ebin"
     pages "$dir/$name"
+    text=$("$dir/$name/lib/ernest/bin/ern" --version | sed 's/^ern //')
+    bin/ern run build/tools/manual.erc report/toolchain.md "$text" build/stdlib \
+        > "$dir/$name/share/man/man1/ern.1"
     rm "$dir/$name/lib/ernest/build/runtime/priv/ern_exec"
     cp src/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"

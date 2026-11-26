@@ -45,21 +45,18 @@ let reportFiles : List(String) = ["report/language.md", "report/toolchain.md", "
 
 let tourFile : String = "tour/README.md"
 
-// The guide whose bare `§` is its own (docs/design/site.md *Links*).
+// The language guide, whose blocks the listing reads beside the report's.
 let languageGuide : String = "guide/language.md"
-
-// A file's time and git's, as the other tools give theirs.
-let fileMs : Int = 10000
 
 export fn main() : Unit =
     match Os.arguments {
         [name] ->
             match jobNamed(name) {
                 Some(job) -> List.forEach(listed(job), Io.println)
-              | None -> quit(usage)
+              | None -> Repository.quit("documents", usage)
             }
       | _ ->
-            quit(usage)
+            Repository.quit("documents", usage)
     }
 
 fn jobNamed(name : String) : Optional(Job) =
@@ -87,33 +84,7 @@ fn listed(job : Job) : List(String) =
 
 // The guide's documents, as git tracks them.
 fn guideFiles() : List(String) =
-    String.lines(git(["ls-files", "--", "guide/*.md"]))
-
-fn git(arguments : List(String)) : String =
-    text("git " <> String.join(arguments, " "), gitBytes(arguments))
-
-fn gitBytes(arguments : List(String)) : Bytes =
-    match Os.run(Os.command("git", arguments), fileMs) {
-        Right(finished) when finished.status == 0 -> finished.stdout
-      | _ -> quit("git " <> String.join(arguments, " ") <> " failed")
-    }
-
-fn contents(path : String) : String =
-    match Fs.read(Path(path), fileMs) {
-        Right(bytes) -> text(path, bytes)
-      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
-    }
-
-fn text(source : String, bytes : Bytes) : String =
-    match String.fromUtf8(bytes) {
-        Some(text) -> text
-      | None -> quit(source <> " is not UTF-8")
-    }
-
-fn quit(message : String) : a = {
-    Io.printlnError("documents: " <> message);
-    Os.exit(1)
-}
+    String.lines(Repository.git("documents", ["ls-files", "--", "guide/*.md"]))
 
 //
 // The reading
@@ -169,7 +140,7 @@ fn titleOf(heading : String) : String = {
 }
 
 fn sectionsIn(path : String) : List(Section) =
-    sectionsOf(linesOf(contents(path)))
+    sectionsOf(linesOf(Repository.contents("documents", path)))
 
 // A section's place, `guide/language.md:120`.
 fn placeOf(path : String, section : Section) : String =
@@ -330,7 +301,7 @@ fn grouped(places : List(String)) : String = {
 // Each citation of the report in a document's prose, its key with its
 // place, a line's each once.
 fn citingPlaces(path : String) : List(#(String, String)) =
-    List.flatMap(linesOf(contents(path)), fn(line) = match line.place {
+    List.flatMap(linesOf(Repository.contents("documents", path)), fn(line) = match line.place {
         Prose ->
             List.map(citedOn(path, line.text),
                      fn(key) = #(key, path <> ":" <> Int.toString(line.number)))
@@ -342,13 +313,14 @@ fn citingPlaces(path : String) : List(#(String, String)) =
 // the report's by the words before it or the list it stands in, or bare
 // outside the language guide; an appendix, `Appendix E`, or one of its
 // sections, `Appendix E.17`; and `E.17`.
-fn citedOn(path : String, line : String) : List(String) = {
-    let bare = if path == languageGuide then Citations.Guide else Citations.Report;
-    List.unique(List.filterMap(Citations.pieces(line, bare), fn(piece) = match piece {
-        Citations.Citation(document = Citations.Report, =section) -> Some(reportKey(section))
-      | _ -> None
-    }))
-}
+fn citedOn(path : String, line : String) : List(String) =
+    List.unique(List.filterMap(Citations.pieces(line, Citations.bareOf(path)),
+                               fn(piece) = match piece {
+                                   Citations.Citation(document = Citations.Report, =section) ->
+                                       Some(reportKey(section))
+                                 | _ ->
+                                       None
+                               }))
 
 // A report section's key as a citation of it gives it, `Appendix E` of an
 // appendix's letter alone.
@@ -393,8 +365,9 @@ fn terms() : List(String) = {
                                           else
                                               section.heading :: section.lines));
     let glossary = glossaryTerms();
-    let guide = List.flatMap(guideFiles(), fn(path) = linesOf(contents(path)));
-    let tour = linesOf(contents(tourFile));
+    let guide =
+        List.flatMap(guideFiles(), fn(path) = linesOf(Repository.contents("documents", path)));
+    let tour = linesOf(Repository.contents("documents", tourFile));
     let counted = List.map([report, guide, tour], fn(lines) = countedIn(glossary, lines));
     let rows =
         List.map(glossary, fn(term) = #(term, List.map(counted, fn(each) = countOf(each, term))));
@@ -610,7 +583,8 @@ let shownBytes : Int = 60
 
 fn unchecked() : List(String) = {
     let files = reportFiles <> guideFiles() <> [tourFile];
-    let blocks = List.map(files, fn(path) = blocksOf(path, linesOf(contents(path))));
+    let blocks =
+        List.map(files, fn(path) = blocksOf(path, linesOf(Repository.contents("documents", path))));
     let rules = grammarRules(List.flatMap(blocks, fn(found) = found));
     let judged = List.flatMap(blocks, fn(found) = judgedAll(found, rules));
     let open = List.filterMap(judged, fn(#(block, test)) = match test {
@@ -893,7 +867,9 @@ fn edits() : List(String) = {
 // A document's commits, and each of its sections at HEAD by the commits
 // that touched it.
 fn editsOf(path : String) : #(Int, List(#(Int, String))) = {
-    let lines = linesOf(git(["show", "HEAD:" <> path]));
+    let shown = ["show", "HEAD:" <> path];
+    let lines =
+        linesOf(Repository.text("documents", "git show", Repository.gitBytes("documents", shown)));
     let sections = sectionsOf(lines);
     let table =
         Map.fromList(List.flatMap(List.indexed(sections),
@@ -902,15 +878,16 @@ fn editsOf(path : String) : #(Int, List(#(Int, String))) = {
                                                fn(line) = #(line.number, index))));
     let sectionAt = fn(line) = Optional.withDefault(Map.get(table, line), -1);
     let history =
-        diffsOf(gitBytes(["log",
-                          "--follow",
-                          "--format=commit %H",
-                          "-p",
-                          "-U0",
-                          "--no-color",
-                          "--no-ext-diff",
-                          "--",
-                          path]));
+        diffsOf(Repository.gitBytes("documents",
+                                    ["log",
+                                     "--follow",
+                                     "--format=commit %H",
+                                     "-p",
+                                     "-U0",
+                                     "--no-color",
+                                     "--no-ext-diff",
+                                     "--",
+                                     path]));
     let #(_, counts) =
         List.foldLeft(history,
                       #(List.range(1, List.size(lines)), Map.empty),
@@ -946,7 +923,7 @@ fn diffsOf(bytes : Bytes) : List(Diff) = {
       | diff :: rest when Bytes.startsWith(line, copyLine) ->
             Diff(..diff, copied = true) :: rest
       | diff :: rest when Bytes.startsWith(line, hunkLine) ->
-            match hunkOf(text("git log", line)) {
+            match hunkOf(Repository.text("documents", "git log", line)) {
                 Some(hunk) -> Diff(..diff, hunks = hunk :: diff.hunks) :: rest
               | None -> acc
             }

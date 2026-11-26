@@ -447,10 +447,6 @@ export fn filled(run : Run,
 // The files
 //
 
-/// A file's time, which each of the site's reads and writes of a file is
-/// given.
-export let fileMs : Int = 10000
-
 /// A document of the repository under its root, by its path, read as
 /// Markdown.
 export fn documentOf(root : Path, path : String) : Either(String, List(Markdown.Block)) =
@@ -460,7 +456,8 @@ export fn documentOf(root : Path, path : String) : Either(String, List(Markdown.
 fn committed(tag : String, path : String) : Either(String, String) = {
     let command = Os.command("git", ["log", "-1", "--format=%cs", tag, "--", ":(top)" <> path]);
     let finished <-
-        Either.mapLeft(Os.run(command, 10000), fn(error) = "cannot run git: " <> Io.show(error));
+        Either.mapLeft(Os.run(command, Repository.fileMs),
+                       fn(error) = "cannot run git: " <> Io.show(error));
     let date = String.trim(String.fromUtf8Lossy(finished.stdout));
     if finished.status == 0 && date != "" then
         Right(date)
@@ -481,22 +478,22 @@ export fn textOf(path : Path) : Either(String, String) = {
 
 /// A file's bytes.
 export fn bytesOf(path : Path) : Either(String, Bytes) =
-    Either.mapLeft(Fs.read(path, fileMs),
+    Either.mapLeft(Fs.read(path, Repository.fileMs),
                    fn(error) = "cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A directory's entries.
 export fn listed(path : Path) : Either(String, List(Fs.Entry)) =
-    Either.mapLeft(Fs.list(path, fileMs),
+    Either.mapLeft(Fs.list(path, Repository.fileMs),
                    fn(error) = "cannot list " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A directory made, with those above it.
 export fn made(path : Path) : Either(String, Unit) =
-    Either.mapLeft(Fs.makeDir(path, fileMs),
+    Either.mapLeft(Fs.makeDir(path, Repository.fileMs),
                    fn(error) = "cannot make " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A file copied.
 export fn copied(from : Path, to : Path) : Either(String, Unit) =
-    Either.mapLeft(Fs.copy(from, to, fileMs),
+    Either.mapLeft(Fs.copy(from, to, Repository.fileMs),
                    fn(error) =
                        "cannot copy "
                            <> Path.toString(from)
@@ -507,5 +504,5 @@ export fn copied(from : Path, to : Path) : Either(String, Unit) =
 
 /// A file written whole.
 export fn fileWritten(path : Path, contents : Bytes) : Either(String, Unit) =
-    Either.mapLeft(Fs.write(path, contents, fileMs),
+    Either.mapLeft(Fs.write(path, contents, Repository.fileMs),
                    fn(error) = "cannot write " <> Path.toString(path) <> ": " <> Io.show(error))

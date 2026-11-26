@@ -109,11 +109,7 @@ prelude_examples(Dir) ->
 %% directory where no run's is given; the directory goes when Test ends,
 %% whatever its outcome.
 in_tmp(Test) ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_doc_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    try Test(Dir) after file:del_dir_r(Dir) end.
+    ern_helpers:tmp("ern_doc_", Test).
 
 %% Report §11.2, §11.8: `ern test` of the compiled module passes, a case for
 %% each of the examples, Blocks, as the lines it writes say, which EUnit

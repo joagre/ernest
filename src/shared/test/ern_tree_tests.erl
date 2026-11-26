@@ -22,3 +22,19 @@ code_path_test() ->
     ?assertEqual([], [Directory || Directory <- Path, not filelib:is_dir(Directory)]),
     ?assert(lists:member(filename:dirname(code:which(ern_tree)), Path)),
     ?assertEqual([], [Directory || Directory <- Path, filename:basename(Directory) =/= "ebin"]).
+
+%% docs/development.md: tools/code_path.sh, which the Makefiles and the
+%% machines' tools take the code path from, names the directories
+%% ern_tree:code_path/0 names, in its order, a tree with a space and a
+%% quote in its name among them
+code_path_script_test() ->
+    Tree = ern_tree:tree(),
+    Script = filename:join(Tree, "tools/code_path.sh"),
+    Expanded = os:cmd("eval \"set -- $(sh '" ++ Script ++ "' '" ++ Tree ++ "')\";"
+                      " printf '%s\\n' \"$@\""),
+    ?assertEqual(ern_tree:code_path(),
+                 string:split(string:trim(Expanded, trailing), "\n", all) -- ["-pa", "-pa", "-pa",
+                                                                          "-pa", "-pa"]),
+    Named = os:cmd("sh '" ++ Script ++ "' \"/a b/it's\""),
+    ?assertMatch({_, _}, binary:match(list_to_binary(Named),
+                                      <<"-pa '/a b/it'\\''s'/build/shared/ebin ">>)).

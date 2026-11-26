@@ -47,7 +47,7 @@
 
 // What the proxy's process takes: a message for the service, and the end
 // of the service it holds or of the process that started it.
-type Msg(m) = Message(m) | Went(Down)
+type ProxyMsg(m) = Message(m) | Went(Down)
 
 // Where the next message goes (report Appendix G.7): to the service, found
 // and monitored; to the address where it was last, which may have ended;
@@ -77,7 +77,7 @@ type Target(m) = Found(Address(m)) | Away(Address(m)) | Never
 /// ```
 export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
     let caller = Process.current();
-    let proxy = spawn(fn() : Unit receiving Msg(m) = {
+    let proxy = spawn(fn() : Unit receiving ProxyMsg(m) = {
         monitor(caller, Went);
         held(service, ms, caller, shared(found(service, ms, Never)))
     });
@@ -95,7 +95,7 @@ foreign fn endsWithCaller(process : Process) : Unit =
 // monitored from then on, and else where `away` says. A service offered at
 // another type is no absence, and no later find mends it: the process
 // faults.
-fn found(service : Peer.Service(m), ms : Int, away : Target(m)) : Target(m) receiving Msg(m) =
+fn found(service : Peer.Service(m), ms : Int, away : Target(m)) : Target(m) receiving ProxyMsg(m) =
     match Peer.find(service, ms) {
         Right(address) -> {
             monitor(Process.fromAddress(address), Went);
@@ -119,7 +119,7 @@ fn sent(target : Target(m), message : m) : Unit =
 // The target a find gave, each message that came while the find was under
 // way sent where it says first, so that one find is under way at a time:
 // the messages the mailbox holds now, none waited for.
-fn shared(target : Target(m)) : Target(m) receiving Msg(m) =
+fn shared(target : Target(m)) : Target(m) receiving ProxyMsg(m) =
     receive {
         Message(message) -> {
             sent(target, message);
@@ -134,7 +134,7 @@ fn shared(target : Target(m)) : Target(m) receiving Msg(m) =
 fn held(service : Peer.Service(m),
         ms : Int,
         caller : Process,
-        target : Target(m)) : Unit receiving Msg(m) =
+        target : Target(m)) : Unit receiving ProxyMsg(m) =
     receive {
         Message(message) ->
             match target {

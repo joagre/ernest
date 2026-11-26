@@ -279,7 +279,8 @@ scratch() ->
     Dir.
 
 %% The lines a command writes as it follows something, once Test holds of
-%% them; ten seconds bound a failure. The command is ended then.
+%% them; the harness's time for one wait bounds a failure. The command is
+%% ended then.
 followed(Command, Test) ->
     Follower = open_port({spawn, Command}, [binary, stream, exit_status]),
     {os_pid, OsPid} = erlang:port_info(Follower, os_pid),
@@ -299,7 +300,7 @@ watched(Follower, Test, Said) ->
             receive
                 {Follower, {data, Bytes}} -> watched(Follower, Test, <<Said/binary, Bytes/binary>>);
                 {Follower, {exit_status, Status}} -> erlang:error({follower_ended, Status, Said})
-            after 10000 ->
+            after ern_harness:wait_ms() ->
                 erlang:error({not_seen, Said})
             end
     end.

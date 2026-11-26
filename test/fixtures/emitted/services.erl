@@ -115,91 +115,99 @@
                 'None' -> ern@io:'$8'(<<Line_19/binary, ": no answer">>)
             end;
         'Audit' ->
-            ern@io:'$8'(<<"audit: ",
-                          ('$19'('$15'('$10'(),
-                                       fun (Argument_27) ->
-                                               {'Entries', Argument_27}
-                                       end)))/binary>>)
+            case '$15'('$10'(),
+                       fun (Argument_27) -> {'Entries', Argument_27} end)
+                of
+                {'Some', Entries_28} ->
+                    ern@io:'$8'(<<"audit: ", ('$19'(Entries_28))/binary>>);
+                'None' -> ern@io:'$8'(<<Line_19/binary, ": no answer">>)
+            end
     end.
 
 %% Services.change
-'$14'(Key_28, By_29, Line_30) ->
+'$14'(Key_29, By_30, Line_31) ->
     case ern_rt:call('$6'(),
-                     fun (Reply_31) -> {'Change', Key_28, By_29, Reply_31}
+                     fun (Reply_32) -> {'Change', Key_29, By_30, Reply_32}
                      end,
                      5000,
                      {int, <<"reply does not match Int">>})
         of
-        {'Some', Held_32} ->
-            Id_34 = '$15'('$8'(),
-                          fun (Argument_33) -> {'NextId', Argument_33} end),
-            ern_rt:send('$10'(),
-                        {'Record',
-                         <<"#", (erlang:integer_to_binary(Id_34))/binary, " ",
-                           Line_30/binary>>}),
-            ern@io:'$8'(<<Key_28/binary, ": ",
-                          (erlang:integer_to_binary(Held_32))/binary>>);
-        'None' -> ern@io:'$8'(<<Line_30/binary, ": no answer">>)
+        {'Some', Held_33} ->
+            case '$15'('$8'(),
+                       fun (Argument_34) -> {'NextId', Argument_34} end)
+                of
+                {'Some', Id_35} ->
+                    ern_rt:send('$10'(),
+                                {'Record',
+                                 <<"#",
+                                   (erlang:integer_to_binary(Id_35))/binary,
+                                   " ", Line_31/binary>>});
+                'None' -> ern@io:'$8'(<<Line_31/binary, ": no answer">>)
+            end,
+            ern@io:'$8'(<<Key_29/binary, ": ",
+                          (erlang:integer_to_binary(Held_33))/binary>>);
+        'None' -> ern@io:'$8'(<<Line_31/binary, ": no answer">>)
     end.
 
 %% Services.asked
-'$15'(Service_35, Request_36) ->
-    case ern_rt:call(Service_35, Request_36, 1000, none) of
-        {'Some', Value_37} -> Value_37;
-        'None' -> '$15'(Service_35, Request_36)
+'$15'(Service_36, Request_37) ->
+    case ern_rt:call(Service_36, Request_37, 1000, none) of
+        {'Some', Value_38} -> {'Some', Value_38};
+        'None' ->
+            ern_rt:call(Service_36, Request_37, 1000, none)
     end.
 
 %% Services.parsed
-'$16'(Line_38) ->
-    case ern@string:'$23'(Line_38) of
-        [<<"add">>, Key_39, Count_40] ->
-            ern@optional:'$5'('$17'(Count_40),
-                              fun (N_41) -> {'Add', Key_39, N_41} end);
-        [<<"take">>, Key_42, Count_43] ->
-            ern@optional:'$5'('$17'(Count_43),
-                              fun (N_44) -> {'Take', Key_42, N_44} end);
-        [<<"count">>, Key_45] -> {'Some', {'Count', Key_45}};
+'$16'(Line_39) ->
+    case ern@string:'$23'(Line_39) of
+        [<<"add">>, Key_40, Count_41] ->
+            ern@optional:'$5'('$17'(Count_41),
+                              fun (N_42) -> {'Add', Key_40, N_42} end);
+        [<<"take">>, Key_43, Count_44] ->
+            ern@optional:'$5'('$17'(Count_44),
+                              fun (N_45) -> {'Take', Key_43, N_45} end);
+        [<<"count">>, Key_46] -> {'Some', {'Count', Key_46}};
         [<<"audit">>] -> {'Some', 'Audit'};
         _ -> 'None'
     end.
 
 %% Services.counted
-'$17'(Text_46) ->
-    case ern@list:'$15'(try ern_string:to_list(Text_46)
+'$17'(Text_47) ->
+    case ern@list:'$15'(try ern_string:to_list(Text_47)
                         catch
-                            Class_47:Error_48:Trace_49 ->
+                            Class_48:Error_49:Trace_50 ->
                                 ern_boundary:shim_raised(ern_string,
                                                          to_list,
                                                          1,
-                                                         Class_47,
-                                                         Error_48,
-                                                         Trace_49)
+                                                         Class_48,
+                                                         Error_49,
+                                                         Trace_50)
                         end,
                         fun ern@char:'$1'/1)
         of
-        true -> ern@string:'$30'(Text_46);
+        true -> ern@string:'$30'(Text_47);
         false -> 'None'
     end.
 
 %% Services.inStock
-'$18'(Stock_50, Key_51) ->
-    ern@optional:'$4'(try ern_map:get(Stock_50, Key_51)
+'$18'(Stock_51, Key_52) ->
+    ern@optional:'$4'(try ern_map:get(Stock_51, Key_52)
                       catch
-                          Class_52:Error_53:Trace_54 ->
+                          Class_53:Error_54:Trace_55 ->
                               ern_boundary:shim_raised(ern_map,
                                                        get,
                                                        2,
-                                                       Class_52,
-                                                       Error_53,
-                                                       Trace_54)
+                                                       Class_53,
+                                                       Error_54,
+                                                       Trace_55)
                       end,
                       0).
 
 %% Services.audited
-'$19'(Entries_55) ->
-    case ern@list:'$3'(Entries_55) of
+'$19'(Entries_56) ->
+    case ern@list:'$3'(Entries_56) of
         true -> <<"none">>;
-        false -> ern@string:'$29'(Entries_55, <<", ">>)
+        false -> ern@string:'$29'(Entries_56, <<", ">>)
     end.
 
 '$init'() ->

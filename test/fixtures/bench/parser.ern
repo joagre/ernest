@@ -97,7 +97,10 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
             lex(rest, index + 2, Arrow :: acc)
       | char :: _ when Char.isAsciiDigit(char) -> {
             let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
-            let value = Optional.withDefault(String.toInt(String.fromList(digits)), 0);
+            let value = match String.toInt(String.fromList(digits)) {
+                Some(number) -> number
+              | None -> fault("a run of ASCII digits reads as a number")
+            };
             lex(rest, index + List.size(digits), Number(value) :: acc)
         }
       | char :: _ when Char.isAlpha(char) -> {
@@ -144,33 +147,36 @@ fn parseExpression(tokens : List(Token)) : Either(ParseError, #(Expression, List
             parseSum(tokens)
     }
 
-fn parseSum(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
-    let #(left, rest) <- parseProduct(tokens);
-    sumRest(left, rest)
+fn parseSum(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    leftAssociative(tokens, ['+', '-'], parseProduct)
+
+fn parseProduct(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    leftAssociative(tokens, ['*', '/'], parseApplication)
+
+// A run of what `next` parses, joined by the operators named from the left,
+// `1 - 2 - 3` as `(1 - 2) - 3`.
+fn leftAssociative(tokens : List(Token),
+                   operators : List(Char),
+                   next : (List(Token)) -> Either(ParseError,
+                                                  #(Expression,
+                                                    List(Token)))) : Either(ParseError,
+                                                                            #(Expression,
+                                                                              List(Token))) = {
+    let #(left, rest) <- next(tokens);
+    joined(left, rest, operators, next)
 }
 
-fn sumRest(left : Expression,
-           tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+fn joined(left : Expression,
+          tokens : List(Token),
+          operators : List(Char),
+          next : (List(Token)) -> Either(ParseError,
+                                         #(Expression,
+                                           List(Token)))) : Either(ParseError,
+                                                                   #(Expression, List(Token))) =
     match tokens {
-        Operator(operator) :: rest when operator == '+' || operator == '-' -> {
-            let #(right, remaining) <- parseProduct(rest);
-            sumRest(Binary(=operator, =left, =right), remaining)
-        }
-      | _ ->
-            Right(#(left, tokens))
-    }
-
-fn parseProduct(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
-    let #(left, rest) <- parseApplication(tokens);
-    productRest(left, rest)
-}
-
-fn productRest(left : Expression,
-               tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
-    match tokens {
-        Operator(operator) :: rest when operator == '*' || operator == '/' -> {
-            let #(right, remaining) <- parseApplication(rest);
-            productRest(Binary(=operator, =left, =right), remaining)
+        Operator(operator) :: rest when List.contains(operators, operator) -> {
+            let #(right, remaining) <- next(rest);
+            joined(Binary(=operator, =left, =right), remaining, operators, next)
         }
       | _ ->
             Right(#(left, tokens))
@@ -183,9 +189,13 @@ fn parseApplication(tokens : List(Token)) : Either(ParseError, #(Expression, Lis
 
 fn applicationRest(callee : Expression,
                    tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
-    match parseAtom(tokens) {
-        Left(_) -> Right(#(callee, tokens))
-      | Right(#(argument, rest)) -> applicationRest(Apply(=callee, =argument), rest)
+    match tokens {
+        Number(_) :: _ or Name(_) :: _ or OpenParen :: _ -> {
+            let #(argument, rest) <- parseAtom(tokens);
+            applicationRest(Apply(=callee, =argument), rest)
+        }
+      | _ ->
+            Right(#(callee, tokens))
     }
 
 fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =

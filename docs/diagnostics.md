@@ -1,6 +1,6 @@
 # The diagnostics
 
-Errors the lexer, the parser, the checker and the build give, each with one small program that gives it, or two files where the error needs a second, and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. `test/ern_guide_tests.erl` holds each output to the compiler's, and `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant.
+Errors the lexer, the parser, the checker and the build give, each with one small program that gives it, or two files where the error needs a second, and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. `test/ern_guide_tests.erl` holds each output to the compiler's, and `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant. A program's control character is written as its picture, `␇` for U+0007, and a byte that begins no UTF-8 character as `�`, as the output shows them; the test writes the character, and the byte 0xFF.
 
 ## The lexer (report §2)
 
@@ -15,6 +15,33 @@ $ ern build example.ern
 example.ern:1:38: illegal character `§`
 1 | export fn main() : Unit = Io.println(§)
   |                                      ^
+```
+
+### A byte that is not UTF-8 (§2.1)
+
+```ernest-rejected
+export fn main() : Unit = Io.println("�")
+```
+
+```console
+$ ern build example.ern
+example.ern:1:39: input is not valid UTF-8
+1 | export fn main() : Unit = Io.println("�")
+  |                                       ^
+```
+
+### A control character (§2.1)
+
+```ernest-rejected
+export fn main() : Unit = Io.println("a␇b")
+```
+
+```console
+$ ern build example.ern
+example.ern:1:40: control character U+0007
+1 | export fn main() : Unit = Io.println("a␇b")
+  |                                        ^
+  | = help: a string or a character literal writes it `\u{7}`
 ```
 
 ### A name longer than 255 characters (§2.3)

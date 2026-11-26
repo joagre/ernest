@@ -49,7 +49,7 @@ adapted_in_order_test() ->
                ern_rt:untimed(),
                exit(Worker, kill),
                Self ! {kept, {First, Applied, Got, Ended, Next}}
-           end, <<"main">>, quiet()),
+           end, <<"main">>, ern_helpers:silent()),
     {First, Applied, Got, Ended, Next} = wait(kept),
     ?assertEqual({[First, First], [1, 2, 3], normal}, {Applied, Got, Ended}),
     ?assertNotEqual(First, Next).
@@ -84,7 +84,7 @@ adapted_forgotten_test() ->
                Kept = applying(held),
                ern_rt:untimed(),
                Self ! {kept, {Address, Kept}}
-           end, <<"main">>, quiet()),
+           end, <<"main">>, ern_helpers:silent()),
     {Earlier, First} = wait(kept),
     _ = ended(erlang:monitor(process, First)),
     %% the worker has taken the process's end once it no longer monitors it
@@ -108,7 +108,7 @@ adapted_forgotten_test() ->
                Dropped = receive {applying, _, first} -> applied after 0 -> dropped end,
                ern_rt:untimed(),
                Self ! {kept, {Kept, Dropped}}
-           end, <<"main">>, quiet()),
+           end, <<"main">>, ern_helpers:silent()),
     {Second, Dropped} = wait(kept),
     exit(Worker, kill),
     ?assertNotEqual(First, Second),
@@ -167,7 +167,7 @@ adapted_across_a_loss_test() ->
                    ern_rt:untimed(),
                    Self ! {lost, {Again =:= Kept, Next =/= Kept, Got, KeptEnded,
                                   [Asked, AskedAgain], WorkerEnded}}
-               end, <<"main">>, quiet()),
+               end, <<"main">>, ern_helpers:silent()),
         ?assertEqual({true, true, [1, 2], normal, [3, 4], normal}, wait(lost))
     after
         ets:delete(ern_spawns),
@@ -224,7 +224,7 @@ restart_waited_test() ->
                    ern_rt:untimed(),
                    Self ! {waited, {Meanwhile, Early, Answer =:= {watchers_told, Alias}, Asked,
                                     AskedAgain, Down =:= {'Down', Restarting, 'Restarted', <<>>}}}
-               end, <<"main">>, quiet()),
+               end, <<"main">>, ern_helpers:silent()),
         ?assertEqual({found, held, true, 3, none, true}, wait(waited))
     after
         ets:delete(ern_spawns),
@@ -261,9 +261,6 @@ is_monitored(Pid, Watched) ->
 
 wait(Tag) ->
     receive {Tag, Value} -> Value end.
-
-quiet() ->
-    #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}.
 
 %% report §12.5, §2.5: the line a node says of a spawn it did not start
 %% writes the site, a peer's text, with its control characters as escapes,

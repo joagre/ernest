@@ -129,7 +129,7 @@ closed(Machines) ->
 %% or that stands on another floor than this one, fails the check, naming
 %% it, since no node of it would connect to this one's.
 checked(Machines) ->
-    Facts = side_by_side(fun facts/1, Machines),
+    Facts = in_parallel(fun facts/1, Machines),
     LocalOf = facts_of(local(Machines), Machines, Facts),
     Local = maps:get(floor, LocalOf),
     lists:foreach(
@@ -224,7 +224,7 @@ described(#{commit := Commit, changed := Changed, version := Version, otp := Otp
 %% Fun applied to each of Items, each in a process of its own, answering
 %% in Items' order; where one fails as the tools fail, the first such
 %% failure is this one's.
-side_by_side(Fun, Items) ->
+in_parallel(Fun, Items) ->
     Self = self(),
     Workers = [spawn_monitor(fun() -> Self ! {self(), catch_failed(Fun, Item)} end)
                || Item <- Items],
@@ -250,10 +250,10 @@ catch_failed(Fun, Item) ->
 %%
 
 %% Each other machine's clone pulled from origin, fast-forward only, and
-%% built by a make at its top, side by side, each said with its time; then
+%% built by a make at its top, in parallel, each said with its time; then
 %% the machines checked again.
 pulled(Machines) ->
-    Pulled = side_by_side(
+    Pulled = in_parallel(
                fun(Machine) ->
                    Clone = ern_machine:quoted(ern_machine:clone(Machine)),
                    Started = erlang:monotonic_time(millisecond),
@@ -350,7 +350,7 @@ stopped(Machines) ->
 %% `ernest.pid`, asked as `ern stop` asks with the signal 0, which sends
 %% nothing, and the last line it wrote.
 status(Machines) ->
-    Said = side_by_side(fun held/1, Machines),
+    Said = in_parallel(fun held/1, Machines),
     [io:format("~s: ~ts~n", [ern_machine:name(Machine), Text])
      || {Machine, Text} <- lists:zip(Machines, Said)],
     ok.

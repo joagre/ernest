@@ -2,7 +2,7 @@
 
 Complete Ernest programs, each larger than a section of the guide can hold. They are listed by topic, not by size: a program's first line, values and failure as a value, processes and a supervisor, sockets and files, nodes, and a game last. Each file begins with a comment that says what the program does, what to look at in it, and how to run it; the chapters named beside each are the guide's, [`guide/language.md`](../guide/language.md).
 
-The commands assume `ern` on your `PATH`, the repository's `bin/` or an installation's, and are run from this directory. The tests of the repository build every program here, run each that ends of itself and compare what it prints, and connect to each server and read its answer; `fetch.ern`, which reaches a host on the network, they build alone.
+The commands assume `ern` on your `PATH`, the repository's `bin/` or an installation's, and are run from this directory. The tests of the repository build every program here, run each that ends of itself and compare what it prints, and connect to each server and read its answer; `fetch.ern`, which reaches a host on the network, they build, and run only where its file of certificates cannot be read.
 
 An installation holds this directory as `share/doc/ernest/examples/` under its prefix. `ern build` writes the compiled module beside its source, so copy the directory to one of your own first.
 

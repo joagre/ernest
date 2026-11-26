@@ -89,8 +89,9 @@ near_misses_test_() ->
                        ?assertEqual([], first(Failures))
                    end}.
 
-%% The recognizer itself: every program the grammar derives is a sentence
-%% of it, so that its verdict on a near miss can be trusted
+%% report Appendix A: the recognizer itself, which takes every program the
+%% grammar derives as a sentence of it, so that its verdict on a near miss
+%% can be trusted
 recognizer_accepts_derived_programs_test_() ->
     {timeout, 300, fun() ->
                        {Seed, Grammar} = start(),

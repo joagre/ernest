@@ -19,9 +19,11 @@
 // a hash of their tokens, are a clone, and windows alike side by side are
 // one, as long as they run. A clone whose two stretches each overlap a
 // longer one's is left out, as is a window found in more places than
-// `crowded`, which is a pattern, not a stretch copied. The vendored getopt
-// and the Erlang the compiler wrote under test/fixtures/emitted/ are left
-// out.
+// `crowded`, which is a pattern, not a stretch copied, and so is a clone
+// whose stretches stand in two chapters of tour/, each the program as it
+// stands at its chapter's end (tour/README.md). The files THIRD_PARTY_LICENSES
+// says were copied from upstream and the Erlang the compiler wrote under
+// test/fixtures/emitted/ are left out.
 //
 
 // A token as the helper gives it: its lexer's category and its line.
@@ -56,10 +58,7 @@ let languages : List(Language) =
               attributes = true,
               size = 100),
      Language(name = "Erlang",
-              files = ["src/*.erl",
-                       "test/*.erl",
-                       ":!src/toolchain/cli/getopt.erl",
-                       ":!test/fixtures/emitted/"],
+              files = ["src/*.erl", "test/*.erl", ":!test/fixtures/emitted/"],
               tokens = erlangTokens,
               attributes = false,
               size = 150)]
@@ -74,13 +73,10 @@ let prime : Int = 2305843009213693951
 
 let base : Int = 1000003
 
-// A file's time and git's, as the other tools give theirs.
-let fileMs : Int = 10000
-
 export fn main() : Unit =
     match Os.arguments {
         [] -> List.forEach(listed(), Io.println)
-      | _ -> quit("usage: clones")
+      | _ -> Repository.quit("clones", "usage: clones")
     }
 
 // The listing's lines: each language's heading and a line a clone, then
@@ -93,9 +89,29 @@ fn listed() : List(String) = {
 
 // A language's clones, the longest first, each with its two paths.
 fn cloned(language : Language) : #(List(Module), List(Clone)) = {
-    let paths = String.lines(git(["ls-files", "--"] <> language.files));
+    let borrowed = Set.fromList(Repository.borrowed("clones"));
+    let paths =
+        List.filter(String.lines(Repository.git("clones", ["ls-files", "--"] <> language.files)),
+                    fn(path) = !Set.contains(borrowed, path));
     let modules = read(paths, language);
-    #(modules, clones(List.map(modules, fn(module) = module.codes), language.size))
+    let found = clones(List.map(modules, fn(module) = module.codes), language.size);
+    #(modules, List.filter(found, fn(clone) = !betweenChapters(modules, clone)))
+}
+
+// Whether a clone's two stretches stand in two chapters of the tour.
+fn betweenChapters(modules : List(Module), clone : Clone) : Bool =
+    match #(chapterOf(modules, clone.one), chapterOf(modules, clone.other)) {
+        #(Some(one), Some(other)) -> one != other
+      | _ -> false
+    }
+
+// The chapter of the tour a stretch stands in, `3` for tour/3/counter.ern.
+fn chapterOf(modules : List(Module), stretch : Stretch) : Optional(String) = {
+    let module <- List.get(modules, stretch.module);
+    match String.split(module.path, "/") {
+        ["tour", chapter, _] -> Some(chapter)
+      | _ -> None
+    }
 }
 
 //
@@ -115,25 +131,26 @@ fn read(paths : List(String), language : Language) : List(Module) = {
     let #(_, modules) =
         List.mapFold(paths,
                      Map.empty,
-                     fn(numbers, path) = match language.tokens(text(path, contents(path))) {
-                         Some(tokens) -> {
-                             let kept = if language.attributes then
-                                 tokens
-                             else
-                                 withoutAttributes(tokens, true, []);
-                             let #(next, codes) =
-                                 List.mapFold(kept,
-                                              numbers,
-                                              fn(known, token) =
-                                                  numbered(known, category(token.category)));
-                             #(next,
-                               Module(=path,
-                                      =codes,
-                                      lines = List.map(kept, fn(token) = token.line)))
-                         }
-                       | None ->
-                             quit(path <> " is refused by its lexer")
-                     });
+                     fn(numbers, path) =
+                         match language.tokens(Repository.contents("clones", path)) {
+                             Some(tokens) -> {
+                                 let kept = if language.attributes then
+                                     tokens
+                                 else
+                                     withoutAttributes(tokens, true, []);
+                                 let #(next, codes) =
+                                     List.mapFold(kept,
+                                                  numbers,
+                                                  fn(known, token) =
+                                                      numbered(known, category(token.category)));
+                                 #(next,
+                                   Module(=path,
+                                          =codes,
+                                          lines = List.map(kept, fn(token) = token.line)))
+                             }
+                           | None ->
+                                 Repository.quit("clones", path <> " is refused by its lexer")
+                         });
     modules
 }
 
@@ -347,11 +364,14 @@ fn stretch(modules : List(Module), lines : List(Map(Int, Int)), stretch : Stretc
         #(Some(module), Some(byPlace)) ->
             module.path <> ":" <> line(byPlace, stretch.first) <> "-" <> line(byPlace, stretch.last)
       | _ ->
-            "?"
+            fault("a clone's stretch is in one of the modules read, each with its lines")
     }
 
 fn line(byPlace : Map(Int, Int), place : Int) : String =
-    Int.toString(Optional.withDefault(Map.get(byPlace, place), 0))
+    match Map.get(byPlace, place) {
+        Some(number) -> Int.toString(number)
+      | None -> fault("a stretch begins and ends at a token of its module")
+    }
 
 // A language's count: its clones, the tokens they repeat, and its modules.
 fn counted(language : Language, found : #(List(Module), List(Clone))) : String = {
@@ -364,35 +384,6 @@ fn counted(language : Language, found : #(List(Module), List(Clone))) : String =
         <> " tokens repeated, among "
         <> Int.toString(List.size(modules))
         <> " modules."
-}
-
-//
-// The repository
-//
-
-fn git(arguments : List(String)) : String =
-    match Os.run(Os.command("git", arguments), fileMs) {
-        Right(finished) when finished.status == 0 ->
-            String.trimEnd(text("git " <> String.join(arguments, " "), finished.stdout))
-      | _ ->
-            quit("git " <> String.join(arguments, " ") <> " failed")
-    }
-
-fn contents(path : String) : Bytes =
-    match Fs.read(Path(path), fileMs) {
-        Right(bytes) -> bytes
-      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
-    }
-
-fn text(source : String, bytes : Bytes) : String =
-    match String.fromUtf8(bytes) {
-        Some(text) -> text
-      | None -> quit(source <> " is not UTF-8")
-    }
-
-fn quit(message : String) : a = {
-    Io.printlnError("clones: " <> message);
-    Os.exit(1)
 }
 
 //

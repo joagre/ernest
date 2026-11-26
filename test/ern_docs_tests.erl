@@ -66,29 +66,60 @@
 %% not read a curly apostrophe, which no document writes before a `§`, nor
 %% a citation whose words a line break parts. The site's fixture stands as
 %% the guide where the site's generator renders it (ern_site_tests), so its
-%% bare citations are its own sections, as the guide's are.
-citations_resolve_test() ->
+%% bare citations are its own sections, as the guide's are. The
+%% citations are read by tools/citations.ern alone, which the site's links
+%% and the documents' listing read them by.
+citations_resolve_test_() ->
+    {timeout, 60, fun citations_resolve/0}.
+
+citations_resolve() ->
     Guide = ern_repository:read("guide/language.md"),
     Fixture = ern_repository:read(?SITE_FIXTURE),
     Sections = #{report => section_numbers(report()), guide => section_numbers(Guide),
-                 deployment => section_numbers(ern_repository:read("guide/deployment.md")),
-                 fixture => section_numbers(Fixture)},
+                 deployment => section_numbers(ern_repository:read("guide/deployment.md"))},
     %% a review's findings, beside the plan while they are open, cite each
     %% document as their readers did, the guide's sections bare beside the
     %% report's, and the list goes when its items are decided
     Live = (documents() -- ["docs/findings.md", ?SITE_FIXTURE])
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
+    %% a console of the guide quotes the toolchain, whose citations are
+    %% the report's (report §11.5), held to it by docs/diagnostics.md; the
+    %% fixture is read as the guide is, its sections its own
     Dangling =
-        [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
-                             not resolves(Citation, report, Sections)]
-        %% a console of the guide quotes the toolchain, whose citations are
-        %% the report's (report §11.5), held to it by docs/diagnostics.md
-        ++ [{?SITE_FIXTURE, Citation} || Citation <- cites(without_consoles(Fixture)),
-                                         not resolves(Citation, fixture, Sections)]
-        ++ [{"guide/language.md", Citation}
-            || Citation <- cites(without_consoles(Guide)),
-               not resolves(Citation, guide, Sections)],
+        [Citation || {_, Document, Section} = Citation <- cited(?ROOT, Live),
+                     not lists:member(Section, maps:get(Document, Sections))]
+        ++ [{?SITE_FIXTURE, Document, Section}
+            || {_, Document, Section} <- cited_as_the_guide(without_consoles(Fixture)),
+               not lists:member(Section, maps:get(Document, Sections#{guide =>
+                                                                       section_numbers(Fixture)}))]
+        ++ [Citation || {_, Document, Section} = Citation
+                            <- cited_as_the_guide(without_consoles(Guide)),
+                        not lists:member(Section, maps:get(Document, Sections))],
+    ?assert(length(Live) > 250),
     ?assertEqual([], Dangling).
+
+%% Every citation of the files, paths from Dir, as tools/citations.ern reads
+%% them: {File, Document, Section}, a bare one the document's that the
+%% file's path names, and an appendix's section as section_numbers/1 names
+%% it, `Appendix E`.
+cited(Dir, Files) ->
+    Run = filename:absname("../bin/ern") ++ " run "
+        ++ filename:absname("../build/tools/citations.erc"),
+    Output = ern_integration_tests:succeed(Run ++ " " ++ lists:join(" ", Files), [{cd, Dir}]),
+    [{File, list_to_atom(Document), appendix_section(Section)}
+     || Line <- string:lexemes(binary_to_list(Output), "\n"),
+        [File, Document, Section] <- [string:split(Line, "\t", all)]].
+
+appendix_section([Letter]) when Letter >= $A, Letter =< $Z -> "Appendix " ++ [Letter];
+appendix_section(Section) -> Section.
+
+%% The citations of Text where it stands as the guide, its bare `§` the
+%% guide's own.
+cited_as_the_guide(Text) ->
+    Dir = ern_helpers:tmp("ern_docs_cited_"),
+    ok = filelib:ensure_path(filename:join(Dir, "guide")),
+    ok = file:write_file(filename:join(Dir, "guide/language.md"), Text),
+    try cited(Dir, ["guide/language.md"]) after file:del_dir_r(Dir) end.
 
 %% The document without its fenced console blocks.
 without_consoles(Document) ->
@@ -427,19 +458,24 @@ readers(Review) ->
 
 %% The parts a reader's item says it is read in, one where it says none.
 reader_parts(Item) ->
-    case matches(Item, "\\bin ([a-z]+) parts\\b") of
-        [[Word] | _] -> length(lists:takewhile(fun(N) -> number_word(N) =/= Word end,
-                                               lists:seq(1, 29))) + 1;
+    case matches(Item, "\\bin ([a-z-]+) parts\\b") of
+        [[Word] | _] -> length(lists:takewhile(fun(Each) -> Each =/= Word end,
+                                               number_words())) + 1;
         [] -> 1
     end.
 
 %% A count as the documents write it, "six", "twenty-two".
-number_word(Count) when Count =< 20 ->
-    lists:nth(Count, ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-                      "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-                      "seventeen", "eighteen", "nineteen", "twenty"]);
-number_word(Count) when Count < 30 ->
-    "twenty-" ++ number_word(Count - 20).
+number_word(Count) when Count >= 1, Count =< 99 ->
+    lists:nth(Count, number_words()).
+
+%% The counts from one to ninety-nine as the documents write them, which
+%% number_word/1 and reader_parts/1 read in either direction.
+number_words() ->
+    Ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
+    Teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+             "seventeen", "eighteen", "nineteen"],
+    Tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"],
+    Ones ++ Teens ++ lists:append([[Ten | [Ten ++ "-" ++ One || One <- Ones]] || Ten <- Tens]).
 
 %% docs/architecture.md, report §8.6, §8.7: the map's table of the tables
 %% names each table `ern_rt:tables/0` makes, `ern_rt` its owner, and no
@@ -555,8 +591,11 @@ pages_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
     Top = "build/man/README.md",
     Indexes = [Top, "build/stdlib/index.md", "build/man/libs/README.md"],
-    Pages = ern_repository:files(["build/stdlib/*.md", "build/libs/*/*.md"])
-        -- ern_repository:files(["build/stdlib/index.md", "build/libs/*/index.md"]),
+    Built = fun(Patterns) ->
+                [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT)]
+            end,
+    Pages = Built(["build/stdlib/*.md", "build/libs/*/*.md"])
+        -- Built(["build/stdlib/index.md", "build/libs/*/index.md"]),
     ?assert(length(Pages) > 25),
     Release = <<"The pages `ern doc` writes for Ernest ", Version/binary, ".">>,
     ?assertNotEqual(nomatch, binary:match(ern_repository:read(Top), Release)),
@@ -584,7 +623,7 @@ version_test() ->
     Documents = start_line_documents(),
     Site = "test/fixtures/site/expected/index.html",
     Files = ["VERSION" | Fixtures ++ [Site | Documents]],
-    Dir = filename:join(ern_pty:run_dir(), "version-" ++ os:getpid() ++ "_"
+    Dir = filename:join(ern_helpers:run_dir(), "version-" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
     Copy = fun(File) ->
                Path = filename:join(Dir, File),
@@ -1144,10 +1183,11 @@ tools() ->
 
 %% The toolchain's own code, whose comments cite the report as its rules
 %% ask: the Erlang sources, includes and tests, the helper in C, the tests
-%% under test/ and the Makefiles.
+%% under test/ and the bench's, the tools' scripts and the Makefiles.
 toolchain() ->
     ern_repository:files(["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c", "test/*.erl",
-                          "Makefile", "test/Makefile", "test/run.mk", "release/Makefile"]).
+                          "test/bench/*.erl", "tools/*.sh", "tools/*.escript", "Makefile",
+                          "test/Makefile", "test/run.mk", "release/Makefile"]).
 
 stdlib() ->
     ern_repository:files(["src/stdlib/*.ern", "src/libs/*/*.ern"]).
@@ -1167,41 +1207,9 @@ line_section_numbers(Line) ->
         nomatch -> []
     end.
 
-%% Every citation in a document: {Kind, Target} with Kind report, guide,
-%% deployment or bare, a `§x.y` after report, guide or deployment guide,
-%% or after the report's, the guide's or the deployment guide's, being
-%% that document's, and so each of a list after it, joined to the one
-%% before by `, ` or ` and `, as tools/citations.ern reads it; the bare ones
-%% resolved by the document's own convention.
-cites(Document) ->
-    Numbered = "§[0-9]+(?:\\.[0-9]+)?",
-    Cited = "([Rr]eport|[Dd]eployment guide|[Gg]uide)?(?:'s)?,? ?(" ++ Numbered
-        ++ "(?:(?:, | and )" ++ Numbered ++ ")*)",
-    SectionCites = [{kind(Word), Number}
-                    || [Word, Listed] <- matches(Document, Cited),
-                       [Number] <- matches(Listed, "§([0-9]+(?:\\.[0-9]+)?)")],
-    AppendixCites = [case Appendix of
-                         [Letter] -> {report, "Appendix " ++ Letter};
-                         [Letter, Section] -> {report, Letter ++ "." ++ Section}
-                     end
-                     || Appendix <- matches(Document, "Appendix ([A-Z])(?:\\.([0-9]+))?")],
-    LibraryCites = [{report, "E." ++ Section}
-                    || [Section] <- matches(Document, "\\bE\\.([0-9]+)\\b")],
-    lists:usort(SectionCites ++ AppendixCites ++ LibraryCites).
-
 %% Every match of a pattern in a document, each its captured groups.
 matches(Document, Pattern) ->
     case re:run(Document, Pattern, [global, unicode, {capture, all_but_first, list}]) of
         {match, Found} -> Found;
         nomatch -> []
     end.
-
-kind([]) -> bare;
-kind([$D | _]) -> deployment;
-kind([$d | _]) -> deployment;
-kind(Word) -> list_to_atom(string:lowercase(Word)).
-
-%% Whether a citation names a section of the document it names, a bare
-%% one of the document Own, as the document citing it reads a bare `§`.
-resolves({bare, Target}, Own, Sections) -> lists:member(Target, maps:get(Own, Sections));
-resolves({Kind, Target}, _, Sections) -> lists:member(Target, maps:get(Kind, Sections)).

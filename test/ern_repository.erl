@@ -1,17 +1,23 @@
 %% The repository's own files as the document and style suites read them:
-%% the files a list of patterns matches, an editor's left out, and a file's
-%% bytes, each by its path from the repository's root.
+%% the tracked files a list of patterns matches, and a file's bytes, each
+%% by its path from the repository's root. An untracked file is the
+%% user's, which no suite reads, as no build's product is.
 -module(ern_repository).
 
 -export([files/1, is_editors/1, modules/0, read/1]).
 
 -define(ROOT, "..").
 
-%% The files the wildcards match, from the repository's root, but an
-%% editor's (is_editors/1).
+%% The tracked files the wildcards match, from the repository's root, in
+%% the order of the patterns and in each the order git lists them, a file
+%% the working tree has lost left out. A wildcard is filelib:wildcard/1's:
+%% `*` matches within a segment and `**/` any run of directories.
 -spec files([string()]) -> [file:filename()].
 files(Patterns) ->
-    [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT), not is_editors(File)].
+    [File || Pattern <- Patterns,
+             File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- ':(glob)"
+                                           ++ Pattern ++ "'"), "\n"),
+             filelib:is_regular(filename:join(?ROOT, File))].
 
 %% Whether File is an editor's: a lock file, `.#main.ern`, a link to
 %% nothing while the file is open, or an auto-save file, `#main.ern#`.

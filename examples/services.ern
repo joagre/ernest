@@ -134,28 +134,34 @@ fn obey(command : Command, line : String) : Unit =
               | None -> Io.println(line <> ": no answer")
             }
       | Audit ->
-            Io.println("audit: " <> audited(asked(audit, Entries)))
+            match asked(audit, Entries) {
+                Some(entries) -> Io.println("audit: " <> audited(entries))
+              | None -> Io.println(line <> ": no answer")
+            }
     }
 
 // A change to a key's stock, recorded with an id once the store has taken it.
 fn change(key : String, by : Int, line : String) : Unit =
     match Address.call(store, fn(reply) = Change(=key, =by, =reply), 5000) {
         Some(held) -> {
-            let id = asked(ids, NextId);
-            send(audit, Record("#" <> Int.toString(id) <> " " <> line));
+            match asked(ids, NextId) {
+                Some(id) -> send(audit, Record("#" <> Int.toString(id) <> " " <> line))
+              | None -> Io.println(line <> ": no answer")
+            };
             Io.println(key <> ": " <> Int.toString(held))
         }
       | None ->
             Io.println(line <> ": no answer")
     }
 
-// A service's answer, asked again where none came: a service that restarts
-// while it is asked answers nothing (report §6.6), and its new run answers
-// the next.
-fn asked(service : Address(m), request : (Reply(a)) -> m) : a =
+// A service's answer, asked once more where none came: a service that
+// restarts while it is asked answers nothing (report §6.6), and its new run
+// answers the next; None where the second asking has no answer either, as
+// of a service that has ended.
+fn asked(service : Address(m), request : (Reply(a)) -> m) : Optional(a) =
     match Address.call(service, request, 1000) {
-        Some(value) -> value
-      | None -> asked(service, request)
+        Some(value) -> Some(value)
+      | None -> Address.call(service, request, 1000)
     }
 
 //

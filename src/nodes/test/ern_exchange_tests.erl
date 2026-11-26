@@ -78,7 +78,7 @@ reach_test() ->
                Self ! {asked, Reaches, Lacks}
            end,
     try
-        ?assertEqual(ok, run(Main, quiet())),
+        ?assertEqual(ok, run(Main, ern_helpers:silent())),
         {asked, Reaches, Lacks} = receive {asked, _, _} = Got -> Got end,
         Work = lists:usort([Hash(Name) || Name <- [work, area, isEven, isOdd, 'Shape', side]]),
         Later = lists:usort([Hash(Name) || Name <- [later, isEven, isOdd]]),
@@ -214,7 +214,7 @@ received_whole_test() ->
                Self ! {received, Asked, AskedAgain, Lacks, Apart, Answers, Computed, Spawnable}
            end,
     try
-        {Said, Options} = said(),
+        {Said, Options} = stderr_kept(),
         ?assertEqual(ok, run(Main, Options)),
         {received, Asked, AskedAgain, Lacks, Apart, Answers, Computed, Spawnable} =
             receive {received, _, _, _, _, _, _, _} = Got -> Got end,
@@ -315,7 +315,7 @@ received_linked_test() ->
                    Self ! {received, Lacks, HeldHash, Computed, Ground, Unit, Reach, Onward}
            end,
     try
-        ?assertEqual(ok, run(Main, quiet())),
+        ?assertEqual(ok, run(Main, ern_helpers:silent())),
         {received, Lacks, HeldHash, Computed, Ground, Unit, Reach, Onward} =
             receive {received, _, _, _, _, _, _, _} = Received -> Received end,
         ?assertEqual([Linked#definition.hash], Lacks),
@@ -415,7 +415,7 @@ received_beyond_reach_test() ->
                    Self ! {received, Computed, Unit, Faults, Declared, Recorded,
                            binary_to_term(Sources), Reach}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     {received, Computed, Unit, Faults, Declared, Recorded, Sources, Reach} =
         receive {received, _, _, _, _, _, _, _} = Got -> Got end,
@@ -500,7 +500,7 @@ in_let_test() ->
                       Self ! {spawner, frames(Asked), frames(Lacks)}
               end,
     try
-        ?assertEqual(ok, run(Spawner, quiet())),
+        ?assertEqual(ok, run(Spawner, ern_helpers:silent())),
         {spawner, Reach, Frames} = receive {spawner, _, _} = Answered -> Answered end,
         ?assertMatch([{reach, _, _, [], []}], Reach),
         [{reach, _, Identities, _, _}] = Reach,
@@ -537,7 +537,7 @@ in_let_test() ->
                    Exchange ! {ern_frame, self(), {lacks, Onward, [Job]}},
                    Self ! {peer, Lacked, Computed, Arrival, frames(Onward)}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Peer, Options)),
     {peer, Lacked, Computed, Arrival, Onward} =
         receive {peer, _, _, _, _} = Got -> Got end,
@@ -589,7 +589,7 @@ unlinked_reach_test() ->
                    ok = catch_up(),
                    Self ! {answered, Answer, ern_code:spawnable({hash, Hash})}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     Text = <<"this node could not take the code it received: it references a definition this"
              " node does not hold, ", (binary:copy(<<"00">>, 31))/binary, "4d">>,
@@ -649,7 +649,7 @@ not_loaded_from_reach_test() ->
                                                        {1, 1, none})]}]],
                Self ! {answered, Answers}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     Lacked = [<<"the binding Exabsent.note has no value here">>,
               <<"the module ern_exchange_tests_absent, which Exabsent.only calls, is not here">>,
@@ -753,7 +753,7 @@ faulty_frame_test() ->
                ok = catch_up(),
                Self ! {faulty, Late, waiting()}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     ?assertEqual({faulty, [[], [], [], [], [], [], []], []},
                  receive {faulty, _, _} = Got -> Got end),
@@ -788,7 +788,7 @@ loss_test() ->
                ok = catch_up(),
                Self ! {lost, First, waiting()}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     ?assertEqual({lost, [], []}, receive {lost, _, _} = Got -> Got end),
     ?assertEqual([], Said()).
@@ -825,7 +825,7 @@ no_longer_held_test() ->
                                end),
                Self ! {answered, AtRequest, AtLacks}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     Text = <<"the spawner's node no longer holds the function's reach">>,
     Failed = {failed, {'Other', Text}},
@@ -839,7 +839,7 @@ no_longer_held_test() ->
 %% reach of it that comes later is passed over; a spawn that joins an
 %% exchange with a shorter time leaves it the longer, which has not run out
 %% at its timer's message. A
-%% regression test, written after the fix (the release review before 0.4.0
+%% regression test, written after the fix (the release review
 %% found an exchange a peer never completed kept until the connection's
 %% loss); it does not cover a compute's exchange, whose time is its frame's
 %% as a spawn's is, nor two nodes
@@ -865,7 +865,7 @@ timed_out_test() ->
                Lacks = receive {ern_frame, _, {lacks, JoinedRef, L}} -> L end,
                Self ! {timed, Late, Lacks}
            end,
-    {Said, Options} = said(),
+    {Said, Options} = stderr_kept(),
     ?assertEqual(ok, run(Main, Options)),
     Text = <<"its time ran out before the function's reach arrived">>,
     ?assertEqual({timed, [], [<<12:256>>]}, receive {timed, _, _} = Got -> Got end),
@@ -918,8 +918,7 @@ unloaded(Unit) ->
     code:purge(Unit).
 
 scratch_dir() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_exchange_" ++ os:getpid()),
+    Dir = filename:join(ern_helpers:run_dir(), "ern_exchange_" ++ os:getpid()),
     ok = filelib:ensure_path(Dir),
     Dir.
 
@@ -1013,13 +1012,10 @@ waiting() ->
         []
     end.
 
-quiet() ->
-    #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}.
-
 %% A run's options with its standard error taken, and what it has said, a
 %% line a write, once the run has ended.
-said() ->
-    Table = ets:new(said, [public, ordered_set]),
+stderr_kept() ->
+    Table = ets:new(stderr_kept, [public, ordered_set]),
     Write = fun(Bytes) -> ets:insert(Table, {erlang:unique_integer([monotonic]), Bytes}) end,
     {fun() -> [Bytes || {_, Bytes} <- ets:tab2list(Table)] end,
      #{stdout => fun(_) -> ok end, stderr => Write}}.

@@ -91,6 +91,20 @@ usage(Job) ->
     iolist_to_binary(lists:join(<<" ">>, binary:split(Usage, [<<" ">>, <<"\n">>],
                                                       [global, trim_all]))).
 
+%% report §11.4, §11.7: ern(1) as `make manual` writes it names in its
+%% footer the toolchain's version text, as `ern --version` writes it and as
+%% a module's page names it, a hyphen escaped as roff writes one. A
+%% regression test, written after the fix: the footer named VERSION's text
+%% alone, which is no build's of the repository
+manual_footer_test() ->
+    Version = ern_integration_tests:succeed("../bin/ern --version"),
+    "ern " ++ Text = string:trim(binary_to_list(Version)),
+    Footer = iolist_to_binary(["\"Ernest ", string:replace(Text, "-", "\\-", all), "\""]),
+    {ok, Manual} = file:read_file("../build/man/ern.1"),
+    {ok, Page} = file:read_file("../build/stdlib/Ernest.Bool.3ern"),
+    ?assertMatch({{_, _}, {_, _}}, {binary:match(Manual, <<"\"1\" \"\" ", Footer/binary>>),
+                                    binary:match(Page, <<"\"3ern\" \"\" ", Footer/binary>>)}).
+
 %% report §11.4: make writes ern(1) as `ern doc` writes a page, only where
 %% it is older than what it is made from, so `make manual` after a make,
 %% which this target's make runs first, leaves it as it is: its time, and

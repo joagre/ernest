@@ -22,10 +22,8 @@ SHIM_TEST_ROOTS = $(filter libs/%,$(TEST_ROOTS))
 # compiled modules of its tests.
 root = $(filter %/$(1) $(1),$(TEST_ROOTS))
 test_beams = $(patsubst src/%.erl,build/%.beam,$(wildcard src/$(1)/test/*.erl))
-# The toolchain on a host's code path, as bin/ern gives it.
-CODE_PATH = -pa $(CURDIR)/build/toolchain/*/ebin -pa $(CURDIR)/build/shared/ebin \
-	-pa $(CURDIR)/build/nodes/ebin -pa $(CURDIR)/build/runtime/ebin \
-	-pa $(CURDIR)/build/shell/ebin
+# The toolchain on a host's code path, as bin/ern gives it (tools/code_path.sh).
+CODE_PATH := $(shell sh tools/code_path.sh $(CURDIR))
 
 # The jobs a make runs side by side, as many as the host has cores.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
@@ -207,9 +205,10 @@ manual-stdlib: stdlib lib-markdown
 $(LIBS:%=manual-%): manual-%: lib-% lib-markdown
 	@bin/ern doc --man --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
-# ern(1) is made from the report's §11, the version, the program
-# tools/manual.ern and the names of the pages in build/stdlib, which its
-# SEE ALSO names. As `ern doc` makes a page (report §11.4), it is made too
+# ern(1) is made from the report's §11, the version text, as `ern
+# --version` writes it and `ern doc --man` takes it (report §11.4, §11.7),
+# the program tools/manual.ern and the names of the pages in build/stdlib,
+# which its SEE ALSO names. As `ern doc` makes a page (report §11.4), it is made too
 # from the compiled libs/markdown, which lays it out, and from the
 # toolchain's own code, the beams `beams` makes.
 #
@@ -226,7 +225,7 @@ FORCE:
 build/man/ern.1: report/toolchain.md VERSION build/tools/manual.erc build/man/ern.1.pages \
 	  build/libs/markdown/markdown.erc $(ROOT_BEAMS) $(SHIM_BEAMS)
 	@bin/ern run --verbose build/tools/manual.erc \
-	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
+	  report/toolchain.md "$$(bin/ern --version | sed 's/^ern //')" build/stdlib > $@.new
 	@mv $@.new $@
 
 # The installation (docs/design/install.md): the toolchain's tree under
@@ -331,9 +330,8 @@ unicode: tools
 # the longest come first. The areas that start hosts then run one after
 # another, each whatever the one before it ended with: each runs its own
 # tests side by side, as many at once as the host has schedulers
-# (test/Makefile), which is what the host carries, and the areas run side
-# by side, six of them, ran six times as many, at a load of
-# about 117 on eight cores, where tests ran past their limits. In both runs
+# (test/Makefile), which is what the host carries; the areas run side by
+# side, each with as many, ran past it, and tests ran past their limits. In both runs
 # the modules under test/ are compiled first, once, so that no two parts
 # compile one module at once, as the documents' and the site's did where a
 # test module had changed; one make runs the roots' tests, each waiting on
@@ -428,7 +426,9 @@ FLAKE_HOST = -- $(1) $(call UNIT_HOST,$(call flake_root,$(1))) \
 	  halt(ern_flakes:hunt(Mine)).'
 
 flakes:
-	@$(MAKE) -s all $(foreach a,runtime $(SPLIT_APPS),$(call test_beams,$(call root,$(a))))
+	@case "$(MINUTES)" in ''|*[!0-9]*|0) \
+	  echo "make flakes: MINUTES=n, a positive whole number, is required" >&2; exit 2 ;; esac
+	@$(MAKE) -s all $(foreach a,$(SPLIT_APPS),$(call test_beams,$(call root,$(a))))
 	@bin/ern run build/tools/flakes.erc "$(MINUTES)" "$(LOOPS)" $(FLAKES) \
 	  $(foreach p,$(FLAKE_PARTS),$(call FLAKE_HOST,$(p)))
 
@@ -490,7 +490,7 @@ test-docs: doc
 	@$(MAKE) -C test docs
 
 # The prose paragraphs past about a hundred words, for their writer to read
-# again when asked (CLAUDE.md, *Writing*); the style tests hold both at
+# again when asked (docs/code_style.md, *Every language*); the style tests hold both at
 # 150. comments lists the comment blocks of the
 # Erlang and the Ernest the same way (docs/code_style.md). Both are
 # tools/words.ern, the job named first on its command line and a count of
@@ -697,8 +697,13 @@ format: all
 	@bin/ern format $(ERNEST_SOURCES)
 	@$(MAKE) -s -C test format
 
-# Report sections no test cites (every test function carries a `%% report §x.y` line,
-# and a library's Ernest tests a `// report Appendix G.n` one): every numbered section
+# The sources whose citations make sections and make coverage count: every
+# test module of Erlang, whose test functions each carry a `%% report §x.y`
+# line, and the standard library and the libraries, whose Ernest tests carry
+# a `// report Appendix G.n` one.
+CITING_SOURCES = $(UNIT_TEST_SOURCES) test/*.erl src/stdlib/*.ern src/libs/*/*.ern
+
+# Report sections no test cites: every numbered section
 # and every appendix, a chapter cited through its sections, and none whose heading says
 # it is unused, a number kept for a section that went.
 sections:
@@ -706,23 +711,32 @@ sections:
 	  grep -oE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' | \
 	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
 	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
-	    grep -ohE "(guide )?$$p\b" $(UNIT_TEST_SOURCES) test/*.erl src/stdlib/*.ern \
-	      src/libs/*/*.ern | \
+	    grep -ohE "(guide )?$$p\b" $(CITING_SOURCES) | \
 	    grep -qv '^guide' || echo "$$s"; done
 
 # Every report section with the number of tests citing it and its length in
 # words, thinnest first: few citations on a long section is where a rule can
-# hide untested. A heuristic, not a proof. A part under a level-four heading,
-# §11.2's, is counted with its section.
+# hide untested. A heuristic, not a proof. A section is a numbered heading,
+# a chapter's `## 7.` with its words before its first section, or an
+# appendix or one of its sections, which a citation names `Appendix E.17` or
+# `E.17`; a part under a level-four heading, §11.2's, is counted with its
+# section, and a citation counts for the section it names alone. CITED is a
+# citation, the guide's among them, which is left out.
+CITED = (guide )?§[0-9]+(\.[0-9]+)?|Appendix [A-Z](\.[0-9]+)?|(^|[^A-Za-z0-9.])[A-Z]\.[0-9]+
 coverage:
-	@awk '/^#{2,3} [0-9]+\.[0-9]+/ { if (s != "") print s, w; s = $$2; w = 0; next } \
+	@cited=$$(cat $(CITING_SOURCES) | grep -oE '$(CITED)' | grep -v '^guide' | \
+	  sed -E 's/^[^A-Z§]//; s/^([A-Z]\.)/Appendix \1/'); \
+	awk '/^#{2,3} .* Unused$$/ { if (s != "") print w, s; s = ""; next } \
+	      /^#{2,3} [0-9]+(\.[0-9]+)?\.? / { if (s != "") print w, s; \
+	        s = "§" $$2; sub(/\.$$/, "", s); w = 0; next } \
+	      /^#{2,3} Appendix [A-Z](\.[0-9]+)?\. / { if (s != "") print w, s; \
+	        s = "Appendix " $$3; sub(/\.$$/, "", s); w = 0; next } \
 	      /^####/ { if (s != "") w += NF; next } \
-	      /^#/ { if (s != "") print s, w; s = ""; next } \
-	      s != "" { w += NF } END { if (s != "") print s, w }' report/*.md | \
-	  while read s w; do \
-	    c=$$(cat $(UNIT_TEST_SOURCES) test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' \
-	         | wc -l); \
-	    printf '%3d cites %5d words  §%s\n' $$c $$w $$s; done | sort -k1,1n -k3,3nr
+	      /^#/ { if (s != "") print w, s; s = ""; next } \
+	      s != "" { w += NF } END { if (s != "") print w, s }' report/*.md | \
+	  while read w s; do \
+	    c=$$(printf '%s\n' "$$cited" | grep -cxF "$$s"); \
+	    printf '%3d cites %5d words  %s\n' $$c $$w "$$s"; done | sort -k1,1n -k3,3nr
 
 # The listings a review's readers start from (docs/reviews/full.md,
 # release.md), each printing lines and failing nothing. cover and slowest

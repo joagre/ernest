@@ -25,36 +25,33 @@ type Timed = Timed(name : String, ms : Int, tests : Int)
 // How many tests the listing shows.
 let shown : Int = 30
 
-// A file's time, as the other tools give theirs.
-let fileMs : Int = 10000
-
 export fn main() : Unit =
     match Os.arguments {
         [directory] -> List.forEach(listed(directory), Io.println)
-      | _ -> quit("usage: slowest dir")
+      | _ -> Repository.quit("slowest", "usage: slowest dir")
     }
 
 // The listing's lines: a line a test, the slowest first, and the totals.
 fn listed(directory : String) : List(String) = {
-    let files = match Fs.list(Path(directory), fileMs) {
+    let files = match Fs.list(Path(directory), Repository.fileMs) {
         Right(entries) ->
             List.filter(List.map(entries, fn(entry) = entry.path),
                         fn(path) = Path.extension(path) == Some("times"))
       | Left(error) ->
-            quit("cannot list " <> directory <> ": " <> Io.show(error))
+            Repository.quit("slowest", "cannot list " <> directory <> ": " <> Io.show(error))
     };
     let lines = List.flatMap(files, fn(path) = String.lines(contents(path)));
-    let timed = timedOf(lines);
-    let tests = List.foldLeft(timed, 0, fn(acc, function) = acc + function.tests);
-    let ms = List.foldLeft(timed, 0, fn(acc, function) = acc + function.ms);
-    List.map(List.take(timed, shown), row)
+    let found = timedOf(lines);
+    let tests = List.foldLeft(found, 0, fn(acc, timed) = acc + timed.tests);
+    let ms = List.foldLeft(found, 0, fn(acc, timed) = acc + timed.ms);
+    List.map(List.take(found, shown), row)
         <> ["",
             "The records of "
                 <> Int.toString(List.size(files))
                 <> " hosts: "
                 <> Int.toString(tests)
                 <> " tests under "
-                <> Int.toString(List.size(timed))
+                <> Int.toString(List.size(found))
                 <> " names, "
                 <> seconds(ms)
                 <> " s in all."]
@@ -77,7 +74,7 @@ fn timedOf(lines : List(String)) : List(Timed) = {
             acc
     });
     let timed = List.map(Map.toList(summed), fn(#(name, #(ms, tests))) = Timed(=name, =ms, =tests));
-    List.sortBy(timed, fn(function) = -function.ms)
+    List.sortBy(timed, fn(each) = -each.ms)
 }
 
 // A test's name: its module and function, and its description after them
@@ -100,33 +97,29 @@ fn testName(function : String) : String =
             function
     }
 
-fn row(function : Timed) : String =
-    String.padStart(seconds(function.ms), 9, " ")
+fn row(timed : Timed) : String =
+    String.padStart(seconds(timed.ms), 9, " ")
         <> " s  "
-        <> function.name
+        <> timed.name
         <> ", "
-        <> Int.toString(function.tests)
-        <> (if function.tests == 1 then " test" else " tests")
+        <> Int.toString(timed.tests)
+        <> (if timed.tests == 1 then " test" else " tests")
 
 // Milliseconds as seconds, to the millisecond.
 fn seconds(ms : Int) : String =
     Int.toString(ms / 1000) <> "." <> String.padStart(Int.toString(ms % 1000), 3, "0")
 
 fn contents(path : Path) : String =
-    match Fs.read(path, fileMs) {
+    match Fs.read(path, Repository.fileMs) {
         Right(bytes) ->
             match String.fromUtf8(bytes) {
                 Some(text) -> text
-              | None -> quit(Path.toString(path) <> " is not UTF-8")
+              | None -> Repository.quit("slowest", Path.toString(path) <> " is not UTF-8")
             }
       | Left(error) ->
-            quit("cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
+            Repository.quit("slowest",
+                            "cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
     }
-
-fn quit(message : String) : a = {
-    Io.printlnError("slowest: " <> message);
-    Os.exit(1)
-}
 
 //
 // Tests

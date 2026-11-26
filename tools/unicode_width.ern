@@ -32,9 +32,6 @@ let usage : String = "usage: unicode_width uc_spec_dir"
 // The last code point Unicode has.
 let lastCode : Int = 0x10FFFF
 
-// A file's time, as the other tools give theirs.
-let fileMs : Int = 10000
-
 // The version of Unicode the host's segmentation follows, its major and its
 // minor number.
 foreign fn specVersion() : #(Int, Int) =
@@ -45,10 +42,10 @@ export fn main() : Unit =
         [directory] ->
             match written(directory) {
                 Right(line) -> Io.println(line)
-              | Left(message) -> quit(message)
+              | Left(message) -> Repository.quit("unicode_width", message)
             }
       | _ ->
-            quit(usage)
+            Repository.quit("unicode_width", usage)
     }
 
 // The table written from the directory's data, and the line that says so.
@@ -77,7 +74,7 @@ fn written(directory : String) : Either(String, String) = {
                             "no line " <> endMarker <> " in " <> terminal);
     let text = before <> String.join(lines, "\n") <> following;
     let _ <-
-        Either.mapLeft(Fs.write(Path(terminal), String.toUtf8(text), fileMs),
+        Either.mapLeft(Fs.write(Path(terminal), String.toUtf8(text), Repository.fileMs),
                        fn(error) = "cannot write " <> terminal <> ": " <> Io.show(error));
     Right(Int.toString(List.size(table)) <> " ranges from Unicode " <> version)
 }
@@ -90,7 +87,7 @@ fn isOfVersion(widths : String, version : String) : Bool =
 fn contents(directory : String, name : String) : Either(String, String) = {
     let path = Path(directory) <> Path(name);
     let bytes <-
-        Either.mapLeft(Fs.read(path, fileMs),
+        Either.mapLeft(Fs.read(path, Repository.fileMs),
                        fn(error) = "cannot read " <> Path.toString(path) <> ": " <> Io.show(error));
     Either.fromOptional(String.fromUtf8(bytes), Path.toString(path) <> " is not UTF-8")
 }
@@ -218,11 +215,6 @@ fn rows(entries : List(String)) : List(String) = {
             let indent = if index == 0 then "    [" else "     ";
             indent <> entry <> (if index == last then "]" else ",")
         })
-}
-
-fn quit(message : String) : Unit = {
-    Io.printlnError(message);
-    Os.exit(1)
 }
 
 //

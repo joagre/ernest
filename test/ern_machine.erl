@@ -9,8 +9,8 @@
 %% the machines (docs/development.md).
 %%
 %% Each wait here is bounded by the harness's time for one wait
-%% (ern_nodes_tests:wait_ms/0) and is one step of the test that runs it
-%% (ern_nodes_tests:step/1), but a command given a bound of its own,
+%% (ern_harness:wait_ms/0) and is one step of the test that runs it
+%% (ern_harness:step/1), but a command given a bound of its own,
 %% `infinity` for one that runs as long as its work does, a clone's build
 %% or a measuring program's run.
 -module(ern_machine).
@@ -72,14 +72,13 @@ ern(Machine) ->
     filename:join(clone(Machine), "bin/ern").
 
 %% The flags that give a host on the machine the code of its tree, as its
-%% launcher does, for a command the machine's shell reads.
+%% launcher does, for a command the machine's shell reads: this checkout's
+%% tools/code_path.sh writes them, since a clone not yet pulled may have
+%% none.
 -spec code_path(machine()) -> string().
 code_path(Machine) ->
-    Clone = quoted(clone(Machine)),
-    string:join(["-pa " ++ Clone ++ Directory
-                 || Directory <- ["/build/toolchain/*/ebin", "/build/shared/ebin",
-                                  "/build/nodes/ebin", "/build/runtime/ebin",
-                                  "/build/shell/ebin"]], " ").
+    Script = filename:join(ern_tree:tree(), "tools/code_path.sh"),
+    string:trim(os:cmd("sh " ++ quoted(Script) ++ " " ++ quoted(clone(Machine))), trailing).
 
 %% The directory another machine's nodes go in; none for this machine,
 %% whose go under this checkout.
@@ -123,8 +122,8 @@ open(#machine{name = Name, host = Host} = Machine, SocketDir) ->
 opened(#machine{ssh = none} = Machine) ->
     Machine;
 opened(#machine{ssh = {Port, _}} = Machine) ->
-    ern_nodes_tests:step({opened, Machine#machine.name}),
-    connected(Machine, Port, <<>>, deadline(ern_nodes_tests:wait_ms())).
+    ern_harness:step({opened, Machine#machine.name}),
+    connected(Machine, Port, <<>>, deadline(ern_harness:wait_ms())).
 
 connected(Machine, Port, Said, Deadline) ->
     case binary:match(Said, <<"connected\n">>) of
@@ -139,7 +138,7 @@ connected(Machine, Port, Said, Deadline) ->
             after left(Deadline) ->
                 fail(io_lib:format("~s, ~s, cannot be reached: ssh did not connect within"
                                    " ~B ms: ~ts", [Machine#machine.name, Machine#machine.host,
-                                                   ern_nodes_tests:wait_ms(), string:trim(Said)]))
+                                                   ern_harness:wait_ms(), string:trim(Said)]))
             end;
         _ ->
             Machine
@@ -152,13 +151,13 @@ closed(#machine{ssh = none}) ->
     ok;
 closed(#machine{name = Name, host = Host, ssh = {Port, Socket}} = Machine) ->
     _ = command(Machine, os:find_executable("ssh"),
-                ["-o", "ControlPath=" ++ Socket, "-O", "exit", Host], ern_nodes_tests:wait_ms()),
-    ern_nodes_tests:step({closed, Name}),
+                ["-o", "ControlPath=" ++ Socket, "-O", "exit", Host], ern_harness:wait_ms()),
+    ern_harness:step({closed, Name}),
     receive
         {Port, {exit_status, _}} -> ok
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         fail(io_lib:format("the ssh connection to ~s did not end within ~B ms",
-                           [Name, ern_nodes_tests:wait_ms()]))
+                           [Name, ern_harness:wait_ms()]))
     end.
 
 %%
@@ -171,7 +170,7 @@ closed(#machine{name = Name, host = Host, ssh = {Port, Socket}} = Machine) ->
 %% and the command, and its port is closed.
 -spec run(machine(), string()) -> {non_neg_integer(), string()}.
 run(Machine, Command) ->
-    run(Machine, Command, ern_nodes_tests:wait_ms()).
+    run(Machine, Command, ern_harness:wait_ms()).
 
 -spec run(machine(), string(), timeout()) -> {non_neg_integer(), string()}.
 run(#machine{clone = local} = Machine, Command, Ms) ->
@@ -184,7 +183,7 @@ run(Machine, Command, Ms) ->
 %% fails, naming the machine, the command and what it wrote.
 -spec ran(machine(), string()) -> string().
 ran(Machine, Command) ->
-    ran(Machine, Command, ern_nodes_tests:wait_ms()).
+    ran(Machine, Command, ern_harness:wait_ms()).
 
 -spec ran(machine(), string(), timeout()) -> string().
 ran(Machine, Command, Ms) ->
@@ -218,7 +217,7 @@ copied(#machine{name = Name, host = Host} = Machine, Dir, Base) ->
                                          filelib:is_regular(filename:join(Dir, File))],
     case command(Machine, os:find_executable("scp"),
                  ssh(Machine) ++ ["-q" | Files] ++ [Host ++ ":" ++ Target ++ "/"],
-                 ern_nodes_tests:wait_ms()) of
+                 ern_harness:wait_ms()) of
         {0, _} -> Target;
         {Status, Output} ->
             fail(io_lib:format("the files of ~s could not be copied to ~s: scp ended with"
@@ -231,7 +230,7 @@ ssh(#machine{ssh = {_, Socket}}) ->
 %% Executable run on this machine with Args, for the machine named: its
 %% status and what it wrote, within Ms; one step.
 command(#machine{name = Name}, Executable, Args, Ms) ->
-    ern_nodes_tests:step({command, Name, Args}),
+    ern_harness:step({command, Name, Args}),
     Port = open_port({spawn_executable, Executable},
                      [{args, Args}, binary, exit_status, stderr_to_stdout]),
     collected(Port, [], deadline(Ms), {Name, lists:join(" ", Args), Ms}).
@@ -241,7 +240,7 @@ collected(Port, Said, Deadline, {Name, Command, Ms} = Run) ->
         {Port, {data, Bytes}} -> collected(Port, [Said, Bytes], Deadline, Run);
         {Port, {exit_status, Status}} -> {Status, unicode:characters_to_list(Said)}
     after left(Deadline) ->
-        ern_nodes_tests:closed(Port),
+        ern_harness:closed(Port),
         fail(io_lib:format("on ~s, `~ts` did not end within ~B ms: ~ts",
                            [Name, Command, Ms, string:trim(unicode:characters_to_list(Said))]))
     end.
@@ -323,7 +322,7 @@ gone(Status, Said, Launch) ->
 %% has not said it within the harness's time for one wait: one step.
 -spec seen(pid(), string()) -> [string()].
 seen(Reader, Pattern) ->
-    ern_nodes_tests:step({seen, Pattern}),
+    ern_harness:step({seen, Pattern}),
     Reader ! {waiting, Pattern, self()},
     receive
         {Reader, seen, Captured} ->
@@ -331,7 +330,7 @@ seen(Reader, Pattern) ->
         {Reader, ended, Status, Said, {Name, Command}} ->
             fail(io_lib:format("on ~s, `~ts` ended with status ~B before it said ~s: ~ts",
                                [Name, Command, Status, Pattern, string:trim(Said)]))
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         unended(Reader, "said " ++ Pattern)
     end.
 
@@ -340,11 +339,11 @@ seen(Reader, Pattern) ->
 %% one step.
 -spec ended(pid()) -> {non_neg_integer(), binary()}.
 ended(Reader) ->
-    ern_nodes_tests:step({ended, Reader}),
+    ern_harness:step({ended, Reader}),
     Reader ! {ended, self()},
     receive
         {Reader, ended, Status, Said, _} -> {Status, Said}
-    after ern_nodes_tests:wait_ms() ->
+    after ern_harness:wait_ms() ->
         unended(Reader, "ended")
     end.
 
@@ -355,7 +354,7 @@ unended(Reader, What) ->
     receive
         {Reader, said, Said, {Name, Command}} ->
             fail(io_lib:format("on ~s, `~ts` has not ~s within ~B ms: ~ts",
-                               [Name, Command, What, ern_nodes_tests:wait_ms(),
+                               [Name, Command, What, ern_harness:wait_ms(),
                                 string:trim(Said)]))
     end.
 
@@ -375,9 +374,9 @@ unended(Reader, What) ->
 %% run, each connection and each pause given what is left of it. One step.
 -spec answering(string(), inet:port_number(), fun(() -> ok)) -> ok.
 answering(Host, Port, Refused) ->
-    ern_nodes_tests:step({answering, Host, Port}),
+    ern_harness:step({answering, Host, Port}),
     Asked = erlang:monotonic_time(millisecond),
-    answering(Host, Port, Refused, Asked, Asked + ern_nodes_tests:wait_ms()).
+    answering(Host, Port, Refused, Asked, Asked + ern_harness:wait_ms()).
 
 answering(Host, Port, Refused, Asked, Deadline) ->
     Left = Deadline - erlang:monotonic_time(millisecond),
@@ -399,7 +398,7 @@ answering(Host, Port, Refused, Asked, Deadline) ->
 
 unanswered(Host, Port) ->
     fail(io_lib:format("~s:~B did not answer within ~B ms",
-                       [Host, Port, ern_nodes_tests:wait_ms()])).
+                       [Host, Port, ern_harness:wait_ms()])).
 
 %% A word the shell reads as the text itself.
 -spec quoted(string()) -> string().

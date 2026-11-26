@@ -17,6 +17,5 @@ if ! test -f "$tests/../build/shared/ebin/ern_tree.beam"; then
     exit 1
 fi
 make -s -C "$tests" machines || exit 1
-cd "$tests" && exec erl -noinput -pa ../build/toolchain/*/ebin -pa ../build/shared/ebin \
-    -pa ../build/nodes/ebin -pa ../build/runtime/ebin -pa ../build/shell/ebin -pa ebin \
-    -eval "ern_machines:main([\"$1\"])"
+code=$(sh "$tests/../tools/code_path.sh" ..)
+cd "$tests" && eval "exec erl -noinput $code -pa ebin -eval 'ern_machines:main([\"$1\"])'"

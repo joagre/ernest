@@ -56,8 +56,9 @@ examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
 test/              what spans the roots of src/: the integration, nodes, deployment guide,
                    tour, installation, manual pages', document, style, guide, site,
-                   grammar, generated-program, shell and terminal tests; the harness of the
-                   loads; bench/, the benchmark's harnesses and its memory of its runs,
+                   grammar, generated-program, shell and terminal tests; ern_harness.erl,
+                   the harness of those that run nodes, shells and programs; the harness
+                   of the loads; bench/, the benchmark's harnesses and its memory of its runs,
                    ern_last_run; the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
                    manager's checks; the pseudo-terminal's harness, ern_pty, which
@@ -124,8 +125,11 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with its modules in site/ beside
                    it, writes every page of the website from the repository into a
                    directory of its own, and checks every link of it, for make site;
-                   ern_lexemes.erl, the tools' one helper, gives the site and the clones'
-                   listing the tokens of the toolchain's lexer and of the host's scanner;
+                   repository.ern, the tools' shared module, holds the time a file's
+                   request is given, git's output, a file's text, the borrowed files and
+                   a tool's end; ern_lexemes.erl, the tools' one Erlang helper, gives the
+                   site and the clones' listing the tokens of the toolchain's lexer and
+                   of the host's scanner;
                    unicode_width.ern writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
@@ -133,14 +137,16 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    make paragraphs, make comments and make test-docs;
                    sizes.ern lists each module's lines and its growth, for make sizes;
                    clones.ern lists the code repeated, for make clones;
-                   citations.ern reads a text's citations, for the site's links and
-                   documents.ern alike;
+                   citations.ern reads a text's citations, for the site's links,
+                   documents.ern and the documents test alike;
                    documents.ern lists the report's, the guide's and the tour's
                    sections, citations, terms, unchecked blocks and edits, for make
                    lengths, citations, terms, unchecked and edits;
                    slowest.ern lists the slowest tests, for make slowest;
                    flakes.ern runs the flake hunt's hosts beside busy loops and says
                    what they found, for make flakes;
+                   code_path.sh writes the toolchain's code path for a tree, which
+                   the Makefiles and the machines' tools take, as bin/ern gives it;
                    and version.sh sets VERSION and the lines the tests hold to it, for
                    make version
 build/             build products, not in git, an installation holding what it ships:

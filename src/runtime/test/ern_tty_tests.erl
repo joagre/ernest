@@ -317,11 +317,7 @@ fake_stty(Dir, Body) ->
     Path.
 
 scratch(Prefix) ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        Prefix ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp(Prefix).
 
 %% report §12.1: the terminal applies each subscriber's wrap itself, in
 %% order, so a wrap that does not finish delays that subscriber's keys and

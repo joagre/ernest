@@ -266,10 +266,10 @@ same_definition_same_hash_test() ->
 %% Written with the change: the form held each annotation as written, so
 %% `fn f(x : Int) : Int` and `fn f(x) : Int` were two hashes. The lambdas no
 %% call fixes, whose effect variable an annotation fixes to none or nothing
-%% fixes, a regression test written after the fix of the full review before
-%% 0.5.0: the form wrote that variable where the scheme held none; it does
-%% not cover a lambda a block `let` binds that receives what its parameter's
-%% function receives
+%% fixes, a regression test written after the fix of the full review: the
+%% form wrote that variable where the scheme held none; it does not cover a
+%% lambda a block `let` binds that receives what its parameter's function
+%% receives
 annotation_left_out_test() ->
     Same = fun(Name, Annotated, Bare) ->
                ?assertEqual({Annotated, hash(Annotated, Name)}, {Annotated, hash(Bare, Name)})

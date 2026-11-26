@@ -9,11 +9,7 @@
 -include_lib("nodes/include/ern_node.hrl").
 
 tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_node_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_node_").
 
 %% A directory `ern config` made, listening on a port the host picks, so
 %% that no two runs at once share one.

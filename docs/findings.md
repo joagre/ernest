@@ -91,6 +91,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - *PL1 10*: the 10-26 numbers are the feedback file's; the two of 10-24, which the file never numbered, lose their numbers instead.
 - *PL1 8*: every day's line follows its file, decided with the user the same day, where the index had the file's order on 42 days, newest first on 15 and neither on seven.
 - *E1 1* held already.
+- **Done 2026-11-26** (the log's *The Tests' Build*): *R2 31*, whose eight commands are a console the deployment test runs; *U 32, M 15*, whose session a test replays; *X 27*'s two lexer entries, a control character shown as its picture; and *C7 Clarity 1 (the glossary's part)*.
 
 #### guide
 
@@ -616,45 +617,79 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 #### examples
 
 - **E3 clarity 4** `2a` — `examples/interpreter.ern:188`, `examples/snake.ern:249-250`, `tools/clones.ern:350`, `:354`, `tools/site.ern:342`: a case the value's shape rules out gets a value (guide/style.md:33). Fix: a clause that faults with its cause, or at snake the form where every case comes. Owner: examples+tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*): each case that cannot come faults with its cause, in the interpreter, `tools/clones.ern` and `tools/site.ern`. The snake's `freePoint` draws among the free cells with a bound of 1 at least, so its `None` is the full board's.
 
 #### tests
 
 - **C7 Clarity 3** `2a` — `Makefile:26-28`, `test/Makefile:27-28`, `test/ern_machine.erl`, `test/machines/nodes.sh`, `tools/install.sh`, `bin/ern`, `ern_tree`: the code path written six times. Fix: one writer prints it for the others. Owner: tests+cli.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 17** `2a` — `Makefile:431, 335-336, 709, 721`: `runtime` twice in a foreach, a stale load figure, `sections` and `coverage` over different sources. Fix: `$(SPLIT_APPS)` alone, drop the figure, one set of sources. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **D Kept 5 (the code's comments), E3 clarity 10 (words.ern's part)** `2a` — `Makefile:493`, `tools/words.ern:5`, `test/ern_style_tests.erl:237`: comments cite CLAUDE.md's *Writing* for the 150-word ceiling, which `docs/code_style.md:11` now owns. Fix: cite `docs/code_style.md`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **G 27** `2a` — `Makefile:717`: `make coverage`'s pattern takes `## n.m` and `### n.m` heads alone, so 23 sections over 600 words, §0, §10, §11's head and every appendix, have no line, and `docs/reviews/full.md` starts a reader from it. Fix: the pattern takes `## n.` and `Appendix X.n` heads. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 14** `2a` — `ern_browser_tests.erl:58`, `ern_integration_tests.erl:58, 101`, `ern_site_tests.erl:46`, `ern_shell_tests.erl:2032, 5730`, `ern_install_tests.erl:28`, `ern_grammar_programs_tests.erl:94`: tests with no comment, or one citing nothing. Fix: cite the section or document each tests. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Defects 3** `2a` — `test/ern_docs_tests.erl:429-442` `readers_counted_test`: no number word past 29, `[a-z]+` misses "twenty-two"; this review runs 31 agents. Fix: number words to 99 in one table both directions read, pattern `[a-z-]+`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 8** `2a` — `test/ern_grammar.erl` `lexical("binop")`, `("userop")`: §2.6's lists copied by hand, untested. Fix: read §2.6's block from the report. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 12** `2a` — `test/ern_integration_tests.erl:202, 215, 713`: "Paper program 4", a numbering nothing holds. Fix: name the example and cite its sections. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Defects 4** `2a` — `test/ern_nodes_tests.erl:1100, 9523, 9676, 9685, 9719, 9741`: cite a removed proposal's sections and limits. Fix: cite the report section or the log entry by title. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 2** `2a` — `test/ern_nodes_tests.erl:86-757` and scattered helpers: the harness that ten modules call lives in one test module. Fix: `test/ern_harness.erl`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Defects 7** `2a` — `test/ern_service_tests.erl:301`: a fixed `after 10000`, uncounted. Fix: `ern_nodes_tests:wait_ms()`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 13 (the rest)** `2a` — `test/ern_shell_tests.erl:971-1074` and the clones' pairs in `ern_shell_tests` and `ern_nodes_tests`: setups copied whole. Fix: one helper each, such as `faulting_session/1`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*): the setups copied whole are helpers. The chains of assertions left in the shell's tests are no setups, and `make clones` lists 17 clones of Ernest and 8 of Erlang.
 - **C7 Clarity 6** `2a` — `test/ern_style_tests.erl:107-109, 647-650, 417, 1009`: patterns copied, two line numberers. Fix: call `modules()`, one numberer. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 7** `2a` — `test/ern_style_tests.erl:221-229` `no_tab_test`: 27 patterns leave out `report/`, `guide/`, `docs/design/`, `site/`, `tools/*.escript`. Fix: read `git ls-files`, less Makefiles and `borrowed()`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 16** `2a` — `test/ern_style_tests.erl:6, 803`: `long_pairs/1` exported for a finished sweep. Fix: drop the export and the sentence. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 4** `2a` — `test/ern_style_tests.erl:66, 231, 327, 446`, `tools/clones.ern:61`, `tools/sizes.ern`: exclude getopt by name beside `borrowed()`. Fix: filter by `borrowed()` alone. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 5** `2a` — `test/ern_style_tests.erl` six tests: a working-tree wildcard reads untracked files, so a user's untracked `.ern` fails `make test`. Fix: `git ls-files` for every repository-wide test. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C4 Defects 3** `2a` — `test/ern_waits.erl:228-239` `returned/3`: waits with no monitor; a dead or ending Pid hangs or hides its error, leaving a trace pattern on. Fix: monitor and answer `ok | ended`, as `called/3`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C4 Clarity 3** `2a` — `test/ern_waits.erl:2`, `ern_waits_tests.erl:7`: cite CLAUDE.md, and the header's list omits three exports. Fix: cite the log's entry, list every wait. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C4 Clarity 19** `2a` — `test/ern_waits.erl`: four waits repeat one skeleton, `returned/3` a fifth without it. Fix: one `traced(Pid, Flags, Wait)` the five call. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C5 Defects 4** `2a` — `test/fixtures/pty/pty.ern:555-571`: the harness renders ED 2 and EL 2 against ECMA-48 (latent), so a regression would pass. Fix: `'J'` keeps the cursor, `'K'` with 2 erases the row, the comment says so. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C5 Clarity 22** `2a` — `test/fixtures/pty/pty.ern:8, 129`: two usage lines disagree. Fix: the path the Makefile builds. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 1 (the tools' part), E3 clarity 1** `2a` — `tools/*.ern`: `git`, `contents`, `text`, `quit` defined 22 times in nine tools, `fileMs` in eight, `quit` typed two ways. Fix: one shared module for the tools beside `Site.*`, such as `tools/repository.ern`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **E3 clarity 8** `2a` — `tools/clones.ern:52-57`: pairs of `tour/N/` chapters, copies by design, fill 8 of 28 entries. Fix: leave out a pair whose stretches stand in two chapters of `tour/`. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 18** `2a` — `tools/sizes.ern` header, `tools/words.ern` pathspec: promises "every module", a redundant `test/fixtures/*.erl`. Fix: say what the listing leaves out, drop the pathspec. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C4 Clarity 2, C6 Clarity 1, C7 Defects 2, C7 Clarity 11** `2a` — comments naming review findings and releases in runtime, nodes, cli and `test/` tests (`(finding C27)`, `(C1-1)`, `(F2;`, "the release review before 0.4.0"), which `timeline_comment_test`'s pattern misses. Fix: "A regression test" with the log entry's title, and widen the pattern to catch them. Owner: tests+runtime+nodes+cli.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C4 Clarity 23, C6 Clarity 4** `2a` — the scratch directory's expression 24 times in 16 files, `scratch/1` a fourteenth way; `tmp/0` five times, `write/3`, `forge/2`, `captured_output/0`, a collecting I/O server and `quiet/0` copied, `said` naming four things. Fix: one shared test helper module (`tmp/1` removing in `after`, `write/3`, `forge/2`, `captured_output/0`, one I/O server), each `said` renamed. Owner: tests+runtime+nodes+cli.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 
 #### site
 
 - **C7 Defects 6** `2a` — `site.js:695-699` `showLimits`: a throw in the fulfillment handler is unhandled. Fix: `.catch(() => {})`, or skip an unknown key. Owner: site.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Defects 5** `2a` — `site/root/assets/js/site.js:982, 996-1001`: the page swap checks only `main` and adopts four parts; a page without one throws mid-loop (latent). Fix: the guard tests all four, a whole load where one is missing. Owner: site.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **E3 clarity 16** `2a` — `tools/site/document.ern:68-69`: a field bound only to be called. Fix: `Links.anchored(source, document.placing(blocks))`. Owner: site.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **E3 clarity 9** `2a` — `tools/site/links.ern:210-228`: `appendixNumber`, `digitRun`, `isCapital` copy `tools/citations.ern`'s; the bare-`§` rule written at `links.ern:641` and `documents.ern:49`, `346`. Fix: export `appendix` and `bareOf(path)` from Citations, call them at both. Owner: site+tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **E3 clarity 11** `2a` — `tools/site/run.ern:463`: `Os.run(command, 10000)`, the one literal left after `fileMs`. Fix: `Os.run(command, fileMs)`. Owner: site.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 15, E3 clarity 15** `2a` — names meaning two things or not saying their value: `site.js:254, 264`, `test/ern_machines.erl` `side_by_side/2`, `tools/slowest.ern` `function` (48-103), `utilization.ern:193` `count`, `proxy.ern:52` private `type Msg(m)`, `base64.ern:196`, `201`, `226` test names, `tools/flakes.ern` "directories", `tools/words.ern:38-50` `Reading`'s comment. Fix: `panel.screen`, `in_parallel/2`, `timed`, `runQueueLengths`, `ProxyMsg(m)`, and the renames each finding gives. Owner: site+libs+tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 
 ### 2b
 
@@ -719,10 +754,12 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 #### examples
 
 - **E3 defects 2** `2b` — `examples/fetch.ern:218-227`: matches `Io.NotFound or Io.Denied or Io.NotAFile` for the certificates file; E.18 (library.md:677, :681) answers `Left(Other("<file>: NotFound"))`, so the clause is dead and the message blames the host. Fix: match the `Other` text prefixed by the file, fix the comment; a test runs it. Owner: examples.
+  - **Built 2026-11-26** (the log's *The Tests' Build*): `fetch.ern` says `cannot read the certificates in ca.pem: NotFound`, matching `Other`'s text by the file's name, as the line asks, and a test runs it. That a program tells this cause by a text's prefix is the language's feedback 285.
 
 #### tests
 
 - **T4 (footer's part)** `2b` — `Makefile`'s `build/man/ern.1` rule passes `$(cat VERSION)`, footer `Ernest 0.11.0`; §11 renders `ern(1)` as §11.4 a page, footer the version text (§11.7), `0.11.0-dev`. Fix: pass the version text as `ern doc --man` takes it; a test. Owner: tests.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 
 ### 3
 
@@ -928,6 +965,7 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 - **PL6 L8** `3` — E.0 shape rule 6: a declaration says "that a list it answers is never empty", but nothing asks it for an `Optional` that is never `None`. That is the hunt's largest group, 49 of 90, `Path.name` of an `Fs.list` entry among it. Fix: "never empty, never `None` or never a `Left`, where that holds whatever it is given". Feedback 276 is kin. Owner: report+stdlib. Decide: that sentence.
   - **Decided 2026-11-23** (the log's *E.0's Shape Rules*): shape rule 6 reads "that a list it answers is never empty, an `Optional` never `None` or an `Either` never a `Left`, where that holds whatever it is given or for the arguments it names". The declarations behind the 49 sites of *A Result Never Empty, Counted* gain the sentence, `Path.name` among them, held by the doc check.
   - **Built 2026-11-25** (the log's *The Libraries' Build*): 20 declarations of the libraries say it, `Path.name` among them, held by `ern_doc_tests:stated_test`. Of the 49 sites the rest are outside the libraries: ernest-httpd's `WebSocket.encodeMasked`, the guide's `Shop.Order.parse`, which the guide's build takes, and two fixtures, the tests'.
+  - **Read 2026-11-26** (the log's *The Tests' Build*): the two fixtures are `test/fixtures/programs/modules/net/http.ern`'s `parse` and `test/fixtures/programs/stack.ern`'s `pop`. Neither has documentation, so the sentence has no place, and nothing is written.
 - **K 22, W39, PL4 10, PL4 L2 [but 261], PL5 4, PL5 L4 [shape rule 8]** `3` — E.0 shape rule 8 (`library.md:218` to `:222`): the criterion grew back into lists of exceptions; nine waits on a process that take no time are unlisted (`Tcp.closeListener`, `Os.closeInput`, `port`, `remote`, `local`, `listen`, `signal`, `resize`, `start`); "the runtime bounds its wait" reads against *Time*; the guide repeats three lists (`language.md:624-626`). Fix: one criterion, by what bounds the wait (K, PL4 L2 and PL5 L4 each propose one). Owner: report. Decide: shape rule 8's one criterion.
   - **Decided 2026-11-23** (the log's *E.0's Shape Rules*): shape rule 8's first paragraph reads "A function that waits on what is outside the runtime, a far end, a peer, a device, a started program's output, takes the milliseconds that bound that wait, last, and answers `Left(Timeout)`, unless it reads or writes the program's standard streams or the terminal (§12.1); named `Forever` it takes none. A wait on a process of the runtime's own takes none." The exception is named since the cold reading of the decided lines: its test was "unless the wait's failure ends the program", which *P3 4* made false of `Io.readLine`, and a list of four binds a later function where a wider test would not (the log's *The Ten of the Cold Reading*).
   - Three stay by name: `Tcp.close`, whose wait the runtime bounds (E.18), and `Process.run` and `Test.faults`, which wait without a limit. `Test.until` and `Clock.sleep` leave the rule, the first waiting on no party and the second's time being its subject (shape rule 1). The guide's three lists (`language.md:624-626`) point at the rule.
@@ -1120,6 +1158,7 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Built 2026-11-26** (the log's *The Cli's Build*): `Args.hidden is a function Args keeps private; …`.
 - **C7 Clarity 19** `3` — `tools/flakes.ern:75, 79`: the tool's messages name make's `MINUTES=n`, which a direct run lacks. Fix: "minutes, a positive whole number, is required", make's text kept in the Makefile. Decide: the tool's message text. Owner: tests.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): `minutes, a positive whole number, is required`, and make's words stand in the Makefile.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 
 #### Does a rule of the language change, or the sentence that states it?
 
@@ -1489,6 +1528,7 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Decided 2026-11-23** (the log's *How the Project's Documents Are Kept*): chased before the launch, since a phone's page that scrolls sideways is what a visitor meets: one agent with the failing case in leg 4, its cause logged.
 - **C7 Clarity 9** `3` — `test/ern_docs_tests.erl` `cites/1` and `tools/citations.ern`: one citation rule read twice, nothing tying them; `toolchain()` leaves out `test/bench/*.erl` and `tools/`. Fix: one reader, the bench and the tools added. Decide: whether the test runs the tool or the tool is dropped. Owner: tests.
   - **Decided 2026-11-23** (the log's *How the Project's Documents Are Kept*): the test runs the tool, so that `tools/citations.ern` alone reads the citation rule, the bench and the tools added to what it reads.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **C7 Clarity 10, E3 clarity 3** `3` — `tools/documents.ern`: hand-kept lists of what tests check, `checkedBy` and `reportChecked` (1101-1110 repeating 1111-1120) and `unchecked` (552-575, 714-838) restating seven tests' rules; nothing fails when they part. Fix: derive them from the tests' citations, the tests writing what they checked under `build/`, or a test holding the listing to them; or drop them. Owner: tests. Decide: which mechanism, or drop.
   - **Decided 2026-11-23** (the log's *How the Project's Documents Are Kept*): the listings stay, since three readers start from them. They are derived from the tests' citations where a citation says what is checked, and a test holds the rest; leg 4's agent reads the code first and comes back where neither is simple.
   - **Read 2026-11-23, leg 4** (the log's *Leg 4's Readings*): comes back for part. The rules that take a section whole, the prelude's, the grammar's, the guide's §9.6 and §1.4's consoles, §8.1's and §8.2's, the tour's chapters and the deployment guide's headings, derive from a citation that says "every block of", which none says today. The rules by a block's content and its neighbor, the marks, `-module(`, a console after a module or a refused program, a session that goes on and the parser's rule blocks, are neither: a citation cannot carry them, and a test that holds them needs each test to expose its selection. The simple mechanism is each test writing what it checked under `build/`, stale where the tests have not run.
@@ -2125,10 +2165,13 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Built 2026-11-25** (the log's *The Libraries' Build*).
 - **E3 clarity 14** `3` — `examples/interpreter.ern:246-280`: `sumRest`/`productRest` differ only in operators and next level, 212 tokens in `make clones`. Fix: one `leftAssociative`. Owner: examples. Decide: whether the example is meant to show each level spelled out.
   - **Decided 2026-11-23** (the log's *The Examples' and the Libraries' Own Defects*): one `leftAssociative` for the two levels: an example is the form to copy (*What a Guide's Example Shows*), and `make clones` flags the pair.
+  - **Built 2026-11-26** (the log's *The Tests' Build*): one `leftAssociative` for the two levels. Its result's type is written eleven times in the example, the language's feedback 286.
 - **E3 defects 4** `3` — `examples/interpreter.ern:282-287`: every `Left` of `parseAtom` read as "no atom", so `f (1 +` reports `unexpected (`. Fix: end the application only where the next token begins no atom. Owner: examples. Decide: the fix as given, an example's defect no report sentence covers.
   - **Decided 2026-11-23** (the log's *The Examples' and the Libraries' Own Defects*): the fix as given: an application ends only where the next token begins no atom.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **E3 defects 3** `3` — `examples/wc.ern:84-87`: counts a last line without a line feed, against `examples/README.md:31` "as `wc` counts them". Fix: count line feeds, or the README says the difference. Owner: examples+readme. Decide: which of the two moves.
   - **Decided 2026-11-23** (the log's *The Examples' and the Libraries' Own Defects*): the code moves: `wc.ern` counts line feeds, as `wc` does, and the README's sentence stays.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 - **PL5 13, PL5 L29** `3` — tests and libraries: a repeated form became a helper at two sites, stays "until a third", or stays at eight, and no entry names the count. Fix: a rule, or the taste states none. Owner: tests+libs. Decide: what makes a repeated form a helper.
   - **Decided 2026-11-23** (the log's *The Examples' and the Libraries' Own Defects*): no count makes a repeated form a helper, as no count makes a rule (*Principle 5 and Time*). A form becomes one where its copies must agree, so that a change to one is a change to all, and stays written out where each site may change alone. `docs/code_style.md` gains the sentence.
 
@@ -2232,6 +2275,7 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
   - **Decided 2026-11-23** (the log's *What May Wait*): not admitted. A run that delivers `wrap(outcome)` is a composition of `spawn`, `send` and `Process.run`, which rule 4 refuses, and shape rule 8 gives a function's value a call form alone. Filed: felt new, the form written at five sites of the guide.
 - **E3 defects 1** `3` — `examples/services.ern:155-159`: `asked` retries at once without end on a dead service, a busy loop at more than a core. Fix: answer `Optional(a)` after one retry, callers print `no answer`. Owner: examples. Decide: whether the example's retry gives up after one, no report sentence being at stake.
   - **Decided 2026-11-23** (the log's *What May Wait*): `asked` gives up after one retry and answers an `Optional`, and its callers print `no answer`.
+  - **Built 2026-11-26** (the log's *The Tests' Build*).
 
 #### Do `Peer.compute`, its telling and the node's measures stay as they are?
 

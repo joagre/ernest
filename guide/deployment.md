@@ -411,7 +411,20 @@ $ ern config --config-dir c --listen 127.0.0.1:8656
 
 Each prints its key. Make a fourth, `ops`, for the shell a later step attaches, as `a` was made, with no `--listen`, since `a` and `ops` only dial.
 
-Then `--peer-dir` lists each node where it is to be known (section 2.1). `ern config --config-dir a --peer-dir b` and `--peer-dir c` list `b` and `c` in `a`'s file with their keys and addresses, and the same two commands with `--config-dir ops` list them in `ops`'s. `ern config --config-dir b --peer-dir a` and `--peer-dir ops` list `a` and `ops` in `b`'s file with their keys and no address, since neither listens, and the same two with `--config-dir c` list them in `c`'s. Each node then lists exactly who may connect to it and whom it may reach.
+Then `--peer-dir` lists each node where it is to be known (section 2.1):
+
+```console
+$ ern config --config-dir a --peer-dir b
+$ ern config --config-dir a --peer-dir c
+$ ern config --config-dir ops --peer-dir b
+$ ern config --config-dir ops --peer-dir c
+$ ern config --config-dir b --peer-dir a
+$ ern config --config-dir b --peer-dir ops
+$ ern config --config-dir c --peer-dir a
+$ ern config --config-dir c --peer-dir ops
+```
+
+`a`'s and `ops`'s files list `b` and `c` with their keys and addresses, and `b`'s and `c`'s list `a` and `ops` with their keys and no address, since neither listens. Each node then lists exactly who may connect to it and whom it may reach.
 
 **Build and start the counters.** The first build is the counter alone, and its `serve` runs the counter's loop, `count`, as the node's own process:
 

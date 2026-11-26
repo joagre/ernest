@@ -1,10 +1,10 @@
 //
 // Each module's size and its growth, for a review's readers to start from
-// (docs/reviews/full.md, docs/reviews/release.md): every module of the
-// Erlang under src/ and test/ and of the Ernest under src/, tools/,
-// examples/ and tour/, by its lines now, at the last release's tag and at
-// the tag before it, largest first, with its growth since each. A listing,
-// not a limit.
+// (docs/reviews/full.md, docs/reviews/release.md): each module git tracks
+// of the Erlang under src/ and test/ and of the Ernest under src/, tools/,
+// examples/ and tour/, but the two kinds named last, by its lines now, at
+// the last release's tag and at the tag before it, largest first, with its
+// growth since each. A listing, not a limit.
 //
 // `ern run sizes.erc` writes a line a module on standard output and each
 // language's totals last. It reads the files git tracks in the working
@@ -13,8 +13,9 @@
 // A module's lines at a tag are its lines now less those git counts it
 // added since the tag and plus those it removed, so a module git finds
 // moved since, from wherever it stood, is counted from its old path, and
-// one git finds no earlier form of is new. The vendored getopt and the Erlang the compiler wrote
-// under test/fixtures/emitted/ are left out.
+// one git finds no earlier form of is new. The files THIRD_PARTY_LICENSES
+// says were copied from upstream and the Erlang the compiler wrote under
+// test/fixtures/emitted/ are left out.
 //
 
 // A module: its path now, its lines now and its lines at the two tags, 0
@@ -39,27 +40,25 @@ let modules : List(String) =
      "tools/*.ern",
      "examples/*.ern",
      "tour/*.ern",
-     ":!src/toolchain/cli/getopt.erl",
      ":!test/fixtures/emitted/"]
-
-// A file's time and git's, as the other tools give theirs.
-let fileMs : Int = 10000
 
 export fn main() : Unit =
     match Os.arguments {
         [] -> List.forEach(listed(), Io.println)
-      | _ -> quit("usage: sizes")
+      | _ -> Repository.quit("sizes", "usage: sizes")
     }
 
 // The listing's lines: its heading, a line a module and the totals.
 fn listed() : List(String) = {
-    let last = git(["describe", "--tags", "--abbrev=0"]);
-    let before = git(["describe", "--tags", "--abbrev=0", last <> "^"]);
-    let files = Set.fromList(String.lines(git(["ls-files"])));
+    let last = Repository.git("sizes", ["describe", "--tags", "--abbrev=0"]);
+    let before = Repository.git("sizes", ["describe", "--tags", "--abbrev=0", last <> "^"]);
+    let files = Set.fromList(String.lines(Repository.git("sizes", ["ls-files"])));
     let sinceLast = since(last, files);
     let sinceBefore = since(before, files);
-    let found = List.map(String.lines(git(["ls-files", "--"] <> modules)), fn(path) = {
-        let lines = lineCount(contents(path));
+    let borrowed = Set.fromList(Repository.borrowed("sizes"));
+    let paths = String.lines(Repository.git("sizes", ["ls-files", "--"] <> modules));
+    let found = List.map(List.filter(paths, fn(path) = !Set.contains(borrowed, path)), fn(path) = {
+        let lines = lineCount(Repository.bytes("sizes", path));
         Module(=path,
                =lines,
                last = linesAt(sinceLast, path, lines),
@@ -84,7 +83,8 @@ fn listed() : List(String) = {
 // read, since git finds a move only where it reads both paths, and a module
 // may have moved from a directory the listing does not name.
 fn since(tag : String, files : Set(String)) : Since = {
-    let fields = String.split(git(["diff", "--numstat", "-M", "-z", tag]), "\u{0}");
+    let fields =
+        String.split(Repository.git("sizes", ["diff", "--numstat", "-M", "-z", tag]), "\u{0}");
     let found = changesOf(fields, []);
     let gone =
         List.foldLeft(found, Map.empty, fn(acc, change) = match Path.name(Path(change.path)) {
@@ -150,31 +150,6 @@ fn linesAt(since : Since, path : String, lines : Int) : Int =
 fn lineCount(bytes : Bytes) : Int = {
     let feeds = List.size(Bytes.split(bytes, <<10>>)) - 1;
     if Bytes.isEmpty(bytes) || Bytes.endsWith(bytes, <<10>>) then feeds else feeds + 1
-}
-
-fn git(arguments : List(String)) : String =
-    match Os.run(Os.command("git", arguments), fileMs) {
-        Right(finished) when finished.status == 0 ->
-            String.trimEnd(text("git " <> String.join(arguments, " "), finished.stdout))
-      | _ ->
-            quit("git " <> String.join(arguments, " ") <> " failed")
-    }
-
-fn contents(path : String) : Bytes =
-    match Fs.read(Path(path), fileMs) {
-        Right(bytes) -> bytes
-      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
-    }
-
-fn text(source : String, bytes : Bytes) : String =
-    match String.fromUtf8(bytes) {
-        Some(text) -> text
-      | None -> quit(source <> " is not UTF-8")
-    }
-
-fn quit(message : String) : a = {
-    Io.printlnError("sizes: " <> message);
-    Os.exit(1)
 }
 
 //

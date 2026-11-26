@@ -126,7 +126,8 @@ let defaults =
     Options(size = Terminal.Size(rows = 24, columns = 80), screen = false, steps = [], command = [])
 
 let usage =
-    "usage: ern run pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen] [--step STEP]..."
+    "usage: ern run build/pty/pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen]"
+        <> " [--step STEP]..."
         <> " -- COMMAND, a STEP expect:TEXT, send:HEX, resize:RxC, put:PATH, hangup,"
         <> " signal:NAME, stall or release"
 
@@ -554,9 +555,9 @@ fn isLetter(char : Char) : Bool =
 // ECMA-48's sequences as the shell writes them: `H` places the cursor at a
 // row and a column counted from 1, `A`, `B`, `C` and `D` move it up, down,
 // right and left within the screen, `K` erases the row from the cursor,
-// and `J` the screen from the cursor, or with a number other than 0 the
-// whole screen, the cursor going home. A number not written is 1, and 0
-// for `J`.
+// or with 2 the whole row, and `J` the screen from the cursor, or with a
+// number other than 0 the whole screen; neither erase moves the cursor. A
+// number not written is 1, and 0 for `K` and `J`.
 fn moved(grid : Grid, parameters : Parameters, final : Char) : Grid = {
     let count = Optional.withDefault(parameters.first, 1);
     let column = Optional.withDefault(parameters.second, 1);
@@ -566,9 +567,10 @@ fn moved(grid : Grid, parameters : Parameters, final : Char) : Grid = {
       | 'B' -> Grid(..grid, row = Int.min(grid.size.rows - 1, grid.row + count))
       | 'C' -> Grid(..grid, column = Int.min(grid.size.columns - 1, grid.column + count))
       | 'D' -> Grid(..grid, column = Int.max(0, grid.column - count))
+      | 'K' when parameters.first == Some(2) -> withCursorLine(grid, Map.empty)
       | 'K' -> rowErased(grid)
       | 'J' when Optional.withDefault(parameters.first, 0) == 0 -> belowErased(rowErased(grid))
-      | 'J' -> Grid(..grid, cells = Map.empty, row = 0, column = 0)
+      | 'J' -> Grid(..grid, cells = Map.empty)
       | _ -> grid
     }
 }

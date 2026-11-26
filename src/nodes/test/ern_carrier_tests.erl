@@ -9,11 +9,7 @@
 -include_lib("nodes/include/ern_node.hrl").
 
 tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_carrier_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_carrier_").
 
 %% A configuration directory `ern config` made, read.
 configured() ->
@@ -77,9 +73,8 @@ cookie_test() ->
     %% report §12.5: a release's version is three whole numbers, each part
     %% its digits alone, which ern_release reads, the carrier parsing
     %% nothing; one of another shape is refused plainly, naming it. A
-    %% regression test, written after the fix (the release review before
-    %% 0.4.0 found a badmatch; the full review before 0.5.0 found `+0.4.0`
-    %% taken)
+    %% regression test, written after the fix (the release review found a
+    %% badmatch; the full review found `+0.4.0` taken)
     ?assertEqual({0, 4, 0}, ern_release:release("0.4.0")),
     ?assertEqual({0, 4, 0}, ern_release:release("00.4.0")),
     [?assertThrow({cli_error, _}, ern_release:release(Text))
@@ -196,9 +191,9 @@ listed_test() ->
 %% key, the node saying which peer answered the dial of which; a check
 %% that finds no process that dialed refuses the key, saying so, and fails
 %% in nothing of the host's. A regression test, written after the fix (the
-%% release review before 0.4.0 found a listed key taken for any peer
-%% dialed; the full review before 0.5.0 a badmatch where none had dialed);
-%% test/ern_nodes_tests.erl's answered_by_another_key_test_ dials through
+%% release review found a listed key taken for any peer dialed; the full
+%% review a badmatch where none had dialed); test/ern_nodes_tests.erl's
+%% answered_by_another_key_test_ dials through
 %% the host's TLS
 dialed_test() ->
     Own = configured(),

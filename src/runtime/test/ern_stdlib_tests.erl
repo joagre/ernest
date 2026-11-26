@@ -2002,11 +2002,7 @@ fault_test() ->
 %% when Test ends, whatever its outcome, since the flake hunt runs a test
 %% again in the same host.
 scratch(Prefix, Test) ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        Prefix ++ os:getpid() ++ "_"
-                            ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    try Test(Dir) after file:del_dir_r(Dir) end.
+    ern_helpers:tmp(Prefix, Test).
 
 %% report Appendix E.25, §4.9: the ordered set, a sorted list, each function
 %% that needs the order taking it after the arguments the program writes, as

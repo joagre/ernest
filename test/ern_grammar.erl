@@ -125,10 +125,16 @@ lexical("typevar") -> {terminal, ident};
 lexical("literal") ->
     {alternatives, [{terminal, int}, {terminal, float}, {terminal, char}, {terminal, string},
                     {terminal, "true"}, {terminal, "false"}]};
-lexical("binop") ->
-    {alternatives, [{terminal, Operator} || Operator <- ["*", "/", "%", "+", "-", "<>", "::",
-                                                         "==", "!=", "<", "<=", ">", ">=",
-                                                         "&&", "||", "|>"]]};
-lexical("userop") ->
-    {alternatives, [{terminal, Operator} || Operator <- ["+", "-", "*", "/", "%", "<>"]]};
+lexical(Name) when Name =:= "binop"; Name =:= "userop" ->
+    {_, Expression} = lists:keyfind(list_to_atom(Name), 1, operators()),
+    Expression;
 lexical(Name) -> {terminal, list_to_atom(Name)}.
+
+%% §2.6's categories built from the operators, `binop` and `userop`, read
+%% from the section's second block as Appendix A's rules are read.
+operators() ->
+    [_, FromSection] = string:split(language(), "### 2.6 Operators and delimiters"),
+    [Section | _] = string:split(FromSection, "\n## "),
+    [_, _, _, Block | _] = string:split(Section, "```", all),
+    [_, Rules] = string:split(Block, "\n"),
+    [Rule || {Name, _} = Rule <- parse(tokens(Rules)), Name =/= literal].

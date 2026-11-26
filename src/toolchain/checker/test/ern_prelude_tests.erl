@@ -449,9 +449,7 @@ is_member_test() ->
 %% regression test, written with the hold
 stdlib_interfaces_follow_the_files_test() ->
     Installed = ern_prelude:stdlib_directory(),
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join([Base, "ern_prelude_" ++ os:getpid() ++ "_"
-                               ++ integer_to_list(erlang:unique_integer([positive])), "stdlib"]),
+    Dir = filename:join(ern_helpers:tmp("ern_prelude_"), "stdlib"),
     ok = filelib:ensure_path(Dir),
     Copy = fun(Name, As) ->
                    {ok, _} = file:copy(filename:join(Installed, Name), filename:join(Dir, As))

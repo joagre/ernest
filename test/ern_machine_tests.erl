@@ -49,7 +49,7 @@ load_average_test() ->
 %% stop` and the other by the directory's removal, each ending by
 %% termination, and the directory gone
 nodes_test_() ->
-    ern_nodes_tests:nodes_test({waits, 14}, fun two_nodes/1).
+    ern_harness:nodes_test({waits, 14}, fun two_nodes/1).
 
 two_nodes(Base) ->
     Machine = ern_machine:local(),
@@ -78,7 +78,7 @@ two_nodes(Base) ->
     ?assertNot(filelib:is_dir(Base)).
 
 configuration(Node) ->
-    ern_nodes_tests:configuration(ern_machine_node:config_dir(Node)).
+    ern_harness:configuration(ern_machine_node:config_dir(Node)).
 
 %% report §8.7, Appendix E.27, the push's experiment (the log's *The Numbers
 %% Across Machines*): `make bench-pick`'s measuring program on a node here,
@@ -86,13 +86,13 @@ configuration(Node) ->
 %% under each rule, each compute answered by one of the two, a hundred under
 %% each, and the host's counts sampled on every node at rest
 pick_test_() ->
-    ern_nodes_tests:nodes_test({waits, 26}, fun picked/1).
+    ern_harness:nodes_test({waits, 26}, fun picked/1).
 
 picked(Base) ->
     Machine = ern_machine:local(),
     Built = filename:join(Base, "build"),
-    0 = ern_nodes_tests:built(["--source-root", "fixtures/bench", "--build-root", Built,
-                               "fixtures/bench/pick.ern"]),
+    0 = ern_harness:built(["--source-root", "fixtures/bench", "--build-root", Built,
+                           "fixtures/bench/pick.ern"]),
     {ok, _} = compile:file("fixtures/bench/ern_pick_probe.erl", [{outdir, Built}]),
     Interval = fun(Configuration) -> Configuration#{<<"utilization-interval">> => 200} end,
     A = ern_machine_node:configured(Machine, Base, "a", none),

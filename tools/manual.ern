@@ -5,32 +5,29 @@
 // §11 with §11.1 to §11.6 and every section after §11.8, its OPTIONS and
 // EXIT STATUS §11.7 and §11.8, and its SEE ALSO names the manual pages in
 // a directory, the ones `ern doc --man` wrote for the standard library.
-// `make manual` runs it with the report, the version, and that directory,
-// and it writes the page to standard output.
+// `make manual` runs it with the report, the version text, and that
+// directory, and it writes the page to standard output.
 //
-
-// A file's time, as the other tools give theirs.
-let fileMs : Int = 10000
 
 export fn main() : Unit =
     match Os.arguments {
         [report, version, pages] ->
             match manual(report, version, pages) {
                 Right(lines) -> Io.print(String.join(lines, "\n") <> "\n")
-              | Left(message) -> quit(message)
+              | Left(message) -> Repository.quit("manual", message)
             }
       | _ ->
-            quit("usage: manual report.md version pages-dir")
+            Repository.quit("manual", "usage: manual report.md version pages-dir")
     }
 
 // The page's lines, or why there are none.
 fn manual(report : String, version : String, pages : String) : Either(String, List(String)) = {
     let bytes <-
-        Either.mapLeft(Fs.read(Path(report), fileMs),
+        Either.mapLeft(Fs.read(Path(report), Repository.fileMs),
                        fn(error) = "cannot read " <> report <> ": " <> Io.show(error));
     let text <- Either.fromOptional(String.fromUtf8(bytes), report <> " is not UTF-8");
     let entries <-
-        Either.mapLeft(Fs.list(Path(pages), fileMs),
+        Either.mapLeft(Fs.list(Path(pages), Repository.fileMs),
                        fn(error) = "cannot list " <> pages <> ": " <> Io.show(error));
     let section <-
         Either.fromOptional(toolchain(Markdown.parse(text)),
@@ -192,8 +189,3 @@ fn references(names : List(String)) : List(Markdown.Inline) =
 
 fn reference(name : String) : List(Markdown.Inline) =
     [Markdown.Strong([Markdown.Text(name)]), Markdown.Text("(3ern)")]
-
-fn quit(message : String) : Unit = {
-    Io.printlnError("manual: " <> message);
-    Os.exit(1)
-}

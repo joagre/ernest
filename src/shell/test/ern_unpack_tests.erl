@@ -506,9 +506,7 @@ digest(Bytes) ->
 %% Run Run in a root package of its own, the working directory, which holds
 %% an empty `lib`.
 in_root(Run) ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_unpack_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = ern_helpers:tmp("ern_unpack_"),
     ok = filelib:ensure_path(filename:join(Dir, "lib")),
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
@@ -550,30 +548,9 @@ unpack() ->
     said(["unpack"]).
 
 said(Args) ->
-    Self = self(),
-    Device = spawn(fun() -> capture(Self, []) end),
+    Device = ern_helpers:device(),
     Status = ern_cli:ern(Args, Device),
-    Device ! {done, Self},
-    receive {captured, Bytes} -> {Status, Bytes} end.
-
-%% An I/O server that keeps what it is given, as bytes.
-capture(Owner, Acc) ->
-    receive
-        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
-            From ! {io_reply, ReplyAs, ok},
-            capture(Owner, [bytes(Chars, Encoding) | Acc]);
-        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Args}} ->
-            From ! {io_reply, ReplyAs, ok},
-            capture(Owner, [bytes(apply(Module, Function, Args), Encoding) | Acc]);
-        {io_request, From, ReplyAs, _} ->
-            From ! {io_reply, ReplyAs, {error, request}},
-            capture(Owner, Acc);
-        {done, Owner} ->
-            Owner ! {captured, iolist_to_binary(lists:reverse(Acc))}
-    end.
-
-bytes(Chars, latin1) -> iolist_to_binary(Chars);
-bytes(Chars, unicode) -> unicode:characters_to_binary(Chars).
+    {Status, ern_helpers:device_bytes(Device)}.
 
 %% Refusals as the job writes them, each after its name.
 lines(Lines) ->

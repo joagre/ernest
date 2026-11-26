@@ -1,14 +1,50 @@
-%% The helpers the tests share beside their waits (ern_waits): a module
+%% The helpers the tests share beside their waits (ern_waits): the run's
+%% directory and a fresh one under it, a file written there; a module
 %% compiled from text, loaded, and unloaded again, a unit out of the code
-%% table among them; the messages of one tag a process's mailbox holds; the
-%% side of an Either; the options of a run whose standard output is let
-%% go; a process of another node; and a node's certificate forged.
+%% table among them; a compiled module's interface forged; the messages of
+%% one tag a process's mailbox holds; the side of an Either; the options of
+%% a run whose standard output is let go; what EUnit has captured; an I/O
+%% server that keeps what it is given; a process of another node; and a
+%% node's certificate forged.
 -module(ern_helpers).
 
--export([loaded/2, unloaded/1, taken/1, side/1, quiet/0, quiet/1, far_process/0,
+-export([run_dir/0, tmp/1, tmp/2, write/3, loaded/2, unloaded/1, forge/2, taken/1, side/1,
+         quiet/0, quiet/1, silent/0, captured_output/0, device/0, device_bytes/1, far_process/0,
          forged_certificate/2]).
 
 -include_lib("public_key/include/public_key.hrl").
+
+%% The directory a run of the tests makes what it needs under: the one
+%% `make` makes for the run and removes when it ends (RUN_UNIT_TESTS), or
+%% the host's temporary directory for a run of a test by itself.
+-spec run_dir() -> file:filename().
+run_dir() ->
+    os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")).
+
+%% A fresh directory under the run's, named by Prefix, the operating
+%% system's pid and a count, so that no earlier run's is read.
+-spec tmp(string()) -> file:filename().
+tmp(Prefix) ->
+    Dir = filename:join(run_dir(), Prefix ++ os:getpid() ++ "_"
+                                   ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    Dir.
+
+%% What Test answers, run in a fresh directory (tmp/1), which goes when
+%% Test ends, whatever its outcome, since the flake hunt runs a test again
+%% in the same host.
+-spec tmp(string(), fun((file:filename()) -> Result)) -> Result.
+tmp(Prefix, Test) ->
+    Dir = tmp(Prefix),
+    try Test(Dir) after file:del_dir_r(Dir) end.
+
+%% The path of Relative under Dir, written with Text, its directories made.
+-spec write(file:filename(), file:filename(), iodata()) -> file:filename().
+write(Dir, Relative, Text) ->
+    Path = filename:join(Dir, Relative),
+    ok = filelib:ensure_dir(Path),
+    ok = file:write_file(Path, Text),
+    Path.
 
 %% Module compiled from Forms, each the text of one form, every function of
 %% no argument exported, and loaded from memory, so that no file is
@@ -38,6 +74,17 @@ unloaded(Module) ->
     _ = code:purge(Module),
     ok.
 
+%% A compiled module, Beam, with its interface chunk changed by Change.
+-spec forge(binary() | file:filename(), fun((term()) -> term())) -> binary().
+forge(Beam, Change) ->
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    Rewritten = [case Id of
+                     "ErnI" -> {Id, term_to_binary(Change(binary_to_term(Chunk)))};
+                     _ -> {Id, Chunk}
+                 end || {Id, Chunk} <- Chunks],
+    {ok, Forged} = beam_lib:build_module(Rewritten),
+    Forged.
+
 %% What the calling process's mailbox holds under Tag, every `{Tag, Value}`
 %% so far, taken, their values in the order they came.
 -spec taken(term()) -> [term()].
@@ -57,6 +104,52 @@ quiet() ->
 -spec quiet(map()) -> map().
 quiet(Options) ->
     maps:merge(quiet(), Options).
+
+%% A run's options, its standard output and its standard error let go.
+-spec silent() -> map().
+silent() ->
+    quiet(#{stderr => fun(_) -> ok end}).
+
+%% What EUnit has captured of the test's output so far, as UTF-8, asked of
+%% the test's group leader, which is EUnit's. EUnit's own ?capturedOutput
+%% first asks whether it is by the function it is running, which under load
+%% it can sample while that process runs another module's code, and then
+%% answers "".
+-spec captured_output() -> binary().
+captured_output() ->
+    group_leader() ! {get_output, self()},
+    receive {output, Output} -> unicode:characters_to_binary(Output) end.
+
+%% An I/O server that keeps what it is given, for a job's error device;
+%% device_bytes/1 ends it.
+-spec device() -> pid().
+device() ->
+    Owner = self(),
+    spawn(fun() -> kept(Owner, []) end).
+
+%% What Device was given, as bytes, Device then ended.
+-spec device_bytes(pid()) -> binary().
+device_bytes(Device) ->
+    Device ! {done, self()},
+    receive {kept, Device, Bytes} -> Bytes end.
+
+kept(Owner, Acc) ->
+    receive
+        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
+            From ! {io_reply, ReplyAs, ok},
+            kept(Owner, [bytes(Chars, Encoding) | Acc]);
+        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Arguments}} ->
+            From ! {io_reply, ReplyAs, ok},
+            kept(Owner, [bytes(apply(Module, Function, Arguments), Encoding) | Acc]);
+        {io_request, From, ReplyAs, _} ->
+            From ! {io_reply, ReplyAs, {error, enotsup}},
+            kept(Owner, Acc);
+        {done, Owner} ->
+            Owner ! {kept, self(), iolist_to_binary(lists:reverse(Acc))}
+    end.
+
+bytes(Chars, latin1) -> iolist_to_binary(Chars);
+bytes(Chars, unicode) -> unicode:characters_to_binary(Chars).
 
 %% Report §8.7: a process of another node, `other@node.er`, which no
 %% connection names, read from its external term.

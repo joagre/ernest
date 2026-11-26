@@ -95,8 +95,4 @@ collect(Acc) ->
 %% none is left where a test does not.
 -spec scratch() -> file:filename().
 scratch() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_os_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_os_").

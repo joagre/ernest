@@ -74,7 +74,7 @@ In the shell the versions are visible. `:reload` compiles again every module edi
 
 Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns. Both processes run. A message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's.
 
-```
+```console
 $ ern shell
 Ernest 0.11.0, session 1. :help for help.
 > :load Counter

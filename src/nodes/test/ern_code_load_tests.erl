@@ -18,17 +18,10 @@
 
 %% A fresh directory under the run's own (the Makefile's RUN_UNIT_TESTS).
 tmp() ->
-    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-    Dir = filename:join(Base, "ern_code_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
-    Dir.
+    ern_helpers:tmp("ern_code_").
 
 write(Dir, Relative, Text) ->
-    Path = filename:join(Dir, Relative),
-    ok = filelib:ensure_dir(Path),
-    ok = file:write_file(Path, Text),
-    Path.
+    ern_helpers:write(Dir, Relative, Text).
 
 %% A module built under the source root Root.
 built(Root, Relative) ->
@@ -41,39 +34,23 @@ ran(File) ->
     ran(File, []).
 
 ran(File, Options) ->
-    Before = byte_size(captured_output()),
+    Before = ern_helpers:captured_output(),
     ?assertEqual(0, ern_cli:ern(["run"] ++ Options ++ [File])),
-    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
-    binary:split(Output, <<"\n">>, [global, trim]).
+    binary:split(since(Before), <<"\n">>, [global, trim]).
 
 %% What a run of the program at File printed and what it said on its error
-%% device, an I/O server of the test's own (said/2); the run's status is 0.
+%% device, an I/O server of the test's own (ern_helpers:device/0); the
+%% run's status is 0.
 ran_said(File) ->
-    Self = self(),
-    Device = spawn(fun() -> said(Self, []) end),
-    Before = byte_size(captured_output()),
+    Device = ern_helpers:device(),
+    Before = ern_helpers:captured_output(),
     ?assertEqual(0, ern_cli:ern(["run", File], Device)),
-    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
-    Device ! {done, self()},
-    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
-    {Output, Said}.
+    {since(Before), ern_helpers:device_bytes(Device)}.
 
-%% EUnit's captured output, asked of the test's group leader, as
-%% ern_cli_tests asks it.
-captured_output() ->
-    group_leader() ! {get_output, self()},
-    receive {output, Output} -> iolist_to_binary(Output) end.
-
-%% A compiled module with its interface chunk changed by Change, as
-%% ern_cli_tests forges one.
-forge(Beam, Change) ->
-    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
-    Rewritten = [case Id of
-                     "ErnI" -> {Id, term_to_binary(Change(binary_to_term(Chunk)))};
-                     _ -> {Id, Chunk}
-                 end || {Id, Chunk} <- Chunks],
-    {ok, Forged} = beam_lib:build_module(Rewritten),
-    Forged.
+%% What EUnit has captured since it had captured Before.
+since(Before) ->
+    After = ern_helpers:captured_output(),
+    binary:part(After, byte_size(Before), byte_size(After) - byte_size(Before)).
 
 %%
 %% Code.load, Appendix E.28
@@ -532,24 +509,6 @@ load_evaluator_ends_test() ->
     ?assertEqual([<<"Right(Unit)">>, <<"Unknown">>],
                  ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])).
 
-%% What a job wrote on its error device, an I/O server of its own, for
-%% Owner, once told it is done.
-said(Owner, Acc) ->
-    receive
-        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
-            From ! {io_reply, ReplyAs, ok},
-            said(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
-        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Arguments}} ->
-            From ! {io_reply, ReplyAs, ok},
-            Chars = apply(Module, Function, Arguments),
-            said(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
-        {io_request, From, ReplyAs, _} ->
-            From ! {io_reply, ReplyAs, {error, enotsup}},
-            said(Owner, Acc);
-        {done, Owner} ->
-            Owner ! {said, lists:append(lists:reverse(Acc))}
-    end.
-
 %% Appendix E.28, report §3.1, §7.4, §8.5: a binding that meets the float
 %% fault in a load's evaluation answers it as §8.5 reports it, with the
 %% binding's line, as the runtime reads it anywhere. A regression test,
@@ -913,10 +872,10 @@ another_build_test() ->
                  "    Io.println(Io.show(Code.load(Path(\"" ++ User ++ "\"))))\n"),
     built(Dir, "main.ern"),
     Program = filename:rootname(Main) ++ ".erc",
-    ok = file:write_file(User, forge(UserBeam, Another)),
+    ok = file:write_file(User, ern_helpers:forge(UserBeam, Another)),
     ?assertEqual([<<"Left(Io.Invalid)">>], ran(Program)),
     ok = file:write_file(User, UserBeam),
-    ok = file:write_file(Base, forge(BaseBeam, Another)),
+    ok = file:write_file(Base, ern_helpers:forge(BaseBeam, Another)),
     ?assertEqual([<<"Left(Io.Invalid)">>], ran(Program)),
     ok = file:write_file(Base, BaseBeam),
     ?assertEqual([<<"Right(Unit)">>], ran(Program)).

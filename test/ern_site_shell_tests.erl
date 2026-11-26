@@ -269,7 +269,7 @@ plain(Output) ->
 %% directory, where a block that writes a file writes it, which a run
 %% makes and removes.
 shell() ->
-    Home = filename:join(ern_pty:run_dir(),
+    Home = filename:join(ern_helpers:run_dir(),
                          "ern_bare_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_dir(Home ++ "/"),
     Ern = filename:absname("../bin/ern"),

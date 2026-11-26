@@ -1,0 +1,82 @@
+//
+// What the tools read the repository with: the time each request of a file
+// or a run of git is given, git's output, a file's bytes and its text, the
+// files THIRD_PARTY_LICENSES says were copied from upstream, and the end
+// of a tool that cannot go on, its line on standard error under the tool's
+// name. A path is a path from the repository's root, where make runs each
+// tool.
+//
+
+/// The milliseconds each request of a file, and each run of git or rm, is
+/// given.
+export let fileMs : Int = 10000
+
+/// What git writes on its standard output for the arguments, the tool
+/// ended where git fails.
+export fn gitBytes(tool : String, arguments : List(String)) : Bytes =
+    match Os.run(Os.command("git", arguments), fileMs) {
+        Right(finished) when finished.status == 0 -> finished.stdout
+      | _ -> quit(tool, "git " <> String.join(arguments, " ") <> " failed")
+    }
+
+/// What git writes for the arguments as text, its last line feeds and
+/// spaces trimmed.
+export fn git(tool : String, arguments : List(String)) : String =
+    String.trimEnd(text(tool, "git " <> String.join(arguments, " "), gitBytes(tool, arguments)))
+
+/// The bytes of the file at the path, the tool ended where it cannot read
+/// them.
+export fn bytes(tool : String, path : String) : Bytes =
+    match Fs.read(Path(path), fileMs) {
+        Right(read) -> read
+      | Left(error) -> quit(tool, "cannot read " <> path <> ": " <> Io.show(error))
+    }
+
+/// The text of the file at the path, the tool ended where it is not UTF-8.
+export fn contents(tool : String, path : String) : String =
+    text(tool, path, bytes(tool, path))
+
+/// The bytes as text, the tool ended where they are not UTF-8, which names
+/// their source.
+export fn text(tool : String, source : String, read : Bytes) : String =
+    match String.fromUtf8(read) {
+        Some(written) -> written
+      | None -> quit(tool, source <> " is not UTF-8")
+    }
+
+/// The paths THIRD_PARTY_LICENSES says were copied from upstream, each
+/// entry's `Path:` where the entry names a `Copied:`; a table derived from
+/// upstream's data is a file of ours, and its entry names none.
+export fn borrowed(tool : String) : List(String) =
+    String.split(contents(tool, "THIRD_PARTY_LICENSES"), "\n\n")
+        |> List.filterMap(fn(entry) = copiedPath(String.lines(entry)))
+
+// The path of an entry whose fields name it `Copied:`.
+fn copiedPath(lines : List(String)) : Optional(String) =
+    match List.filterMap(lines, pathOf) {
+        path :: _ when List.any(lines, fn(line) = String.startsWith(line, "  Copied:")) ->
+            Some(path)
+      | _ ->
+            None
+    }
+
+// The path a `Path:` field names, up to its first space or comma.
+fn pathOf(line : String) : Optional(String) = {
+    let named <- String.stripPrefix(line, "  Path:");
+    match String.split(String.trim(named), " ") {
+        first :: _ ->
+            match String.split(first, ",") {
+                path :: _ when path != "" -> Some(path)
+              | _ -> None
+            }
+      | [] ->
+            None
+    }
+}
+
+/// The tool's end: the message on standard error after the tool's name,
+/// and status 1.
+export fn quit(tool : String, message : String) : a = {
+    Io.printlnError(tool <> ": " <> message);
+    Os.exit(1)
+}

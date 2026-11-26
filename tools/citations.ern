@@ -1,23 +1,58 @@
 //
-// The citations of a text, as the documents' test reads them
-// (test/ern_docs_tests.erl) and docs/design/site.md's *Links* states them,
-// for the site's links (`Site.Links`) and the documents' listing of the
-// sections cited (tools/documents.ern) alike: `§x.y`, alone or after the
-// report, the guide or the deployment guide; an appendix, `Appendix E`, or
-// one of its sections, `Appendix E.17`; and `E.n`. A bare `§` names a
-// section of the document its reader gives, but in a list after a
-// document's name, each `§` joined to the one before by `, ` or ` and `,
-// where it is that document's to the list's end.
+// The citations of a text, as docs/design/site.md's *Links* states them,
+// for the site's links (`Site.Links`), the documents' listing of the
+// sections cited (tools/documents.ern) and the documents' test
+// (test/ern_docs_tests.erl) alike: `§x.y`, alone or after the report, the
+// guide or the deployment guide; an appendix, `Appendix E`, or one of its
+// sections, `Appendix E.17`; and `E.n`. A bare `§` names a section of the
+// document its reader gives, but in a list after a document's name, each
+// `§` joined to the one before by `, ` or ` and `, where it is that
+// document's to the list's end.
+//
+// `ern run citations.erc FILE...`, run from the repository's root, writes
+// each citation of each file on a line of its own, its path, its document,
+// `report`, `guide` or `deployment`, and its section as `pieces` gives it,
+// apart by tabs, a bare `§` the document's that `bareOf` names for the
+// path. The documents' test runs it.
 //
 
 /// The document a citation names a section of.
 export type Document = Report | Guide | Deployment
+
+export fn main() : Unit =
+    List.forEach(Os.arguments,
+                 fn(path) =
+                     List.forEach(pieces(Repository.contents("citations", path), bareOf(path)),
+                                  fn(piece) = match piece {
+                                      Citation(=document, =section) ->
+                                          Io.println(String.join([path,
+                                                                  documentName(document),
+                                                                  section],
+                                                                 "\t"))
+                                    | Text(_) ->
+                                          Unit
+                                  }))
+
+// The document's name as the listing writes it.
+fn documentName(document : Document) : String =
+    match document {
+        Report -> "report"
+      | Guide -> "guide"
+      | Deployment -> "deployment"
+    }
 
 /// A piece of a text: the text between two citations, or a citation, its
 /// label the words of the text it stands for, the document's name among
 /// them, `report §4.6` or `§8.5`, and the section it names, `4.6`, `E.17`,
 /// or `E` for `Appendix E`.
 export type Piece = Text(String) | Citation(label : String, document : Document, section : String)
+
+/// The document whose section a bare `§` names in the document at the
+/// path, a path from the repository's root: the language guide's own in
+/// that guide, and the report's in every other (docs/design/site.md
+/// *Links*).
+export fn bareOf(path : String) : Document =
+    if path == "guide/language.md" then Guide else Report
 
 /// The text's pieces, a bare `§` the section of the document `bare` where
 /// no list after a document's name holds it.
@@ -88,9 +123,9 @@ fn cited(pending : List(Char),
 fn flushed(pending : List(Char), later : List(Piece)) : List(Piece) =
     if pending == [] then later else Text(String.fromList(List.reverse(pending))) :: later
 
-// An appendix's letter and the section after it, `E` or `E.17`, where no
-// letter follows the letter.
-fn appendix(chars : List(Char)) : Optional(#(String, List(Char))) =
+/// An appendix's letter and the section after it, `E` or `E.17`, where no
+/// letter follows the letter, and what follows it.
+export fn appendix(chars : List(Char)) : Optional(#(String, List(Char))) =
     match chars {
         letter :: '.' :: rest when isCapital(letter) ->
             match digitRun(rest) {

@@ -47,7 +47,7 @@
 /// // => true
 /// ```
 export fn runQueue() : Int =
-    count(Foreign.atom("total_run_queue_lengths"))
+    runQueueLengths(Foreign.atom("total_run_queue_lengths"))
 
 /// The fraction of the schedulers' time spent running processes over a
 /// window of the next `window` milliseconds, from 0.0 to 1.0, which the call
@@ -213,7 +213,7 @@ let cpuTimeout =
 // The host's functions
 //
 
-foreign fn count(item : Foreign.Term) : Int =
+foreign fn runQueueLengths(item : Foreign.Term) : Int =
     "erlang:statistics/1"
 
 foreign fn wallTimes(item : Foreign.Term) : List(#(Int, Int, Int)) =
