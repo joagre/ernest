@@ -1029,6 +1029,7 @@ callee_site(Callee) ->
 %% peer is listed under as the fault is carried, `, on the peer foo`, and
 %% none where the configuration lists it no more (Appendix E.21); its trace
 %% the caller's stack (met/3).
+-spec callee_fault(pid(), binary(), binary()) -> no_return().
 callee_fault(Callee, Cause, _Site) when node(Callee) =/= node() ->
     case ern_peer:peer_of(Callee) of
         {'Some', Name} -> throw({ern, #fault{cause = Cause, peer = Name}});
@@ -1043,6 +1044,7 @@ callee_fault(_Callee, Cause, Site) ->
 %% `Ended` of it, `, the callee Tcp.acceptForever`, and none where the site
 %% is empty, as a callee's of another node is (§6.9); its trace the
 %% caller's stack (met/3).
+-spec callee_ended(binary(), binary()) -> no_return().
 callee_ended(Cause, <<>>) -> fault(Cause);
 callee_ended(Cause, Site) -> throw({ern, #fault{cause = Cause, callee = {'Ended', Site}}}).
 

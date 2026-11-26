@@ -3935,11 +3935,10 @@ hidden_namespace(false) -> [].
 constructor_text(ConstructorInfo, Env) ->
     named_constructor(ConstructorInfo, fun(Namespace) -> Namespace end, Env).
 
-%% Report §11.5: the constructor of a construction or a pattern as a
-%% diagnostic names it (constructor_text/2).
+%% Report §11.5: the constructor of a construction as a diagnostic names
+%% it (constructor_text/2); a pattern's is named from the constructor its
+%% check has looked up (infer_pattern/2).
 constructed_text(#e_constructor{span = Span, namespace = Namespace, name = Name}, Env) ->
-    constructor_text(lookup_constructor(Span, Namespace, Name, Env), Env);
-constructed_text(#p_constructor{span = Span, namespace = Namespace, name = Name}, Env) ->
     constructor_text(lookup_constructor(Span, Namespace, Name, Env), Env).
 
 %% Report §11.5: a constructor as code a diagnostic writes it, in its

@@ -593,6 +593,7 @@ unmarked(_, _) ->
 %% Report §4.7: a mark of the variable Name where none is written, refused
 %% over Span in the words of where it stands, which the checker gives a
 %% mark Appendix A derives too (ern_ast:mark_refusal/2).
+-spec refuse_mark(ern_diagnostic:span(), result | plain | process_only, atom()) -> no_return().
 refuse_mark(Span, Where, Name) ->
     {Message, Help} = ern_ast:mark_refusal(Where, Name),
     fail(Span, Message, Help).

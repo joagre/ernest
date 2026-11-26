@@ -587,6 +587,7 @@ pattern_names(Pattern) ->
 fail(Span, Message, Help) ->
     fail(Span, Message, [], Help).
 
+-spec fail(term(), string(), [{ern_diagnostic:span(), string()}], string()) -> no_return().
 fail(Span, Message, Labels, Help) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = lists:flatten(Message), labels = Labels,

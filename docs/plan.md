@@ -23,21 +23,18 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg: the report written from the copy, the renames of *The Library's Names*, and the
-builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
-standard library with the libraries, the cli, the shell and the tests are done, three
-rounds on the stronger model are held, and the report's own decided lines are written. The guides, the
-tour and the front pages are written. The decided lines without
-a closing bullet are audited and the report's missing sentences written. What the audit
-found missing in the code is built. `docs/` is written, and so are the log's and the plan's own lines. `make
-test-full` and the close are next, with the ten questions that wait for the user.**
+leg, whose builds are done: the report, the code by its owners, the tests, the guides, the
+tour, the front pages and `docs/`, with every decided line of the findings closed and
+`make test-full` passing. Item 4 closes once the ten questions that wait for the user are
+answered and what they decide is built.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A* and *The Session's Own Lines*.
+and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A*, *The Session's Own Lines* and *The Full Check, and
+Dialyzer's Nine*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered

@@ -412,6 +412,7 @@ packaged(Options, Dir, Place, Job, Arguments) ->
 %% Report §11, §11.7: the option parser's refusal in the usage's words: an
 %% option given no value with its metavariable, and one the job does not
 %% take with the jobs that take it, which names them in place of the help.
+-spec parse_refused(string(), [getopt:option_spec()], atom(), term()) -> no_return().
 parse_refused(_Job, Spec, missing_option_arg, Key) ->
     Long = long_name(Spec, Key),
     usage_fail(Long ++ " takes a value: " ++ Long ++ " " ++ metavariable(Key));
@@ -497,6 +498,7 @@ named_directories(Job, Spec, Options) ->
 
 %% Report §11, §11.7: a directory an option names that names nothing, in
 %% the host's words for a missing path, and the option.
+-spec no_such_directory(string(), string()) -> no_return().
 no_such_directory(Directory, Named) ->
     ern_build:fail(Directory ++ ": " ++ file:format_error(enoent) ++ Named).
 

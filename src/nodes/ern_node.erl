@@ -77,6 +77,7 @@ existing(ConfigDir, Listen) ->
 
 %% Report §11.3, §11.7: what stands at `--config-dir`'s path and is no
 %% directory, refused as §11.7 refuses a file an option names as one.
+-spec no_directory(file:filename()) -> no_return().
 no_directory(ConfigDir) ->
     ern_build:fail(ern_build:shown(ConfigDir) ++ ": not a directory, which --config-dir names").
 
@@ -430,6 +431,7 @@ owners_alone(Path, Mode, Bits, Done, Fix) ->
 
 %% Report §12.5, §11.7: a directory without `ernest.conf`, or a peer's
 %% without its certificate, named with the option that names it.
+-spec no_configuration(file:filename(), string()) -> no_return().
 no_configuration(Dir, Option) ->
     ern_build:fail(ern_build:shown(Dir) ++ ": no configuration directory, which " ++ Option
                    ++ " names").
