@@ -30,8 +30,9 @@ by a message.
 
 **MVP 4.4's item 5, the release of 0.11.0, is open.** Every entry of the feedback file is
 held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*). The
-release review's checks and readers ran that day over `6c6b8ef1`, and the sort of
-[`findings.md`](findings.md) is next, as the item's *Where the item stands* says.
+release review's checks and readers ran that day over `6c6b8ef1`, and its findings are
+sorted into the lines of [`findings.md`](findings.md). The `fix` lines and the `decide`
+lines are next, as the item's *Where the item stands* says.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -112,27 +113,35 @@ the release, is what is left.
    have a published floor.
 
    **Where the item stands**, since 2026-11-26 (the log's *The Release Review Before
-   0.11.0, Its Readers*). The review runs over `6c6b8ef1`. Its first step, its six checks,
-   the panel by hand, OTP's notes and its twenty readers are done, and
-   [`findings.md`](findings.md) holds the readers' lists whole with the session's own,
-   about 440 findings and none sorted. What the session kept, the briefs, the lists, the
-   checks' outputs, the bench's tables and the readers' programs, is in its probes
-   directory, `release_0110/`, whose `checklist.md` says what ran.
+   0.11.0, Sorted*). The review runs over `6c6b8ef1`. Its first step, its six checks,
+   the panel by hand, OTP's notes, its twenty readers and the sort are done.
+   [`findings.md`](findings.md) holds 382 lines above the readers' lists: 198 `fix`,
+   123 `decide` in 16 families, 39 filed and 22 dropped as matters of clarity. What the
+   session kept, the briefs, the lists, the sorters' lines, the checks' outputs, the
+   bench's tables and the readers' programs, is in its probes directory,
+   `release_0110/`, whose `checklist.md` says what ran.
+
+   nike moves to OTP 29.1.3 before the fixes' round, decided with the user on
+   2026-11-26, so that the round's checks and the release's run on the OTP a first user
+   installs. The release's note names no patch release.
 
    What is left, in order:
-   - **The sort**, as `docs/reviews/full.md`'s *The findings* has it, with
-     `release.md`'s one difference. The lists are sorted first into lines by sorters that
-     decide nothing, with the buckets of the log's *The Findings Pre-Sorted* and a line
-     for each finding that several readers met, and the session then reads every line
-     but a plain fix's. The lines stand in the findings file above the lists.
-   - **First among the lines**, each shown by a program: the boundary's check takes a
-     map that is no set for a `Set` (*C4 defects 1*, §8.4); `Uri.toString` writes
-     another reference than it was given, an off-site redirect with `Http.target`
-     (*S 1*, *E3 D2*); `Http.parseDate` faults on a header a client sends (*E3 D1*); a
-     line abandoned with `C-c` during a load is replaced in the transcript (*E2 1*);
-     and the sentences of the guides that kept a rule the report changed (*U1*, *U2*).
-   - **The `fix` lines**, made by agents, an owner a brief, and the `decide` lines with
-     the user by family, the argument before the verdict. A `felt` line joins item 176.
+   - **The `fix` lines**, made by agents, an owner a brief, the code's once nike runs
+     OTP 29.1.3. The session writes a document's and the report's, or reads a writer's
+     diff. First among them, each shown by a program: the boundary's check takes a map
+     that is no set for a `Set` (*C4 1*, §8.4); `Http.parseDate` faults on a header a
+     client sends (*E3 D1*); a plain shell names a program's entry point as another
+     process (*E2 2*); and the sentences of the guides that kept a rule the report
+     changed (*U1*, *U2*).
+   - **The `decide` lines**, with the user by family, the argument before the verdict,
+     the lines marked `false` or `user` and those of soundness or security first in
+     each. First among them: `Uri.toString` writes another reference than it was given,
+     an off-site redirect with `Http.target` (*S 1*, *E3 D2*); a program's `time.ern`
+     refused only once it is a node or a session loads `Http` (*P1 1* and five more);
+     and a line abandoned with `C-c` during a load, replaced in the transcript (*E2 1*).
+     A decided line is built as a `fix` line is.
+   - **The filed lines**: a `felt` line joins item 176, 20 of them as new entries of
+     the feedback file, and a `known` line its line of `known_issues.md`.
    - **The round**, reader K over the review's own diff, and over the release's commit
      `make sections`, `make bench`, then `make bench-release`, with `make load` and
      `make sanitize` where the runtime or the helper changed.
