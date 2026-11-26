@@ -383,8 +383,8 @@ What the line left, in the order it is taken:
 - **176. The full review's feedback, decided**, from MVP 4.4's item 5, placed 2026-11-26
   (the log's *The Feedback Held by an Item*): the 42 entries of
   [`language_feedback.md`](language_feedback.md) that the full review and the builds
-  around it left, each a question where the report is true. Nothing is built before its
-  verdict.
+  around it left, and the 20 the release review before 0.11.0 added, entries 321 to 340,
+  each a question where the report is true. Nothing is built before its verdict.
 
   They are decided by family, as the review's `decide` round was. The session searches the
   log for each entry and runs its program, and writes a verdict for each line against §0
