@@ -77,7 +77,7 @@ Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` betw
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > :load Counter
 Counter, compiled from counter.ern
 > let old = spawn(fn() = Counter.count(0))
@@ -383,7 +383,7 @@ A requirement names nothing outside that set, and a member is declared in its ty
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > fn hashed(x : a) : Int needs a.hash = 0
 input 1:1:30: `hash` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn hashed(x : a) : Int needs a.hash = 0

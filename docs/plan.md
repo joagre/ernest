@@ -28,11 +28,10 @@ outside the project depends on it, as MVP 4.4's opening says.
 ernest-epx and ernest-template, each told the verdict on every line of its feedback file
 by a message.
 
-**MVP 4.4's item 5, the release of 0.11.0, is open.** Every entry of the feedback file is
-held by an item of MVP 4.5 since 2026-11-26 (the log's *The Feedback Held by an Item*). The
-release review ran that day over `6c6b8ef1`: its findings are sorted, decided and built, and
-its round is run. The release's own steps are next, as the item's *Where the item stands*
-says.
+**Ernest 0.11.0 is tagged, and MVP 4.4's item 5 waits on its publishing.** The tag is
+`v0.11.0` at `8dedd59f`, of 2026-11-26, after the release review that ran that day over
+`6c6b8ef1`. The push and the release on GitHub are the user's, and ernest-template's release
+and ernest-epx's follow, as the item's *Where the item stands* says.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -112,26 +111,21 @@ the release, is what is left.
    item 176. It is tagged and published with no announcement, so that the applications
    have a published floor.
 
-   **Where the item stands**, since 2026-11-26 (the log's *The Release Review Before
-   0.11.0, Decided*). The review runs over `6c6b8ef1`. Its checks, its readers, the sort
-   and the `decide` round are done: the findings were 382 lines, and each of the 123
-   `decide` lines has the user's verdict beneath it, 47 made for 0.11.0, 54 for
-   MVP 4.5's item 177, 3 for MVP 4.18's item 8, 7 lines of the known issues, 10 dropped,
-   one for item 169 and one done. nike runs OTP 29.1.3. What the session kept is in its
-   probes directory, `release_0110/`, the readers' facts for the verdicts among it. The
-   findings file is gone again: a line the plan names as this review's is `findings.md`'s
-   as it stood at `3051fbf5`.
+   **Where the item stands**, since 2026-11-26: Ernest 0.11.0 is tagged, `v0.11.0` at
+   `8dedd59f`, signed, with `make test-full` passing on that commit, and `make release`
+   wrote its archive and checksum under `build/release/`. `VERSION` names 0.12.0. The
+   release review ran over `6c6b8ef1`: 382 lines of findings, sorted, decided with the
+   user and built, then a round whose cold reader read the review's own diff (the log's
+   entries of 2026-11-26, from *The Release Review Before 0.11.0, Its Readers* to *A Tool
+   Quits on a Tracked File the Tree Lacks*). Of its 123 `decide` lines 47 were made, 54 are
+   MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues and 10 dropped.
+   The findings file is gone again: a line the plan names as this review's is
+   `findings.md`'s as it stood at `3051fbf5`. What the session kept is in its probes
+   directory, `release_0110/`.
 
-   The `fix` lines of the code and the decided lines' code are built (the log's *The
-   Release Review's Lines Built*), and `make test-full` passes on them.
-
-   The round's cold reader read the review's own diff, and its findings are made or
-   filed; `make sections` passes and three runs of `make bench` stand at the reference
-   (the log's *The Round's Cold Reading, and the Bench on the Release's Commit*).
-
-   What is left, in order:
-   - **`make bench-release` and `make load`**, the runtime having changed.
-   - **The release's own steps**, `release.md`'s fifth.
+   What is left is the user's: the push of the tag, the release on GitHub with the
+   archive, its checksum and the note, and the repository's About text. `v0.10.0` was
+   never pushed, and goes with it or before it.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9

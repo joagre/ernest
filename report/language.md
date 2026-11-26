@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-For Ernest 0.11.0.
+For Ernest 0.12.0.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 

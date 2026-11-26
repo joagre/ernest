@@ -129,7 +129,7 @@ hello, world
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > 1 + 2
 3 : Int
 > let xs = [3, 1, 2]
@@ -257,7 +257,7 @@ A raw string, between backticks, is taken exactly as written, with no escapes, e
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let number = `\d+(\.\d+)?`
 number : String
 > number
@@ -276,7 +276,7 @@ At the prompt, as in a block, `let` binds a name:
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let x = 5
 x : Int
 > let y = x + 1
@@ -345,7 +345,7 @@ For constructors that carry several things, name each field. Ernest uses `:` for
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > type Person = Person(name : String, age : Int)
 type Person
 > let alice = Person(name = "Alice", age = 30)
@@ -398,7 +398,7 @@ The fields may be given in any order, and are evaluated in the order written; a 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let xs = 1 :: [2, 3]
 xs : List(Int)
 > match xs { [] -> "empty" | head :: _ -> "first is " <> Int.toString(head) }
@@ -499,7 +499,7 @@ To compare a value with a variable already bound, use a guard, `when` and a cond
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let x = 3
 x : Int
 > match 3 { n when n == x -> "same as x" | _ -> "different" }
@@ -512,7 +512,7 @@ A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to m
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let #(x, y) = #(3, 4)
 x : Int
 y : Int
@@ -563,7 +563,7 @@ At the prompt the session is the rest of the block: `let p <- e` binds what is i
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let n <- String.toInt("42")
 n : Int
 > let m <- String.toInt("forty-two")
@@ -578,7 +578,7 @@ A block is an `Optional` chain or an `Either` chain, never both. To run a step t
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > "abc" |> String.toList |> List.reverse |> String.fromList
 "cba" : String
 ```
@@ -610,7 +610,7 @@ Sections 2 to 5 build one program, a word counter, a stage in each. Here it is v
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let text = "the cat and the hat"
 text : String
 > let words = String.words(text)
@@ -668,7 +668,7 @@ A lambda, `fn(x) = ...`, is a function written where it is used, with no name of
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let increment = fn(x) = x + 1
 increment : (Int) -> Int
 > increment(5)
@@ -721,7 +721,7 @@ Without a source that fixes the type, `value + value` is a type error, and `(val
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > { let pair = fn(x) = #(x, x); #(pair(1), pair("a")) }
 #(#(1, 1), #("a", "a")) : #(#(Int, Int), #(String, String))
 > { let one = List.take; #(one([1, 2], 1), one(["a"], 1)) }
@@ -740,7 +740,7 @@ A top-level `let` that is not polymorphic, and a `let` at the prompt, must have 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let xs = []
 input 1:1:1: the type of xs is not determined by this input; it is List(a)
 1 | let xs = []
@@ -809,7 +809,7 @@ A key that cannot be negated, a string, is sorted last first by a sort reversed,
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > Words.count("the cat and the hat")
 Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String, Int)
 > Words.top(Words.count("the cat and the hat"), 2)
@@ -871,7 +871,7 @@ Where nothing fixes it by the end of the definition the spawn is written in, or 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let worker = spawn(fn() = Unit)
 worker : Address(Never)
 ```
@@ -962,7 +962,7 @@ fn rest() : Unit receiving e =
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > :type Address.call
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
@@ -1240,7 +1240,7 @@ export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > let tally = spawn(fn() = Words.tally(Map.empty))
 tally : Address(Words.TallyMsg)
 > send(tally, Words.Add(Words.count("the cat and the hat")))
@@ -1339,7 +1339,7 @@ A monitor tells a process when another ends:
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > :type monitor
 monitor : (Process, (Down) -> m) -> Unit receiving m
 > :type monitorService
@@ -1401,7 +1401,7 @@ One process may end another:
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > :type kill
 kill : (Process) -> Unit
 ```
@@ -1426,7 +1426,7 @@ A process has one mailbox, and its mailbox has one type, but the process may be 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > :type adapted
 adapted : (Address(b), (a) -> b) -> Address(a)
 ```

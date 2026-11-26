@@ -317,7 +317,7 @@ example.ern:1:27: a doc comment `///` stands on a line of its own; a note after 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > 1 )
 input 1:1:3: expected end of input instead of `)`
 1 | 1 )
@@ -1284,7 +1284,7 @@ example.ern:3:14: constructor Size is named as the type Size
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > type Size = Small | Large
 type Size
 > type Shape = Size(Int)
@@ -1374,7 +1374,7 @@ example.ern:1:16: type variable a is not a parameter of Box
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int)\n"), 1000)
 Right(Unit) : Either(Io.Error, Unit)
 > :load Counter
@@ -2029,7 +2029,7 @@ example.ern:1:24: Random.Seed is the constructor of an abstract type and is not 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > export abstract type Box = Box(Int)
 abstract type Box
 > Box(1)
@@ -3257,7 +3257,7 @@ example.ern:2:5: the type List(a) is not known whole here, and Io.show writes a 
 
 ```console
 $ ern shell
-Ernest 0.11.0, session 1. :help for help.
+Ernest 0.12.0, session 1. :help for help.
 > OrderedSet.fromList
 input 1:1:1: OrderedSet.fromList needs a.compare, at a type variable no requirement can name
 1 | OrderedSet.fromList
