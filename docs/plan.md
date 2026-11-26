@@ -16,30 +16,26 @@ stands between.
 
 ## Where we are
 
-**Ernest 0.10.0 is the last release**, of 2026-11-10, and the checkout works toward 0.11.0. The
-table's rows for MVP 4.15 and Ernest 0.10.0 say what it holds. No promise of stability is made,
+**Ernest 0.11.0 is the last release**, of 2026-11-26, and the checkout works toward 0.12.0. The
+table's rows for MVP 4.4 and Ernest 0.11.0 say what it holds. No promise of stability is made,
 and a change to the language, the standard library or the libraries is driven by a need met in
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
-outside the project depends on it, as MVP 4.4's opening says.
+outside the project depends on it, so that a break would cost them something, and 1.0 has no
+date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
-**MVP 4.6 is done since 2026-11-22, and MVP 4.4's item 4, the full review, since
-2026-11-26** (the log's *The Full Review Closed*). Items 2, 3, 7 and 8 closed before it.
-`make test-full` passes on `ab68ef61`. An archive of that commit is with ernest-httpd,
-ernest-epx and ernest-template, each told the verdict on every line of its feedback file
-by a message.
+**MVP 4.4 is done since 2026-11-26**: the cost, the full review, the release review and the
+release. The tag is `v0.11.0` at `8dedd59f`, published on GitHub with its archive and with no
+announcement, so that the applications have a published floor (the log's *Ernest 0.11.0*).
+ernest-httpd, ernest-epx and ernest-template were each told the tag, the archive and the lines
+of its own that the release answers.
 
-**Ernest 0.11.0 is out.** The tag is `v0.11.0` at `8dedd59f`, of 2026-11-26, after the
-release review that ran that day over `6c6b8ef1`, and it is published on GitHub with its
-archive. ernest-template's release and ernest-epx's follow, each on the user's word, as MVP
-4.4's item 5 says, and close it.
+The milestones to come, in order: MVP 4.18, whose release, 0.11.1, is the launch, with the site
+live and the announcement; and MVP 4.5 after it. Each section's opening says what the milestone
+is and names the log entry that placed it.
 
-The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
-0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
-section's opening says what the milestone is and names the log entry that placed it.
-
-**A line stands before MVP 4.4**, drawn on 2026-11-19 (the log's *The Line Before the
-Launch*). A sentence of the report that a program shows false is mended before MVP 4.4, by a
-narrower sentence first. A reading not yet made, a cost, a question where the report is true
+**A line stands before the launch**, drawn on 2026-11-19 (the log's *The Line Before the
+Launch*). A sentence of the report that a program shows false is mended before the launch,
+MVP 4.18's release since 2026-11-23, by a narrower sentence first. A reading not yet made, a cost, a question where the report is true
 and a report against OTP stand in MVP 4.5. Each item is judged against that test when it is
 written and before it starts. Since 2026-11-21 a find that only a built corner shows gets its
 line in [`known_issues.md`](known_issues.md), and becomes an item when the user takes it up
@@ -47,119 +43,21 @@ line in [`known_issues.md`](known_issues.md), and becomes an item when the user 
 
 ---
 
-## MVP 4.4 (the cost, the full review and the release of 0.11.0)
-
-Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
-milestone before a program, so that the review reads a language that ernest-httpd,
-the website and the operator's prompt have used. After it the road is a program's.
-
-Its release is the next minor of 0.x, decided with the user on 2026-11-05. It is not the
-launch since 2026-11-23: the site goes live and the announcement is sent with 0.11.1, MVP
-4.18's, once what ernest-httpd's review found of its security is mended (the log's *The
-Launch Is 0.11.1's*). What the full review decides is still built for 0.11.0. Ernest stays at 0.x
-until someone outside this project depends on it, so that a break would cost them something,
-and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
-
-The milestone was set at about four weeks before the full review decided 431 lines. Item 5,
-the release, is what is left.
-
-1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
-2. **The cost**, read, decided and closed 2026-11-22 (the log's *The Cost Read*, which names
-   the entry of each decision and each build). Each row of the bench at twice the host's or
-   more is by design, with what it buys and the rate at which a program feels it, or was a
-   defect and is built. §10 states what a row may pay, and `docs/design/runtime.md`'s *What
-   an operation may cost* holds the rules, with `guide/why.md`'s cost claims held to them.
-
-   What the item left: three lines of `docs/known_issues.md`, a crowd of faults reported
-   slowly, a copy onto itself under a capability or a policy by path, and the shell's
-   comparison of two source roots; MVP 4.5's item 168, the library bench's rows each in a
-   process of its own; the bench's reference tables, which the release makes again, since
-   the rows moved; and item 8, which its close found.
-3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
-   Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
-   call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is
-   the user's. The depth stays 64. §10 and E.28 say what a raise reads and what the host
-   keeps, the bench holds a row for a raise beneath 100,000 frames of one call, and what
-   Ernest could build against the square a map meets is MVP 4.5's item 167.
-
-   Item 2 and the known issue of a crowd of faults, MVP 4.16's item 123 once, rest on two
-   things the reading showed. A trace's terms are built only where a catch uses the stack
-   trace or the error ends the process. An entry of the stack a raise saves is a word,
-   beside the arguments of a host function that raised, which the trace keeps. And the
-   bench's host twin ran its rows beneath forty frames on a shallow stack until this item, so
-   the ratios of those rows in the log before 2026-11-22 are too high, a refused `String.toInt`'s by about a quarter and a fault's by about a tenth.
-4. **The full review**, the principles review inside it, run over `93a13b13` on 2026-11-23
-   and closed 2026-11-26 (the log's *The Full Review Closed*, which gives its counts and
-   names each leg's entries). Its findings were sorted and worked as
-   `docs/reviews/full.md` says, in four legs. The three applications' own reviews ran
-   beside it, and what they found of Ernest's, 51 lines of their feedback files, was
-   sorted, decided and built in a round of its own.
-
-   The findings file is gone. A line that the plan names as the findings' is
-   `findings.md`'s as it stood at `ab68ef61`.
-
-   What the item left: the items of MVP 4.5 and MVP 4.18 that name a finding, the entries
-   of the feedback file and the lines of [`known_issues.md`](known_issues.md) it wrote.
-   The three applications hold their floors' commits unpushed until 0.11.0 is released,
-   and each takes up its own review's lines on the user's word.
-5. **The release of 0.11.0**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
-   macOS unverified and said so in the README's installing sentence and the note, which also
-   says that the installed layout changed, for a script that points inside an installation (the
-   log's *The Layout Built*); the findings file gone and the feedback file holding only
-   entries that an item of MVP 4.5 holds, as both are since 2026-11-26 (the log's *The
-   Feedback Held by an Item*). A line the release review files as `felt` joins MVP 4.5's
-   item 176. It is tagged and published with no announcement, so that the applications
-   have a published floor.
-
-   **Where the item stands**, since 2026-11-26: Ernest 0.11.0 is tagged, `v0.11.0` at
-   `8dedd59f`, signed, with `make test-full` passing on that commit, and `make release`
-   wrote its archive and checksum under `build/release/`. `VERSION` names 0.12.0. The
-   release review ran over `6c6b8ef1`: 382 lines of findings, sorted, decided with the
-   user and built, then a round whose cold reader read the review's own diff (the log's
-   entries of 2026-11-26, from *The Release Review Before 0.11.0, Its Readers* to *A Tool
-   Quits on a Tracked File the Tree Lacks*). Of its 123 `decide` lines 47 were made, 54 are
-   MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues and 10 dropped.
-   The findings file is gone again: a line the plan names as this review's is
-   `findings.md`'s as it stood at `3051fbf5`. What the session kept is in its probes
-   directory, `release_0110/`.
-
-   It is published since the same day, on the user's word: `main`, `v0.11.0` and
-   `v0.10.0`, which had never been pushed, are on GitHub, and the release there holds the
-   archive, its checksum and the note. The About text already said the README's opening.
-   No release of 0.10.0 stands on GitHub, its tag alone. What is left of the item is the
-   two releases below.
-
-   The same week, in this order, each by its own session on the user's word: ernest-template's
-   release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
-   (the log's *The Floors and the Releases*). ernest-httpd's release is MVP 4.18's. Ernest's
-   session tells all three the tag by a message, and asks each in turn when the one before
-   it is out. The message names every line of the application's that the release answers,
-   MVP 4.16's item 12's among them, each by Ernest's number. Each application checks every
-   verdict against the release before its own, and answers with any line it keeps, as
-   `docs/clean_room.md`'s *The answer* says.
-6. **The site live at ernest-lang.org**, moved to MVP 4.18 on 2026-11-23, with the last read,
-   the reader from outside and the announcement (the log's *The Launch Is 0.11.1's*).
-7. **The mechanisms read against what they force**, read and closed 2026-11-21 with every
-   row staying (the log's *The Mechanisms' Reading Closed*).
-8. **A result that is never empty**, feedback 274, counted, decided and closed 2026-11-23
-   (the log's *A Clause That Cannot Run*, *A Result Never Empty, Counted*, *A Result Never
-   Empty, Decided* and *A Result Never Empty, Built*). The type stays `List`, and the
-   report says in words that a list is never empty: E.5, E.20, G.2 and E.0 shape rule 6.
-   `guide/style.md` gives a case the value's shape rules out no value. `Bytes.splitOnce`
-   entered, and no split at the last occurrence did. 53 sites of this repository took a
-   form where every case can come, or a clause that faults.
-
-   What the item left: the 19 likely and 8 unchased finds, which nobody has shown;
-   ernest-httpd's sites, told to its session, which its full review reads against the
-   rule; and one line of `docs/known_issues.md`, `Markdown.parse` on a line that holds a
-   no-break space alone.
-
-## MVP 4.18 (0.11.1, the site live and the announcement), after MVP 4.4
+## MVP 4.18 (0.11.1, the site live and the announcement)
 
 Decided with the user on 2026-11-23 (the log's *The Launch Is 0.11.1's*). ernest-httpd's
 full review found holes in its security, and the site's going live is what puts that server
-before the public, so MVP 4.4's item 6 waits for them, and the announcement waits with
-the site, since it sends a reader there. Its release is the launch.
+before the public, so the site's going live, MVP 4.4's item 6 once, waits for them, and the
+announcement waits with the site, since it sends a reader there. Its release is the launch.
+
+**First, the two releases that follow 0.11.0**, moved here from MVP 4.4's item 5 on
+2026-11-26, each by its own session on the user's word, in this order: ernest-template's,
+since the others copy from it, and ernest-epx's, not waiting for its milestone 9 (the log's
+*The Floors and the Releases*). Ernest's session told all three applications the tag by a
+message on 2026-11-26 that names every line of the application's that the release answers,
+and asks each in turn when the one before it is out. Each application checks every verdict
+against the release before its own, and answers with any line it keeps, as
+`docs/clean_room.md`'s *The answer* says. ernest-httpd's release is item 3.
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
    What is Ernest's among it comes as lines of its feedback file, sorted when its session
@@ -630,6 +528,8 @@ What the line left, in the order it is taken:
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | the log's entries from 2026-11-14 to 2026-11-21 |
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's entries from 2026-11-09 to 2026-11-22 |
 | The full review's findings before 0.11.0 | the 929 lines of the review run over `93a13b13`, the principles review inside it: 446 made as plain fixes or as defects a report sentence states, 431 decided with the user, 52 filed; and the 51 lines the three applications' reviews found of Ernest's, 9 fixed, 20 decided, 4 felt, 6 an item's and 12 dropped | 2026-11-26 | | `findings.md` as it stood at `ab68ef61`; the log's entries from 2026-11-23 to 2026-11-26 |
-| MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
+| MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
+| The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
+| Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
 | MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
