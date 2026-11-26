@@ -22,88 +22,14 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is at its last
-step.** Ernest's own review is done: the four legs, every decided line of the findings
-closed, the ten questions that waited answered and built, and `make test-full` passing on
-`f02be453` (the log's *Ernest's Own Review Done, and What Item 4 Still Holds*).
+**MVP 4.6 is done since 2026-11-22, and MVP 4.4's item 4, the full review, since
+2026-11-26** (the log's *The Full Review Closed*). Items 2, 3, 7 and 8 closed before it.
+`make test-full` passes on `ab68ef61`. An archive of that commit is with ernest-httpd,
+ernest-epx and ernest-template, each told the verdict on every line of its feedback file
+by a message.
 
-**The sort of what the applications' reviews found of Ernest's is made**, 2026-11-26 (the
-log's *The Applications' Lines Sorted*). The 51 lines of the three repositories'
-`docs/language_feedback.md`, each reproduced against `c9a0d66d`, stand in
-`docs/findings.md` under *The applications' lines*: 9 `fix`, 20 `decide`, 4 `felt`, 6 an
-item's and 12 `dropped`, and seven of the session's own that the readers met on the way.
-The fixes are made: their sentences, a test for each, the pages of the declarations
-they touch and *Z15*'s mend of `ern doc --verbose` (the log's *The Plain Fixes' Tests*).
-
-**The `decide` lines are answered and built**, the 20 and feedback 281, which the user
-added: each under its line in the findings (the log's *The Applications' Lines Decided*
-and *The Applications' Lines Built*). `make test` passes.
-
-**Next, the close of item 4.** `make test-full`. Then each session is answered by a
-message as `docs/clean_room.md`'s *The answer* says, the answers drafted under the
-probes directory's `mvp44_item4/apps/messages/`, with an archive made on the user's
-word. Then `docs/findings.md` goes, the review's entry is written with its counts, and
-item 4 closes.
-
-Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
-of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
-Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
-Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
-Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
-and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A*, *The Session's Own Lines*, *The Full Check, and
-Dialyzer's Nine*, *The Ten Answered*, *A Function's Result Crosses*, *The Interrupt Ends a
-Running Load*, *The Three Terms and §12.9*, *A Part's Anchor* and *Ernest's Own Review Done, and What
-Item 4 Still Holds*.
-
-The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
-finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
-the same day, with *Z13* and *Z14* closed (the log's *The Changed Sentences Read Cold* and
-*The Cold Reading's Answers*).
-
-The copy took the answers, and what they change was read cold once the same day: 32 finds
-under their lines as *Read cold again 2026-11-24*, 26 plain and applied in the copy, and
-six for the user, answered the same day, the copy taking them and its long paragraphs cut
-(the log's *The Answers Read Cold* and *The Answers Read Cold's Six*). The readings were
-made 2026-11-23 (the log's *Leg 4's Readings*) and answered by the user 2026-11-24, 27
-answers taken one at a time, each under its line (the log's *Leg 4's Answers*).
-
-Four verdicts were taken back:
-`Supervisor.group` spawns at its call, `Proxy`'s hook stays, a compute that picks
-answers `Unreachable` where it holds no utilization, and the deployment guide keeps its
-row for a certificate that names another host. §7.4's sentence on an argument outside a
-domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a fix, and
-*Z12*, decided. Where an answer sends its builder to check a thing first, its line says
-what comes back to the user.
-
-The three applications were told the renames and the first build's answers 2026-11-25,
-with an archive of `0a0a14ea`. The `1r` and `1` lines of `docs/findings.md` are written (the log's
-*The Plain Lines of Leg 4*), but four `1` lines a build must make, which the findings' note
-names. The leg goes on so: the `2a`, `2b` and decided lines by agents, one brief to an owner
-holding all its lines and those four among them. Each decided line holds its verdict
-beneath it, and a verdict that says a reader reads first, or that a line comes back to the
-user, is done so.
-
-Four verdicts were changed after the round, and a cold reading of the decided lines mended
-thirty places more, twenty plainly and ten with the user. Their lines say so (the log's
-*Four Verdicts Changed After the Round*, *Before Leg 4 Builds* and *The Ten of the Cold
-Reading*).
-
-Two readers then read the report whole against the verdicts, one `report/language.md`
-and one the other two files, and found 64 places more. Most are a sentence a verdict
-made stale without naming it, and are mended in the verdicts' lines. Three verdicts
-were taken back: a standard namespace stays taken at every depth, `OrderedSet`,
-`OrderedMap` and `Random` stay in Appendix E, and §7.4 sorts no domain by kind (the
-log's *The Report Read Whole Against the Verdicts*). The next cold reading is of the
-report itself, as leg 4 changes it.
-
-Its third leg, the `decide` round, closed 2026-11-23: the sort checked, the sentences
-for §0 and E.0, the twenty-two families, the line that stood alone and the batch of
-refusals that rested on a count, each under its entry of the log for that day, from
-*What a Diagnostic Says* to *The Refusals That Rested on a Count*.
-
-Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
-Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
-and item 8, a result that is never empty, since 2026-11-23.
+**Next is MVP 4.4's item 5, the release of 0.11.0.** It opens with the decision the item
+names: what becomes of the feedback file's entries that no item of MVP 4.5 holds.
 
 The milestones to come, in order: MVP 4.4, whose release is 0.11.0; MVP 4.18, whose release,
 0.11.1, is the launch, with the site live and the announcement; and MVP 4.5 after it. Each
@@ -132,8 +58,8 @@ Launch Is 0.11.1's*). What the full review decides is still built for 0.11.0. Er
 until someone outside this project depends on it, so that a break would cost them something,
 and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
-The milestone was set at about four weeks before the full review decided 427 lines. Leg 4
-says what is left once its readings are in, and no figure stands until then.
+The milestone was set at about four weeks before the full review decided 431 lines. Item 5,
+the release, is what is left.
 
 1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
 2. **The cost**, read, decided and closed 2026-11-22 (the log's *The Cost Read*, which names
@@ -160,217 +86,31 @@ says what is left once its readings are in, and no figure stands until then.
    beside the arguments of a host function that raised, which the trace keeps. And the
    bench's host twin ran its rows beneath forty frames on a shallow stack until this item, so
    the ratios of those rows in the log before 2026-11-22 are too high, a refused `String.toInt`'s by about a quarter and a fault's by about a tenth.
-4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
-   form after the pun and with the three programs written since 0.7.0; its findings sorted and
-   worked as it says.
+4. **The full review**, the principles review inside it, run over `93a13b13` on 2026-11-23
+   and closed 2026-11-26 (the log's *The Full Review Closed*, which gives its counts and
+   names each leg's entries). Its findings were sorted and worked as
+   `docs/reviews/full.md` says, in four legs. The three applications' own reviews ran
+   beside it, and what they found of Ernest's, 51 lines of their feedback files, was
+   sorted, decided and built in a round of its own.
 
-   A finding that meets one of MVP 4.5's items is sorted to that item. It comes before the
-   release only where a program shows a sentence of the report false (the log's *The Line
-   Before the Launch*).
+   The findings file is gone. A line that the plan names as the findings' is
+   `findings.md`'s as it stood at `ab68ef61`.
 
-   It runs in four legs, each ended by a commit, decided with the user 2026-11-23 (the log's
-   *The Full Review in Four Legs*). The session stops at each cut and tells the user the
-   model to switch to, since a session's model changes only after a `/clear`:
-
-   1. The stronger model: the decisions before the readers start, closed 2026-11-23 (the
-      log's *The Decisions Before the Readers*). The review's clone stays on nike, where it
-      builds and passes before the readers start, as `docs/reviews/release.md`'s first step
-      says, and no rule changes. The checker says nothing of a private function no code
-      calls, as §0's principle 3 has it. The three tools are written in Ernest.
-      `docs/soundness.md`'s section 7 is recut, and its section 1 names the two claims
-      beyond the four.
-   2. The coding model at the stronger effort: the builds before the readers start, the rest of the list below.
-      Then the readers are started, and their lists are written whole into the findings
-      file. The principles review runs merged with it, 31 agents, decided with the user
-      2026-11-23 (the log's *The Principles Review Inside*). Closed 2026-11-23 with 36
-      readers, their lists whole in `docs/findings.md` (the log's *The Full Review's
-      Readers*), and the lists pre-sorted on the coding model into lines, decided with the user (the
-      log's *The Findings Pre-Sorted*).
-   3. The stronger model: the sort checked, every `3`, `2b`, `1r` and `4` line read with its
-      finding and a sample of `1` and `2a`, a line that needs judgment moved to `3`, and a
-      plain defect that no report sentence covers moved to a fix. Then the `decide` lines
-      with the user, the sentences for §0 and E.0 first and then each family, each verdict
-      and each fix's shape written into the findings file. The stronger model writes a verdict for each
-      line of a family and marks the lines whose verdict does not follow plainly, and the
-      user answers once a family, taking a line out to decide it alone. In each family the
-      lines come first that show the report false or contradicting itself, that touch
-      soundness or security, or that a first user meets. Closed 2026-11-23 (the log's
-      *The Refusals That Rested on a Count*).
-   4. The coding model at the stronger effort, and the stronger model since 2026-11-26 (below): the `1` and
-      `1r` lines by the session, the `2a`, `2b` and decided
-      lines by agents, one brief to an owner holding all its lines, the libraries' with the
-      standard library's and the examples' and the site's with the tests', the diffs
-      read back,
-      `make test-full` and the close. It opens with the findings' *Before leg 4 builds*,
-      in this order: the readings a verdict asks for first, and what comes back brought
-      to the user in one round; the cold readings of the changed sentences of §3 to §9;
-      the renames and the other changes the applications meet, with their message, so
-      that the three can start; and then the rest.
-
-      Until 2026-11-26 the leg's session ran on the coding model at the stronger effort, and a verdict that
-      came back during the builds waited for a round on the stronger model at a cut, a session of its
-      own on the stronger model, of which three were held (the log's *One Fable Round
-      Before the Close* and *A Fable Round at a Cut*).
-
-      Since 2026-11-26 the session stays on the stronger model, the user's word, and each
-      build's agent runs on the coding model at the stronger effort (the log's *The Session Stays on Fable*).
-      A verdict that comes back is put to the user at the next cut where no agent runs,
-      one decision at a time, the argument first and a recommendation naming its
-      principle, and its answer is written under its line as *Answered*, the report's
-      sentences it settles beside it. Each question that waits is named here as it
-      comes. The session stops at a commit and asks for a `/clear` where its context is
-      worth dropping.
-
-      The ten questions that waited were answered 2026-11-26, each as recommended (the
-      log's *The Ten Answered*). Built: rule 3's "stated whole" with E.13 named (*P2
-      42*), a record update's bullet in §10, rule 2's sentence narrowed to text, shape
-      rule 8's two phrases, the certificate's row as *R2 2* has it, and a function's
-      result among what crosses into foreign code (the log's *A Function's Result
-      Crosses*), and the interrupt that ends a running load (the log's *The
-      Interrupt Ends a Running Load*). The three terms of a shell's processes and
-      §12.9 are written (*G 23*, *G 21*, the log's *The Three Terms and §12.9*), and a
-      part of §11.2 has its anchor on the site (the log's *A Part's Anchor*). Nothing
-      of the ten is left to build.
-
-      The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
-      decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and
-      *B10* are built with the shell's lines, their part of the runtime among them; the
-      taken refusal's text and the help where a root module hides a library's with the
-      cli's; `:load`'s answer with the shell's; and `List.<>` with the standard
-      library's. The nodes' build and the standard library's are done (the log's *The
-      Nodes' Build* and *The Libraries' Build*).
-
-      The second round was held 2026-11-25 (the log's *The Second Fable Round*), its six
-      decisions answered under *T5*, *N C29*, *T18*, *P3 3, P3 9, T25*, twice, and *S3,
-      S6*. The cli's build took the five texts and `Http.filePath`'s `OPTIONS` step,
-      §8.7's sentence read cold before it (the log's *The Cli's Build*).
-
-      The third round was held 2026-11-26 (the log's *The Third Fable Round*), its five
-      decisions answered under *B6*, *Z17*, *N C26*, *T5* and *N C24*. The shell's build
-      took all five, the cli's code of the last two among them (the log's *The Shell's
-      Build*). Its second build took the two decided lines the first brief left out,
-      *E2 C14* and *E2 C2*, the trace of a reload's faulting binding, and the help's
-      line for `:browse` (the log's *The Shell's Second Build*).
-
-      The report's own 73
-      decided lines are written, read cold, with the tests and the tools that follow
-      them (the log's *The Report's Own Lines*). The tests' build with the examples' and
-      the site's is done, in two (the log's *The Tests' Build* and *The Blocks Checked*), and *Z1*
-      is found and mended, the page's own defect (the log's *The Terminal's
-      Stylesheet*).
-
-      The documents are written each by a writer on the stronger model, one after
-      another. The language guide is done (the log's *The Language Guide Recut*), and
-      so are the other guides with the tour and the front pages (the log's *The Other
-      Guides, the Tour and the Front Pages*), and `docs/` (the log's *The Documents'
-      Lines*). The log's and the plan's own lines are the session's, and are written
-      (the log's *The Session's Own Lines*).
-
-      `make test-grammar` failed once, on seed 71865135, where the parser took a text
-      that Appendix A does not derive, a marked variable in parentheses or before a
-      body's `=`. The parser refuses both now (the log's *The Parser Held to Appendix
-      A*).
-
-      The guide's writer found four decided sentences of the report unwritten, each of
-      a line with two owners. Two readers audited the decided lines that carried no
-      closing bullet, one against the report and one against the code
-      (`leg4/builds/audit/`). The report lacked the sentences of twelve lines, which
-      are written and read cold (the log's *The Decided Lines Audited*). The code
-      lacks four things, *U 12*'s test of a guide's quoted line among them, and a
-      fifth was found beside them: an address given to a function value that foreign
-      code gave stood behind no check, where §8.4 has one. One build took the five
-      (the log's *The Audit's Build*).
-
-      The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
-      2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
-      2026-11-24 in a copy of the report, whose 21 finds for the user were answered the same
-      day (the log's *The Changed Sentences Read Cold* and *The Cold Reading's Answers*).
-      The copy took the answers, and what they change was read cold once, six finds
-      coming to the user and answered (the log's *The Answers Read Cold* and *The
-      Answers Read Cold's Six*). The report was written from the copy 2026-11-25, in
-      one commit with the first build (the log's *The First Build of Leg 4*).
-
-   Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
-   the `fix` lines made at once and the `decide` lines after, so that the design is one
-   block. The readers' models are their own, whichever session starts them: a reader of
-   the code or of what the toolchain does runs on the coding model at the stronger effort, and every other
-   reader on the stronger model, which leg 2's briefs name outright.
-
-   Before its readers start:
-
-   - **The three tools in Ernest**, done 2026-11-23 (the log's *The Three Tools in
-     Ernest*): `tools/words.ern` and `tools/unicode_width.ern`, in place of
-     `tools/paragraphs.sh`, `tools/comments.sh` and `tools/unicode_width.escript`.
-   - **The checks that cost cycles**, decided with the user 2026-11-10, so that the readers
-     start from what a tool lists (the log's *The Listings Before a Review*).
-
-     The refusals are done 2026-11-23, each with the tree cleaned to zero (the log's *The
-     Applications' Order* and *The Refusals Before the Readers, Built*): `make xref` refuses a
-     call against the applications' order and an export nothing calls, `make test-typed` the
-     checker's near misses, and a style test a private function nothing calls.
-
-     The listings are done 2026-11-23 (the log's *The Listings Before a Review, Built*):
-     `make cover`, `make clones`, `make sizes` and `make slowest`, which the reviews name.
-   - **The helper's failure under recording**, done 2026-11-23 (the log's *The Helper's
-     Failure Under Recording*): the recorder's, mended.
-   - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
-     Once*). The design notes own what a component keeps and when it lets go, and
-     `docs/memory_checks.md` points at them.
-   - **The documents' listings**, done 2026-11-23 (the log's *The Documents' Listings,
-     Built*): `make lengths`, `citations`, `terms`, `unchecked` and `edits`, which the full
-     review's readers of the report, the guide and the tour start from, and the browser
-     test holds every page of the site to no sideways scroll on a phone.
-   - **Two defects the listings found**, done 2026-11-23 (the log's *An Operator's Anchor
-     and a List of Sections*): the site writes an anchor's fragment percent-encoded, and a
-     list of sections after a document's name is that document's to its end.
-   - **The checker's cases tabled**, done 2026-11-23 (the log's *The Checker's Cases
-     Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. When a spawn's
-     capture's type is read is decided (the log's *When a Capture's Type Is Read*), and so is
-     how a requirement's error names its callee (the log's *A Requirement's Callee, Named*).
-   - **How a diagnostic names a name**, decided 2026-11-23 in four questions (the log's
-     *How a Diagnostic Names a Name*): §11.5's rule for a type name is every declared
-     name's, a witness writes its constructors as the source does, a prelude type the
-     module hides prints `Prelude.x` as a function does, and §5.6's fill error names the
-     declaration. The findings' line *PL6 3* holds the sentences, which leg 4 builds.
-   - **§3.11's two ends**, decided 2026-11-23 (the log's *§3.11's Two Ends*): the report
-     follows the checker at both. A peer spawn's mailbox type and a compute's result type
-     are known whole by the end of the definition they are written in, which §4.8 says is
-     a local `fn` too. The findings' line *PL6 2* holds the sentences, which leg 4 writes.
-   - **The other repositories take their manifests**, done 2026-11-23 (the log's *The
-     Other Repositories' Manifests*): ernest-template's `0155cf2`, tagged `v0.11.0`,
-     ernest-epx's `479b1c6`, against the archive of `fcb26908`, each session told by a
-     message. ernest-httpd's session took its `6690e4f` off main on the user's word, since
-     its `make test` failed there, and takes the template's tag in one commit with its own
-     fixes. ernest-epx's release with its host part is its session's own. All three hold
-     their commits unpushed until 0.11.0 is released.
-   - **The packages proposal's reading and sweep**, done 2026-11-23 (the log's *The
-     Packages Proposal Swept*): read against its owners and removed, what only it held kept
-     in the log.
-
-   Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
-   whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop,
-   against the archive of the commit the readers read; ernest-httpd's review has a security
-   reader, since it goes public in MVP 4.18. What they find of Ernest's comes as lines of
-   their feedback files and is sorted in this round (the log's *The Applications' Full
-   Review*, *Ernest Stays at 0.x*).
-
-   As they begin, the three floors rise to this release's minor, since a development build of
-   the floor is what an archive before the release is (the log's *The Floors and the
-   Releases*). The rise is the manifests' write above. Ernest's session then names the minor,
-   the archive's path and its commit to all three by a message, and asks for the reviews, on
-   the user's word, sent 2026-11-23 once Ernest's readers were done. Each
-   application's own session opens on the new floor, changes what its code needs there and
-   begins its review. Their findings are sorted after leg 3's, in a sort of their own.
-
-   The message names the review's three legs, each ended by a commit: the floor's rise, the
-   readers and their lists in the findings file; the sort and the lines to decide, with the
-   user; and the fixes and the close (the log's *Where a Session Is Cut*).
+   What the item left: the items of MVP 4.5 and MVP 4.18 that name a finding, the entries
+   of the feedback file and the lines of [`known_issues.md`](known_issues.md) it wrote.
+   The three applications hold their floors' commits unpushed until 0.11.0 is released,
+   and each takes up its own review's lines on the user's word.
 5. **The release of 0.11.0**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
-   log's *The Layout Built*); the findings file empty, and the feedback file holding only entries
+   log's *The Layout Built*); the findings file gone, as it is since 2026-11-26, and the feedback file holding only entries
    that an item of MVP 4.5 holds. It is tagged and published with no announcement, so that
    the applications have a published floor.
+
+   **A decision for the user, first.** Of the feedback file's entries, 44 are held by no
+   item of MVP 4.5: 271, 275, 277 to 280 and 282 to 319. Most are the review's `felt`
+   lines. Each gets an item, joins an item that stands, or is dropped with its reason, or
+   the release's condition is narrowed to say what a `felt` entry waits for.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it, and ernest-epx's, not waiting for its milestone 9
@@ -423,8 +163,10 @@ the site, since it sends a reader there. Its release is the launch.
    nowhere, and a close after the far end's alert answers at once. The second is the
    closer's look once a second. Through a kill's 5 seconds the socket's process reads
    `Receiving`, beside E.21's `Suspended`, which the mend reads. Four `decide` lines of
-   the sort are a server's security, the findings' *H39*, *H53*, *H54* and *H59*, and
-   each is mended here or filed as it is decided.
+   the sort are a server's security, and each is decided (the log's *The Applications'
+   Lines Decided*): a command's environment, *H39*, and a client's renegotiation,
+   *H53*, are built for 0.11.0; a call's wait under a backlog, *H54*, is MVP 4.5's item
+   174; and `Http.filePath`, *H59*, stays, with its page's two sentences.
 2. **The release of 0.11.1**, by `docs/reviews/release.md`'s step. It is 0.12.0 where a
    mend of item 1 changes a frame or the form, since a patch moves neither (report §8.7),
    and the milestone's other items then name that release.
@@ -784,6 +526,7 @@ What the line left, in the order it is taken:
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found; `Tcp.close` answers once its bytes are sent; the short rules stay and the known issues' list begins | 2026-11-21 | | the log's entries from 2026-11-11 to 2026-11-21 |
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | the log's entries from 2026-11-14 to 2026-11-21 |
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's entries from 2026-11-09 to 2026-11-22 |
+| The full review's findings before 0.11.0 | the 929 lines of the review run over `93a13b13`, the principles review inside it: 446 made as plain fixes or as defects a report sentence states, 431 decided with the user, 52 filed; and the 51 lines the three applications' reviews found of Ernest's, 9 fixed, 20 decided, 4 felt, 6 an item's and 12 dropped | 2026-11-26 | | `findings.md` as it stood at `ab68ef61`; the log's entries from 2026-11-23 to 2026-11-26 |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
 | MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, and five decisions from its item 4 | | | above |
