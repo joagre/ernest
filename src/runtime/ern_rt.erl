@@ -719,9 +719,10 @@ spawn_monitored(Function, Wrap, Site) ->
 
 %% Report §11.2: a process the head of a spawn chain of its own, monitored
 %% by none, so that the processes it starts, directly or through one it
-%% started, are known by it (started_by/1): the shell runs each input in
-%% one, and its file's entry point, so that what they start is no process
-%% of the shell's own (processes/0).
+%% started, are known by it (started_by/1): the shell runs its file's
+%% entry point in one (ern_shell:spawn_program/0). An input is chained to
+%% its session's root instead (ern_shell's spawn_input/4), and a process of
+%% the shell's own is known by its mark (own/1), not by its root.
 -spec spawn_root(fun(() -> term()), binary()) -> pid().
 spawn_root(Function, Site) ->
     spawn_with_monitors(Function, Site, [], root).
@@ -1451,7 +1452,7 @@ kill(Pid) ->
 %% the launch's killer, which carries the kills out one after another and
 %% is there from the run's start, so that a full table of the host's stops
 %% none of them, a program's kill that makes room and the end's among them
-%% (killer/0, §10). Report §8.6: the kill is a source until it is done,
+%% (killer/0, §12.9). Report §8.6: the kill is a source until it is done,
 %% since the look sees neither the killer's work nor the end it brings.
 %%
 %% A process that kills itself, by the prelude's kill, waits in no call as
@@ -1479,7 +1480,7 @@ killed(Pid, How) ->
             ok
     end.
 
-%% Report §6.9, §8.6, §10: the launch's killer, a process of the runtime's
+%% Report §6.9, §8.6, §12.9: the launch's killer, a process of the runtime's
 %% own that no process can name, which carries out every kill, one after
 %% another (killed/2). It is started with the run and held by the reaper,
 %% so that it ends with the run (reaper_held/2). Report §8.7: it waits on no

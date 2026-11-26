@@ -65,11 +65,11 @@ held_end(Key, Ms) ->
         false -> <<"alive">>
     end.
 
-%% Report §8.4, §10: how many lookouts of the node are left once each has
-%% ended, or Ms has passed: a lookout, the process beside a check whose
-%% target's node is out of reach, is told apart by the function it waits
-%% in, the runtime's own (ern_boundary:lookout_loop/4), and one about to end
-%% is waited for, so that what is counted is a lookout that stays.
+%% Report §8.4, §10, §12.9: how many lookouts of the node are left once
+%% each has ended, or Ms has passed: a lookout, the process beside a check
+%% whose target's node is out of reach, is told apart by the function it
+%% waits in, the runtime's own (ern_boundary:lookout_loop/4), and one about
+%% to end is waited for, so that what is counted is a lookout that stays.
 -spec lookouts_left(non_neg_integer()) -> non_neg_integer().
 lookouts_left(Ms) ->
     Deadline = erlang:monotonic_time(millisecond) + Ms,

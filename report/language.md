@@ -1554,6 +1554,8 @@ Every technical term this report introduces, with a gloss and the section that d
 - **primitive** — an operation beneath what Ernest writes, the language's or a standard library module's. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
+- **process a session started** — a process the session started on its node, directly or through a process it started there, until the session ends: the chains of its file's entry point, of an input and of a load. §11.2, §12.1.
+- **process of the shell's own** — a session's own process on the shell's own node, an input's aside, from which `Os.exit` ends the shell. §11.2, Appendix E.23.
 - **process-only** — a function whose effect variable is never none. §3.9.
 - **pseudo-terminal** — a terminal the runtime opens for a program `Os.startTerminal` starts, its standard input, standard output and standard error together. Appendix E.23.
 - **pun** — `=f` for `f = f`: in a construction the field `f` given what `f` names in scope, in a pattern the field `f` binding a variable `f`. §5.6, §5.10.
@@ -1586,7 +1588,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **service binding** — the top-level binding that a service is, which grants the permission its address is to the modules that see it. §6.5.
 - **service monitor** — `monitorService(p, wrap)`; a monitor that also sends `wrap(d)` with the reason `Restarted` at each restart of `p`, and stands until `p` dies. §6.9, §9.5.
 - **session** — a shell's run on a node: its declarations, their scope and its inputs' processes; a node has many at once, each with a number. §11.2.
-- **session's own process** — a process the shell runs to serve a session, the session's, its reader's or its screen's, which `Process.live` leaves out. §11.2, Appendix E.21.
+- **session's own process** — a process the shell runs to serve a session, the session's, its reader's, its screen's, its local half's or an input's, which `Process.live` leaves out. §11.2, Appendix E.21.
 - **shape rule** — one of the rules that give a function of the standard library its shape. Appendix E.0.
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.

@@ -8,7 +8,8 @@
 // appendix or one of its sections, and `E.n`; and beside them the log's
 // *Title*, which links to the log's entry on GitHub, and a qualified name of
 // the library in backticks, which links to its declaration. A section's
-// anchor is its number, `#6.5`, `#E.17`; a heading of a document that
+// anchor is its number, `#6.5`, `#E.17`, a part's its section's number and
+// its name, `#11.2-loading-and-reloading`; a heading of a document that
 // numbers none has its GitHub anchor.
 //
 
@@ -117,7 +118,7 @@ export fn anchored(path : String, placed : List(CodeBlock.Placed)) : List(CodeBl
             List.map(githubAnchors(texts),
                      fn(slug) = Some(CodeBlock.Anchor(id = slug, label = "Link to this section")))
       | _ ->
-            List.map(texts, numberAnchor)
+            List.map(texts, headingAnchor)
     };
     let #(_, given) = List.mapFold(placed, anchors, fn(left, each) = match #(each.block, left) {
         #(Markdown.Heading(), anchor :: rest) ->
@@ -134,6 +135,18 @@ export fn anchored(path : String, placed : List(CodeBlock.Placed)) : List(CodeBl
 export fn numberAnchor(text : String) : Optional(CodeBlock.Anchor) =
     Optional.map(number(text),
                  fn(found) = CodeBlock.Anchor(id = found, label = "Link to " <> found))
+
+// A heading's anchor in a document that numbers its headings: a numbered
+// heading's number, a part's own anchor, and none for any other.
+fn headingAnchor(text : String) : Optional(CodeBlock.Anchor) =
+    match numberAnchor(text) {
+        Some(found) ->
+            Some(found)
+      | None ->
+            Optional.map(part(text),
+                         fn(found) =
+                             CodeBlock.Anchor(id = found.anchor, label = "Link to " <> found.name))
+    }
 
 // The text of each top-level heading, as a GitHub anchor reads it.
 fn headings(blocks : List(Markdown.Block)) : List(String) =
@@ -213,6 +226,144 @@ fn appendixNumber(chars : List(Char)) : Optional(String) =
         Some(#(found, '.' :: _)) -> Some(found)
       | _ -> None
     }
+
+//
+// The parts of a section
+//
+
+/// A part of a section, a heading numbered below its section's, `11.2.8
+/// Loading and reloading`: its section's number, `11.2`, its name, and its
+/// anchor, the section's number and the name's GitHub anchor after a `-`,
+/// `11.2-loading-and-reloading`. A part is cited by its name and never by
+/// its number, so a part renumbered keeps its anchor; no section's number
+/// holds a `-`, and two parts of one section are refused one anchor
+/// (`parts`), so no two anchors of a page are one (docs/design/site.md
+/// *Anchors*).
+export type Part = Part(section : String, name : String, anchor : String)
+
+/// The part a heading's text names, and none for any other heading.
+export fn part(text : String) : Optional(Part) = {
+    let #(section, rest) <- Citations.numberAt(String.toList(text));
+    match rest {
+        '.' :: following ->
+            match List.splitWhile(following, Char.isAsciiDigit) {
+                #(own, ' ' :: named) when own != [] -> {
+                    let name = String.fromList(named);
+                    Some(Part(=section, =name, anchor = section <> "-" <> slugBase(name)))
+                }
+              | _ ->
+                    None
+            }
+      | _ ->
+            None
+    }
+}
+
+/// The parts of a document's sections, each section's by its number, each
+/// part's anchor by its name as text; or why there are none: two parts of
+/// one section whose names give one anchor.
+export fn parts(source : String,
+                blocks : List(Markdown.Block)) : Either(String, Map(String, Map(String, String))) =
+    List.tryFold(List.filterMap(headings(blocks), part), Map.empty, fn(acc, found) = {
+        let named = Optional.withDefault(Map.get(acc, found.section), Map.empty);
+        if Map.any(named, fn(_, anchor) = anchor == found.anchor) then
+            Left(source
+                     <> ": two parts of section "
+                     <> found.section
+                     <> " are anchored "
+                     <> found.anchor
+                     <> "; a part's anchor is made from its name")
+        else
+            Right(Map.put(acc, found.section, Map.put(named, found.name, found.anchor)))
+    })
+
+/// The blocks with each citation of a part by its name led to the part's
+/// anchor, the parts of `parts` by their sections: in `§11.2's **What a
+/// node holds**` the citation leads to the part, and a bare `**Loading and
+/// reloading**` under the section that holds the part becomes a link to
+/// it. Any other bold text stays as it is, and a citation by a part's
+/// number is read as its section's (docs/design/site.md *Anchors*).
+export fn partsLinked(placed : List(CodeBlock.Placed),
+                      parts : Map(String, Map(String, String))) : List(CodeBlock.Placed) = {
+    let #(_, linked) = List.mapFold(placed, "", fn(section, each) = match each.block {
+        Markdown.Heading(=text) ->
+            #(Optional.withDefault(number(Html.plain(text)), section), each)
+      | block -> {
+            let own = Optional.withDefault(Map.get(parts, section), Map.empty);
+            #(section, CodeBlock.Placed(..each, block = blockParts(block, own, parts)))
+        }
+    });
+    linked
+}
+
+// A block with its citations of parts led, `own` the parts of the section
+// it stands under.
+fn blockParts(block : Markdown.Block,
+              own : Map(String, String),
+              parts : Map(String, Map(String, String))) : Markdown.Block = {
+    let inner = fn(each) = blockParts(each, own, parts);
+    let led = fn(inlines) = inlinesParts(inlines, own, parts);
+    match block {
+        Markdown.Paragraph(inlines) ->
+            Markdown.Paragraph(led(inlines))
+      | Markdown.Quote(blocks) ->
+            Markdown.Quote(List.map(blocks, inner))
+      | Markdown.Items(=start, =items) ->
+            Markdown.Items(=start, items = List.map(items, fn(item) = List.map(item, inner)))
+      | Markdown.Table(=columns, =rows) ->
+            Markdown.Table(columns = List.map(columns,
+                                              fn(column) =
+                                                  Markdown.Column(..column,
+                                                                  text = led(column.text))),
+                           rows = List.map(rows, fn(row) = List.map(row, led)))
+      | _ ->
+            block
+    }
+}
+
+fn inlinesParts(inlines : List(Markdown.Inline),
+                own : Map(String, String),
+                parts : Map(String, Map(String, String))) : List(Markdown.Inline) =
+    match inlines {
+        Markdown.Link(=text, =url) :: Markdown.Text("'s ") :: Markdown.Strong(named) :: rest ->
+            match partLed(url, named, parts) {
+                Some(led) ->
+                    Markdown.Link(=text, url = led)
+                        :: Markdown.Text("'s ")
+                        :: Markdown.Strong(named)
+                        :: inlinesParts(rest, own, parts)
+              | None ->
+                    Markdown.Link(=text, =url) :: inlinesParts(List.drop(inlines, 1), own, parts)
+            }
+      | Markdown.Strong(named) :: rest ->
+            match Map.get(own, Html.plain(named)) {
+                Some(anchor) ->
+                    Markdown.Link(text = [Markdown.Strong(named)],
+                                  url = "#" <> Html.fragment(anchor))
+                        :: inlinesParts(rest, own, parts)
+              | None ->
+                    Markdown.Strong(inlinesParts(named, own, parts))
+                        :: inlinesParts(rest, own, parts)
+            }
+      | Markdown.Emphasis(inner) :: rest ->
+            Markdown.Emphasis(inlinesParts(inner, own, parts)) :: inlinesParts(rest, own, parts)
+      | first :: rest ->
+            first :: inlinesParts(rest, own, parts)
+      | [] ->
+            []
+    }
+
+// The address of the part a citation's section holds by the name, the
+// citation's address with the part's anchor for the section's; none where
+// the section holds no part of that name.
+fn partLed(url : String,
+           named : List(Markdown.Inline),
+           parts : Map(String, Map(String, String))) : Optional(String) = {
+    let #(page, section) <- String.splitOnce(url, "#");
+    let own <- Map.get(parts, section);
+    let anchor <- Map.get(own, Html.plain(named));
+    Some(page <> "#" <> Html.fragment(anchor))
+}
 
 //
 // GitHub's anchors

@@ -151,10 +151,12 @@ fn beginsSubsection(block : Markdown.Block) : Bool =
       | _ -> false
     }
 
-// §11's sections are the page's subsections, a level above their own.
+// §11's sections are the page's subsections, a level above their own, and
+// so is a part of a section, `#### 11.2.8 Loading and reloading`, since a
+// manual page has no level below a subsection.
 fn raised(block : Markdown.Block) : Markdown.Block =
     match block {
-        Markdown.Heading(=level, =text) -> Markdown.Heading(level = level - 1, =text)
+        Markdown.Heading(=level, =text) -> Markdown.Heading(level = Int.min(level - 1, 2), =text)
       | other -> other
     }
 

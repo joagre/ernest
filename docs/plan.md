@@ -25,8 +25,8 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg, whose builds are done: the report, the code by its owners, the tests, the guides, the
 tour, the front pages and `docs/`, with every decided line of the findings closed and
-`make test-full` passing. The ten questions that waited are answered, and item 4 closes once
-what they decide is built.**
+`make test-full` passing. The ten questions that waited are answered and what they decide is
+built. `make test-full` and the close are next.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
@@ -34,8 +34,8 @@ Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Buil
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
 and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A*, *The Session's Own Lines*, *The Full Check, and
-Dialyzer's Nine*, *The Ten Answered*, *A Function's Result Crosses* and *The Interrupt Ends a
-Running Load*.
+Dialyzer's Nine*, *The Ten Answered*, *A Function's Result Crosses*, *The Interrupt Ends a
+Running Load*, *The Three Terms and §12.9* and *A Part's Anchor*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -209,9 +209,10 @@ says what is left once its readings are in, and no figure stands until then.
       rule 8's two phrases, the certificate's row as *R2 2* has it, and a function's
       result among what crosses into foreign code (the log's *A Function's Result
       Crosses*), and the interrupt that ends a running load (the log's *The
-      Interrupt Ends a Running Load*). To build: the three terms of a shell's processes and §12's new
-      section on which process pays (*G 23*, *G 21*, `leg4/builds/q34/`), and the
-      site's anchor for a part of §11.2 with the tests that cite the new section.
+      Interrupt Ends a Running Load*). The three terms of a shell's processes and
+      §12.9 are written (*G 23*, *G 21*, the log's *The Three Terms and §12.9*), and a
+      part of §11.2 has its anchor on the site (the log's *A Part's Anchor*). Nothing
+      of the ten is left to build.
 
       The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
       decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and

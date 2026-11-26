@@ -12,8 +12,8 @@
 %% report §11, §11.4: the manual pages `make manual` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
 %% .erc; tools/manual.ern writes ern(1), whose NAME line and DESCRIPTION
-%% are §11's, its subsections §11.1 to §11.6 and those after §11.8, in
-%% the report's order, whose SYNOPSIS is every job's usage as its `--help`
+%% are §11's, its subsections §11.1 to §11.6 and those after §11.8, with
+%% the parts of each, in the report's order, whose SYNOPSIS is every job's usage as its `--help`
 %% prints it, in `ern --help`'s order, then `ern --help` and `ern
 %% --version`, whose
 %% OPTIONS and EXIT STATUS are §11.7 and §11.8, and whose SEE ALSO names
@@ -59,8 +59,13 @@ manual_pages() ->
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../report/toolchain.md"),
-    {match, Sections} = re:run(Report, "^### (11\\.(?:[0-6]|9) .*)$",
+    %% a part of a section, `#### 11.2.8 Loading and reloading`, is a
+    %% subsection as its section is, a code span in its heading written as
+    %% in a section's
+    {match, Sections} = re:run(Report, "^####? (11\\.(?:[0-6]|9)(?:\\.[0-9]+)? .*)$",
                                [multiline, global, {capture, all_but_first, binary}]),
+    ?assertMatch([_ | _], [Part || [Part] <- Sections, binary:match(Part, <<"`">>) =/= nomatch,
+                                   re:run(Part, "^11\\.2\\.[0-9]+ ") =/= nomatch]),
     Subsections = [binary:replace(Section, <<"`">>, <<>>, [global]) || [Section] <- Sections],
     ?assertEqual(Subsections, [Section || {<<".SS">>, Section} <- Pairs]),
     %% every subsection stands in DESCRIPTION, those after §11.8 among them

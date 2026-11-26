@@ -127,8 +127,8 @@ callers_ending(Count) ->
     ern_rt:untimed(),
     [Measured].
 
-%% Report §6.9, §10: Count deliveries in flight to one process, each a
-%% Down's, whose wrap, applied in the delivery's own process, waits for a
+%% Report §6.9, §10, §12.9: Count deliveries in flight to one process, each
+%% a Down's, whose wrap, applied in the delivery's own process, waits for a
 %% word: from the monitored processes' word to return until every wrap
 %% waits, and from the wraps' words until the process has received every
 %% Down.

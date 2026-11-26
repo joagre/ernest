@@ -1411,6 +1411,8 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 - **G 23** `3` — three near-equal names for sets of a shell's processes (`toolchain.md:738`, `language.md:1537`, `library.md:872`), the first spelled out six times. Fix: one defined term each. Owner: report. Decide: the terms.
   - **Decided 2026-11-23** (the log's *The Report Recut*): taken: one defined term for each of the three sets of a shell's processes, used by its name, with its entry in Appendix F.
   - **Comes back 2026-11-26** (the log's *The Report's Own Lines*): a question for the user, named in the plan's item 4.
+  - **Answered 2026-11-26** (the log's *The Ten Answered*): the present words are the terms: *a process a session started*, defined in §12.1; *a session's own process*, which takes in the local half's and an input's; and *a process of the shell's own*, a session's own on the shell's own node, an input's aside.
+  - **Built 2026-11-26** (the log's *The Three Terms and §12.9*).
 - **G 12 (advice)** `3` — twelve sentences advise a program and state no rule (`language.md:464`, `:740`, `:807`, `library.md:483`, `:540`, `:558`, `:599`, `:601`, `:701`, `:941`, `:1243`, `:1320`). Fix: they move to the guide. Owner: report+guide. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Report Recut*): the twelve sentences move to the guide. Each is read first, and one that states a rule stays.
   - **Built 2026-11-26** (the log's *The Language Guide Recut*): the guide says each advice sentence. Eleven still stand in the report, its half, which waits for the audit of the lines with two owners.
@@ -1418,6 +1420,8 @@ The thirty were the system modules' build's, the second: *C4 Clarity 39*; *C4 Cl
 - **G 21** `3` — §10 holds this runtime's mechanism, the processes that pay each cost and §8.7's restart, end and exchange again. Fix: §10 keeps each bound, §12 says which process pays. Owner: report. Decide: the recut.
   - **Decided 2026-11-23** (the log's *The Report Recut*): taken. §10 keeps the bound each cost must meet, and §12 says which process pays it, written with the sentences the eighteen rows gain (*PL1 L2*, *§10's Fraction Narrowed*).
   - **Comes back 2026-11-26** (the log's *The Report's Own Lines*): a question for the user, named in the plan's item 4.
+  - **Answered 2026-11-26** (the log's *The Ten Answered*): a new §12.9, a paragraph a cost, which each bullet of §10 that had such a clause cites.
+  - **Built 2026-11-26** (the log's *The Three Terms and §12.9*).
 - **G 9** `3` — §11.2 is 11,891 words under three jobs' name, `ern reload` and `ern stop` in it unheaded. Fix: number its bold parts §11.2.1 to §11.2.16, one for the two jobs. Owner: report. Decide: new subsection numbers.
   - **Decided 2026-11-23** (the log's *The Report Recut*): §11.2's sixteen bold parts and its paragraph on `ern reload` and `ern stop`, which stands under none, become §11.2.1 to §11.2.17, in the order they stand. No existing number changes, and a citation of §11.2 stays true.
   - **Added 2026-11-23, from the reading against `report/library.md` and `report/toolchain.md`** (the log's *The Report Read Whole Against the Verdicts*): the paragraphs on `ern reload` and `ern stop` stand before the first bold part (`toolchain.md:217` to `:223`), and a heading there would take the runtime's lines, the fault's report and `ern shell`'s synopsis under it (`:225` to `:239`). So they move to the end as §11.2.17, the one move, and the sixteen keep their order, each bold name its heading, so that a citation by name stays true.

@@ -13,11 +13,12 @@
 %% The peer whose frames the worker reads, a node no host holds.
 -define(PEER, 'peer@nowhere.ernest').
 
-%% report §6.5, §6.4, §12.6: a peer's messages to one adapted address are
-%% applied in the order their frames came, in one process the worker keeps
-%% for the address, which a message handed while another waits keeps, so
-%% that a function that waits holds the messages after it; once none waits
-%% the process ends, and the next message starts another
+%% report §6.5, §6.4, §12.6, §12.9: a peer's messages to one adapted
+%% address are applied in the order their frames came, in one process the
+%% worker for the peer keeps for the address, which a message handed while
+%% another waits keeps, so that a function that waits holds the messages
+%% after it; once none waits the process ends, and the next message starts
+%% another
 adapted_in_order_test() ->
     Self = self(),
     ok = ern_rt:run_main(

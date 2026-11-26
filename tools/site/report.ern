@@ -2,7 +2,8 @@
 // The report's pages: each of its three files whole,
 // a page each, as docs/design/site.md's *The root* says, under
 // the report's name with the file's version line; its chapters and sections
-// anchored by their numbers or their appendices' letters, a sidebar two
+// anchored by their numbers or their appendices' letters, a part of a
+// section by its section's number and its name, a sidebar two
 // levels deep, previous and next in the order language, toolchain,
 // library, and under each section the guide cites the guide's sections
 // that cite it (site.md *Links*); and the report's contents page, each
@@ -27,8 +28,15 @@ export fn written(run : Run.Run, taught : Book.Taught) : Either(String, Unit) = 
     let files <-
         List.tryMap(["report/language.md", "report/toolchain.md", "report/library.md"],
                     fn(source) = fileRead(run, source));
+    let parts <-
+        List.tryFold(files,
+                     Map.empty,
+                     fn(acc, file) =
+                         Either.map(Links.parts(file.source, file.blocks),
+                                    fn(found) = Map.merge(acc, found)));
     let _ <-
-        List.tryMap(Run.neighbored(files), fn(neighbors) = fileWritten(run, taught, neighbors));
+        List.tryMap(Run.neighbored(files),
+                    fn(neighbors) = fileWritten(run, taught, parts, neighbors));
     contentsWritten(run, files)
 }
 
@@ -62,14 +70,17 @@ fn isVersion(inlines : List(Markdown.Inline)) : Bool =
 
 // A file's page: the sidebar of its chapters with their sections, the
 // report's name above its title, its version line, its text with each margin
-// line, and the files before and after it.
+// line and each citation of a part of a section led to the part, the
+// report's parts by their sections, and the files before and after it.
 fn fileWritten(run : Run.Run,
                taught : Book.Taught,
+               parts : Map(String, Map(String, String)),
                neighbors : #(Optional(File), File, Optional(File))) : Either(String, Unit) = {
     let #(earlier, file, later) = neighbors;
     let copied = Links.anchored(file.source, CodeBlock.copied(file.blocks));
     let page <- Run.linkPage(run, file.source, file.address, copied);
-    let placed <- Run.linkedAll(run, copied, page);
+    let linked <- Run.linkedAll(run, copied, page);
+    let placed = Links.partsLinked(linked, parts);
     let lines <- List.tryMap(placed, fn(each) = blockLines(run, taught, each));
     let sidebar <-
         Run.sidebar(run, "fragments/contents.html", "On this page", entries(file.blocks));

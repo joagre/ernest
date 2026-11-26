@@ -1365,7 +1365,8 @@ call_leaves_nothing_test() ->
 %% report §6.6, §6.9, §8.6: a call's CALL key, and the callee's row, go
 %% however the call ends: answered, its time run out, its callee ended or
 %% restarted while it waits, callForever answered and its callee's end; and
-%% a restart asked of the caller while it waits, which its new run reads.
+%% report §12.9: a restart asked of the caller while it waits, which the
+%% call's wait takes from the caller's mailbox and its new run reads.
 %% A regression test, written after the code; a fault's paths are
 %% call_leaves_nothing_test's, and a compute's compute_caller_test's
 call_key_goes_by_every_path_test() ->
@@ -2351,7 +2352,7 @@ live_leaves_out_the_ended_test() ->
            end, <<"M.main">>, ern_helpers:quiet()),
     ?assertEqual(false, ern_waits:wait(live)).
 
-%% report §6.9: a restarting function called where the runtime
+%% report §6.9, §12.9: a restarting function called where the runtime
 %% applies a function for another process faults with its cause before
 %% anything of a restart begins: in a monitor's wrap, the fault of the
 %% process the wrap delivers to, met at its next wait; in an adapted
@@ -2397,8 +2398,8 @@ restart_where_the_runtime_applies_test() ->
     ?assertEqual(Cause, ern_waits:wait(far)),
     ?assertEqual('Unit', ern_waits:wait(sent)).
 
-%% report §6.9, §10, Appendix E.15: a restarting function called in any
-%% wrap the runtime applies as it delivers faults so, an alarm's as a
+%% report §6.9, §10, §12.9, Appendix E.15: a restarting function called in
+%% any wrap the process of a delivery applies faults so, an alarm's as a
 %% monitor's, the fault the recipient's, met at its next wait. A
 %% regression test, written after the report named every such wrap (the
 %% log's *The Release Review Before 0.7.0*, *The round*): the code applied
@@ -2429,9 +2430,10 @@ kept_applied(Address) ->
     receive {applied, Kept} -> ok end,
     Kept ! stop.
 
-%% report §6.5, E.15: an alarm's function that never finishes holds up no
-%% other alarm. A regression test: the clock applied it itself, and froze
-%% for every process.
+%% report §6.5, E.15, §12.9: an alarm's function that never finishes holds
+%% up no other alarm, since the process of its delivery applies it. A
+%% regression test: the clock applied it itself, and froze for every
+%% process.
 endless_alarm_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -3442,7 +3444,8 @@ kill_out_of_reach_vanishes_test() ->
                                      ern_helpers:quiet())).
 
 %% report §6.9, §6.5, Appendix E.18, E.21: a monitor's wrap acts for the
-%% process it delivers to: Process.current there is that process; a socket
+%% process it delivers to, report §12.9: the process of its delivery,
+%% another, applies it; Process.current there is that process; a socket
 %% the wrap opens with the library's Tcp.connect is that process's, which
 %% it monitors, and lives on once the wrap has returned and its delivery
 %% has ended, and ends with that process; and a process the wrap spawns,
@@ -3485,16 +3488,18 @@ wrap_acts_for_its_recipient_test() ->
                Recipient ! stop,
                Ended = receive {'DOWN', SocketRef, process, Socket, ExitReason} -> ExitReason end,
                ern_rt:untimed(),
-               Self ! {acted, {Current =:= Recipient, lists:member({process, Recipient}, Monitored),
+               Self ! {acted, {Delivery =/= Recipient, Current =:= Recipient,
+                               lists:member({process, Recipient}, Monitored),
                                lists:sort(Started) =:= lists:sort([Socket, Spawned]), Ended}}
            end, <<"main">>, ern_helpers:quiet()),
     gen_tcp:close(Listen),
-    ?assertEqual({true, true, true, {ern, killed}}, ern_waits:wait(acted)).
+    ?assertEqual({true, true, true, true, {ern, killed}}, ern_waits:wait(acted)).
 
-%% report §6.5, Appendix E.21: an adapted function applied on arrival, in
-%% the process the node keeps for its address and a peer, acts for the
-%% address's target where the target is on this node, as a wrap acts for
-%% its recipient: Process.current there is the target. The gateway's
+%% report §6.5, Appendix E.21, §12.9: an adapted function applied on
+%% arrival, in the process the node keeps for its address and a peer, which
+%% answers each message it applied, acts for the address's target where the
+%% target is on this node, as a wrap acts for its recipient:
+%% Process.current there is the target. The gateway's
 %% worker is stood in for, as adapted_from_peer_test stands in for it. A
 %% regression test, written after the code: it answered the kept process;
 %% a target on another node, for which the process acts for none, is
@@ -3633,11 +3638,11 @@ monitor_for_a_recipient_ends_with_it_test() ->
            end, <<"main">>, ern_helpers:quiet(#{faults => fun(_, _) -> ok end})),
     ?assertMatch([[{_, 1}], [], [], []], ern_waits:wait(sources)).
 
-%% report §6.5, §6.9: in the process kept for an adapted address whose
-%% target is on this node, self() in the function is the target's address,
-%% and a monitor the function makes is the target's, delivered to it after
-%% the kept process has ended; where a send applies the function, in the
-%% sender, self() is the sender's. The gateway's worker is stood in for, as
+%% report §6.5, §6.9, §12.9: in the process kept for an adapted address
+%% whose target is on this node, self() in the function is the target's
+%% address, and a monitor the function makes is the target's, delivered to
+%% it after the kept process has ended; where a send applies the function,
+%% in the sender, self() is the sender's. The gateway's worker is stood in for, as
 %% kept_acts_for_its_target_test stands in for it. A regression test,
 %% written after the code: self() answered the kept process, and the
 %% monitor ended with it; a target on another node, where the kept process
@@ -4102,6 +4107,68 @@ restarting_marks_its_process_test() ->
     Unmarked = {false, false, 'First'},
     Marked = {true, true, 'First'},
     ?assertEqual({Unmarked, {Marked, Marked, Marked}, Unmarked, false}, ern_waits:wait(marks)).
+
+%% report §12.9, §6.9, Appendix E.15: a sleep's wait reads the caller's
+%% mailbox, where a restart asked for is taken, so that a process asked
+%% while it sleeps begins again, `Asked`, its sleep cut short; and the
+%% return of the outermost restarting function reads the mailbox as such a
+%% wait does, taking a restart asked as the function ends, so that none
+%% stands in the mailbox after it and the process is not restarting. A
+%% call's wait is call_key_goes_by_every_path_test's. Written with §12.9
+waits_take_a_restart_asked_for_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               EntryProcess = erlang:self(),
+               %% the waits count as timed, so that they are no deadlock
+               ern_rt:timed(),
+               Sleeping = fun() ->
+                              case ern_rt:start_cause() of
+                                  'First' ->
+                                      EntryProcess ! {sleeping, erlang:self()},
+                                      ern_rt:sleep(600000);
+                                  Cause ->
+                                      EntryProcess ! {woken, Cause}
+                              end
+                          end,
+               _ = ern_rt:spawn(ern_rt:restarting('Unlimited', Sleeping), <<"M.sleeping:2">>),
+               Sleeper = receive {sleeping, Pid} -> Pid end,
+               ok = ern_waits:waiting(Sleeper),
+               true = ern_rt:ask_restart(Sleeper),
+               Woken = receive {woken, Cause} -> Cause end,
+               ern_rt:untimed(),
+               Returning = ern_rt:restarting('Unlimited',
+                                             fun() -> ern_rt:ask_restart(erlang:self()) end),
+               Asked = Returning(),
+               {messages, Left} = erlang:process_info(erlang:self(), messages),
+               Self ! {waited, {Woken, Asked, Left, ern_rt:is_restarting()}}
+           end, <<"main">>, ern_helpers:quiet()),
+    ?assertEqual({'Asked', true, [], false}, ern_waits:wait(waited)).
+
+%% report §12.9, §11.2, Appendix E.21: a fault's process writes the text of
+%% its trace, as it meets the fault, and a process of the runtime's, the
+%% reaper, writes the line of its report, `ern run`'s reporter called
+%% there and never in the process that faulted. Written with §12.9
+fault_trace_and_report_writers_test() ->
+    Self = self(),
+    Reporter = fun({'FaultReport', _, _, Cause, _, Trace, _, _, _, _}, _Peer) ->
+                       Self ! {reported, {erlang:self(), Cause, is_binary(Trace)}}
+               end,
+    ok = ern_rt:run_main(
+           fun() ->
+               %% the waits count as timed, so that they are no deadlock
+               ern_rt:timed(),
+               Pid = ern_rt:spawn_monitored(fun() -> receive go -> ern_rt:fault(<<"met">>) end end,
+                                            fun(Down) -> {ended, Down} end, <<"M.faulting:2">>),
+               Traced = ern_waits:returned(Pid, {ern_rt, trace, ['_']}, fun() -> Pid ! go end),
+               receive {ended, _} -> ok end,
+               ern_rt:untimed(),
+               Self ! {faulted, {Traced, Pid, ern_rt:launch_reaper()}}
+           end, <<"main">>, ern_helpers:quiet(#{faults => Reporter})),
+    {Traced, Pid, Reaper} = ern_waits:wait(faulted),
+    {Writer, Cause, Text} = ern_waits:wait(reported),
+    ?assertEqual({ok, true, false, <<"met">>, true},
+                 {Traced, Writer =:= Reaper, Writer =:= Pid, Cause, Text}).
 
 %% report §6.9, Appendix E.22: a process that is not restarting is never
 %% asked, nor is one that has ended; a restarting one restarts at its wait,

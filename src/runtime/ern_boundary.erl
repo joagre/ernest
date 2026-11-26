@@ -673,7 +673,9 @@ checker_loop(Behind, Heard, Descriptor, Bound, Cause) ->
 %% Report §8.7, §10: "A check of a process whose node is out of reach is
 %% kept at least until that node connects again. While it waits so it costs
 %% a second process", the lookout, made only then, whose reference the
-%% checker answers.
+%% checker answers. Report §12.9: the lookout asks the host, is told of
+%% each connection that opens or closes, and tells the checker of that
+%% node's.
 %%
 %% The host tells a process that asks of each node that connects, by a
 %% message with no reference, and the checker's mailbox holds any term
@@ -710,9 +712,9 @@ lookout(Node) ->
         end,
     Ref.
 
-%% Report §10: "Each connection that opens or closes costs that process a
-%% message", the host's word of it; the one of Node's connection is the
-%% lookout's last, and costs the one more to the checker.
+%% Report §10, §12.9: each connection that opens or closes costs the
+%% lookout a message, the host's word of it; the one of Node's connection
+%% is the lookout's last, and costs the one more, to the checker.
 lookout_loop(Checker, Ref, Node, MonitorRef) ->
     receive
         {nodeup, Node, _} -> Checker ! {Ref, connected};

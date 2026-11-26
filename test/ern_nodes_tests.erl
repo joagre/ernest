@@ -1022,9 +1022,10 @@ export fn main() : Unit receiving Down = {
 %% full table, asking the entry process for it, and where it faults
 %% `restarting` runs it again in the same process, so that the table stays
 %% full; each kind is asked twice, the process that took it answering
-%% again. Report §10: a `kill` needs no room, so a kill at the full table
-%% makes room, and once the killed process has ended, which a call on it
-%% shows, a spawn takes its place.
+%% again. Report §10, §12.9: a `kill` is a message to a process of the
+%% runtime's own, there from the run's start, and needs no room, so a kill
+%% at the full table makes room, and once the killed process has ended,
+%% which a call on it shows, a spawn takes its place.
 %%
 %% Report §8.6, §11.2: a program that fills its table and faults ends with
 %% its fault reported, its end telling its subscriber of
@@ -3028,8 +3029,9 @@ reconnect(Base) ->
 %% same process, one check for each distinct address; and what foreign code
 %% sends through it reaches the taker.
 %%
-%% Report §10: no lookout, the process beside a check whose target's node
-%% is out of reach, is left once the nodes have connected. The taker's end,
+%% Report §10, §12.9: no lookout, the check's second process while its
+%% target's node is out of reach, which tells the check of that node's
+%% connection, is left once the nodes have connected. The taker's end,
 %% the connection open, then ends the check through the monitor it made
 %% again, and no lookout is left.
 %%
@@ -3072,7 +3074,7 @@ check_through_a_loss(Base) ->
 %% which the loss gives there; told that both nodes have run the loss and
 %% that the taker has ended, the desk opens the connection again by a find.
 %% The process foreign code was given lived until then, and ends after.
-%% Report §10: no lookout is left at the check's end.
+%% Report §10, §12.9: no lookout is left at the check's end.
 %%
 %% Written before its code, and red there: the check ended at the loss, and
 %% the process foreign code was given was dead before the nodes connected
@@ -3105,7 +3107,8 @@ check_of_an_end_out_of_reach(Base) ->
 %% report §8.4: a check ends at the end of its target on another node, the
 %% connection open: the taker the desk spawns on the store is sent 1
 %% through the process foreign code was given, which the store takes, and
-%% then ends, and that process ends. Report §10: no lookout is made.
+%% then ends, and that process ends. Report §10, §12.9: no lookout is
+%% made, the target's node in reach.
 %%
 %% Written before its code, and green there, since the check ended at any
 %% end of the host's monitor of its target; it holds that a check whose
@@ -9431,6 +9434,9 @@ gateway_waits_on_no_peer(Base) ->
 %% after the code: it does not cover a peer's kill, which comes as a frame,
 %% nor the kill of a compute's process, whose note goes the same way, nor a
 %% peer that is stopped, whose wait the kernel's buffers put off.
+%%
+%% Report §12.9: the kill is a message to the launch's killer, which reads
+%% the caller's call before it ends the caller, and so places the note.
 killer_waits_on_no_peer_test_() ->
     ern_harness:nodes_test({waits, 9}, fun killer_waits_on_no_peer/1).
 

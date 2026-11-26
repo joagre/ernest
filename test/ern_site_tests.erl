@@ -49,8 +49,9 @@
 generated_test_() ->
     {setup, fun generated/0, fun(_) -> ok end,
      [{"pages", fun pages/0}, {"assets", fun assets/0}, {"icons", fun icons/0},
-      {"qualified", fun qualified/0}, {"logged", fun logged/0},
+      {"qualified", fun qualified/0}, {"logged", fun logged/0}, {"parts", fun parts/0},
       {"described", fun described/0}, {"refused", {timeout, 30, fun refused/0}},
+      {"collided", {timeout, 30, fun collided/0}},
       {"unlogged", {timeout, 30, fun unlogged/0}},
       {"absolute", {timeout, 30, fun absolute/0}},
       {"additions", {timeout, 30, fun additions/0}},
@@ -188,6 +189,37 @@ logged() ->
                                                   "&lt;-</code> at the Prompt</em></a>"))),
     ?assertMatch({_, _}, binary:match(Releases, <<" <em>Faults</em>;">>)),
     ?assertMatch({_, _}, binary:match(Releases, <<"the log's ", Entry/binary>>)).
+
+%% docs/design/site.md *Anchors*: a part of a section, `#### 11.2.1 The
+%% shell`, is anchored by its section's number and its name and not by its
+%% own number, with the link to itself a section's heading has; a citation
+%% of the part by its name, `§11.2's **The shell**`, links to the part, and
+%% so does a bare `**The shell**` under §11.2, while the same bold text
+%% under another section stays text. A regression test: a part's heading
+%% had no anchor, and a citation of it led to its section.
+parts() ->
+    Page = read(?OUT, "report/toolchain.html"),
+    [?assertMatch({_, _}, binary:match(Page, Shown))
+     || Shown <- [<<"<h4 id=\"11.2-the-shell\">11.2.1 The shell<a class=\"anchor\" "
+                    "href=\"#11.2-the-shell\" aria-label=\"Link to The shell\">#</a></h4>">>,
+                  <<"<h4 id=\"11.2-ern-reload-and-ern-stop\">11.2.2 <code>ern reload</code> and "
+                    "<code>ern stop</code><a class=\"anchor\"">>,
+                  <<"(<a href=\"#11.2-the-shell\"><strong>The shell</strong></a>)">>,
+                  <<"which <a href=\"#11.2-the-shell\">§11.2</a>'s <strong>The shell</strong> "
+                    "shows. Here <strong>The shell</strong> is bold text"/utf8>>]].
+
+%% docs/design/site.md *Anchors*: two parts of one section whose names
+%% give one anchor are refused, naming the anchor, so that no two headings
+%% of a page share one.
+collided() ->
+    Twice = fun(Text) ->
+                    binary:replace(Text, <<"#### 11.2.2 `ern reload` and `ern stop`">>,
+                                   <<"#### 11.2.2 The Shell">>)
+            end,
+    {Status, Output} = varied("build/site/collided", [{"report/toolchain.md", Twice}]),
+    ?assertEqual(1, Status),
+    ?assertMatch({_, _}, binary:match(Output, <<"report/toolchain.md: two parts of section 11.2 "
+                                                "are anchored 11.2-the-shell">>)).
 
 %% docs/design/site.md *Links*: the site's own pages, the
 %% homepage, the shell's and the 404 page, are each described by the first

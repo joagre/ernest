@@ -98,6 +98,27 @@ citations_resolve() ->
     ?assert(length(Live) > 250),
     ?assertEqual([], Dangling).
 
+%% docs/design/site.md *Anchors*: a part of a section, a heading numbered
+%% below its section's, is cited by its name, `§11.2's **What a node
+%% holds**`, and never by its number, a `§` before three numbers, which no
+%% tool reads: tools/citations.ern reads it as its section and the rest as
+%% text. A live document or the code may cite another specification's
+%% section so, after its name, `RFC 9110 §6.6.1`. Written with the parts'
+%% anchors on the site, a regression test.
+no_part_cited_by_number_test_() ->
+    {timeout, 60, fun no_part_cited_by_number/0}.
+
+no_part_cited_by_number() ->
+    Live = (documents() -- ["docs/findings.md"]) ++ ["guide/language.md"]
+        ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
+    ?assert(length(Live) > 250),
+    ?assertEqual([], [{File, Cited}
+                      || File <- Live,
+                         {match, Found} <- [re:run(ern_repository:read(File),
+                                                   "(?<!RFC [0-9]{4} )§[0-9]+\\.[0-9]+\\.[0-9]+",
+                                                   [global, unicode, {capture, first, binary}])],
+                         [Cited] <- Found]).
+
 %% Every citation of the files, paths from Dir, as tools/citations.ern reads
 %% them: {File, Document, Section}, a bare one the document's that the
 %% file's path names, and an appendix's section as section_numbers/1 names
