@@ -245,7 +245,7 @@ The input and the rows under it share the screen's rows less the tail's. The inp
 
 ### Width
 
-A row is measured with `Terminal.width` (E.16), a grapheme at a time, so a wide glyph takes two columns and is never split across rows. An escape sequence takes no column. A clipped row keeps its sequences whole and ends with the reset where one was cut short. Each row a line wraps onto begins with the sequences the rows before it held, so its color carries on as it would unbroken.
+A row is measured with `Terminal.width` (E.16), a grapheme at a time, so a wide glyph takes two columns and is never split across rows. An escape sequence takes no column. A clipped row keeps its sequences whole and ends with the reset where one was cut short. One cutter wraps every line, the tail's, the input's and what is shown under it, and each row a line wraps onto begins with the escape sequences since the last reset, the style in force, so its color carries on as it would unbroken in the fewest bytes.
 
 A tab is painted by the row it falls on (§11.2 *Editing*), and what is committed keeps it.
 

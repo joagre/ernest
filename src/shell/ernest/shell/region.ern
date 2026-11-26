@@ -301,49 +301,15 @@ fn fitting(lines : List(List(String)), room : Int) : List(List(String)) =
             if List.size(rows) > room then [] else rows :: fitting(rest, room - List.size(rows))
     }
 
-// A line cut into rows of the screen's width, each tab drawn to the next
-// stop of its own row, as the terminal draws it. Each continuation begins
-// with every escape sequence the rows before it held, in order, so that
-// it is painted as it would have been unbroken.
-fn wrapped(line : String, width : Int) : List(String) = {
-    let drawn = expand(line);
-    if Terminal.width(drawn) <= width || width < 1 then
-        [drawn]
+// A line cut into rows of the screen's width, as `filled` cuts a line
+// the tail is given, each tab drawn to the next stop of its own row, as
+// the terminal draws it, and each row clipped at the edge (`clip`).
+fn wrapped(line : String, width : Int) : List(String) =
+    if width < 1 then
+        [expand(line)]
     else {
-        let #(sequences, rest) = past(String.graphemes(line), width, 0, "", false);
-        let more = if List.isEmpty(rest) then
-            []
-        else
-            wrapped(sequences <> String.join(rest, ""), width);
-        clip(drawn, width) :: more
-    }
-}
-
-// The escape sequences among the first columns of a row, and the row
-// after them. A grapheme wider than what is left ends the row, but for
-// the first, which a row always takes, so a narrow screen moves on; a tab
-// takes the columns to its stop and never passes the edge.
-fn past(graphemes : List(String),
-        width : Int,
-        used : Int,
-        sequences : String,
-        taken : Bool) : #(String, List(String)) =
-    match sequence(graphemes) {
-        Some(#(escape, remaining)) ->
-            past(remaining, width, used, sequences <> escape, taken)
-      | None ->
-            match graphemes {
-                "\t" :: rest when used < width ->
-                    past(rest,
-                         width,
-                         Int.min(used + tabStop - used % tabStop, width),
-                         sequences,
-                         true)
-              | grapheme :: rest when grapheme != "\t" && fits(grapheme, width - used, taken) ->
-                    past(rest, width, used + Terminal.width(grapheme), sequences, true)
-              | _ ->
-                    #(sequences, graphemes)
-            }
+        let #(rows, last) = filled(line, width);
+        List.map(rows <> [last], fn(row) = clip(expand(row), width))
     }
 
 // Whether the grapheme goes on the row with that many columns left.
@@ -508,11 +474,13 @@ fn clipping(graphemes : List(String),
     }
 
 // The rows a line fills at the screen's width, as the terminal wraps it,
-// and what is left of it. A grapheme wider than what is left of a row
-// begins the next, and a tab takes the columns to its stop and never
-// passes the edge. A row after the first begins with the escape sequences
-// since the last reset, the style in force, so that it is painted as it
-// would have been unbroken.
+// and what is left of it: the one row cutter, of the tail's lines, the
+// input's and what is shown under it. A grapheme wider than what is left
+// of a row begins the next, but for the first, which a row always takes,
+// so a narrow screen moves on, and a tab takes the columns to its stop and
+// never passes the edge. A row after the first begins with the escape
+// sequences since the last reset, the style in force, so that it is
+// painted as it would have been unbroken in the fewest bytes.
 fn filled(line : String, width : Int) : #(List(String), String) =
     if width < 1 then #([], line) else filling(String.graphemes(line), width, 0, "", "", [])
 
@@ -690,11 +658,25 @@ let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge
     Test.equal(rowsOf(region), ["> ", "abcdef", "gh"])
 })
 
-let wrapKeepsColor =
-    Test.Case(name = "a wrapped row is colored on as it was",
-              run = fn() =
-                  Test.equal(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
-                             ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
+// Report §11.2: a row the input or what is shown under it wraps onto
+// begins with the escape sequences since the last reset, as a row of the
+// tail does: the style in force for a row cut inside a styled run, and
+// nothing for one cut after a reset.
+let wrapKeepsColor = Test.Case(name = "a wrapped row begins with the style in force", run = fn() = {
+    let styled = wrapped("\u{1b}[1mab\u{1b}[32mcdefgh\u{1b}[0m", 6);
+    let reset = wrapped("\u{1b}[1mab\u{1b}[0mcdefgh", 6);
+    Test.equal(#(styled, reset),
+               #(["\u{1b}[1mab\u{1b}[32mcdef", "\u{1b}[1m\u{1b}[32mgh\u{1b}[0m"],
+                 ["\u{1b}[1mab\u{1b}[0mcdef", "gh"]))
+})
+
+// Report §11.2: the rows under the input wrap as a line of the tail does.
+let offerWrapsAfterReset =
+    Test.Case(name = "a row shown under the input wraps after a reset unstyled", run = fn() = {
+        let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
+        let #(region, _) = edited(region, "", 0, ["\u{1b}[1mab\u{1b}[0mcdefgh"]);
+        Test.equal(rowsOf(region), ["> ", "\u{1b}[1mab\u{1b}[0mcdef", "gh"])
+    })
 
 let offerCounted = Test.Case(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count

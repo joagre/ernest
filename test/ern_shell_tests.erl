@@ -2419,7 +2419,7 @@ listing_at_once() ->
                 {8, 80}),
     %% under the line, cut to the eight rows with the count last
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 8 more">>)).
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 9 more">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: `Shift-Tab` on a name shows its type,
 %% its first sentence, and the version it appeared in, and its page when
@@ -5468,6 +5468,22 @@ libraries_in_the_shell() ->
     ?assertMatch({_, _}, binary:match(Output, <<"build/libs/json/json.erc\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> \"[1]\\n\" : String\n">>)).
 
+%% report §4.4, §11.4: the shell's two mailbox types its entry points
+%% receive, `ShellMsg` and `LocalMsg`, are exported as abstract types, so
+%% that the module's page names each with what it is and shows no
+%% constructor
+mailbox_types_documented_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun mailbox_types_documented/0).
+
+mailbox_types_documented() ->
+    {0, Page} = ern_pty:sh("../bin/ern doc ../src/shell/ernest/shell.ern"),
+    [?assertMatch({_, _}, binary:match(Page, <<"## Ernest.Shell.", Name/binary, "\n\n```ernest\n"
+                                               "abstract type ", Name/binary, "\n```\n\n",
+                                               About/binary>>))
+     || {Name, About} <- [{<<"ShellMsg">>, <<"What the session is told.">>},
+                          {<<"LocalMsg">>, <<"What the local half is told,">>}]],
+    ?assertEqual(nomatch, binary:match(Page, [<<"Typed(">>, <<"Attached(">>])).
+
 %% report §11.2: the commands the list of its part *Commands* names are the
 %% shell's own list, `Ernest.Shell.Command.commands`, each once; a mirror, a
 %% list that lives in the code and in the report (docs/development.md,
@@ -6481,6 +6497,42 @@ reload_keeps_ground_values() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> 6 : Int\n> \"new\" : String\n> 12 : Int\n> ",
                                                 NoValue/binary>>)).
 
+%% report §11.2 *Loading and reloading*, Appendix E.21: a reloaded binding
+%% that faults is reported with its cause and its trace beneath, a frame a
+%% line, as `:load` writes a faulting binding's: where the bindings before
+%% it keep their values, and where a module the reload loads for the first
+%% time faults and nothing is reloaded. A regression test: the reload wrote
+%% the cause alone
+reload_writes_the_trace_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_writes_the_trace/0).
+
+reload_writes_the_trace() ->
+    Dir = scratch("ern_reload_trace_"),
+    ok = file:write_file(filename:join(Dir, "demo.ern"),
+                         "export let a : Int = 1\nexport let b : Int = 2\n"),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export let y : Int = 1\n"),
+    {0, Output} =
+        source_root_session(Dir, [":load Demo\n:load Top\n",
+                                  write_source(Dir, "demo.ern",
+                                               "export let a : Int = 5\n"
+                                               "export let b : Int = 1 / List.size([])\n"),
+                                  ":reload\nDemo.a\n",
+                                  write_source(Dir, "top.ern", "export let y : Int = Fresh.z\n"),
+                                  write_source(Dir, "fresh.ern",
+                                               "export let z : Int = 1 / List.size([])\n"),
+                                  ":reload\nTop.y\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"Demo$2.b:2 faulted: division by zero; it and"
+                                                " the bindings after it whose hash changed, or"
+                                                " which are new, are without a value, but one"
+                                                " compiled to its value has it, and the rest keep"
+                                                " the values of the previous version\n"
+                                                "    erlang:'div'/2\n    Demo$2.b:2\n"
+                                                "> 5 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Fresh.z:1 faulted: division by zero;"
+                                                " nothing was reloaded\n"
+                                                "    erlang:'div'/2\n    Fresh.z:1\n"
+                                                "> 1 : Int\n">>)).
+
 %% report §11.2, §6.9: a `:load` whose binding's process is killed loads
 %% nothing, and says the binding was killed, by its site, a kill being no
 %% fault; the process a binding before it started is killed and named. A
@@ -6687,7 +6739,8 @@ reload_refused_by_a_new_module() ->
                                                          "export let y : Int = Helper.x + 2\n"),
                                             ":reload\nA.y\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Helper.x:1 faulted: division by zero; nothing was"
-                                                " reloaded\n> 1 : Int">>)).
+                                                " reloaded\n    erlang:'div'/2\n    Helper.x:1\n"
+                                                "> 1 : Int">>)).
 
 %% report §11.2, §11.1, §6.9: on a node, a module loaded from its compiled
 %% form whose unit the node holds with other code, here since the build

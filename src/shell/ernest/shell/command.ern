@@ -61,7 +61,8 @@ export fn commands() : List(Command) =
              action = Browse,
              placeholder = "Module",
              takes = Allows(Modules),
-             about = "the exports of Module with their types"),
+             about = "the exports of Module with their types; :browse alone lists what it"
+                 <> " takes"),
      Command(name = "doc",
              action = Doc,
              placeholder = "Name",
@@ -347,7 +348,9 @@ let completing =
 let helpLines =
     Test.Case(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {
         Picked(command) ->
-            Test.equal(line(command), ":browse Module  the exports of Module with their types")
+            Test.equal(line(command),
+                       ":browse Module  the exports of Module with their types; :browse alone lists"
+                           <> " what it takes")
       | _ ->
             Test.Failed("browse")
     })

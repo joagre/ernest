@@ -122,7 +122,7 @@ zero : () -> Int
 > > the session declares nothing yet
 > Commands, which a prefix of the name selects where it begins no other:
   :bindings       what the session declares, with their types
-  :browse Module  the exports of Module with their types
+  :browse Module  the exports of Module with their types; :browse alone lists what it takes
   :doc Name       the documentation of Name
   :faults         the faults reported since the session began
   :forget name    a name the session declared, forgotten, or every one for *

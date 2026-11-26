@@ -33,20 +33,19 @@ type Outcome =
             peer : Optional(String),
             serial : Int)
 
-// What the session is told. In a plain shell its local half sends `Begun`
-// with what it read; the reader sends `Typed` for an input entered,
-// `Interrupted` for `C-c`, and `InputEnded` for `C-d` on an empty input; in
-// line mode the local half's reader of lines, `nextRead`, sends `Line` for
-// each line it reads, `None` at the end of input; the input's process sends
-// `Done` as it ends, its
-// outcome carrying the input's serial, so that the outcome of one
-// `Interrupted` killed is known wherever it arrives;
-// `Process.subscribeFaults` sends `Reported` for every fault, and the front
-// end `Reloaded` for a reload by another session of the node, the modules
-// it compiled again and the session's number; and the monitors on the
-// reader, the screen and the local half `ReaderDied`, `ScreenDied` and
-// `LocalEnded` for their ends.
-type ShellMsg =
+/// What the session is told. In a plain shell its local half sends `Begun`
+/// with what it read; the reader sends `Typed` for an input entered,
+/// `Interrupted` for `C-c`, and `InputEnded` for `C-d` on an empty input; in
+/// line mode the local half's reader of lines, `nextRead`, sends `Line` for
+/// each line it reads, `None` at the end of input; the input's process sends
+/// `Done` as it ends, its outcome carrying the input's serial, so that the
+/// outcome of one `Interrupted` killed is known wherever it arrives;
+/// `Process.subscribeFaults` sends `Reported` for every fault, and the front
+/// end `Reloaded` for a reload by another session of the node, the modules
+/// it compiled again and the session's number; and the monitors on the
+/// reader, the screen and the local half `ReaderDied`, `ScreenDied` and
+/// `LocalEnded` for their ends (report §11.2).
+export abstract type ShellMsg =
     Typed(String)
   | InputEnded
   | Interrupted
@@ -184,25 +183,25 @@ type StartupInput = StartupInput(file : String, line : Int, input : String)
 type HistoryRead =
     HistoryRead(earlier : List(String), historyFile : Optional(String), notes : List(String))
 
-// Report §11.2: what the local half is told, on the shell's own node. Its
-// session sends `Attached` once it has its screen, a call, with the
-// session's process, the address the terminal's events go to at a
-// terminal, and its screen's process, which what the shell's own node
-// writes goes to; the screen sends `Write` for the bytes it writes, with
-// the bytes that end what it drew where they leave it, and `Drain`,
-// answered once they are written.
-//
-// The reader sends `Remember` for an input the history appends; the
-// session sends `Output` for the path `:output` names, which the local half
-// tries and appends to from then on, the screen `Append` for what `:output`
-// appends there, and the session in line mode `ReadLine`, answered with
-// the next line at the address it gives; the front end asks `Read` and
-// `Stat` of a file of the source root, or of a startup file it ran, and
-// the reader's completion `ListEntries` of a directory of the source root.
-// The terminal sends `Pressed` for each event, and the monitors on the session, on the
-// root of an attached session's chain and on the reader of lines
-// `SessionEnded`, `EntryEnded` and `LinesEnded`.
-type LocalMsg =
+/// What the local half is told, on the shell's own node (report §11.2). Its
+/// session sends `Attached` once it has its screen, a call, with the
+/// session's process, the address the terminal's events go to at a
+/// terminal, and its screen's process, which what the shell's own node
+/// writes goes to; the screen sends `Write` for the bytes it writes, with
+/// the bytes that end what it drew where they leave it, and `Drain`,
+/// answered once they are written.
+///
+/// The reader sends `Remember` for an input the history appends; the
+/// session sends `Output` for the path `:output` names, which the local half
+/// tries and appends to from then on, the screen `Append` for what `:output`
+/// appends there, and the session in line mode `ReadLine`, answered with
+/// the next line at the address it gives; the front end asks `Read` and
+/// `Stat` of a file of the source root, or of a startup file it ran, and
+/// the reader's completion `ListEntries` of a directory of the source root.
+/// The terminal sends `Pressed` for each event, and the monitors on the
+/// session, on the root of an attached session's chain and on the reader of
+/// lines `SessionEnded`, `EntryEnded` and `LinesEnded`.
+export abstract type LocalMsg =
     Attached(session : Process,
              keys : Optional(Address(Terminal.Event)),
              screen : Process,

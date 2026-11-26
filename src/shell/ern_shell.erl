@@ -3867,7 +3867,8 @@ changed_at_start(#session{source_hashes = SourceHashes, source_expected = Expect
 %% first time faults, or is not evaluated since one before it faulted,
 %% nothing is reloaded; where one of a new version faults, it and the
 %% bindings after it keep the previous version's values, each where the
-%% previous version has it of one hash.
+%% previous version has it of one hash. Either way the binding's trace
+%% stands beneath its line, as `:load` writes it.
 reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, SourcelessLines) ->
     All = Needed ++ Compiled,
     Session1 = install(Session, All),
@@ -3885,8 +3886,8 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
                                 [kept_values_line(Site, End)], SourcelessLines);
                 true ->
                     Killed = withdraw(All, Evaluators),
-                    {'Left', <<(binding_end(Site, End))/binary, "; nothing was reloaded",
-                               (killed_text(Killed))/binary, "\n">>}
+                    {'Left', iolist_to_binary([binding_end(Site, End), "; nothing was reloaded",
+                                               killed_text(Killed), "\n", end_trace(End)])}
             end
     end.
 
@@ -3930,11 +3931,13 @@ loaded_line(_Session, #compiled{namespace = Namespace, erc = Erc}) ->
 %% Report §11.2: a reloaded module's binding that faulted, after which the
 %% bindings the reload left as they were keep what the previous version
 %% gave them, one compiled to its value has it (§11.1), and the rest have
-%% no value (kept_values/2).
+%% no value (kept_values/2); its trace stands beneath, as `:load` writes a
+%% faulting binding's (Appendix E.21).
 kept_values_line(Site, End) ->
-    <<(binding_end(Site, End))/binary, "; it and the bindings after it whose hash changed, or"
-      " which are new, are without a value, but one compiled to its value has it, and the rest"
-      " keep the values of the previous version">>.
+    Line = [binding_end(Site, End), "; it and the bindings after it whose hash changed, or"
+            " which are new, are without a value, but one compiled to its value has it, and the"
+            " rest keep the values of the previous version"],
+    string:trim(iolist_to_binary([Line, "\n", end_trace(End)]), trailing, "\n").
 
 %% Report §11.2, §8.5: each binding of a new version the reload's fault left
 %% without a value takes the value the previous version gave it, where the
