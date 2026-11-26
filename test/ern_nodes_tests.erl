@@ -6330,7 +6330,7 @@ attached_startup_diagnostic(Base) ->
 %% the binding's process, subscribed to the program's end, says so as the
 %% node ends. Written with the code, the evaluator's row of the screen
 %% taken from the input's chain and dropped with the session's
-%% (ern_rt:evaluate/2, drop_screens/1)
+%% (ern_rt:evaluate/3, drop_screens/1)
 attached_code_load_test_() ->
     ern_harness:nodes_test({waits, 10}, fun attached_code_load/1).
 
@@ -6808,6 +6808,46 @@ attached_terminal_size(Base) ->
     {ok, Answered} = file:read_file(Output),
     ern_harness:has(binary_to_list(Answered), "Right(Terminal.Size(rows = 30, columns = 100))"
                                               " : Either(Io.Error, Terminal.Size)").
+
+%% report §11.2 *The attached shell*, *Loading and reloading*: in a shell
+%% attached at a terminal, the interrupt kills the evaluator of a running
+%% `:load`, on the node, as in a plain shell: the load answers with the
+%% binding's site and `was killed`, and the session goes on, one prompt
+%% after the answer. The binding says when it waits, and the interrupt is
+%% sent then. Written with the code: before it the load held the session
+%% for ever
+attached_load_interrupted_test_() ->
+    ern_harness:nodes_test({waits, 8}, fun attached_load_interrupted/1).
+
+attached_load_interrupted(Base) ->
+    ok = file:write_file(filename:join(Base, "hang.ern"),
+                         "export let waited : Unit = {\n"
+                         "    Io.println(\"waiting\");\n"
+                         "    Clock.sleep(3600000)\n"
+                         "}\n"),
+    Port = ern_harness:free_port(),
+    Node = ern_harness:made(Base, "node", Port),
+    Ops = ern_harness:made(Base, "ops", none),
+    ern_harness:lists(Node, [{"ops", Ops, none}]),
+    ern_harness:lists(Ops, [{"node", Node, Port}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                           " --attach node --source-root ", Base]),
+    {_, WaitNode} = ern_harness:launched(Node, [?ERN, " run --config-dir ", Node]),
+    ern_harness:says(Node, "listening on "),
+    Killed = "Hang.waited:1 was killed; nothing was loaded",
+    {0, Screen} = ern_pty:run(Shell, [{expect, ":help for help."}, {expect, "> "},
+                                      {send, hex(":load Hang\r")}, {expect, "waiting"},
+                                      {send, "03"}, {expect, Killed},
+                                      {send, hex("1 + 1\r")}, {expect, "2 : Int"},
+                                      {send, hex(":quit\r")}],
+                              [screen]),
+    Rows = [string:trim(Row, trailing)
+            || Row <- string:split(binary_to_list(Screen), "\n", all)],
+    ?assertMatch({["> :load Hang", "waiting", Killed, "> 1 + 1", "2 : Int" | _], _},
+                 {lists:dropwhile(fun(Row) -> Row =/= "> :load Hang" end, Rows), Rows}),
+    ern_harness:stop(Node, WaitNode).
 
 %% A node's program whose worker faults once the named pipe it is given
 %% has been opened and closed, each run of `cat` waiting the harness's time

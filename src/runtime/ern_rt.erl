@@ -67,7 +67,7 @@
          say_later/2, later_sayer/0, wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, ended_at_once/0,
          stream_gone/1, initializing/1,
-         evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
+         evaluate/3, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
          withdraw_load/2,
          binding/1, binding_value/2, is_initialized/1,
          restarting/2, restart_now/0, ask_restart/1,
@@ -88,7 +88,7 @@
                           waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, forever_answer/2, until_ended/1, finished/1,
-                         waited_evaluation/2, evaluated_lives/1, sleep_until/1]}).
+                         waited_end/4, evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2, captured/1, checker_for/3]}).
@@ -109,7 +109,7 @@
 %% end (entered_foreign/0); TIMED while it waits in a receive with a
 %% deadline (timed/0); CALL while it makes a call, its #call{} (pending/1);
 %% LOAD while it waits for a load's evaluator, the evaluator, which a
-%% deadlock then faults in its place (evaluate/2, deadlock/0), and the
+%% deadlock then faults in its place (evaluate/3, deadlock/0), and the
 %% moment the wait began.
 %%
 %% Report §6.6, §6.9, §8.7: CALL is the call's record in the caller too,
@@ -142,12 +142,17 @@
 %% Report Appendix G.1, E.28, §11.2: in every process that made a table, the
 %% tables it made, newest first, which it owns until it ends or a table is
 %% closed, so that what it owns is known without reading every table of the
-%% node: by a load's evaluator at its end (evaluate/2), and by
+%% node: by a load's evaluator at its end (evaluate/3), and by
 %% `Ets.ownedCount` of another (owned_tables/1). Report Appendix E.21: in
 %% a process that started a process to end with it, that process
 %% (ends_with_caller/1, owned/1). Each is owned_listed/3's.
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
+%% Report §11.2: in a shell's load's evaluator until it begins its first
+%% binding, its caller and the reference of its outcome, which the
+%% evaluator tells it begins then, or `interrupted`, where an interrupt came
+%% before it was spawned, which kills it then (initializing/1, evaluate/3).
+-define(BEGINNING, '$ern_beginning').
 
 %% A socket's process and a running program's keep their writer, the
 %% process that does their writes, under this key, which Process.status
@@ -214,7 +219,7 @@
 %% attached to, {Root, Sink}, Sink the function its processes' writes to
 %% standard output and standard error go through, as the launch's options
 %% give the node's own (started_system/1); written by the session and by
-%% an evaluator its chain started (screen/2, evaluate/2), which keeps its
+%% an evaluator its chain started (screen/2, evaluate/3), which keeps its
 %% row past its own end, since what it started is the session's until the
 %% session ends; dropped by the session as it detaches and by a load
 %% withdrawn (drop_screens/1, drop_screen/1), and read by the standard streams at
@@ -733,7 +738,7 @@ spawn_monitored_root(Function, Wrap, Site) ->
 %% process the root is read from, the spawner or the process a process of
 %% the runtime's own acts for (current/0); root, where it is its own; or
 %% evaluator, where it is its own and the process is a load's evaluator
-%% (evaluate/2).
+%% (evaluate/3).
 %%
 %% Report §7.4, §12.5: a spawn beyond the host's limit of processes faults
 %% the spawner with the host's class and reason, `Fault("error:system_limit")`,
@@ -1691,7 +1696,7 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% load's evaluator heads a chain of its own, its row marked expected and
 %% the runtime's own as it is written, so that its fault is reported to no
 %% one, Process.live() never lists it and Process.status knows it not
-%% (evaluate/2); a peer's spawn, {peer,
+%% (evaluate/3); a peer's spawn, {peer,
 %% Node}, heads a chain of its own, and its row keeps the peer's node,
 %% which its fault's line names (§11.2), and so does a peer's compute,
 %% {compute, Node, Caller, Alias}, whose process starts only once its note
@@ -2099,7 +2104,7 @@ deadlock() ->
     end.
 
 %% Report §8.6, Appendix E.28: the evaluator of a load whose caller waits
-%% for it, under its LOAD key (evaluate/2), the one spawned last where
+%% for it, under its LOAD key (evaluate/3), the one spawned last where
 %% several wait, so that a load called in a load's evaluation is refused
 %% before the load it is called in; or none. Read once a deadlock is found,
 %% from the live processes' dictionaries, so that no load writes a row for
@@ -2609,7 +2614,7 @@ is_shells_own(Pid) ->
 %% that process is kept from the terminal and standard input and faulted
 %% by Os.exit as in any shell: the session writes the row of its own root,
 %% which its inputs are chained to, and an evaluator started in a chain
-%% with a screen writes its own (evaluate/2); the session drops them all
+%% with a screen writes its own (evaluate/3); the session drops them all
 %% as it detaches (drop_screens/1).
 -spec screen(pid(), fun((binary()) -> term())) -> 'Unit'.
 screen(Root, Sink) ->
@@ -5425,13 +5430,22 @@ told_runner(Tag, What) ->
 
 %% Report §8.5, §11.2: the binding the calling process evaluates now, whose
 %% site a fault while it does is reported under, as a spawn's is: the entry
-%% process's as its program starts, and an evaluator's (evaluate/2), each a
-%% process with a row. Outside a run there is no site to change.
+%% process's as its program starts, and an evaluator's (evaluate/3), each a
+%% process with a row. Outside a run there is no site to change. Report
+%% §11.2: a shell's load's evaluator, as it begins its first binding, its
+%% site written first, tells its caller once, so that the interrupt is
+%% taken from then on, or is killed there, as `kill` kills it, where an
+%% interrupt came before it was spawned (evaluate/3).
 -spec initializing(binary()) -> 'Unit'.
 initializing(Site) ->
     _ = try ets:update_element(?PROCESSES, erlang:self(), {#process_row.site, Site})
         catch error:badarg -> false
         end,
+    case erlang:erase(?BEGINNING) of
+        undefined -> ok;
+        {Caller, Ref} -> Caller ! {Ref, begun};
+        interrupted -> killed(erlang:self(), {ern, killed})
+    end,
     ?UNIT.
 
 %% The calling process's site, the binding it evaluates where it evaluates
@@ -5477,25 +5491,57 @@ site() ->
 %% goes where the load is withdrawn (withdraw_load/2). A caller that meets a
 %% fault or a restart asked for at its wait undoes this evaluation first, as
 %% a binding's fault undoes it, and then faults or restarts (§6.5, §6.9).
--spec evaluate([module()], binary()) ->
+%%
+%% Report §11.2: Interrupt, a shell's, is the message in the caller's
+%% mailbox that kills the evaluator as `kill` kills a process, so that its
+%% end reads killed, or none. One that came before the evaluator is spawned
+%% kills it as it begins its first binding, which its end names; one that
+%% comes later is taken once the evaluator has begun its first binding, and
+%% kills it wherever it runs then (initializing/1). Neither kills one that
+%% begins none, its bindings all constants (§4.6). The interrupt is put back
+%% once taken, so that the caller reads every interrupt that came, the one
+%% that killed among them, and no later evaluation of the caller's takes it.
+-spec evaluate([module()], binary(), term()) ->
           {evaluated, pid()} | {ended, pid(), binary(), {faulted, binary(), binary()} | killed}.
-evaluate(Units, Site) ->
+evaluate(Units, Site, Interrupt) ->
     Ref = make_ref(),
     Caller = erlang:self(),
-    Evaluator = evaluator(Units, Site, Caller, Ref, screen_of(current()), [{Caller, Ref}]),
-    case evaluation_waited(Evaluator, Ref) of
+    {Beginning, Phase} = beginning(Interrupt, {Caller, Ref}),
+    Evaluator = evaluator(Units, Site, Caller, Ref, screen_of(current()), [{Caller, Ref}],
+                          Beginning),
+    case evaluation_waited(Evaluator, Ref, Interrupt, Phase) of
         evaluated ->
             {evaluated, Evaluator};
         {ended, BindingSite, How} ->
             {ended, Evaluator, BindingSite, How};
         {interrupted, _} = Interrupted ->
             evaluator_ended(Evaluator, Ref),
-            receive {Ref, _} -> ok after 0 -> ok end,
+            told(Ref),
             _ = withdraw_load([Evaluator], Units),
             resumed(Interrupted)
     end.
 
-%% Report Appendix E.28: Code.load's evaluation, evaluate/2's, settled by a
+%% Report §11.2: what the evaluator is given to do as it begins its first
+%% binding, and the phase its caller's wait begins in (waited_end/4): with
+%% no interrupt, nothing; where one came, which is put back, to be killed;
+%% and else to tell Told.
+beginning(none, _) ->
+    {none, unbegun};
+beginning(Interrupt, Told) ->
+    receive
+        Interrupt ->
+            erlang:self() ! Interrupt,
+            {interrupted, killed}
+    after 0 ->
+        {Told, unbegun}
+    end.
+
+%% What the evaluator told its caller under Ref and the caller did not
+%% take, its outcome and that it began, taken.
+told(Ref) ->
+    receive {Ref, _} -> told(Ref) after 0 -> ok end.
+
+%% Report Appendix E.28: Code.load's evaluation, evaluate/3's, settled by a
 %% process of the runtime's own, its settler, which watches the caller from
 %% before it spawns the evaluator, so that the load is whole or undone
 %% however the caller ends. Where the caller ends before it hands the
@@ -5506,7 +5552,7 @@ evaluate(Units, Site) ->
 %% whole, its units marked initialized (§8.7), or undoes it, and answers.
 %% Report §8.6: the caller's waits for the settler are on a process the
 %% look cannot see deliver (entered_foreign/0); its wait for the evaluator
-%% is the look's as evaluate/2's is. `evaluated`, or the binding's site and
+%% is the look's as evaluate/3's is. `evaluated`, or the binding's site and
 %% how it ended.
 -spec evaluate_load([module()], binary()) ->
           evaluated | {ended, binary(), {faulted, binary(), binary()} | killed}.
@@ -5515,7 +5561,7 @@ evaluate_load(Units, Site) ->
     Ref = make_ref(),
     Word = make_ref(),
     Sink = screen_of(current()),
-    Spawn = fun(Watchers) -> evaluator(Units, Site, Caller, Ref, Sink, Watchers) end,
+    Spawn = fun(Watchers) -> evaluator(Units, Site, Caller, Ref, Sink, Watchers, none) end,
     Settler = reaper_held(launch_reaper(),
                           fun() -> settler(Caller, {Word, Ref}, Spawn, Units) end),
     MonitorRef = erlang:monitor(process, Settler),
@@ -5525,7 +5571,7 @@ evaluate_load(Units, Site) ->
     %% kept the settler from spawning faults the caller as its own spawn
     %% would (spawn_with_monitors/4)
     is_pid(Evaluator) orelse erlang:error(Evaluator),
-    Waited = evaluation_waited(Evaluator, Ref),
+    Waited = evaluation_waited(Evaluator, Ref, none, unbegun),
     case Waited of
         {interrupted, _} -> unwatched(Evaluator, Ref);
         _ -> ok
@@ -5597,10 +5643,12 @@ resumed(Settled) -> Settled.
 
 %% The evaluator of Units at Site, which tells Caller its outcome under Ref,
 %% and whose end the reaper tells each of Watchers under its tag, as a raw
-%% monitor tells it.
-evaluator(Units, Site, Caller, Ref, Sink, Watchers) ->
+%% monitor tells it; Beginning, what it does as it begins its first
+%% binding, or none (initializing/1).
+evaluator(Units, Site, Caller, Ref, Sink, Watchers, Beginning) ->
     Evaluation = fun() ->
                      Sink =:= none orelse screen(erlang:self(), Sink),
+                     Beginning =:= none orelse erlang:put(?BEGINNING, Beginning),
                      Outcome = try lists:foreach(fun(Unit) -> Unit:'$init'() end, Units) of
                                    ok -> {evaluated, is_owner()}
                                catch
@@ -5621,8 +5669,8 @@ evaluator(Units, Site, Caller, Ref, Sink, Watchers) ->
 
 %% The caller's wait for its evaluator, the monitor of one that lives on
 %% ended (unwatched/2).
-evaluation_waited(Evaluator, Ref) ->
-    case waited_evaluation(Evaluator, Ref) of
+evaluation_waited(Evaluator, Ref, Interrupt, Phase) ->
+    case waited_evaluation(Evaluator, Ref, Interrupt, Phase) of
         lives ->
             unwatched(Evaluator, Ref),
             evaluated;
@@ -5639,34 +5687,61 @@ evaluation_waited(Evaluator, Ref) ->
 %% evaluator ended from outside, its site and its reason. A restart asked
 %% of the caller, and a fault met on a message's way to it, are taken at
 %% this wait as at a call's, and interrupt the load (§6.9, §6.5).
-waited_evaluation(Evaluator, Ref) ->
+waited_evaluation(Evaluator, Ref, Interrupt, Phase) ->
     _ = erlang:put(?LOAD, {Evaluator, monotonic()}),
     try
-        receive
-            {Ref, {evaluated, true}} ->
-                lives;
-            {Ref, {evaluated, false}} ->
-                receive {Ref, _, _} -> evaluated end;
-            {Ref, {ended, _, _} = Ended} ->
-                receive {Ref, _, _} -> Ended end;
-            {Ref, Site, ExitReason} ->
-                Trace = case ExitReason of
-                            {ern, fault, _, FaultTrace} -> FaultTrace;
-                            _ -> <<>>
-                        end,
-                {ended, Site, case reason(ExitReason) of
-                                  'Killed' -> killed;
-                                  {'Fault', Cause} -> {faulted, Cause, Trace};
-                                  Other -> {faulted, atom_to_binary(Other), Trace}
-                              end};
-            '$ern_restart' ->
-                {interrupted, restart};
-            {'$ern_fault', Fault} ->
-                {interrupted, {fault, Fault}}
-        end
+        waited_end(Evaluator, Ref, Interrupt, Phase)
     after
         erlang:erase(?LOAD)
     end.
+
+%% Report §11.2: the wait in its Phase, `unbegun` until the evaluator
+%% begins its first binding, `begun` once it has, when the interrupt is
+%% taken, and `killed` once the interrupt has killed it or will as it
+%% begins, the interrupt put back (evaluate/3). After the kill, an evaluator
+%% that had finished its bindings answers as it ended: one that returned is
+%% evaluated, and one the kill ended, since it lived on owning what a
+%% binding opened, which ended with it, is killed.
+waited_end(Evaluator, Ref, Interrupt, Phase) ->
+    receive
+        {Ref, begun} ->
+            waited_end(Evaluator, Ref, Interrupt, begun);
+        Interrupt when Phase =:= begun ->
+            killed(Evaluator, {ern, killed}),
+            erlang:self() ! Interrupt,
+            waited_end(Evaluator, Ref, Interrupt, killed);
+        {Ref, {evaluated, _}} when Phase =:= killed ->
+            receive
+                {Ref, _, normal} -> evaluated;
+                {Ref, Site, ExitReason} -> ended_from_outside(Site, ExitReason)
+            end;
+        {Ref, {evaluated, true}} ->
+            lives;
+        {Ref, {evaluated, false}} ->
+            receive {Ref, _, _} -> evaluated end;
+        {Ref, {ended, _, _} = Ended} ->
+            receive {Ref, _, _} -> Ended end;
+        {Ref, Site, ExitReason} ->
+            ended_from_outside(Site, ExitReason);
+        '$ern_restart' ->
+            {interrupted, restart};
+        {'$ern_fault', Fault} ->
+            {interrupted, {fault, Fault}}
+    end.
+
+%% The end of an evaluator ended from outside, at the site of the binding
+%% it evaluated: killed, or faulted with its cause and its trace, empty
+%% where it had none.
+ended_from_outside(Site, ExitReason) ->
+    Trace = case ExitReason of
+                {ern, fault, _, FaultTrace} -> FaultTrace;
+                _ -> <<>>
+            end,
+    {ended, Site, case reason(ExitReason) of
+                      'Killed' -> killed;
+                      {'Fault', Cause} -> {faulted, Cause, Trace};
+                      Other -> {faulted, atom_to_binary(Other), Trace}
+                  end}.
 
 %% Report Appendix E.28: whether the evaluator owns what a binding opened: a
 %% listener, a socket or a running program, each of which watches its owner

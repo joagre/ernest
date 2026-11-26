@@ -191,7 +191,7 @@ watched_request(Work, Reply, Workers) ->
 %% before its address is given out (report §8.6), under the function that
 %% opened it, and as started by its owner (Appendix E.18), whom it watches
 %% from before then too, so that what an owner holds is what watches it
-%% (ern_rt:evaluate/2); Loop is given the monitor, and what Made made in
+%% (ern_rt:evaluate/3); Loop is given the monitor, and what Made made in
 %% the process before its address is given out, a socket's writer, once the
 %% host's socket is the process's. Report §7.4, §12.5: where the host's
 %% table of processes is full, so that the process or what Made makes

@@ -20,7 +20,7 @@
 %% started, asking for the fault of Cause, whose fault of another cause
 %% gives its trace to the case's line (ern_rt:expected/2, Appendix E.24),
 %% true for a load's evaluator, whose fault the load answers
-%% (ern_rt:evaluate/2, Appendix E.28), or false; fault: the #fault{} it ended
+%% (ern_rt:evaluate/3, Appendix E.28), or false; fault: the #fault{} it ended
 %% with, written as it ends (ern_rt:ended_with/2), which the reaper reports
 %% beside the host's term of its end (§12.2); `carried` for a compute's
 %% process whose fault went to its caller, which no one here is told of
@@ -29,7 +29,7 @@
 %% which the session marks, `input` for an input's process, which marks
 %% itself, `evaluator` for a load's evaluator, the runtime's own,
 %% marked as it is spawned, which Process.status knows not, or none; and
-%% Process.live() leaves out each (ern_rt:own/1, ern_rt:evaluate/2,
+%% Process.live() leaves out each (ern_rt:own/1, ern_rt:evaluate/3,
 %% Appendix E.21, E.28, §11.2).
 
 -record(fault, {cause, trace = none, callee = none, peer = none, time = none}).

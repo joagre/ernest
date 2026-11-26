@@ -1160,7 +1160,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit =
 // Report §11.2: a command line, trimmed as an input is, whose refusal
 // names what was typed, each control character written as its escape, as a
 // fault's cause is.
-fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
+fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next receiving ShellMsg =
     match Command.parse(String.trim(input)) {
         Left(text) -> refuseCommand(state, screen, escaped(text))
       | Right(#(action, argument)) -> obey(state, screen, action, argument, argumentColumn(input))
@@ -1180,7 +1180,7 @@ fn obey(state : State,
         screen : Address(ScreenMsg),
         action : Command.Action,
         argument : String,
-        column : Int) : Next = {
+        column : Int) : Next receiving ShellMsg = {
     let State(=session, =color) = state;
     match action {
         // report §11.2: `:quit` leaves every shell, an attached one's node
@@ -1247,18 +1247,40 @@ fn obey(state : State,
                                   screen,
                                   List.map(reports, fn(report) = stampedLine(report, color)))
             }
-      | Command.Load ->
-            match load(session, argument) {
+      | Command.Load -> {
+            let loaded = load(session, argument);
+            dropInterrupts(screen);
+            match loaded {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
               | Right(#(session, line)) -> answerCommand(State(..state, =session), screen, [line])
             }
-      | Command.Reload ->
-            match reload(session) {
+        }
+      | Command.Reload -> {
+            let reloaded = reload(session);
+            dropInterrupts(screen);
+            match reloaded {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
               | Right(#(session, lines)) -> answerCommand(State(..state, =session), screen, lines)
             }
+        }
     }
 }
+
+// Report §11.2: the interrupts that came while a `:load` or a `:reload`
+// ran, the one that killed its evaluator among them, taken before it
+// answers, so that none reaches the prompt or the input typed meanwhile,
+// which waits in the mailbox and runs after the answer. Each abandoned the
+// line being typed, whose end the session draws as at an input's
+// interrupt.
+fn dropInterrupts(screen : Address(ScreenMsg)) : Unit receiving ShellMsg =
+    receive {
+        Interrupted -> {
+            send(screen, Entered);
+            dropInterrupts(screen)
+        }
+      | after 0 ->
+            Unit
+    }
 
 // Report §11.2: `:type` of an expression that is not one name, checked
 // as an input is and not run.
@@ -2525,10 +2547,15 @@ foreign fn changedAtStart(session : Session) : List(String) =
 foreign fn isEntry(process : Process) : Bool =
     "ern_shell:is_entry/1"
 
-foreign fn load(session : Session, name : String) : Either(String, #(Session, String)) =
+// Report §11.2, §4.7: `:load` and `:reload`, which receive from the
+// session's mailbox the interrupt that kills the evaluator that runs, put
+// back once taken, so that the session drops it with every other that came
+// (`dropInterrupts`).
+foreign fn load(session : Session,
+                name : String) : Either(String, #(Session, String)) receiving ShellMsg =
     "ern_shell:load/2"
 
-foreign fn reload(session : Session) : Either(String, #(Session, List(String))) =
+foreign fn reload(session : Session) : Either(String, #(Session, List(String))) receiving ShellMsg =
     "ern_shell:reload/1"
 
 // Report §11.2: the parser cannot finish what is typed, so another line

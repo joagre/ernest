@@ -3098,7 +3098,8 @@ moved_column(_, Column, _) -> Column.
 %% written; a module with no source there is loaded from its compiled
 %% form, on the load path. Afterwards it is in scope by its qualified
 %% name, as every loaded module is (§4.2). A module the session has loaded
-%% is refused: `:reload` alone brings another version of it.
+%% is refused: `:reload` alone brings another version of it. Report §4.7:
+%% it receives from the session's mailbox, the interrupt (initialize/1).
 -spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
 load(Session, Text) ->
     without_line_feed(load_on_nodes(Session, fun(Synced) -> load_named(Synced, Text) end)).
@@ -3451,7 +3452,7 @@ unit_bindings(Unit) ->
 
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
 %% first, each module's evaluated in an evaluator of its own, at `Never`,
-%% while the session waits (ern_rt:evaluate/2): its fault is this answer's
+%% while the session waits (ern_rt:evaluate/3): its fault is this answer's
 %% and not a fault report's, and a kill, which nothing catches, is no fault
 %% (§6.9), each named by the binding's site, which '$init' gave the
 %% evaluator. `{ok, Evaluators}`, or the module whose binding faulted or
@@ -3466,6 +3467,15 @@ unit_bindings(Unit) ->
 %% on a node a session detaches from, after the session, as the node's
 %% (detach/0). No deadlock is found in the wait, since a session holds the
 %% terminal, waits on its next line or is a node (ern_rt's look).
+%%
+%% Report §11.2: the interrupt, which the reader sends the session as
+%% `Interrupted`, kills the evaluator that runs, taken from the session's
+%% mailbox once the evaluator has begun its first binding, so that one
+%% that came while the load compiled kills the first evaluator at its first
+%% binding, and is put back, for the session to drop with every other that
+%% came (ern_rt:evaluate/3); a load that evaluates no binding takes none.
+%% The killed evaluator's end is this answer's, and no evaluator starts
+%% after it.
 initialize(CompiledModules) ->
     initialize(CompiledModules, []).
 
@@ -3478,7 +3488,7 @@ initialize([#compiled{unit = Unit} = Compiled | Rest], Evaluators) ->
     end.
 
 evaluate(#compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
-    case ern_rt:evaluate([Unit], <<"Ernest.Shell.load">>) of
+    case ern_rt:evaluate([Unit], <<"Ernest.Shell.load">>, 'Interrupted') of
         {evaluated, Evaluator} ->
             initialize(Rest, [Evaluator | Evaluators]);
         {ended, Evaluator, Site, End} ->
@@ -3798,7 +3808,8 @@ unit_of(#session{units = Units}, Namespace) ->
 %% version's, which a process still running it and a binding that holds a
 %% function of it keep. Every changed module is compiled before any is
 %% loaded, and where one does not compile none is, so the session goes on
-%% with every module as it was.
+%% with every module as it was. Report §4.7: it receives from the session's
+%% mailbox, the interrupt (initialize/1).
 -spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
 reload(Session) ->
     without_line_feed(load_on_nodes(Session, fun reload_changed/1)).

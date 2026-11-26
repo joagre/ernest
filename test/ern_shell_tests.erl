@@ -7774,6 +7774,312 @@ interrupts_in_one_read() ->
     ?assert(lists:member(<<"> 1">>, Lines)),
     ?assert(lists:member(<<"> 2 + 2">>, Lines)).
 
+%% report §11.2 *Loading and reloading*: the interrupt kills the evaluator
+%% that runs in a `:load`, which answers with the binding's site and `was
+%% killed`, loads nothing, and leaves the session standing. The binding
+%% says when it waits, and the interrupt is sent then. Written with the
+%% code: before it the session took no key while a load ran, and the
+%% binding held the shell for ever
+load_interrupted_test_() ->
+    ern_harness:counted_test({waits, 5}, fun load_interrupted/0).
+
+load_interrupted() ->
+    Dir = scratch("ern_load_interrupted_"),
+    hang_module(Dir, "hang.ern"),
+    Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
+                    [{expect, "> "},
+                     {send, hex(":load Hang\r")},
+                     {expect, "waiting"},
+                     {send, "03"},
+                     {expect, "Hang.waited:1 was killed; nothing was loaded"},
+                     {send, hex("1 + 1\r")},
+                     {expect, "2 : Int"},
+                     {send, "04"}],
+                    {24, 80}),
+    ?assertMatch({[<<"> :load Hang">>, <<"waiting">>,
+                   <<"Hang.waited:1 was killed; nothing was loaded">>, <<"> 1 + 1">>,
+                   <<"2 : Int">> | _], _},
+                 {lists:dropwhile(fun(Row) -> Row =/= <<"> :load Hang">> end, rows(Screen)),
+                  Screen}).
+
+%% report §11.2 *Loading and reloading*, §6.9: one interrupt ends the whole
+%% `:load`: in a load of three modules, dependencies first, it kills the
+%% second's evaluator, the process the first's binding spawned is killed
+%% and named, and the third's evaluator never starts. Written with the
+%% code, as load_interrupted_test_ is
+load_interrupted_in_its_second_module_test_() ->
+    ern_harness:counted_test({waits, 5}, fun load_interrupted_in_its_second_module/0).
+
+load_interrupted_in_its_second_module() ->
+    Dir = scratch("ern_load_second_"),
+    ok = file:write_file(filename:join(Dir, "base.ern"),
+                         "export let worker : Address(Int) = spawn(fn() : Unit receiving Int =\n"
+                         "    receive { _ -> Unit })\n"),
+    ok = file:write_file(filename:join(Dir, "mid.ern"),
+                         "export let waited : Unit = {\n"
+                         "    let _ = Base.worker;\n"
+                         "    Io.println(\"waiting\");\n"
+                         "    Clock.sleep(3600000)\n"
+                         "}\n"),
+    ok = file:write_file(filename:join(Dir, "top.ern"),
+                         "export let ran : Unit = {\n"
+                         "    Io.println(\"top ran\");\n"
+                         "    Mid.waited\n"
+                         "}\n"),
+    Screen = pty(alone("../bin/ern shell --source-root " ++ Dir),
+                 [{expect, "> "},
+                  {send, hex(":load Top\r")},
+                  {expect, "waiting"},
+                  {send, "03"},
+                  {expect, "Mid.waited:1 was killed; nothing was loaded, and the process spawned"
+                           " at Base.worker:1 was killed"},
+                  {send, hex(":processes\r")},
+                  {expect, "no process of the session's is running"},
+                  {send, "04"}]),
+    ?assertEqual(nomatch, binary:match(Screen, <<"top ran">>)).
+
+%% report §11.2 *Loading and reloading*: an interrupt that comes before the
+%% first evaluator starts, here sent with the line and so taken while the
+%% load compiles, kills that evaluator as it starts, and the answer names
+%% its first binding's site, every time: the evaluator says it begins its
+%% first binding, the site written first, and only then is the interrupt
+%% taken (ern_rt:evaluate/3). Written with the code, as
+%% load_interrupted_test_ is
+load_interrupted_while_it_compiles_test_() ->
+    ern_harness:counted_test({waits, 5}, fun load_interrupted_while_it_compiles/0).
+
+load_interrupted_while_it_compiles() ->
+    Dir = scratch("ern_load_compiling_"),
+    ok = file:write_file(filename:join(Dir, "late.ern"),
+                         "export let limit : Int = 3\n"
+                         "\n"
+                         "export let first : Int = List.size(List.range(1, limit))\n"
+                         "\n"
+                         "export let waited : Unit = Clock.sleep(3600000)\n"),
+    Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
+                    [{expect, "> "},
+                     {send, hex(":load Late\r") ++ "03"},
+                     {expect, "Late.first:3 was killed; nothing was loaded"},
+                     {expect, "> "},
+                     {send, hex("1 + 1\r")},
+                     {expect, "2 : Int"},
+                     {send, "04"}],
+                    {24, 80}),
+    %% the interrupt that killed is dropped with the command: it draws no
+    %% prompt of its own
+    ?assertMatch({[<<"> :load Late">>, <<"Late.first:3 was killed; nothing was loaded">>,
+                   <<"> 1 + 1">> | _], _},
+                 {lists:dropwhile(fun(Row) -> Row =/= <<"> :load Late">> end, rows(Screen)),
+                  Screen}).
+
+%% report §11.2 *Loading and reloading*: a `:load` that evaluates no
+%% binding, of a module of functions alone and of one whose bindings are
+%% all constants (§4.6), is not ended by an interrupt that comes while it
+%% runs, sent with the line: the modules are loaded, and the interrupt is
+%% dropped, drawing no prompt of its own. Written with the code: before it
+%% the interrupt waited for the prompt, and drew one there
+load_without_a_binding_test_() ->
+    ern_harness:counted_test({waits, 4}, fun load_without_a_binding/0).
+
+load_without_a_binding() ->
+    Dir = scratch("ern_load_unevaluated_"),
+    ok = file:write_file(filename:join(Dir, "consts.ern"), "export let limit : Int = 5\n"),
+    ok = file:write_file(filename:join(Dir, "plain.ern"),
+                         "export fn twice() : Int =\n    Consts.limit * 2\n"),
+    Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
+                    [{expect, "> "},
+                     {send, hex(":load Plain\r") ++ "03"},
+                     {expect, "Plain, compiled"},
+                     {send, hex("Plain.twice()\r")},
+                     {expect, "10 : Int"},
+                     {send, "04"}],
+                    {24, 80}),
+    %% between the command and the next input, the load's lines alone, a
+    %% module's each
+    [<<"> :load Plain">> | Rows] =
+        lists:dropwhile(fun(Row) -> Row =/= <<"> :load Plain">> end, rows(Screen)),
+    Answer = lists:takewhile(fun(Row) -> Row =/= <<"> Plain.twice()">> end, Rows),
+    ?assertEqual({[], Screen},
+                 {[Row || Row <- Answer, binary:match(Row, <<", compiled from ">>) =:= nomatch],
+                  Screen}).
+
+%% report §11.2 *Loading and reloading*, §6.9, Appendix G.7: a `:reload`
+%% whose new version's binding the interrupt kills says so by its site and
+%% `was killed`, and the bindings before it keep their new values, the
+%% killed one being without one; the process an earlier binding of the same
+%% version spawned runs on, as §6.9 says of any process, and the one a
+%% binding started with `Proxy.start` ends with the evaluator that started
+%% it, as G.7 says, as it does where the binding faults. Written with the
+%% code, as load_interrupted_test_ is
+reload_interrupted_test_() ->
+    ern_harness:counted_test({waits, 10}, fun reload_interrupted/0).
+
+reload_interrupted() ->
+    Dir = scratch("ern_reload_interrupted_"),
+    ok = file:write_file(filename:join(Dir, "r.ern"), "export let ready : Int = 1\n"),
+    Second = "export let ready : Int = 2\n"
+             "export let worker : Address(Int) = spawn(fn() : Unit receiving Int =\n"
+             "    receive { _ -> Unit })\n"
+             "export let proxy : Address(Int) = Proxy.start(Peer.service(\"r\"), 100)\n"
+             "export let waited : Unit = {\n"
+             "    Io.println(\"waiting\");\n"
+             "    Clock.sleep(3600000)\n"
+             "}\n",
+    Write = lists:flatten(string:replace(lists:flatten(write_source(Dir, "r.ern", Second)),
+                                         "\n", "\r", trailing)),
+    Screen = pty(alone("../bin/ern shell --source-root " ++ Dir),
+                 [{expect, "> "},
+                  {send, hex(":load R\r")},
+                  {expect, "R, compiled"},
+                  {send, hex(Write)},
+                  {expect, "Right(Unit)"},
+                  {send, hex(":reload\r")},
+                  {expect, "waiting"},
+                  {send, "03"},
+                  {expect, "R$2.waited:5 was killed; it and the bindings after it whose hash"
+                           " changed, or which are new, are without a value, but one compiled to"
+                           " its value has it, and the rest keep the values of the previous"
+                           " version"},
+                  %% the proxy has ended once its end is told
+                  {send, hex("{ monitor(Process.fromAddress(R.proxy), fn(_) = Unit); receive { _ ->"
+                             " Io.println(\"the proxy \" <> \"ended\") } }\r")},
+                  {expect, "the proxy ended"},
+                  {send, hex(":processes\r")},
+                  {expect, "R$2.worker:2"},
+                  {send, hex("R.ready\r")},
+                  {expect, "2 : Int"},
+                  {send, hex("R.waited\r")},
+                  {expect, "the binding has no value"},
+                  {send, "04"}]),
+    ?assertEqual(nomatch, binary:match(Screen, <<"Proxy.start:">>)).
+
+%% report §11.2 *Loading and reloading*: where the interrupt kills the
+%% evaluator of a module a `:reload` loads for the first time, nothing is
+%% reloaded, and the module that came to use it keeps its previous
+%% version. Written with the code, as load_interrupted_test_ is
+reload_interrupted_in_a_new_module_test_() ->
+    ern_harness:counted_test({waits, 7}, fun reload_interrupted_in_a_new_module/0).
+
+reload_interrupted_in_a_new_module() ->
+    Dir = scratch("ern_reload_fresh_"),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export let y : Int = 1\n"),
+    hang_module(Dir, "fresh.ern"),
+    Write = lists:flatten(string:replace(
+                            lists:flatten(write_source(Dir, "top.ern",
+                                                       "export let y : Unit = Fresh.waited\n")),
+                            "\n", "\r", trailing)),
+    pty(alone("../bin/ern shell --source-root " ++ Dir),
+        [{expect, "> "},
+         {send, hex(":load Top\r")},
+         {expect, "Top, compiled"},
+         {send, hex(Write)},
+         {expect, "Right(Unit)"},
+         {send, hex(":reload\r")},
+         {expect, "waiting"},
+         {send, "03"},
+         {expect, "Fresh.waited:1 was killed; nothing was reloaded"},
+         {send, hex("Top.y\r")},
+         {expect, "1 : Int"},
+         {send, "04"}]).
+
+%% report §11.2 *Startup and history*, *Loading and reloading*: the
+%% interrupt ends a startup file's running `:load` as it ends a typed one,
+%% and the refusal is named by the file and the line, as a startup input's
+%% failure is; the next startup input runs, and is not ended. Written with
+%% the code: before it the load held the shell's start for ever
+startup_load_interrupted_test_() ->
+    ern_harness:counted_test({waits, 5}, fun startup_load_interrupted/0).
+
+startup_load_interrupted() ->
+    Home = fresh_home(),
+    Dir = scratch("ern_startup_load_"),
+    hang_module(Dir, "hang.ern"),
+    startup_file(filename:join([Home, ".ernest", "startup"]),
+                 ":load Hang\nIo.println(\"after \" <> \"the load\")\n"),
+    Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell --source-root " ++ Dir,
+                 [{expect, "waiting"},
+                  {send, "03"},
+                  {expect, ".ernest/startup:1: Hang.waited:1 was killed; nothing was loaded"},
+                  {expect, "after the load"},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, "04"}]),
+    ?assertEqual(nomatch, binary:match(Screen, <<"Killed">>)).
+
+%% report §11.2 *Inputs*, *Loading and reloading*: an input entered while a
+%% `:load` runs waits, and runs after the load's answer, which the
+%% interrupt gave; the interrupt ends no input after it, here one that
+%% waits for `cat` to read a named pipe to its end, which the test opens
+%% once the answer is in. A line being typed when the interrupt comes is
+%% abandoned and stays on its row, as at an input's interrupt, and is not
+%% run. Written with the code, as load_interrupted_test_ is
+input_typed_while_a_load_runs_test_() ->
+    ern_harness:counted_test({waits, 6}, fun input_typed_while_a_load_runs/0).
+
+input_typed_while_a_load_runs() ->
+    Dir = scratch("ern_load_typed_"),
+    hang_module(Dir, "hang.ern"),
+    Pipe = scratch_name("ern_typed_"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Input = "{ let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), 60000);"
+            " Io.println(\"fin\" <> \"ished\") }",
+    Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
+                    [{expect, "> "},
+                     {send, hex(":load Hang\r")},
+                     {expect, "waiting"},
+                     {send, hex(Input ++ "\r")},
+                     {send, hex("2 + 2")},
+                     {expect, "2 + 2"},
+                     {send, "03"},
+                     {expect, "Hang.waited:1 was killed; nothing was loaded"},
+                     {put, Pipe},
+                     {expect, "finished"},
+                     {send, "04"}],
+                    {24, 80}),
+    ?assertEqual(nomatch, binary:match(Screen, <<"Killed">>)),
+    ?assertEqual(nomatch, binary:match(Screen, <<"4 : Int">>)),
+    ?assertMatch({[<<"waiting">>, _, <<"2 + 2">>,
+                   <<"Hang.waited:1 was killed; nothing was loaded">>, <<"finished">> | _], _},
+                 {lists:dropwhile(fun(Row) -> Row =/= <<"waiting">> end, rows(Screen)), Screen}).
+
+%% report §11.2 *Loading and reloading*: two interrupts in one read while a
+%% `:load` runs end it once, and the second is dropped with the command,
+%% reaching neither the prompt nor the next input: the answer is followed
+%% by one prompt, where the next input is typed. Written with the code, as
+%% load_interrupted_test_ is
+two_interrupts_while_a_load_runs_test_() ->
+    ern_harness:counted_test({waits, 5}, fun two_interrupts_while_a_load_runs/0).
+
+two_interrupts_while_a_load_runs() ->
+    Dir = scratch("ern_load_twice_"),
+    hang_module(Dir, "hang.ern"),
+    Screen = screen(alone("../bin/ern shell --source-root " ++ Dir),
+                    [{expect, "> "},
+                     {send, hex(":load Hang\r")},
+                     {expect, "waiting"},
+                     {send, "0303"},
+                     {expect, "Hang.waited:1 was killed; nothing was loaded"},
+                     {send, hex("1 + 1\r")},
+                     {expect, "2 : Int"},
+                     {send, "04"}],
+                    {24, 80}),
+    ?assertMatch({[<<"waiting">>, <<"Hang.waited:1 was killed; nothing was loaded">>,
+                   <<"> 1 + 1">>, <<"2 : Int">> | _], _},
+                 {lists:dropwhile(fun(Row) -> Row =/= <<"waiting">> end, rows(Screen)), Screen}).
+
+%% A module in Dir's File whose one binding waits for an hour, saying first
+%% that it does, `waited` on line 1, its namespace the file's name.
+hang_module(Dir, File) ->
+    ok = file:write_file(filename:join(Dir, File),
+                         "export let waited : Unit = {\n"
+                         "    Io.println(\"waiting\");\n"
+                         "    Clock.sleep(3600000)\n"
+                         "}\n").
+
+%% The rows of a screen, each as screen/3 gives it.
+rows(Screen) ->
+    binary:split(Screen, <<"\n">>, [global]).
+
 %% report §11.2, §12.5: the start line names the toolchain's version text,
 %% the one `VERSION` holds, with the mark of a build that is no release
 %% after it, as the repository's is, and a session at a terminal without

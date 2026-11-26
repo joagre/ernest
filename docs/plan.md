@@ -34,7 +34,8 @@ Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Buil
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
 Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet*, *The Language Guide Recut* and *The Other Guides, the Tour
 and the Front Pages*, *The Decided Lines Audited*, *The Audit's Build*, *The Documents' Lines*, *The Parser Held to Appendix A*, *The Session's Own Lines*, *The Full Check, and
-Dialyzer's Nine*, *The Ten Answered* and *A Function's Result Crosses*.
+Dialyzer's Nine*, *The Ten Answered*, *A Function's Result Crosses* and *The Interrupt Ends a
+Running Load*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -207,8 +208,8 @@ says what is left once its readings are in, and no figure stands until then.
       42*), a record update's bullet in §10, rule 2's sentence narrowed to text, shape
       rule 8's two phrases, the certificate's row as *R2 2* has it, and a function's
       result among what crosses into foreign code (the log's *A Function's Result
-      Crosses*). To build: the interrupt that ends a running load
-      (`leg4/builds/q7/`), the three terms of a shell's processes and §12's new
+      Crosses*), and the interrupt that ends a running load (the log's *The
+      Interrupt Ends a Running Load*). To build: the three terms of a shell's processes and §12's new
       section on which process pays (*G 23*, *G 21*, `leg4/builds/q34/`), and the
       site's anchor for a part of §11.2 with the tests that cite the new section.
 

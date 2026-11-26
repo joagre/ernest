@@ -3,9 +3,9 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0, ran_program/0,
-         closed_listener/0, kept_listener/0, exited_program/0, closed_connection/1,
-         queued_input/2]).
+-export([evaluated/0, interrupt_waited/1, constant_bound/0, kept_table/0, closed_table/0,
+         kept_proxy/0, ended_proxy/0, ran_program/0, closed_listener/0, kept_listener/0,
+         exited_program/0, closed_connection/1, queued_input/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
@@ -522,7 +522,7 @@ session(EntryProcess, Unit) ->
                   written(stderr, <<"started error\n">>)
               end,
     ended(ern_rt:spawn_monitored(Started, fun(Down) -> {ended, Down} end, <<"S.started:2">>)),
-    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:3">>),
+    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:3">>, none),
     false = erlang:is_process_alive(Evaluator),
     Later = whereis(ern_rt_tests_later),
     Later ! {before, erlang:self()},
@@ -743,12 +743,12 @@ evaluator_owns_its_table_test() ->
         ok = ern_rt:run_main(
                fun() ->
                    true = register(ern_rt_tests_main, erlang:self()),
-                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_table_kept'], <<"S.load:1">>),
+                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_table_kept'], <<"S.load:1">>, none),
                    Table = ern_waits:wait(table),
                    Seen = {erlang:is_process_alive(Kept), ern_rt:status(Kept),
                            lists:member(Kept, ern_rt:processes()), ets:info(Table, owner)},
                    {evaluated, Closed} = ern_rt:evaluate(['ern@zz_table_closed'],
-                                                         <<"S.load:2">>),
+                                                         <<"S.load:2">>, none),
                    MonitorRef = erlang:monitor(process, Kept),
                    ern_rt:kill(Kept),
                    receive {'DOWN', MonitorRef, process, Kept, _} -> ok end,
@@ -776,11 +776,11 @@ evaluator_owns_its_proxy_test() ->
         ok = ern_rt:run_main(
                fun() ->
                    true = register(ern_rt_tests_main, erlang:self()),
-                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_proxy_kept'], <<"S.load:1">>),
+                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_proxy_kept'], <<"S.load:1">>, none),
                    Proxy = ern_waits:wait(proxy),
                    Seen = {erlang:is_process_alive(Kept), ern_rt:owned(Kept)},
                    {evaluated, Ended} = ern_rt:evaluate(['ern@zz_proxy_ended'],
-                                                        <<"S.load:2">>),
+                                                        <<"S.load:2">>, none),
                    MonitorRef = erlang:monitor(process, Kept),
                    ern_rt:kill(Kept),
                    receive {'DOWN', MonitorRef, process, Kept, _} -> ok end,
@@ -821,7 +821,7 @@ evaluators_outlive_no_ending_process() ->
 
 %% The evaluator of a load of Unit, whose bindings have their values.
 evaluated(Unit) ->
-    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:1">>),
+    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:1">>, none),
     Evaluator.
 
 %% How many of Evaluators live on, each watched until it ends; 5 seconds
@@ -854,7 +854,7 @@ evaluator_ends_with_what_it_owns_test() ->
                fun() ->
                    true = register(ern_rt_tests_main, erlang:self()),
                    {evaluated, Evaluator} = ern_rt:evaluate(['ern@zz_listener_kept'],
-                                                            <<"S.load:1">>),
+                                                            <<"S.load:1">>, none),
                    Listener = ern_waits:wait(listener),
                    MonitorRef = erlang:monitor(process, Evaluator),
                    {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
@@ -916,6 +916,65 @@ evaluator_ends_once_what_it_owns_is_spent() ->
         [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
     end,
     ?assertEqual([{true, true}, {true, true}], ern_waits:wait(ended)).
+
+%% report §11.2: the interrupt kills a shell's load's evaluator, and its end
+%% names the binding it ran: one that came before the evaluator was spawned
+%% kills it as it begins its first binding, a quick one, a hundred times
+%% over, and one that came while a binding ran kills it there, each put
+%% back once taken; a unit whose bindings are all constants begins none,
+%% and its interrupt is left where it is. Written with the code: before it
+%% no wait on an evaluator took one
+evaluator_killed_by_the_interrupt_test() ->
+    Self = self(),
+    Units = [unit_calling('ern@zz_interrupt_before', interrupt_waited, [before]),
+             unit_calling('ern@zz_interrupt_during', interrupt_waited, [during]),
+             unit_calling('ern@zz_interrupt_constant', constant_bound)],
+    Interrupted = fun(Unit) ->
+                      {ended, _, Site, How} = ern_rt:evaluate([Unit], <<"S.load:1">>, interrupt),
+                      {Site, How, interrupts()}
+                  end,
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   true = register(ern_rt_tests_main, erlang:self()),
+                   Before = [begin
+                                 erlang:self() ! interrupt,
+                                 Interrupted('ern@zz_interrupt_before')
+                             end || _ <- lists:seq(1, 100)],
+                   During = Interrupted('ern@zz_interrupt_during'),
+                   erlang:self() ! interrupt,
+                   {evaluated, _} = ern_rt:evaluate(['ern@zz_interrupt_constant'],
+                                                    <<"S.load:1">>, interrupt),
+                   Self ! {ended, {lists:usort(Before), During, interrupts()}}
+               end, <<"main">>, ern_helpers:quiet())
+    after
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    ?assertEqual({[{<<"K.first:1">>, killed, 1}], {<<"K.waited:3">>, killed, 1}, 1},
+                 ern_waits:wait(ended)).
+
+%% How many interrupts the calling process holds, each taken.
+interrupts() ->
+    receive interrupt -> 1 + interrupts() after 0 -> 0 end.
+
+%% The bindings of evaluator_killed_by_the_interrupt_test's first two
+%% units, each begun as the emitter begins one, the last waiting until it
+%% is killed: the first's a quick one and then the waiting one, the
+%% second's the waiting one alone, which sends its caller the interrupt
+%% first; and the third's, whose bindings are constants, which begins none.
+-spec interrupt_waited(before | during) -> ok.
+interrupt_waited(before) ->
+    'Unit' = ern_rt:initializing(<<"K.first:1">>),
+    'Unit' = ern_rt:initializing(<<"K.waited:3">>),
+    receive never -> ok end;
+interrupt_waited(during) ->
+    'Unit' = ern_rt:initializing(<<"K.waited:3">>),
+    ern_rt_tests_main ! interrupt,
+    receive never -> ok end.
+
+-spec constant_bound() -> ok.
+constant_bound() ->
+    ok.
 
 %% docs/memory_checks.md, Appendix G.1, E.21: a process that makes and
 %% closes a thousand tables keeps, of the tables it made, fewer than the
