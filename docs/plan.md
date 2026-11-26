@@ -26,14 +26,15 @@ outside the project depends on it, as MVP 4.4's opening says.
 leg: the report written from the copy, the renames of *The Library's Names*, and the
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes, the
 standard library with the libraries, the cli, the shell and the tests are done, three
-Fable rounds are held, and the report's own decided lines are written. The documents are
-next, the language guide first, by a writer on Fable 5.2 at high.**
+Fable rounds are held, and the report's own decided lines are written. The language guide is
+recut. Next are the other guides with the tour and the README, by a writer on Fable 5.2 at
+high, and an audit of the decided lines that carry no closing bullet.**
 
 Leg 4's entries in the log are *The First Build of Leg 4*, *The Renames
 of the Library's Names*, *The Runtime's Second Build*, *The First Fable Round*, *The
 Nodes' Build*, *The Libraries' Build*, *The Second Fable Round*, *The Cli's Build*, *The
 Third Fable Round*, *The Session Stays on Fable*, *The Shell's Build*, *The Report's
-Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked* and *The Terminal's Stylesheet*.
+Own Lines*, *The Shell's Second Build*, *The Tests' Build*, *The Blocks Checked*, *The Terminal's Stylesheet* and *The Language Guide Recut*.
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -235,10 +236,20 @@ says what is left once its readings are in, and no figure stands until then.
       them (the log's *The Report's Own Lines*). The tests' build with the examples' and
       the site's is done, in two (the log's *The Tests' Build* and *The Blocks Checked*), and *Z1*
       is found and mended, the page's own defect (the log's *The Terminal's
-      Stylesheet*). The documents are next, each by a writer on Fable 5.2 at high, one
-      after another: the language guide (`leg4/builds/brief_guide.md`), the other
-      guides with the tour and the README (`brief_guides_other.md`), and `docs/`
-      (`brief_docs.md`). The log's and the plan's own lines are the session's.
+      Stylesheet*).
+
+      The documents are written each by a writer on Fable 5.2 at high, one after
+      another. The language guide is done (the log's *The Language Guide Recut*). The
+      other guides with the tour and the README are next
+      (`leg4/builds/brief_guides_other.md`), then `docs/` (`brief_docs.md`). The log's
+      and the plan's own lines are the session's.
+
+      The guide's writer found four decided sentences of the report unwritten, each of
+      a line with two owners. Two readers audit the 117 decided lines that carry no
+      closing bullet, one against the report and one against the code
+      (`leg4/builds/audit/`). What they find missing is written or built before the
+      close, the report's sentences read cold first, and *U 12*'s test of a guide's
+      quoted line with it.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

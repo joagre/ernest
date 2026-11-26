@@ -32,9 +32,9 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed. What crosses is code and what the function captured, never a node's values: a top-level binding whose initializer is no constant has its value on the node that evaluated it alone (the guide's §8.1).
 
-So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
+So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.3). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
 
-A computation need not name a node at all. `Peer.computeAnywhere(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason (the guide's §8.1, report Appendix E.27):
+A computation needs room more than a place, so it need not name a node at all. `Peer.computeAnywhere(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason (the guide's §8.1, report Appendix E.27):
 
 ```ernest-fragment
 match Peer.computeAnywhere(fn() = render(scene, row), 5000) {
@@ -163,7 +163,7 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
   |     ^^^^^^^^
 ```
 
-The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function (the guide's §8.3):
+The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function (the guide's §8.5):
 
 ```ernest-fragment
 foreign fn systemTime() : Int =
@@ -172,7 +172,7 @@ foreign fn systemTime() : Int =
 
 Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String: is 1795614508141772086`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the function and the type (report §8.4).
 
-So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.3). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
+So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.5). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
 A delivery that foreign code arranges after its call has returned, by a host timer or by a host process nothing monitors, is one the runtime cannot see, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
 
@@ -419,12 +419,10 @@ $ ern run unique.erc
 
 A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for two things: the set it names is closed, `compare`, `negate`, the six operators and `show`, which no program adds to, and a type's member is declared in its type's own module alone (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
 
-`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.2). The guide's §7 teaches requirements.
-
-### Little else
-
-No program shows this claim. Its evidence is the report under [`report/`](../report/): the language, the toolchain and the library, a file each, which state everything the programs above rely on.
+`show` is no member a type declares, and every value has it through `Io.show` (report §4.9); why a function generic in `a` writes `needs a.show` all the same is the guide's §7.3. The guide's §7 teaches requirements.
 
 ## Reading on
+
+No program shows the last claim, *Little else*. Its evidence is the report under [`report/`](../report/): the language, the toolchain and the library, a file each, which state everything the programs above rely on.
 
 The guide's §0 shows what the compiler refuses and how it says so, and its §1 runs the first program. The questions a reader brings, the likeness to Gleam among them, are answered in [the questions](faq.md). The reasons behind each rule, dated, are the log's, [`docs/log/`](../docs/log/README.md). The [projects](../site/projects.md), libraries and programs in repositories of their own, are built against Ernest's release alone, as a stranger builds with it, and never against its source.

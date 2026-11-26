@@ -73,7 +73,6 @@ What Ernest adds, which [Why Ernest](guide/why.md) argues:
 - [A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan)
 - [A deadlock of the whole program is found](guide/why.md#a-deadlock-of-the-whole-program-is-found)
 - [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
-- [Little else](guide/why.md#little-else)
 
 Ernest runs on the BEAM without OTP's behaviors: a server is a `receive` loop, a supervision tree is the library's `Supervisor`, and a process's end arrives as a message from a monitor. [The questions](guide/faq.md) say what stands in their place, and how Ernest differs from Gleam and Unison.
 

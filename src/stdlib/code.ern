@@ -25,7 +25,7 @@
 /// type CounterMsg =
 ///     Inc(Int)
 ///   | Get(Reply(Int))
-///   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
+///   | Upgrade(next : (Int) -> Unit receiving CounterMsg)
 ///
 /// fn count(total : Int) : Unit receiving CounterMsg =
 ///     receive {
@@ -34,7 +34,7 @@
 ///             answer(reply, total);
 ///             count(total)
 ///         }
-///       | Upgrade(=migrate, =next) -> next(migrate(total))
+///       | Upgrade(=next) -> next(total)
 ///     }
 ///
 /// fn countTwice(total : Int) : Unit receiving CounterMsg =
@@ -44,11 +44,11 @@
 ///             answer(reply, total);
 ///             countTwice(total)
 ///         }
-///       | Upgrade(=migrate, =next) -> next(migrate(total))
+///       | Upgrade(=next) -> next(total)
 ///     }
 ///
 /// List.forEach(Code.running(count),
-///              fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = countTwice)))
+///              fn(process) = send(process, Upgrade(next = countTwice)))
 /// // => Unit
 /// ```
 ///

@@ -125,57 +125,11 @@ cited_as_the_guide(Text) ->
 without_consoles(Document) ->
     re:replace(Document, "```console\n.*?\n```", "", [global, dotall, {return, binary}]).
 
-%% guide/language.md §7.3, report Appendix E.25: the guide shows parts of
-%% src/stdlib/ordered_set.ern, its doc blocks left out, a restatement a teaching
-%% document makes, and this holds each part equal to the module's lines, in
-%% the module's order
-ordered_set_shown_in_part_test() ->
-    Guide = ern_repository:read("guide/language.md"),
-    Opening = <<"```ernest-fragment\n// src/stdlib/ordered_set.ern">>,
-    {At, _} = binary:match(Guide, Opening),
-    recorded("guide/language.md", [line_at(Guide, At)]),
-    [_, Rest] = binary:split(Guide, Opening),
-    [Block | _] = binary:split(Rest, <<"\n```">>),
-    [_Named | Shown] = binary:split(Block, <<"\n">>, [global]),
-    Source = ern_repository:read("src/stdlib/ordered_set.ern"),
-    Code = [Line || Line <- binary:split(Source, <<"\n">>, [global]),
-                    not lists:prefix("///", binary_to_list(Line))],
-    Parts = parts(Shown),
-    ?assert(length(Parts) > 1),
-    ?assertEqual(ok, in_order(Parts, Code)).
-
 %% The blocks of Document, a path from the repository's root, whose fences
 %% open on Lines, recorded as blocks this test checks, which
 %% tools/documents.ern's listing reads (ern_helpers:record_checked/3).
 recorded(Document, Lines) ->
     ok = ern_helpers:record_checked(?MODULE, filename:join(?ROOT, Document), Lines).
-
-%% The number of the line of Text that holds its byte At, counted from 1.
-line_at(Text, At) ->
-    1 + length(binary:matches(binary:part(Text, 0, At), <<"\n">>)).
-
-%% Each part a run of the lines, after the one before it.
-in_order([], _) ->
-    ok;
-in_order([Part | Parts], Lines) ->
-    case Lines of
-        [] -> {missing, Part};
-        _ ->
-            case lists:prefix(Part, Lines) of
-                true -> in_order(Parts, lists:nthtail(length(Part), Lines));
-                false -> in_order([Part | Parts], tl(Lines))
-            end
-    end.
-
-%% The runs of lines between blank ones.
-parts(Lines) ->
-    case lists:dropwhile(fun(Line) -> Line =:= <<>> end, Lines) of
-        [] ->
-            [];
-        Rest ->
-            {Part, After} = lists:splitwith(fun(Line) -> Line =/= <<>> end, Rest),
-            [Part | parts(After)]
-    end.
 
 %% tour/README.md, report §11.6: each `ernest` block of the
 %% tour under a chapter's heading, `## 5. Per key`, is that chapter's
@@ -263,40 +217,6 @@ readme_counter_is_the_tours_test() ->
     ?assertEqual(string:chomp(ern_repository:read("tour/2/counter.ern")),
                  iolist_to_binary(lists:join(<<"\n">>, [Line || {_, Line} <- Code]))).
 
-%% README.md, guide/language.md: the guide's §1.4 shows the tour's
-%% chapter 2 session as the README's console shows it, line for line, so
-%% that the session the guide shows is the one ern_tour_tests runs as the
-%% README's. A regression test, written after the guide's console; it
-%% finds the console in the section the guide numbers 1.4, wherever it
-%% stands, and does not cover the prose around either console.
-guide_session_is_the_readmes_test() ->
-    Readme = lists:enumerate(binary:split(ern_repository:read("README.md"), <<"\n">>, [global])),
-    Guide = lists:enumerate(binary:split(ern_repository:read("guide/language.md"), <<"\n">>,
-                                         [global])),
-    {_, [_ | Section]} =
-        lists:splitwith(fun({_, Line}) -> binary:match(Line, <<"### 1.4 ">>) =/= {0, 8} end,
-                        Guide),
-    {Own, _} = lists:splitwith(fun({_, Line}) -> not is_heading(Line) end, Section),
-    {ReadmeLine, Shown} = console(<<"$ ern shell --config-dir a">>, Readme),
-    {GuideLine, Quoted} = console(none, Own),
-    recorded("README.md", [ReadmeLine]),
-    recorded("guide/language.md", [GuideLine]),
-    ?assertEqual(Shown, Quoted).
-
-%% The first `console` block of Lines, each a line's number and its text,
-%% whose first line is First, or the first one where First is none: the
-%% line its fence opens on and its lines.
-console(First, Lines) ->
-    {_, [{Number, _} | Rest]} =
-        lists:splitwith(fun({_, Line}) -> Line =/= <<"```console">> end, Lines),
-    {Numbered, After} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
-    Console = [Line || {_, Line} <- Numbered],
-    case Console of
-        [First | _] -> {Number, Console};
-        _ when First =:= none -> {Number, Console};
-        _ -> console(First, tl(After))
-    end.
-
 %% docs/development.md *Building*, `make unchecked`: a test records a block
 %% it checks, its document's path from the repository's root and its
 %% fence's line, beneath the line of the run that wrote the record, and a
@@ -314,10 +234,6 @@ records_blocks_test() ->
                       <<"covers README.md">>] -- Facts),
     ?assertError({opens_no_block, <<"README.md">>, Closing}, recorded("README.md", [Closing])),
     ?assertError({opens_no_block, <<"README.md">>, 1}, recorded("README.md", [1])).
-
-is_heading(<<"## ", _/binary>>) -> true;
-is_heading(<<"### ", _/binary>>) -> true;
-is_heading(_) -> false.
 
 %% report/, guide/language.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
@@ -429,12 +345,14 @@ comment_paths(File) ->
              string:find(Path, "$") =:= nomatch].
 
 %% README.md, guide/why.md, docs/development.md "The layout of the
-%% repository": the claims the README lists are the ones why.md lists under
-%% its opening and argues each under a heading of its own in *The claims, in
-%% code*, in one order and one wording, each of the README's linked to its
-%% heading, and why.md and guide/README.md count them in words. A regression
-%% test: docs/development.md said a test held the two lists equal, and none
-%% did; it does not read how many of the claims show a program.
+%% repository": the claims the README lists are the ones why.md argues each
+%% under a heading of its own in *The claims, in code*, in one order and one
+%% wording, each of the README's linked to its heading; why.md lists them
+%% under its opening in that order, with any claim it argues under no
+%% heading, and why.md and guide/README.md count the claims listed in words.
+%% A regression test: docs/development.md said a test held the two lists
+%% equal, and none did; it does not read how many of the claims show a
+%% program.
 claims_test() ->
     Readme = ern_repository:read("README.md"),
     Why = ern_repository:read("guide/why.md"),
@@ -450,10 +368,10 @@ claims_test() ->
     Anchors = [{binary_to_list(Text), binary_to_list(Anchor)}
                || {3, Text, Anchor} <- anchored(heads(Why))],
     ?assert(length(Argued) > 3),
-    ?assertEqual(Argued, Listed),
+    ?assertEqual(Argued, [Title || Title <- Listed, lists:member(Title, Argued)]),
     ?assertEqual(Argued, [Title || {Title, _} <- Linked]),
     ?assertEqual([], Linked -- Anchors),
-    Count = number_word(length(Argued)),
+    Count = number_word(length(Listed)),
     ?assertEqual([{"guide/README.md", Count}, {"guide/why.md", Count}],
                  [{File, string:lowercase(Word)}
                   || File <- ["guide/README.md", "guide/why.md"],

@@ -6,9 +6,9 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, and a `receive` reads only the mailbox of its own process, the one that type names, so every spawn and every receive is one the compiler checks against the function's type (the guide's §4).
 
-The function's type says which mailbox it runs in, which being the language buys and a library cannot: `spawn` types the address from the function, a function that receives is refused in a process whose mailbox takes another type, and a `Peer.spawn` of a function whose mailbox is bound to its node is refused before the run. A send of the wrong type is refused in both languages, against Ernest's typed address as against Gleam's typed `Subject`. A `Reply` is the likeness: a caller makes one and hands it over in its request, as a Gleam caller makes a reply `Subject`, and `Address.call` is `process.call`. What differs is a call that gets no answer: Ernest's answers `None` when its deadline passes or the callee ends first, where Gleam's panics at both (the guide's §4.4).
+The function's type says which mailbox it runs in, which being the language buys and a library cannot: `spawn` types the address from the function, a function that receives is refused in a process whose mailbox takes another type, and a `Peer.spawn` of a function whose mailbox is bound to its node is refused before the run. A send of the wrong type is refused in both languages, against Ernest's typed address as against Gleam's typed `Subject`. A `Reply` is the likeness: a caller makes one and hands it over in its request, as a Gleam caller makes a reply `Subject`, and `Address.call` is `process.call`. What differs is a call that gets no answer: Ernest's answers `None` when its deadline passes or the callee ends first, where Gleam's panics at both (the guide's §4.5).
 
-What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
+What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says.
 
 Gleam's `Result(value, error)` is `Either(e, a)`, its parameters the other way round: `Ok` is `Right` and `Error` is `Left`. Gleam's `Option` is `Optional`, `Nil` is `Unit`, and `Pid` is `Process` (report §9.1, §9.3).
 
@@ -18,11 +18,11 @@ Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam h
 
 ### Where are `gen_server` and the supervisors?
 
-In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4).
+In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.5).
 
-Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §8.7), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell attached to the node being the operator's window (the deployment guide's §6). A restart runs the function the process was started with, so a process under `restarting` or a `Supervisor` that such a message moved is back on its old loop at its next fault (the deployment guide's §5.3).
+Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §8.8), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell attached to the node being the operator's window (the deployment guide's §6). A restart runs the function the process was started with, so a process under `restarting` or a `Supervisor` that such a message moved is back on its old loop at its next fault (the deployment guide's §5.3).
 
-A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry on a node: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
+A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why a node keeps no registry of its own processes: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
 
 Past its restart limit the process ends, and the binding names an ended process for the rest of the run: `Address.call` to it answers `None` at once, and the program goes on unless a process that monitors the service acts on its end, by ending the program or by starting a new service (the guide's §6.5). A process that keeps something for the service, a lock granted to it, hears of each of its restarts through a service monitor, `monitorService` (the guide's §6.5).
 
@@ -42,13 +42,13 @@ What was left behind is Unison's concurrency, its abilities, its exceptions and 
 
 ### Why one mailbox per process, and not several typed channels?
 
-A process receives values of one type, so every clause of a `receive` is checked against that type, and a clause that can never match is refused. A `receive` takes the first message a clause matches and leaves the others in the mailbox (the guide's §4.3).
+A process receives values of one type, so every clause of a `receive` is checked against that type, and a clause that can never match is refused. A `receive` takes the first message a clause matches and leaves the others in the mailbox (the guide's §4.4).
 
 A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §5.5, report §6.5).
 
 The process's protocol is one type, read in one place, and an Ernest process hands out such an address where another language opens a second channel: a value, sent to whoever should write to it (the guide's §5.5). The gain over channels is not that the protocol is one type but that the type is in the function: the loop runs only in a process of that type, and the compiler sees it at the spawn.
 
-Its cost is the library that waits on messages of its own: it runs a process of its own and is reached by a call, where a channel would be made in the caller's process (the guide's §4.4).
+Its cost is the library that waits on messages of its own: it runs a process of its own and is reached by a call, where a channel would be made in the caller's process (the guide's §4.5).
 
 ### Why does a function that receives say `receiving M`, while one that only sends says nothing?
 
@@ -62,27 +62,27 @@ A message is checked at both ends against the mailbox's one type. A `receive` is
 
 An address takes exactly its type and no smaller one. A client written to send only `Ticked`, a type whose one constructor is `Ticked`, is given an address of that type, `adapted(counter, fn(Ticked) = Inc(1))`, an `Address(Ticked)` whose messages reach the counter as `Inc(1)` (the guide's §5.5, report §6.5).
 
-A `receive` need not cover its type, so a request of the mailbox's type that no clause takes compiles: it waits in the mailbox for good, and its caller's `Address.call` answers `None` at its deadline (the guide's §4.3).
+A `receive` need not cover its type, so a request of the mailbox's type that no clause takes compiles: it waits in the mailbox for good, and its caller's `Address.call` answers `None` at its deadline (the guide's §4.4).
 
-Whether a reply is answered is not checked; the caller's call bounds its wait. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.2, report §6.6). An answer never made is the next question.
+Whether a reply is answered is not checked; the caller's call bounds its wait. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.3, report §6.6). An answer never made is the next question.
 
 ### Is a forgotten answer caught?
 
-Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. The deadline bounds the wait for the answer and nothing before it: a request that waits to be sent to a peer holds the call past it (the guide's §8.2). Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with the callee's cause where the callee faulted, and otherwise with a cause that names how it ended; an answer that comes after the deadline is discarded (the guide's §6.3, report §6.6).
+Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.3). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. The deadline bounds the wait for the answer and nothing before it: a request that waits to be sent to a peer holds the call past it (the guide's §8.2). Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with the callee's cause where the callee faulted, and otherwise with a cause that names how it ended; an answer that comes after the deadline is discarded (the guide's §6.3, report §6.6).
 
 Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6). A node detects no deadlock, nor does the shell while it holds the terminal (report §11.2).
 
-What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
+What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.5).
 
 ### How does Ernest talk to Erlang, and to the other languages on the runtime?
 
-Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7). A library of the host's, one from hex, the BEAM's package index, among them, is built by its own tools and given to `ern run`, `ern test` or `ern shell` with `--libs-dir dir`, which puts each `dir/*/ebin` on the load path (report §11.2).
+Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.5, report §4.7). A library of the host's, one from hex, the BEAM's package index, among them, is built by its own tools and given to `ern run`, `ern test` or `ern shell` with `--libs-dir dir`, which puts each `dir/*/ebin` on the load path (report §11.2).
 
 The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, a check that walks the value and so costs with its size, and where a program hands an address to foreign code, a message the foreign side sends to it is checked on delivery, so that a compiled `receive` never sees a value of the wrong shape from it (report §8.4). A foreign function that delivers into its caller's own mailbox, declared `receiving M`, is trusted to deliver values of `M` alone, and nothing checks it (report §4.7).
 
 A delivery that foreign code arranges after its call has returned, by a host timer or by a host process nothing monitors, is one the runtime cannot see, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
 
-The standard library stands on the host through such declarations (the guide's §8.5), and an Ernest program is otherwise written in Ernest: it is not an OTP application, no Erlang or Elixir module is built with it, and foreign code reaches it only through what the program hands it, an address or a function (report §8.4).
+The standard library stands on the host through such declarations (the guide's §8.6), and an Ernest program is otherwise written in Ernest: it is not an OTP application, no Erlang or Elixir module is built with it, and foreign code reaches it only through what the program hands it, an address or a function (report §8.4).
 
 ### What does "built for a WAN" mean?
 
@@ -108,7 +108,7 @@ Three answers exist to the question. Emerald and Obliq keep a moved closure's fr
 
 Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A requirement names `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
 
-The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare`; `show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.2).
+The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare` (report §4.9); what `show` is, which no type declares, is the guide's §7.3.
 
 *Abstract types and requirements* in [Why Ernest](why.md) says what sets a requirement apart from a class and what its closed set rules out, and shows all three in code, with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
 

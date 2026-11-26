@@ -333,7 +333,7 @@ let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
 
 The notation is the guide's §2.3 to §2.5: `#(k, Int)` is a tuple, a constructor's fields may be named and are matched by name, `Tally(counts) : Tally(k)` takes a parameter apart in the head, and `let _ =` discards a value on purpose. `report` sorts by the key, and says what it needs of the key's type, `needs k.compare`; at the call in `count` you wrote nothing, and the compiler supplied `String`'s own `compare`. That is *Why Ernest*'s claim *Abstract types and requirements*. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call; the guide's §7.3 has the rules.
 
-`empty` is a function and not a value. A *constant* is an initializer written in literals, constructors, tuples and lists alone, and `Tally(Map.empty)` is none, since `Map.empty` is a name: a constant has its value wherever its code is, and any other binding, `let empty = Tally(Map.empty)` among them, is evaluated only on a node that loaded the module, and chapter 6 spawns this counter on a node that loaded nothing. A function's body runs where it is called, and `Map.empty` has its value there, since every node holds the standard library (the guide's §2.2, §8.1).
+`empty` is a function and not a value. `Tally(Map.empty)` is no *constant* (the guide's §2.2), since `Map.empty` is a name, so a binding of it, `let empty = Tally(Map.empty)`, would have its value only on a node that loaded the module (the guide's §8.1), and chapter 6 spawns this counter on a node that loaded nothing. A function's body runs where it is called, and `Map.empty` has its value there, since every node holds the standard library.
 
 In your own terminal:
 
@@ -465,9 +465,9 @@ far : Address(Counter.ClientMsg)
 "apples: 3, pears: 1" : String
 ```
 
-`Upgrade` carries the loop the counter is to run next, a function of the counter's own type, and the loop switches to it with a tail call, keeping the tally (the guide's §4.6). A function cannot cross to another node as a value, so a type that carries one is *bound* to its node, and `Peer.spawn` refuses the loop that receives it (the guide's §8.4). The spawn of chapter 2 carried `count` as code, by its hash, and this spawn would have to carry a function as a message's value, which nothing does.
+`Upgrade` carries the loop the counter is to run next, a function of the counter's own type, and the loop switches to it with a tail call, keeping the tally (the guide's §4.6). A function cannot cross to another node as a value, so a type that carries one is *bound* to its node, and `Peer.spawn` refuses the loop that receives it (the guide's §8.3). The spawn of chapter 2 carried `count` as code, by its hash, and this spawn would have to carry a function as a message's value, which nothing does.
 
-The fix will come through the door as a new loop beside `count`, and `count` stays until no counter runs it (the guide's §8.9).
+The fix will come through the door as a new loop beside `count`, and `count` stays until no counter runs it (the guide's §8.4).
 
 So the counter's messages are two types: `ClientMsg`, what a client sends, which crosses, and `CounterMsg`, which wraps each client message in `Client` and adds the door. `start` spawns the loop and answers an *adapted address*, an `Address(ClientMsg)` whose messages reach the counter as `Client(...)` (the guide's §5.5), and the client, `apply`, knows nothing of the door. Such an address crosses to another node though it holds `Client`, since its function never leaves the node that made it. A message to the address from elsewhere takes one step more: it is wrapped on that node, by a process the runtime keeps for the address, before the counter sees it (the guide's §8.2).
 
@@ -512,7 +512,7 @@ the peer bar connected
 Right(8) : Either(Io.Error, Int)
 ```
 
-The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String: is 8`, naming the function, the type and what the host returned.
+The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.5). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String: is 8`, naming the function, the type and what the host returned.
 
 That is *Why Ernest*'s claim *The mailbox in the function's type* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by; before any peer has told it, such a compute answers `Left(Io.Unreachable)` (report Appendix E.27).
 
@@ -577,15 +577,15 @@ Counter, compiled again
 "apples: 2" : String
 ```
 
-`Code.running(f)` lists the processes on this node that are running `f`, or an earlier definition of its name whose message type is `f`'s, within the limits the guide states, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9).
+`Code.running(f)` lists the processes on this node that are running `f`, or an earlier definition of its name whose message type is `f`'s, within the limits the guide states, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.4).
 
 `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `countGuarded` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
 
 `Client(Inc(=amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
-That is *Why Ernest*'s claim *Code travels* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source, since its name and its message type are how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
+That is *Why Ernest*'s claim *Code travels* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source, since its name and its message type are how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.4, the deployment guide's §4.2).
 
-A fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash and leave the counters found, since their message type stands. A change to `CounterMsg` would hide them, since nothing of the new type can be sent to them. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `kill` (the guide's §8.9).
+A fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash and leave the counters found, since their message type stands. A change to `CounterMsg` would hide them, since nothing of the new type can be sent to them. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `kill` (the guide's §8.4).
 
 Then on `foo`, which never had `countGuarded` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, `ops` made with no `--listen`, since it only dials:
 
@@ -654,6 +654,6 @@ the peer foo ended
 
 `ern stop` ends a node in order, and each shell connected to it is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `ProgramEnd`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`.
 
-The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, its §5.3 is the operator's side of it and its §6 the attached shell; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.
+The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, its §5.3 is the operator's side of it and its §6 the attached shell; the guide's §9 names the tools, and the guide's §8.4 the rule the move rests on.
 
 Libraries and programs written in Ernest, each in a repository of its own, are listed in [`site/projects.md`](../site/projects.md).

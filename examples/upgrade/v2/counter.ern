@@ -46,10 +46,7 @@
 //     ern shell --config-dir ops --attach b --source-root upgrade/v2
 //
 
-type CounterMsg =
-    Inc(Int)
-  | Get(Reply(Int))
-  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
+type CounterMsg = Inc(Int) | Get(Reply(Int)) | Upgrade(next : (Int) -> Unit receiving CounterMsg)
 
 // What a process spawned on a peer tells the tool: the peer, and how many of its processes
 // it moved.
@@ -77,8 +74,8 @@ fn count(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             count(total)
         }
-      | Upgrade(=migrate, =next) ->
-            next(migrate(total))
+      | Upgrade(=next) ->
+            next(total)
     }
 
 // The second build's loop, which says each Inc.
@@ -92,14 +89,14 @@ fn countAloud(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             countAloud(total)
         }
-      | Upgrade(=migrate, =next) ->
-            next(migrate(total))
+      | Upgrade(=next) ->
+            next(total)
     }
 
 // Every process of this node that runs count sent its Upgrade, and how many there were.
 export fn moved() : Int = {
     let old = Code.running(count);
-    List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = countAloud)));
+    List.forEach(old, fn(process) = send(process, Upgrade(next = countAloud)));
     List.size(old)
 }
 

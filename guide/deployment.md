@@ -227,7 +227,7 @@ Code crosses between nodes with a spawn and a compute, and nowhere else: not wit
 
 A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds; across a wire to a machine of two cores, 17, 27 and 72, most of it that machine's compiler, against about a millisecond and a half, the wire's round trip, for a function it holds.
 
-Two things never cross: the value of a top-level binding a node evaluates, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3). A binding whose initializer is a *constant*, a literal, or a constructor, a tuple or a list of constants, is evaluated nowhere, and crosses with the code that names it (report §4.6).
+Two things never cross: the value of a top-level binding a node evaluates, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3). A binding whose initializer is a *constant* (the language guide's §2.2) is evaluated nowhere, and crosses with the code that names it (report §4.6).
 
 A shell attached to a node sends it a module's source as text, which the node compiles as its own (section 6); there too nothing compiled crosses.
 
@@ -239,7 +239,7 @@ The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 
 
 How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing.
 
-One that developers spawn their edits onto, whose program loads new code into itself often, with `Code.load` (section 5.3), or at whose prompt an operator types often, each input a unit (section 6), moves them: on one machine, a small definition spawned costs one module name, about five exports, a function entry per *lambda*, a function written in place without a name, and an atom, so two hundred such spawns a day reach four fifths of module names after about 260 such days; a program of twenty modules upgraded whole through `Code.load` reaches four fifths of function entries after about 416 upgrades.
+One that developers spawn their edits onto, whose program loads new code into itself often, with `Code.load` (the language guide's §8.4), or at whose prompt an operator types often, each input a unit (section 6), moves them: on one machine, a small definition spawned costs one module name, about five exports, a function entry per *lambda*, a function written in place without a name, and an atom, so two hundred such spawns a day reach four fifths of module names after about 260 such days; a program of twenty modules upgraded whole through `Code.load` reaches four fifths of function entries after about 416 upgrades.
 
 The move is a restart at a time the operator chooses: a restarted node holds its build and is sent the rest again as its peers need it, and nothing is lost but what was in its memory, which a node never promises to keep.
 
@@ -268,7 +268,7 @@ Nodes on two floors never connect (section 2.2). A fleet moves to a new minor re
 
 A node reads at its start every module in its program's directory and every directory beneath it, and refuses to start where an `.erc` there holds a module of another namespace than its path gives, one built from another source root: `ern run: old/counter.erc holds Counter, not Old.Counter; remove it, or keep a build root outside the program's root` (report §11.2).
 
-A build written into the directory a running node was started from, where `ern build` put its `.erc`, reaches the node at its next start and nothing before; code reaches a running node from disk through `Code.load` (section 5.3, report Appendix E.28), or through `:load` at a shell attached to it, which takes the node's own compiled form where its load path holds one (section 6). Put each build in a directory of its own, and point the service manager's unit at the one meant.
+A build written into the directory a running node was started from, where `ern build` put its `.erc`, reaches the node at its next start and nothing before; code reaches a running node from disk through `Code.load` (the language guide's §8.4), or through `:load` at a shell attached to it, which takes the node's own compiled form where its load path holds one (section 6). Put each build in a directory of its own, and point the service manager's unit at the one meant.
 
 ### 5.2 A fix from a shell
 
@@ -278,9 +278,9 @@ A running process keeps its code until a message of its own type hands it the ne
 
 ### 5.3 A service moved to new code
 
-A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a function of the new build lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's §8.9; the operator calls the function at the node's prompt.
+A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a function of the new build lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's §8.4; the operator calls the function at the node's prompt.
 
-A service under `restarting`, started so that the runtime restarts it at a fault, is moved so only until its next fault, when the restart runs the function the service was started with, the old code (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by `Code.load`, the program loading a build into itself (below), or a shell's `:reload`, which loads a module's new source in place of the old, and the old service runs on beside it (report §11.2, Appendix E.28).
+A service under `restarting`, started so that the runtime restarts it at a fault, is moved so only until its next fault, when the restart runs the function the service was started with, the old code (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by `Code.load`, the program loading a build into itself (the language guide's §8.4), or a shell's `:reload`, which loads a module's new source in place of the old, and the old service runs on beside it (report §11.2, Appendix E.28).
 
 So a reload starts the module's services again beside the old, unless the binding offers its service and, finding it held, waits for the holder to end (report Appendix E.27). The old version's processes are listed under the site their version gave them, the build's plain and a reload's with the version's number, by `:processes` and `Process.status` (section 6), which find them where their function can no longer be named, a new build having changed the message type of the function they run. Each is ended by `kill`. It is moved by a message of its own type only where the program kept an address of that type, since a `Process` takes no message.
 
@@ -303,7 +303,7 @@ Counter, compiled again
 
 The tool, the second build's `main`, makes the move from a node of its own, for every peer at once: it moves a counter of its own first, then spawns on each peer a process that moves the peer's counters and tells it how many, one line a peer; the spawn carries `countAloud` to a peer at the first build, which lacks it and keeps it. Section 8 runs it, and a peer it could not start on is a line with the failure, `c: Io.Unreachable`.
 
-A program may also load a build itself at run time, `Code.load(path)`, which loads the module at `path` and finds its reach under the module's root, then on the load path, and list what runs an old function with `Code.running`, which `moved` uses (report Appendix E.28).
+A program may also load a build itself at run time, `Code.load(path)`, which loads the module at `path` and finds its reach under the module's root, then on the load path, as the language guide's §8.4 shows, and list what runs an old function with `Code.running`, which `moved` uses (report Appendix E.28).
 
 ## 6. Looking in
 
@@ -336,7 +336,7 @@ A process is `running` while the host works in it. The host works for a moment i
 
 `Process.live()` and `Process.status` answer for `b` at its prompt, and `Process.live()`, as `:processes`, leaves out every session's own processes, this one's and another's (report Appendix E.21).
 
-A process's site is the declaration its spawn is written in, with the spawn's line, `Counter.main:60` for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, `Counter.serve` above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, `Counter$2.main:60` for that spawn in the module's first reload. A site of a process a session started carries the session, `$Session2.input 3:1`, in every shell's lines and on the node's standard error alike (report §11.2, *Faults*).
+A process's site is the declaration its spawn is written in, with the spawn's line, `Counter.main:57` for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, `Counter.serve` above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, `Counter$2.main:57` for that spawn in the module's first reload. A site of a process a session started carries the session, `$Session2.input 3:1`, in every shell's lines and on the node's standard error alike (report §11.2, *Faults*).
 
 A type's number works the other way: the current version prints plain, and a number names a previous one (report §11.2, *Loading and reloading*).
 
