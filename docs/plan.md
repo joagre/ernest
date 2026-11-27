@@ -58,7 +58,9 @@ announcement waits with the site, since it sends a reader there. Its release is 
 **First, the two releases that follow 0.11.0**, moved here from MVP 4.4's item 5 on
 2026-11-26, each by its own session on the user's word, in this order: ernest-template's,
 since the others copy from it, and ernest-epx's, not waiting for its milestone 9 (the log's
-*The Floors and the Releases*). Ernest's session told all three applications the tag by a
+*The Floors and the Releases*). ernest-template's is out since 2026-11-27, its tag `v0.11.0`
+at `23e2bdc` on GitHub, and both copies have taken it (the log's *The Template's Tag Is Out*).
+ernest-epx's is left. Ernest's session told all three applications the tag by a
 message on 2026-11-26 that names every line of the application's that the release answers,
 and asks each in turn when the one before it is out. Each application checks every verdict
 against the release before its own, and answers with any line it keeps, as
