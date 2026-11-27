@@ -781,14 +781,18 @@ described() ->
     [File || File <- documents() -- (?REPORT ++ ["docs/plan.md", "docs/findings.md"]),
              not lists:prefix("docs/proposals/", File)].
 
-%% A backticked path a document writes under one of the repository's own
-%% directories, or under a directory beside the document, as
-%% src/shell/README.md writes `ernest/shell/editor.ern`. A metavariable is
-%% written `<name>`, as docs/code_style.md writes `ern_<thing>`, and a wildcard
-%% stands for a set, so neither names one file.
+%% A backticked path a document writes under a directory at the
+%% repository's top that holds a tracked file, or under build/, whose
+%% products the documents name, or under a directory beside the document,
+%% as src/shell/README.md writes `ernest/shell/editor.ern`. A metavariable
+%% is written `<name>`, as docs/code_style.md writes `ern_<thing>`, and a
+%% wildcard stands for a set, so neither names one file; a name, a slash
+%% and digits alone, `report/5`, is a function and its arity. A
+%% regression: the top directories were written out, and left out five
 paths(File) ->
-    Tops = ["docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/", "release/",
-            "editors/", "assets/"],
+    Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
+    Tops = lists:usort(["build/" | [Top ++ "/" || Path <- Tracked,
+                                                  [Top, _] <- [string:split(Path, "/")]]]),
     Beside = [Name ++ "/" || Name <- subdirectories(filename:dirname(File))],
     Pieces = binary:split(ern_repository:read(File), <<"`">>, [global]),
     [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Pieces)), Pieces),
@@ -796,7 +800,8 @@ paths(File) ->
                               lists:any(fun(Top) -> lists:prefix(Top, binary_to_list(Piece)) end,
                                         Tops ++ Beside),
                               binary:match(Piece, [<<"*">>, <<"<">>]) =:= nomatch,
-                              binary:last(Piece) =/= $/].
+                              binary:last(Piece) =/= $/,
+                              re:run(Piece, "^\\w+/\\d+$") =:= nomatch].
 
 %% The directories in a directory of the repository, by their names.
 subdirectories(Dir) ->
