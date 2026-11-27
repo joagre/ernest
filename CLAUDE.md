@@ -54,6 +54,7 @@ Each fact has one owner, and every other document points at it.
 - **Before the launch stands what a first user meets.** It is asked of each item when it is written and before it starts. A corner that must be built on purpose to be met gets its line in [`docs/known_issues.md`](docs/known_issues.md), and becomes an item when the user takes it up.
 - **Nothing is left for its size or its difficulty.** What is left is what no first user meets, and it has its line in the known issues.
 - **Writing Ernest tests the language.** A workaround, a second way, a helper that belongs in the library or a form repeated at site after site is said at once, and gets its entry in [`docs/language_feedback.md`](docs/language_feedback.md).
+- **The tracker's open issues are listed as each item of the plan opens.** One that no message announced is read as [`docs/clean_room.md`](docs/clean_room.md)'s *The reading here* says.
 - **The log is searched before a finding is argued**, for the decision the finding may sharpen or reverse.
 - **Work in proportion.** Read the code before running anything. What the reading shows to be deterministic is verified once, and only what is intermittent is run again. The checks an item gets are sized to what it changes.
 - **A published specification or a general-purpose engine is a library's work.** A program that finds itself writing one stops, and the user decides whether a library is written.
