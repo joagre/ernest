@@ -6,7 +6,7 @@ body:
     attributes:
       label: ern --version
       description: What `ern --version` prints.
-      placeholder: ern 0.10.0
+      placeholder: ern 0.11.0
     validations:
       required: true
   - type: input

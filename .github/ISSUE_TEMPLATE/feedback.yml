@@ -1,0 +1,41 @@
+name: Feedback
+description: Writing Ernest felt against one of the report's five principles.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ern --version
+      description: What `ern --version` prints.
+      placeholder: ern 0.11.0
+    validations:
+      required: true
+  - type: textarea
+    id: finding
+    attributes:
+      label: The finding
+      description: "What you met: a workaround, a second way to say one thing, something a program did that its text did not show, a function the library lacks, a form repeated at site after site, or a page that was silent or opaque."
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: The program
+      description: The smallest program, or the commands, that show it.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: principle
+    attributes:
+      label: The principle
+      description: Which of the five principles of the report's §0 it goes against.
+      placeholder: "3, nothing invisible"
+    validations:
+      required: true
+  - type: textarea
+    id: ask
+    attributes:
+      label: The ask
+      description: What you would have Ernest do.
+    validations:
+      required: true

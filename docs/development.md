@@ -120,8 +120,9 @@ src/shell/         the shell as Ernest source under ernest/, its host half
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 release/           the release archive's own files, Makefile and README.md, which
                    tools/install.sh fills with the version
-.github/           ISSUE_TEMPLATE/, the form a defect is reported by, and the chooser
-                   that sends a security hole to private reporting, as SECURITY.md does
+.github/           ISSUE_TEMPLATE/, the two forms an issue is opened by, a defect's and
+                   a feedback line's, and the chooser that sends a security hole to
+                   private reporting, as SECURITY.md does
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with its modules in site/ beside
                    it, writes every page of the website from the repository into a
