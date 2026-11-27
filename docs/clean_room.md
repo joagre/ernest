@@ -18,7 +18,7 @@ What the program says is the application's own session's: its sources, tests and
 
 The program holds its proposal in its own repository, and what it asks of Ernest is Ernest's to hold, a proposal of `docs/proposals/` going once it is built as every built proposal goes; the two cite each other by address. A proposal begun in Ernest's repository before the application's exists is written whole, and split along that line in the commit that makes the repository.
 
-`ernest-template` holds no program, and Ernest's session writes it whole.
+`ernest-template` holds no program, and Ernest's session writes it whole. What Ernest's session finds wrong in the template, or asks of it, is an issue on the template's tracker, by its form, filed with no word from the user. A message to the template's session carries news alone.
 
 ## The messages
 
