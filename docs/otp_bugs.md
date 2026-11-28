@@ -1797,7 +1797,7 @@ Found by a language that compiles to Erlang, whose conversion of a text to an in
 
 ## 29. `file:read_file_info/1,2` gives an inode's low 32 bits
 
-Not filed. Found on 2026-11-22 (the log's *A Copy Onto Itself*), read in erts and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it where it tells that two paths name one file by their device and inode: the shell's two source roots (`ern_shell:is_same_file/2`, a line of [`known_issues.md`](known_issues.md)) and a job's standard error against `JOURNAL_STREAM` (`ern_cli:is_journal/0`).
+Not filed. Found on 2026-11-22 (the log's *A Copy Onto Itself*), read in erts and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it where it tells that two paths name one file by their device and inode: the shell's two startup files (`ern_shell:is_same_file/2`, a line of [`known_issues.md`](known_issues.md)) and a job's standard error against `JOURNAL_STREAM` (`ern_cli:is_journal/0`).
 
 **Title:** file:read_file_info/1,2 returns the low 32 bits of an inode number
 
