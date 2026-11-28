@@ -2009,3 +2009,87 @@ The raw run prints the two warnings as terms, each with the file it has, an empt
 **Affected versions**
 
 OTP 29.1.3, erts 17.1.2, dialyzer 6.0.4, on Linux x86_64.
+
+## 33. `net_kernel:setopts(new, Options)` answers `{error, enotsup}` under TLS distribution
+
+Not filed. Found on 2026-11-17 by the build of MVP 4.16's item 98 (the log's *A Connection That Cannot Drain*), and shown again with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's calls it: `ern` gives the host a connection's options as it boots, by `inet_dist_connect_options` and `inet_dist_listen_options`.
+
+**Title:** net_kernel:setopts(new, Options) returns {error, enotsup} under -proto_dist inet_tls
+
+**Describe the bug**
+
+`net_kernel:setopts/2` is documented to take `new` for "the distribution sockets of all future connected nodes", and to return what `inet:setopts/2` returns. For `new` it first sets the options on each listening socket through the distribution module, `Mod:setopts(LSocket, Opts)`, and answers `{error, enotsup}` where the module exports no such function (`net_kernel:setopts_on_listen/2`). `inet_tcp_dist` exports `setopts/2` and `getopts/2`, and `inet_tls_dist` exports neither. So on a node started with `-proto_dist inet_tls` the call sets nothing and answers `{error, enotsup}`, which the documentation does not name.
+
+**To Reproduce**
+
+With a certificate and its key in `cert.pem` and `key.pem`, and `dist.conf` holding `[{server, [{certfile, "cert.pem"}, {keyfile, "key.pem"}]}, {client, [{verify, verify_none}]}].`:
+
+```sh
+erl -noshell -sname plain \
+    -eval 'io:format("~p~n", [net_kernel:setopts(new, [{nodelay, true}])]), halt().'
+erl -noshell -sname tls -proto_dist inet_tls -ssl_dist_optfile dist.conf \
+    -eval 'io:format("~p~n", [net_kernel:setopts(new, [{nodelay, true}])]), halt().'
+```
+
+The first prints `ok` and the second `{error,enotsup}`.
+
+**Expected behavior**
+
+`ok` under TLS distribution too, the options set on the listening socket and kept for the connections to come, or a sentence in the documentation that the call is not supported there.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, kernel 11.0.4, ssl 11.7.9, on Linux x86_64.
+
+## 34. `net_kernel:setopts/2` answers `{error, noconnection}` for a node that `nodeup` has just named
+
+Not filed. Found on 2026-11-17 by the build of MVP 4.16's item 98 (the log's *A Connection That Cannot Drain*), which set a linger at the gateway's `nodeup` and hung where the call lost, and shown again with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's calls it now.
+
+**Title:** net_kernel:setopts(Node, Options) can return {error, noconnection} right after {nodeup, Node}, while nodes() lists Node
+
+**Describe the bug**
+
+`net_kernel:setopts/2` is documented to return `{error, noconnection}` "if `Node` is not a connected node". A process that subscribes with `net_kernel:monitor_nodes(true)` and sets an option on a connection as soon as it is told `{nodeup, Node}` is sometimes answered `{error, noconnection}`, with `Node` in `nodes()`. `net_kernel` answers from its own table, where a connection is `up` only once its owner has told `net_kernel` so, and the `nodeup` is sent before that. On the node that dials, 1, 4, 5 and 34 calls of 1,000 lost in four runs.
+
+A program that sets a socket option on each new connection therefore leaves some connections without it, and is told that a node it was just told of is not connected.
+
+**To Reproduce**
+
+`up.erl`:
+
+```erlang
+-module(up).
+-export([dial/2]).
+
+dial(Node, Count) ->
+    ok = net_kernel:monitor_nodes(true),
+    Self = self(),
+    Answers = lists:foldl(
+        fun(_, Counted) ->
+            spawn_link(fun() -> true = net_kernel:connect_node(Node), Self ! connected end),
+            receive {nodeup, Node} -> ok end,
+            Answer = {net_kernel:setopts(Node, [{nodelay, true}]), lists:member(Node, nodes())},
+            receive connected -> ok end,
+            true = erlang:disconnect_node(Node),
+            receive {nodedown, Node} -> ok end,
+            maps:update_with(Answer, fun(N) -> N + 1 end, 1, Counted)
+        end, #{}, lists:seq(1, Count)),
+    io:format("~p~n", [Answers]),
+    halt().
+```
+
+```sh
+erlc up.erl
+erl -noshell -sname listener &
+erl -noshell -sname dialer -eval "up:dial('listener@$(hostname -s)', 1000)."
+```
+
+One run printed `#{{ok,true} => 996,{{error,noconnection},true} => 4}`.
+
+**Expected behavior**
+
+`ok` for a node that `nodeup` has named and `nodes()` lists: the `nodeup` sent once `net_kernel` holds the connection as up, or the call answered once it does.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
