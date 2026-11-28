@@ -88,7 +88,8 @@ Sitemap Before the Tag*).
    seconds with nothing to send, where E.18 has a kill end a socket at once; and over
    TCP a close answers up to a second after the far end has read everything, by a look
    once a second, which is a poll in the runtime. One is a gap: no function ends a
-   socket and drops what its host holds.
+   socket and drops what its host holds. It stays MVP 4.5's item 158, decided with the
+   user on 2026-11-28 (the log's *The Socket's Reset Stays After the Launch*).
 
    Both defects were reproduced 2026-11-26 against `c9a0d66d` (the log's *The
    Applications' Lines Sorted*). The 5 seconds are the host's: its connection process
@@ -121,8 +122,7 @@ Sitemap Before the Tag*).
    ending the connection itself. OTP's own fix, #12237, open, sets `alert_timeout` to 0.
    For the closer's second the host documents nothing that wakes a process as its queue
    drains, so the ways are a sentence in E.18, or looks that begin a millisecond apart
-   and double to the second. The gap is feedback 270, which MVP 4.5's item 158 holds
-   too: whether it is built for 0.12.0 is this item's first decision.
+   and double to the second.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 
@@ -375,6 +375,11 @@ What the line left, in the order it is taken:
   MiB to 225, outside its caps. E.18 is true and a kill does what 0.10.0's close did, so
   it stands here. The shape: a function of `Tcp` that ends a socket at once, its far end
   reading a reset, weighed on E.0's admission rules and decided with the user.
+
+  Since 0.11.0 that server holds a client's place through its close's wait, so its caps
+  count what the host holds, and the place is held for up to E.18's bound. Read again on
+  2026-11-28 with MVP 4.18's item 1, it stays here (the log's *The Socket's Reset Stays
+  After the Launch*).
 - **174. A call's wait under a backlog**, a decision, from the findings' *H54*, decided
   2026-11-26 (the log's *The Applications' Lines Decided*). Its first step is a design
   session with the user, and nothing is built before it. A call's wait reads its caller's
