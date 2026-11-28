@@ -70,9 +70,9 @@ that names every line of the application's that the release answers. ernest-epx'
 log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers, decided with the user on
-2026-11-28 (the log's *ernest-httpd's Lines Are All In*): item 7, closed that day; item 1; items 6, 8 and 9; item 2, the release, with the last read before
-its tag; item 3; item 4; and item 5 last. Item 9 joined them on 2026-11-28 (*Robots and the
-Sitemap Before the Tag*).
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): item 7, closed that day; item 1; items 6, 8, 9 and 10; item 2, the release, with the last read
+before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2026-11-28
+(*Robots and the Sitemap Before the Tag*, *The First Hour Before the Tag*).
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
    What is Ernest's among it came as lines of its feedback file, each mended for 0.12.0 or
@@ -240,6 +240,14 @@ Sitemap Before the Tag*).
    The generator writes both, the second naming ernest-lang.org alone, which the site's
    proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
    `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
+10. **What a first hour meets, decided**, the first family of MVP 4.5's item 176, taken
+    before the tag with items 6, 8 and 9, decided with the user on 2026-11-28 (the log's
+    *The First Hour Before the Tag*): entries 289, 294, 297, 305, 309 and 313 of
+    [`language_feedback.md`](language_feedback.md), each a question where the report is
+    true, which a reader of the announcement meets in a first hour. They are decided as
+    item 176 says: the session searches the log for each and runs its program, and the
+    user answers the family once. A verdict that is cheap to build is built for 0.12.0.
+    Any other is an item of MVP 4.5, a line of the known issues, or dropped in the log.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), after the launch
 
@@ -338,7 +346,8 @@ What the line left, in the order it is taken:
   [`known_issues.md`](known_issues.md); or a line of the log that drops the entry.
 
   The families, in the order they are taken:
-  - what a first hour meets: 289, 294, 297, 305, 309 and 313;
+  - what a first hour meets, 289, 294, 297, 305, 309 and 313, is MVP 4.18's item 10,
+    decided before the launch;
   - the language's rules: 278, 283, 286, 292, 295, 304, 308, 314 and 317;
   - processes and calls: 287, 296, 300, 303 and 318;
   - the library's functions: 275, 277, 279, 280, 288, 298, 306, 307 and 310;
@@ -598,5 +607,5 @@ What the line left, in the order it is taken:
 | MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
 | The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
 | Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
-| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.12.0, the three applications' releases on it, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; and the site's `/robots.txt` and `/sitemap.xml` | | | above |
+| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.12.0, the three applications' releases on it, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; the site's `/robots.txt` and `/sitemap.xml`; and the six entries of the feedback that a first hour meets, decided | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
