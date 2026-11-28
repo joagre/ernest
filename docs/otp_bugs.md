@@ -419,6 +419,8 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Answered on 2026-11-16: the two waits come of "a very old work around", and OTP will look at whether it can be removed. The answer was acknowledged with a thumbs-up on 2026-11-17. Answered again on 2026-11-18: the workaround is needed on no supported platform, and OTP proposes [#12237](https://github.com/erlang/otp/pull/12237), against `maint` and open on 2026-11-26, by which a close no longer waits for the peer's close, the alert's wait takes the time `close/2` is given and `close/1` 5000 ms, and `alert_timeout` defaults to 0. That answer was acknowledged with a thumbs-up on 2026-11-22.
 
+A comment of 2026-11-28 gives #12237 a second symptom of the alert's wait, a call to a connection whose handshake failed held 5,000 ms, gone with `alert_timeout` 0, which Ernest sets since that day (the log's *The Host's Wait After Its Alert Goes*), and says that the setting leaves this report's two waits as they are: its reproduction still printed 10002 ms.
+
 Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
 **Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
@@ -2094,66 +2096,61 @@ One run printed `#{{ok,true} => 996,{{error,noconnection},true} => 4}`.
 
 OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
 
-## 35. A process that waits by `receive ... after` may never wake once it has been suspended and resumed
+## 35. A process suspended just before its `receive ... after` timeout is due never wakes
 
-Not filed. Found on 2026-11-28 by a probe for MVP 4.18's item 1, a closer that looks at its socket a millisecond after the look before, under which four tests that hold the closer by `erlang:suspend_process/1` never ended; the log's *The Closer Looks Sooner*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's meets it but a test: the runtime suspends only a process it is killing.
+Not filed. Found on 2026-11-28 by a probe for MVP 4.18's item 1, a closer that looks at its socket a millisecond after the look before, under which four tests that hold the closer by `erlang:suspend_process/1` never ended; the log's *The Closer Looks Sooner*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's meets it but a test: the runtime suspends only a process it is killing, and the exit ends that process.
 
-**Title:** A process in a loop of short `receive ... after` waits can stay waiting forever after erlang:suspend_process/1 and erlang:resume_process/1
+**Title:** A process suspended in the last half millisecond before its receive timeout is due stays waiting forever after erlang:resume_process/1
 
 **Describe the bug**
 
-A process that loops over `receive stop -> ok after 1 -> ... end` is suspended with `erlang:suspend_process/1` at a moment not chosen and resumed 50 ms later. In about half of the runs it never runs again: `process_info/2` shows it `waiting` in the `receive`, and its timeout never comes. A message that matches no clause, sent after the resume, does not wake it either. At a wait of 5 ms it is lost in about a sixth of the runs. A process suspended as its one wait begins is not lost.
+A process waits in `receive after 20 -> ... end`. Another process suspends it with `erlang:suspend_process/1`, sleeps 50 ms and resumes it. Suspended 19.0 ms into the wait or earlier, it wakes once resumed, though its timeout passed while it was suspended. Suspended from about 19.5 ms into the wait until the timeout fires, it never runs again: `process_info/2` shows it `waiting` in the `receive`, and a message that matches no clause, sent after the resume, does not wake it either.
 
-`erlang:suspend_process/1` is documented for debugging only, and a process that a debugger or a test suspended is then lost for good, with nothing to say so.
+So a process in a loop of short waits is lost by a suspension at a moment not chosen in about half of the runs at a wait of 1 ms, and in a sixth at 5 ms. `erlang:suspend_process/1` is documented for debugging only, and a process that a debugger or a test suspended is then lost for good, with nothing to say so.
 
 **To Reproduce**
 
-`lost_tick.erl`:
+`lost_at.erl`:
 
 ```erlang
--module(lost_tick).
+-module(lost_at).
 -export([main/1]).
 
-main([After, Held]) ->
+main([After, At]) ->
     T = list_to_integer(After),
-    H = list_to_integer(Held),
-    Outcomes = [once(T, H) || _ <- lists:seq(1, 200)],
-    Stuck = [O || O <- Outcomes, O =/= went_on],
-    io:format("a wait of ~p ms, held ~p ms: ~p of 200 never went on~s~n",
-              [T, H, length(Stuck),
-               case Stuck of [] -> ""; [S | _] -> io_lib:format("; the first: ~p", [S]) end]),
+    A = list_to_integer(At),
+    Lost = length([x || _ <- lists:seq(1, 40), once(T, A) =/= woke]),
+    io:format("a wait of ~p ms, suspended ~p us into it: ~p of 40 never woke~n", [T, A, Lost]),
     halt().
 
-tick(Parent, T) ->
-    receive stop -> ok after T -> Parent ! {tick, self()}, tick(Parent, T) end.
-
-flush() ->
-    receive {tick, _} -> flush() after 0 -> ok end.
-
-once(T, H) ->
+once(T, A) ->
     Self = self(),
-    P = spawn(fun() -> tick(Self, T) end),
-    timer:sleep(rand:uniform(20)),
+    P = spawn(fun() -> Self ! {waiting, self()}, receive after T -> Self ! {woke, self()} end end),
+    receive {waiting, P} -> ok end,
+    Start = erlang:monotonic_time(microsecond),
+    spin(Start + A),
     true = erlang:suspend_process(P),
-    timer:sleep(H),
-    flush(),
+    timer:sleep(50),
     true = erlang:resume_process(P),
-    Outcome = receive {tick, P} -> went_on
-              after 2000 -> erlang:process_info(P, [status, current_stacktrace, message_queue_len])
-              end,
+    Outcome = receive {woke, P} -> woke after T + 500 -> lost end,
     exit(P, kill),
-    flush(),
     Outcome.
+
+spin(Until) ->
+    case erlang:monotonic_time(microsecond) >= Until of
+        true -> ok;
+        false -> spin(Until)
+    end.
 ```
 
 ```sh
-erlc lost_tick.erl
-erl -noshell -run lost_tick main 1 50
-erl -noshell -run lost_tick main 5 50
-erl -noshell +S 1 -run lost_tick main 1 50
+erlc lost_at.erl
+for at in 5000 19000 19500 19900 20000 20300; do erl -noshell -run lost_at main 20 $at; done
 ```
 
-The three runs printed 106, 33 and 98 of 200, each with the first lost process `waiting` in `lost_tick:tick/2` and its message queue empty. With `P ! junk` after the resume, 20 of 60 were lost, each with one message in its queue.
+The six runs printed 0, 0, 10, 39, 40 and 40 of 40. At 20600 the process had ended before the suspension, which raised `badarg`. A wait of 200 ms suspended 150 ms into it lost none of 40.
+
+A process that loops over `receive stop -> ok after 1 -> Parent ! {tick, self()}, tick(Parent, 1) end`, suspended a random 1 to 20 ms after its start and resumed 50 ms later, sent no further tick in 106 of 200 runs, in 98 of 200 with `+S 1`, and in 33 of 200 at a wait of 5 ms.
 
 **Expected behavior**
 

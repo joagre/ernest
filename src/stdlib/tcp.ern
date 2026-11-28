@@ -601,9 +601,9 @@ export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// The bytes of the address `text` writes, as the host reads one: 4 for an
 /// IPv4 address written as four decimal numbers, and 16 for an IPv6 address in
 /// any of its forms and either case of its letters. It answers `None` for
-/// another text, a host's name, a number with a sign and an address with a zone
-/// among them. It reads the host of each `Endpoint` that `remote` and `local`
-/// answer.
+/// another text, a host's name, a number with a sign, a decimal number with a
+/// leading zero, `192.0.2.07`, and an address with a zone among them. It reads
+/// the host of each `Endpoint` that `remote` and `local` answer.
 ///
 /// ### Examples
 ///

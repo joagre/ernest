@@ -7,11 +7,25 @@
 -export([at_the_file_limit/0, tls_connection_of/1, tls_taken/2, pki/0]).
 
 %% Report Appendix E.18: the window in which a socket that has ended may
-%% send what the far end has not taken with nothing taken, and the time
-%% the host's ssl takes to close a connection, in two waits of 5 seconds
-%% of its own.
+%% send what the far end has not taken with nothing taken; the longest
+%% wait of a socket that has ended between two looks at what the host
+%% holds, a fifth of the window; and the time the host's ssl takes to
+%% close a connection, in two waits of 5 seconds of its own.
 -define(LINGER_IDLE, 5000).
+-define(LINGER_CHECK, (?LINGER_IDLE div 5)).
 -define(TLS_CLOSE, 10000).
+
+%% Report Appendix E.18: the time after a socket's end from which the
+%% closer it made waits at least as long between two looks, at whose start
+%% a test suspends it: the host can lose a process suspended in the last
+%% millisecond of a wait (docs/otp_bugs.md, 35), and a closer's first waits
+%% are a millisecond each. A test meets that loss still where its process
+%% is kept from running for as long.
+-define(LONG_WAIT, 100).
+
+%% Report Appendix E.18: the host's own wait after a fatal alert of its own
+%% over TLS, its `alert_timeout` unset, which the runtime sets to 0.
+-define(ALERT_WAIT, 5000).
 
 %% Report Appendix E.18: the most one read answers over TCP, the host's
 %% buffer for the socket; the most a TLS record holds; and what a read over
@@ -2096,8 +2110,7 @@ ended_while_held(End, Size) ->
                  end),
     {SocketPid, HostSocket} = ern_waits:wait(held),
     ok = ern_waits:ended([SocketPid]),
-    Closer = closer_of(SocketPid),
-    true = erlang:suspend_process(Closer),
+    Closer = held_closer(SocketPid),
     FarEnd ! go,
     Taken = receive {taken, FarTaken} -> FarTaken end,
     CloserRef = erlang:monitor(process, Closer),
@@ -2759,6 +2772,58 @@ tls_handshake_fails_test() ->
     ?assertMatch({'Left', {'Other', _}}, ern_waits:wait(wrote)),
     ?assertEqual([{'Left', 'Closed'}, {'Left', 'Closed'}], ern_waits:wait(later)).
 
+%% report Appendix E.18: after a fatal alert of its own the host closes a
+%% connection over TLS at once, so that a socket whose handshake failed, its
+%% client over TCP having written plain text and holding its connection
+%% open, ends at once by `close` and by `kill`, and its host's socket is
+%% gone. A host that waited after its alert would take all of ALERT_WAIT,
+%% and half tells the two apart under any load. Written first, a
+%% regression test: the host's process of the connection read for 5
+%% seconds after its alert, and the close and the kill waited for it
+tls_ends_at_once_after_its_handshake_failed_test_() ->
+    {timeout, 60,
+     fun() ->
+         #{server := Server} = pki(),
+         Half = ?ALERT_WAIT div 2,
+         ?assertMatch([{close, Closed, gone}, {kill, Killed, gone}]
+                        when Closed < Half andalso Killed < Half,
+                      [ended_after_a_failed_handshake(Server, How) || How <- [close, kill]])
+     end}.
+
+%% A socket over TLS that a listener with Server's certificate accepted,
+%% whose first read answered its handshake's failure, ended How, by a close
+%% or a kill: the milliseconds the end took, and the host's socket of the
+%% connection, `gone` once it has closed. The client's connection stays open
+%% until then.
+ended_after_a_failed_handshake(Server, How) ->
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               %% a wait in the host's code, the deadlock detector's foreign code
+               {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               {'Right', Socket} = accept(Listener, 5000),
+               {ok, ClientPort} = inet:port(Client),
+               HostSocket = tls_host_socket(ClientPort),
+               ok = gen_tcp:send(Client, <<"GET / HTTP/1.0\r\n\r\n">>),
+               {'Left', {'Other', _}} = read(Socket, 5000),
+               Start = erlang:monotonic_time(millisecond),
+               ok = case How of
+                        close -> ended_by(Socket, fun() -> 'Unit' = close(Socket) end);
+                        kill -> ended_by(Socket, fun() -> ern_rt:kill(Socket) end)
+                    end,
+               Took = erlang:monotonic_time(millisecond) - Start,
+               Gone = case gone([HostSocket], ?ALERT_WAIT div 2) of
+                          [HostSocket] -> gone;
+                          [] -> open
+                      end,
+               gen_tcp:close(Client),
+               'Unit' = close_listener(Listener),
+               Self ! {ended, {How, Took, Gone}}
+           end),
+    ern_waits:wait(ended).
+
 %% report Appendix E.18: a socket over TLS that `accept` answered, closed
 %% while its handshake runs, answers the read that waits for the handshake
 %% `Left(Closed)`, ends, and lets go of its connection once each process
@@ -3184,10 +3249,10 @@ tls_closed_socket_sends_what_it_took() ->
     HostSockets = ern_waits:wait(host_sockets),
     ?assertEqual({Size, {error, closed}}, receive {taken, Taken} -> Taken after 20000 -> none end),
     %% the host's socket goes once ssl's close has run, which begins as the
-    %% closer, looking a fifth of the idle window apart, finds the bytes
-    %% taken, and lasts up to TLS_CLOSE; the idle window again bounds a
-    %% failure on a loaded host
-    Bound = ?LINGER_IDLE div 5 + ?TLS_CLOSE + ?LINGER_IDLE,
+    %% closer, looking at most LINGER_CHECK apart, finds the bytes taken,
+    %% and lasts up to TLS_CLOSE; the idle window again bounds a failure on
+    %% a loaded host
+    Bound = ?LINGER_CHECK + ?TLS_CLOSE + ?LINGER_IDLE,
     ?assertEqual(HostSockets, gone(HostSockets, Bound)).
 
 %% report Appendix E.18: however a socket over TLS ends while the host
@@ -3288,8 +3353,7 @@ close_held(Kind, Size) ->
                                     EntryProcess ! {answered, Answer, port_gone(HostSocket)}
                                 end, <<"closing">>),
                ok = ern_waits:ended([SocketPid]),
-               Closer = closer_of(SocketPid),
-               true = erlang:suspend_process(Closer),
+               Closer = held_closer(SocketPid),
                FarEnd ! {go, EntryProcess},
                Taken = receive {taken, Count} -> Count end,
                Early = receive {answered, _, _} = Answered -> Answered after 0 -> waiting end,
@@ -3308,11 +3372,49 @@ close_held(Kind, Size) ->
            end),
     ern_waits:wait(closed).
 
+%% report Appendix E.18: the socket looks at what the host holds as it
+%% ends, and then each time after as long as has passed since its end, so
+%% that over TCP `close` of a socket whose host holds bytes answers soon
+%% after a far end that reads every byte at once has taken them, the far
+%% end let go once the socket has ended: well within LINGER_CHECK, the
+%% longest wait between two looks, and half of it tells the two apart under
+%% any load. Written first, a regression test: the socket looked once
+%% every LINGER_CHECK, and the close answered a second after its end
+close_answers_soon_after_its_bytes_test_() ->
+    {timeout, 60, fun close_answers_soon_after_its_bytes/0}.
+
+close_answers_soon_after_its_bytes() ->
+    Self = self(),
+    Size = 4 * 1024 * 1024,
+    {FarEnd, FarPort} = counting_far_end(none, Size),
+    ok = quietly(
+           fun() ->
+               {Socket, _} = held_socket(none, FarPort, Size),
+               SocketPid = ern_rt:process_of(Socket),
+               EntryProcess = self(),
+               _ = ern_rt:spawn(fun() -> EntryProcess ! {answered, close(Socket)} end,
+                                <<"closing">>),
+               ok = ern_waits:ended([SocketPid]),
+               Start = erlang:monotonic_time(millisecond),
+               FarEnd ! {go, EntryProcess},
+               Answer = receive {answered, Answered} -> Answered end,
+               Took = erlang:monotonic_time(millisecond) - Start,
+               Taken = receive {taken, Count} -> Count end,
+               Self ! {closed, {Answer, Took, Taken, receive {far_closed, Ended} -> Ended end}}
+           end),
+    Half = ?LINGER_CHECK div 2,
+    ?assertMatch({'Unit', Took, Size, {error, closed}} when Took < Half, ern_waits:wait(closed)).
+
 %% report Appendix E.18: `close` of a socket whose host holds nothing
-%% answers once the socket has ended and its host's socket has closed. Over
-%% TCP the socket makes no closer, and over TLS one that closes at once.
-%% Written first, a regression test: the close that was a send answered
-%% with the socket alive
+%% answers once the socket's process has ended and, over TLS, the record
+%% that ends the connection is with the kernel, and the host's socket then
+%% closes. Over TCP the socket makes no closer and closes its host's socket
+%% itself, which has closed at the answer. Over TLS it makes one that writes
+%% the record and closes at once, and the host's socket closes soon after:
+%% after the host's shutdown of both ways its ssl answers the close before
+%% its process of the connection has ended, and the host's socket closes as
+%% that process ends. Written first, a regression test: the close that was
+%% a send answered with the socket alive
 close_of_a_socket_that_holds_nothing_test_() ->
     {timeout, 60, fun close_of_a_socket_that_holds_nothing/0}.
 
@@ -3325,13 +3427,21 @@ close_of_a_socket_that_holds_nothing() ->
            fun() ->
                {'Right', Plain} = connect(TcpPort, 2000),
                {'Right', Tls} = connect_tls(<<"127.0.0.1">>, TlsPort, 'Unverified', 5000),
-               Hosts = [host_socket(Plain), tls_host_socket(TlsPort)],
-               Answers = [{close(Socket), erlang:is_process_alive(ern_rt:process_of(Socket)),
-                           port_gone(HostSocket)}
-                          || {Socket, HostSocket} <- lists:zip([Plain, Tls], Hosts)],
-               Self ! {answers, Answers}
+               PlainHost = host_socket(Plain),
+               TlsHost = tls_host_socket(TlsPort),
+               PlainClosed = close(Plain),
+               PlainAnswer = {PlainClosed, erlang:is_process_alive(ern_rt:process_of(Plain)),
+                              port_gone(PlainHost)},
+               TlsClosed = close(Tls),
+               TlsAnswer = {TlsClosed, erlang:is_process_alive(ern_rt:process_of(Tls))},
+               %% the idle window bounds a failure on a loaded host
+               TlsGone = case gone([TlsHost], ?LINGER_IDLE) of
+                             [TlsHost] -> gone;
+                             [] -> open
+                         end,
+               Self ! {answers, {PlainAnswer, TlsAnswer, TlsGone}}
            end),
-    ?assertEqual([{'Unit', false, gone}, {'Unit', false, gone}], ern_waits:wait(answers)).
+    ?assertEqual({{'Unit', false, gone}, {'Unit', false}, gone}, ern_waits:wait(answers)).
 
 %% report Appendix E.18: `close` answers `Unit` at once on a socket that
 %% has ended already, by a close, by a kill or by its owner's death, and
@@ -3416,8 +3526,7 @@ close_is_no_deadlock() ->
                     %% closer while the runtime looks
                     _ = erlang:spawn(fun() ->
                                          ok = ern_waits:ended([SocketPid]),
-                                         Closer = closer_of(SocketPid),
-                                         true = erlang:suspend_process(Closer),
+                                         Closer = held_closer(SocketPid),
                                          ok = ern_waits:looked(2),
                                          Self ! looked,
                                          FarEnd ! {go, Self},
@@ -3449,8 +3558,7 @@ close_waits_as_a_call() ->
                Closing = ern_rt:spawn(fun() -> EntryProcess ! {answered, close(Socket)} end,
                                       <<"closing">>),
                ok = ern_waits:ended([SocketPid]),
-               Closer = closer_of(SocketPid),
-               true = erlang:suspend_process(Closer),
+               Closer = held_closer(SocketPid),
                ok = ern_waits:calling(ern_rt:process_of(Closing)),
                Status = ern_rt:status(ern_rt:process_of(Closing)),
                true = erlang:resume_process(Closer),
@@ -3481,8 +3589,7 @@ close_of_a_killed_caller() ->
                Closing = ern_rt:spawn_monitored(fun() -> close(Socket) end,
                                                 fun(Down) -> {down, Down} end, <<"closing">>),
                ok = ern_waits:ended([SocketPid]),
-               Closer = closer_of(SocketPid),
-               true = erlang:suspend_process(Closer),
+               Closer = held_closer(SocketPid),
                ok = ern_waits:calling(ern_rt:process_of(Closing)),
                ern_rt:kill(Closing),
                receive {down, {'Down', _, Reason, _}} -> ok end,
@@ -3713,6 +3820,25 @@ closer_of(SocketPid) ->
     [Closer] = [Pid || Pid <- erlang:processes(),
                        erlang:process_info(Pid, parent) =:= {parent, SocketPid}],
     Closer.
+
+%% The closer of SocketPid, which has ended, held still by the host's
+%% suspension as it begins a wait of LONG_WAIT or more: at a look it makes
+%% LONG_WAIT or more after the socket's end, after which it waits as long as
+%% has passed since that end (ern_tcp:lingering/6).
+held_closer(SocketPid) ->
+    Since = erlang:monotonic_time(millisecond),
+    Closer = closer_of(SocketPid),
+    ok = looked_late(Closer, Since),
+    true = erlang:suspend_process(Closer),
+    Closer.
+
+%% Until Closer looks at what the host holds LONG_WAIT or more after Since.
+looked_late(Closer, Since) ->
+    ok = ern_waits:called(Closer, {ern_tcp, lingering, 6}, 1),
+    case erlang:monotonic_time(millisecond) - Since >= ?LONG_WAIT of
+        true -> ok;
+        false -> looked_late(Closer, Since)
+    end.
 
 %% Every byte the far end over TLS reads, and how the connection then ends.
 -spec tls_taken(ssl:sslsocket(), non_neg_integer()) -> {non_neg_integer(), term()}.

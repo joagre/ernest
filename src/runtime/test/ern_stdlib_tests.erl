@@ -1861,6 +1861,19 @@ tcp_ip_address_test() ->
                  [IpAddressOf(unicode:characters_to_binary(inet:ntoa(IpAddress)))
                   || IpAddress <- Written]).
 
+%% report Appendix E.18: `ipAddress` answers `None` for a decimal number with
+%% a leading zero, in an IPv4 address and in the IPv4 numbers that end an
+%% IPv6 one, and reads a number that is a zero alone, and an IPv6 group's
+%% leading zeros, which are hexadecimal's. Written after the code, whose
+%% host's reading refused them already
+tcp_ip_address_leading_zero_test() ->
+    IpAddressOf = ern_named:function('ern@tcp', ipAddress),
+    Refused = [<<"192.0.2.07">>, <<"01.2.3.4">>, <<"000.0.0.0">>, <<"::ffff:1.2.3.04">>],
+    ?assertEqual([{Text, 'None'} || Text <- Refused],
+                 [{Text, IpAddressOf(Text)} || Text <- Refused]),
+    ?assertEqual([{'Some', <<0, 0, 0, 0>>}, {'Some', <<1:16, 0:96, 1:16>>}],
+                 [IpAddressOf(Text) || Text <- [<<"0.0.0.0">>, <<"0001::1">>]]).
+
 %% The bytes of an IP address as the host holds one: IPv4's four numbers a
 %% byte each, and IPv6's eight two bytes each.
 address_bytes({_, _, _, _} = IpAddress) -> list_to_binary(tuple_to_list(IpAddress));

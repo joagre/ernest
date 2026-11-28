@@ -1325,8 +1325,14 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// among them. RFC 9112, section 3.2 has a server answer such a target with
 /// a 400 or a redirect, and `target` reads it instead.
 ///
-/// Whether the scheme and the `Host` header name the server is the
-/// server's to decide.
+/// Whether the scheme, the authority and the `Host` header fit the server is
+/// the server's to decide. An absolute form is read with userinfo in its
+/// authority, with an empty host or with no authority, where RFC 9110,
+/// sections 4.2.1 and 4.2.4 have a recipient reject an `http` URI with an
+/// empty host and treat one with userinfo as an error. A `CONNECT`
+/// request's authority is read as written too, with userinfo, with an empty
+/// host or with no port, where RFC 9112, section 3.2.3 writes it as a host
+/// and a port.
 ///
 /// ### Examples
 ///
@@ -1465,16 +1471,17 @@ fn encoding(char : Char) : Optional(#(Char, Char)) =
 /// it, or `None` where the target is of no form or its path could name
 /// something outside `root`.
 ///
-/// It reads `target`'s path. An empty path is `/` where the target has a
-/// scheme, but in an `OPTIONS` request, whose empty path stays empty, as
-/// RFC 9110, section 4.2.3 has it, and a path that does not begin with `/`
-/// is `None`, a `CONNECT` request's and an `OPTIONS` request's `*` among
-/// them. The path is parted at `/` while still encoded, its empty
-/// segments dropped, and each segment is decoded as `Uri.decode` decodes it:
-/// one whose octets hold a separator or U+0000, or are not UTF-8, is `None`,
-/// so that `%2F` parts nothing. The segments are placed under `root` by
-/// `Path.under`, which refuses a segment `.` or `..`, `%2E%2E` among them; a
-/// path of no segment, `/`, is `root` itself.
+/// It reads `target`'s path, whatever the target's scheme and authority. An
+/// empty path is `/` where the target has a scheme, but in an `OPTIONS`
+/// request, whose empty path stays empty, as RFC 9110, section 4.2.3 has
+/// it, and a path that does not begin with `/` is `None`, a `CONNECT`
+/// request's and an `OPTIONS` request's `*` among them. The path is parted
+/// at `/` while still encoded, its empty segments dropped, and each segment
+/// is decoded as `Uri.decode` decodes it: one whose octets hold a separator
+/// or U+0000, or are not UTF-8, is `None`, so that `%2F` parts nothing. The
+/// segments are placed under `root` by `Path.under`, which refuses a
+/// segment `.` or `..`, `%2E%2E` among them; a path of no segment, `/`, is
+/// `root` itself.
 ///
 /// It reads the text alone: a link under `root` may still lead out of it,
 /// which the file system decides (report Appendix E.14). It answers a name
@@ -4158,6 +4165,72 @@ let filePathLeft =
                                [#(Some("/srv/docs"), Some(true)),
                                 #(Some("/srv/docs"), Some(false)),
                                 #(Some("/srv"), Some(true))]))
+              })
+
+// report Appendix G.11: an absolute form's authority is read as written,
+// with userinfo, with an empty host or absent, and its path is placed under
+// a root whatever the scheme and the authority, which are the server's to
+// fit. Written after the code, which read them so already
+let absoluteAuthority =
+    Test.Case(name = "an absolute form's authority is read as written, and its path placed alike",
+              run = fn() = {
+                  let get =
+                      fn(text) =
+                          Request(method = "GET", target = text, version = http11, headers = []);
+                  let placed =
+                      fn(text) = Optional.map(filePath(get(text), Path("/srv")), Path.toString);
+                  let absolute =
+                      fn(scheme, authority, path) =
+                          Some(Uri.Reference(scheme = Some(scheme),
+                                             =authority,
+                                             =path,
+                                             query = None,
+                                             fragment = None));
+                  let authority =
+                      fn(userinfo, host) = Some(Uri.Authority(=userinfo, =host, port = None));
+                  let texts =
+                      ["http://user:pw@example.org/a.txt",
+                       "http:///a.txt",
+                       "http://@/a.txt",
+                       "http:/host/a.txt",
+                       "ftp://x/a.txt"];
+                  let references =
+                      [absolute("http", authority(Some("user:pw"), "example.org"), "/a.txt"),
+                       absolute("http", authority(None, ""), "/a.txt"),
+                       absolute("http", authority(Some(""), ""), "/a.txt"),
+                       absolute("http", None, "/host/a.txt"),
+                       absolute("ftp", authority(None, "x"), "/a.txt")];
+                  let paths =
+                      [Some("/srv/a.txt"),
+                       Some("/srv/a.txt"),
+                       Some("/srv/a.txt"),
+                       Some("/srv/host/a.txt"),
+                       Some("/srv/a.txt")];
+                  Test.equal(#(List.map(texts, fn(text) = target(get(text))),
+                               List.map(texts, placed)),
+                             #(references, paths))
+              })
+
+// report Appendix G.11: a `CONNECT` request's authority is read as written
+// too, with userinfo, with an empty host or with no port, which are the
+// server's to fit. Written after the code, which read them so already
+let connectAuthority =
+    Test.Case(name = "a CONNECT target's authority is read as written, as an absolute form's is",
+              run = fn() = {
+                  let reference = fn(userinfo, host, port) = {
+                      let authority = Some(Uri.Authority(=userinfo, =host, =port));
+                      Some(Uri.Reference(scheme = None,
+                                         =authority,
+                                         path = "",
+                                         query = None,
+                                         fragment = None))
+                  };
+                  Test.equal(List.map(["user@example.com:443", "example.com", "@x:1", ":443"],
+                                      fn(text) = targetOf("CONNECT", text)),
+                             [reference(Some("user"), "example.com", Some(443)),
+                              reference(None, "example.com", None),
+                              reference(Some(""), "x", Some(1)),
+                              reference(None, "", Some(443))])
               })
 
 // report Appendix G.11: written with the code.

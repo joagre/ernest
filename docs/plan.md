@@ -70,68 +70,31 @@ that names every line of the application's that the release answers. ernest-epx'
 log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers, decided with the user on
-2026-11-28 (the log's *ernest-httpd's Lines Are All In*): item 7, closed that day; item 1; items 6, 8, 9 and 10; item 2, the release, with the last read
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): items 7 and 1, closed that day; items 6, 8, 9 and 10; item 2, the release, with the last read
 before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2026-11-28
 (*Robots and the Sitemap Before the Tag*, *The First Hour Before the Tag*).
 
-1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
-   What is Ernest's among it came as lines of its feedback file, each mended for 0.12.0 or
-   filed as `docs/reviews/full.md`'s *The findings* says. Its session said on 2026-11-28
-   that it knows of no more, so the lines below are the item's whole.
+1. **What ernest-httpd's review found of security**, closed 2026-11-28 (the log's *Item 1
+   Built*). ernest-httpd's session mends its own, and said that day that it knows of no
+   line beyond these (*ernest-httpd's Lines Are All In*). What was Ernest's came as
+   entries 35 to 37 and 61 of its feedback file and one decision, each taken with the
+   user and built for 0.12.0, or placed:
+   - no function ends a socket and drops what its host holds: MVP 4.5's item 158 (*The
+     Socket's Reset Stays After the Launch*);
+   - a close and a kill after a failed TLS handshake waited 5 seconds: the host's
+     `alert_timeout` is 0 (E.18; *The Host's Wait After Its Alert Goes*);
+   - over TCP a close answered up to a second after its bytes: the closer looks sooner
+     (E.18; *The Closer Looks Sooner*);
+   - `Tcp.ipAddress` and a leading zero: E.18's clause and its test (*The Applications
+     Told Again*);
+   - an absolute form's authority, and a `CONNECT` target's: G.11 says that its fit is
+     the server's (*The Authority's Fit Is the Server's*).
 
-   Three are in hand since 2026-11-23, its feedback's entries 35 to 37 on `Tcp.close` (the
-   log's *The Ten of the Cold Reading*), each with a probe its session ran. Two are
-   defects a first server meets: a close and a kill after a failed TLS handshake wait 5
-   seconds with nothing to send, where E.18 has a kill end a socket at once; and over
-   TCP a close answers up to a second after the far end has read everything, by a look
-   once a second, which is a poll in the runtime. One is a gap: no function ends a
-   socket and drops what its host holds. It stays MVP 4.5's item 158, decided with the
-   user on 2026-11-28 (the log's *The Socket's Reset Stays After the Launch*).
-
-   Both defects were reproduced 2026-11-26 against `c9a0d66d` (the log's *The
-   Applications' Lines Sorted*). The 5 seconds are the host's: its connection process
-   reads for up to its `alert_timeout` after an alert of its own, which Ernest sets
-   nowhere, and a close after the far end's alert answers at once. The second is the
-   closer's look once a second. Through a kill's 5 seconds the socket's process reads
-   `Receiving`, beside E.21's `Suspended`, which the mend reads. Four `decide` lines of
-   the sort are a server's security, and each is decided (the log's *The Applications'
-   Lines Decided*): a command's environment, *H39*, and a client's renegotiation,
-   *H53*, are built for 0.11.0; a call's wait under a backlog, *H54*, is MVP 4.5's item
-   174; and `Http.filePath`, *H59*, stays, with its page's two sentences.
-
-   A fourth came on 2026-11-26, its entry 61, written after the message that answered 35
-   to 60 (the log's *The Applications Told Again*). E.18 does not say that `Tcp.ipAddress`
-   answers `None` for an IPv4 part written with a leading zero, `192.0.2.07`, which is the
-   host's strict reading and what 0.11.0 does. E.18 gains the clause, with a test, for
-   this milestone's release.
-
-   A decision came with its turn of 2026-11-28, *An absolute form's authority*. G.11 does
-   not say that `Http.target` reads an absolute form's authority as written, userinfo and
-   an empty host among them, nor that it reads one with none, so that `Http.filePath`
-   places `http://user@host/a.txt`, `http:///a.txt` and `http:/host/a.txt` under the root,
-   which RFC 9110 rules out for `http`. Decided with the user on 2026-11-28: the page
-   says that the authority's fit is the server's, as the scheme's and the `Host`
-   header's are, and `target` refuses none (the log's *The Authority's Fit Is the
-   Server's*). G.11 gains the sentences, with a test and the two doc blocks.
-
-   Read on 2026-11-28 before its decisions (the log's *Item 1 Read Before Its
-   Decisions*), which are taken with the user one at a time.
-
-   The 5 seconds are decided (the log's *The Host's Wait After Its Alert Goes*). Ernest
-   sets the host's `alert_timeout` to 0 where it starts the host's TLS, beside
-   `internal_active_n` in `ern_tcp:with_ssl/3`, so that the host closes a connection at
-   once after an alert of its own, and E.18 gains the sentence. Its test: a close and a
-   kill after a failed handshake answer at once, and the host's socket is gone.
-
-   The closer's second is decided (the log's *The Closer Looks Sooner*). The closer
-   looks again after as long as has passed since the socket's end, a millisecond at
-   least and a second at most, so that a close answers within about twice the time its
-   bytes took, and E.18 says so. Four tests of `ern_tcp_tests` hold the closer by
-   `erlang:suspend_process`, after which the host loses a short wait
-   (`docs/otp_bugs.md`, 35), and need another hold. Where the build finds no simple
-   one, E.18 states the second over TCP instead, and the look is an item of MVP 4.5.
-
-   Every decision of the item is taken, and what is left is its build.
+   Four `decide` lines of the findings' are a server's security too, each decided (the
+   log's *The Applications' Lines Decided*): a command's environment, *H39*, and a
+   client's renegotiation, *H53*, were built for 0.11.0; a call's wait under a backlog,
+   *H54*, is MVP 4.5's item 174; and `Http.filePath`, *H59*, stays, with its page's two
+   sentences.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 

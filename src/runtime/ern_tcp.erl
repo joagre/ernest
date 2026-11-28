@@ -68,10 +68,12 @@
 %% Report Appendix E.18: how long the host's socket may send what the far
 %% end has not taken once the socket has ended: until 5 seconds pass with
 %% nothing taken, and 3 minutes in all. The closer looks at what the host
-%% holds a fifth of the idle window apart, so that what the far end takes
-%% is seen within the window's own grain and the idle end comes at most a
-%% fifth late; nothing the host documents wakes a process as its queue
-%% drains.
+%% holds as the socket ends, and then each time after as long as has passed
+%% since the end, a millisecond at least and a fifth of the idle window at
+%% most, LINGER_CHECK: a close answers within about twice the time its
+%% bytes took, what the far end takes is seen within the window's own grain,
+%% and the idle end comes at most a fifth late. Nothing the host documents
+%% wakes a process as its queue drains.
 -define(LINGER_IDLE, 5000).
 -define(LINGER_LIMIT, 180000).
 -define(LINGER_CHECK, (?LINGER_IDLE div 5)).
@@ -139,11 +141,19 @@ serve(Tcp, Ssl) ->
 %% a connect's alike; it is kept should a later start load the
 %% application again, and set with no limit of time, as the start's own
 %% calls are made (the log's *What One Read Answers*).
+%%
+%% Report Appendix E.18: after a fatal alert of its own the host closes a
+%% connection over TLS at once, its ssl's `alert_timeout` set to 0, the
+%% same way. Its own reads for 5,000 ms in its process of the connection's
+%% `terminate`, and whatever the socket asks of that process meanwhile
+%% waits, which held a close and a kill of a socket whose handshake had
+%% failed for 5 seconds (the log's *The Host's Wait After Its Alert Goes*).
 with_ssl(started, _, Request) ->
     Request(),
     started;
 with_ssl(unstarted, Reply, Request) ->
     ok = application:set_env(ssl, internal_active_n, 1, [{persistent, true}, {timeout, infinity}]),
+    ok = application:set_env(ssl, alert_timeout, 0, [{persistent, true}, {timeout, infinity}]),
     case application:ensure_all_started(ssl) of
         {ok, _} ->
             with_ssl(started, Reply, Request);
@@ -1110,20 +1120,24 @@ closer(SocketProcess) ->
     end.
 
 %% Report Appendix E.18: the closer looks at what the host still holds, at
-%% once and then every LINGER_CHECK. Nothing left closes the socket. Over
-%% TLS once the handshake has ended, nothing left first has the host write
-%% the record that ends the connection, by its shutdown of both ways, which
-%% returns at once only where the host holds none of the socket's bytes,
-%% and behind them waits 10 seconds of its own; the look then goes on at
-%% once, since a record written while the kernel's buffer is full waits in
-%% the host's queue as the bytes did, and the host's close comes once none
-%% of it is left. Nothing taken for 5 seconds, or 3 minutes since the end,
-%% drops the rest and resets the connection, which the host's close does
-%% with a linger of no time.
+%% once and then each time after as long as has passed since the socket's
+%% end, Ended, a millisecond at least and LINGER_CHECK at most. Nothing left
+%% closes the socket. Nothing taken for 5 seconds, or 3 minutes since the
+%% end, drops the rest and resets the connection, which the host's close
+%% does with a linger of no time.
+%%
+%% Over TLS once the handshake has ended, nothing left first has the host
+%% write the record that ends the connection, by its shutdown of both ways,
+%% which returns at once only where the host holds none of the socket's
+%% bytes, and behind them waits 10 seconds of its own; the look then goes on
+%% at once, since a record written while the kernel's buffer is full waits
+%% in the host's queue as the bytes did, and the host's close comes once
+%% none of it is left.
 lingering(Transport, Socket, Ending, Pending, Moved, Ended) ->
     Inet = inet_module(Transport),
     Now = erlang:monotonic_time(millisecond),
     InTime = Now - Ended < ?LINGER_LIMIT,
+    Ms = max(1, min(?LINGER_CHECK, Now - Ended)),
     case Inet:getstat(Socket, [send_pend]) of
         {ok, [{send_pend, 0}]} when Ending =:= record ->
             _ = ssl:shutdown(Socket, read_write),
@@ -1131,10 +1145,10 @@ lingering(Transport, Socket, Ending, Pending, Moved, Ended) ->
         {ok, [{send_pend, 0}]} ->
             Transport:close(Socket);
         {ok, [{send_pend, Left}]} when Left < Pending, InTime ->
-            receive after ?LINGER_CHECK -> ok end,
+            receive after Ms -> ok end,
             lingering(Transport, Socket, Ending, Left, Now, Ended);
         {ok, _} when Now - Moved < ?LINGER_IDLE, InTime ->
-            receive after ?LINGER_CHECK -> ok end,
+            receive after Ms -> ok end,
             lingering(Transport, Socket, Ending, Pending, Moved, Ended);
         {ok, _} ->
             _ = Inet:setopts(Socket, [{linger, {true, 0}}]),
