@@ -2932,6 +2932,76 @@ foreign_lacked_test() ->
                    "40],<<\"a string here\">>,<<\"another string there\">>}">>,
                  cause_of(Long)).
 
+%% report §12.3: a module the load path holds and the host cannot load is
+%% lacked too: one whose on_load function fails faults the call naming
+%% that function, and one whose file is no compiled module naming the
+%% file, each with a raise's trace, the implementation's frame first. The
+%% host's reports are filtered as a job filters them (ern_cli's
+%% said_otherwise/2), so that the emulator's of the file is not written
+foreign_unloadable_test() ->
+    ern_helpers:tmp("ern_unloadable_", fun(Dir) ->
+        ok = file:write_file(filename:join(Dir, "ern_no_compiled_module.beam"),
+                             <<"not a beam file">>),
+        failing_on_load(Dir, "ern_failing_on_load", "error"),
+        Seven = fun(Module) ->
+                    {Result, _} = ern_program:run(
+                        ["foreign fn seven() : Int = \"", Module, ":seven/0\"\n"
+                         "export fn main() : Unit = Io.println(Int.toString(seven()))\n"]),
+                    Result
+                end,
+        true = code:add_patha(Dir),
+        ok = logger:add_primary_filter(?MODULE, {fun ern_cli:said_otherwise/2, []}),
+        try
+            ?assertEqual({fault, <<"foreign function ern_failing_on_load:seven/0:"
+                                   " ern_failing_on_load's on_load function failed">>,
+                          <<"ern_failing_on_load:seven/0\nM.seven:1\nM.main:2\n">>},
+                         Seven("ern_failing_on_load")),
+            ?assertEqual({fault, <<"foreign function ern_no_compiled_module:seven/0:"
+                                   " the host cannot load ern_no_compiled_module.beam">>,
+                          <<"ern_no_compiled_module:seven/0\nM.seven:1\nM.main:2\n">>},
+                         Seven("ern_no_compiled_module"))
+        after
+            ok = logger:remove_primary_filter(?MODULE),
+            code:del_path(Dir)
+        end
+    end).
+
+%% report §12.3: a cause is worded without a further load of the module:
+%% the on_load function of a module whose load fails runs once, as the
+%% host loads the module at the call, and neither the runtime's error
+%% handler nor the cause's wording runs it again. The function counts its
+%% runs in a table of the test's
+foreign_on_load_runs_once_test() ->
+    Runs = ets:new(ern_on_load_runs, [named_table, public]),
+    true = ets:insert(Runs, {runs, 0}),
+    ern_helpers:tmp("ern_on_load_runs_", fun(Dir) ->
+        failing_on_load(Dir, "ern_counted_on_load",
+                        "ets:update_counter(ern_on_load_runs, runs, 1), error"),
+        true = code:add_patha(Dir),
+        try
+            {Result, _} = ern_program:run(
+                "foreign fn seven() : Int = \"ern_counted_on_load:seven/0\"\n"
+                "export fn main() : Unit = Io.println(Int.toString(seven()))\n"),
+            ?assertEqual({<<"foreign function ern_counted_on_load:seven/0:"
+                            " ern_counted_on_load's on_load function failed">>,
+                          [{runs, 1}]},
+                         {cause_of(Result), ets:lookup(Runs, runs)})
+        after
+            code:del_path(Dir),
+            ets:delete(Runs)
+        end
+    end).
+
+%% A module of the host's in Dir, as a `.beam` of the load path, whose
+%% on_load function runs Body and answers what Body answers, seven/0 its
+%% export. A function that answers an atom has the host write no report.
+failing_on_load(Dir, Module, Body) ->
+    Source = ern_helpers:write(Dir, Module ++ ".erl",
+                               ["-module(", Module, ").\n-export([seven/0]).\n"
+                                "-on_load(init/0).\ninit() -> ", Body, ".\nseven() -> 7.\n"]),
+    {ok, _} = compile:file(Source, [{outdir, Dir}]),
+    ok.
+
 %% Appendix E.21, report §12.3: what the host says of a raise stands after
 %% the frame on its trace's first line and in no cause: each argument it
 %% describes in their order, the frame's own, which is the function that

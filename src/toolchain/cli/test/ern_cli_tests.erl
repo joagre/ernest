@@ -1279,6 +1279,52 @@ foreign_beam_on_load_path_test() ->
     ?assertEqual(0, ern(["run", "--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, captured()).
 
+%% report §12.3, §11: what reaches standard error where a foreign
+%% function's module is on the load path and the host cannot load it. Of
+%% one whose on_load function fails, the host's report of the failure
+%% twice, as the run loads the unit that calls the module and at the call,
+%% the cause worded without a further load, and the fault with its trace,
+%% a raise's; the report of the call comes before or after the fault's
+%% line, as the host's process that logs it runs, so it is held by its
+%% count. Of a file that is no compiled module, the fault alone, the
+%% emulator's report of the file not written. Each runs through bin/ern,
+%% its standard error the user's, each line's time and each report's
+%% left out
+foreign_unloadable_said_test() ->
+    Dir = tmp(),
+    Beams = Dir ++ "/beams",
+    compiled_erlang(Beams, "ern_cli_on_load", "seven/0",
+                    "-on_load(init/0).\ninit() -> {error, {load_failed, \"no NIF here\"}}.\n"
+                    "seven() -> 7."),
+    write(Beams, "ern_cli_junk.beam", "not a beam file"),
+    [write(Dir, "src/" ++ Name ++ ".ern",
+           ["foreign fn seven() : Int = \"", Module, ":seven/0\"\n"
+            "export fn main() : Unit = Io.println(Int.toString(seven()))\n"])
+     || {Name, Module} <- [{"failing", "ern_cli_on_load"}, {"junk", "ern_cli_junk"}]],
+    ?assertEqual(0, ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Said = fun(Name) ->
+               Written = os:cmd("bin/ern run --load-path " ++ Beams ++ " " ++ Dir ++ "/build/"
+                                ++ Name ++ ".erc 2>&1 >/dev/null; echo $?"),
+               Unstamped = re:replace(Written, "^\\d{4}-\\d\\d-\\d\\dT[0-9:.]{12}Z", "Z",
+                                      [multiline, global, {return, binary}]),
+               re:replace(Unstamped, "^(Z =WARNING REPORT====) .* ===$", "\\1",
+                          [multiline, global, {return, binary}])
+           end,
+    Report = <<"Z =WARNING REPORT====\n"
+               "The on_load function for module ern_cli_on_load returned:\n"
+               "{error,{load_failed,\"no NIF here\"}}\n">>,
+    Failing = Said("failing"),
+    ?assertEqual({2, <<"Z Failing.main faulted: foreign function ern_cli_on_load:seven/0:"
+                       " ern_cli_on_load's on_load function failed\n"
+                       "    ern_cli_on_load:seven/0\n    Failing.seven:1\n    Failing.main:2\n"
+                       "1\n">>},
+                 {length(binary:matches(Failing, Report)),
+                  binary:replace(Failing, Report, <<>>, [global])}),
+    ?assertEqual(<<"Z Junk.main faulted: foreign function ern_cli_junk:seven/0:"
+                   " the host cannot load ern_cli_junk.beam\n"
+                   "    ern_cli_junk:seven/0\n    Junk.seven:1\n    Junk.main:2\n1\n">>,
+                 Said("junk")).
+
 %% report §11.2, §8.4: `--libs-dir dir` adds the `ebin` directory of each
 %% application under `dir`, one named `name-version` and one `name`, so
 %% that a `foreign fn` finds its module there, under `ern run` and under

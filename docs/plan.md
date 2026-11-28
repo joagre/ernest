@@ -58,13 +58,16 @@ announcement waits with the site, since it sends a reader there. Its release is 
 **First, the two releases that follow 0.11.0**, moved here from MVP 4.4's item 5 on
 2026-11-26, each by its own session on the user's word, in this order: ernest-template's,
 since the others copy from it, and ernest-epx's, not waiting for its milestone 9 (the log's
-*The Floors and the Releases*). ernest-template's is out since 2026-11-27, its tag `v0.11.0`
-at `23e2bdc` on GitHub, and both copies have taken it (the log's *The Template's Tag Is Out*).
-ernest-epx's is left. Ernest's session told all three applications the tag by a
+*The Floors and the Releases*). Ernest's session told all three applications the tag by a
 message on 2026-11-26 that names every line of the application's that the release answers,
 and asks each in turn when the one before it is out. Each application checks every verdict
 against the release before its own, and answers with any line it keeps, as
 `docs/clean_room.md`'s *The answer* says. ernest-httpd's release is item 3.
+
+ernest-template's is out since 2026-11-27, its tag `v0.11.0` at `23e2bdc` on GitHub, and
+both copies have taken it (the log's *The Template's Tag Is Out*). ernest-epx's is left. Its
+issue 1, a module that does not load named in a foreign call's fault, is built for 0.11.1
+(the log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers: the two releases above; items 6, 7
 and 8 while item 1 waits for ernest-httpd's lines; item 1 as they come; item 2, the release,

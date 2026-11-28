@@ -54,8 +54,8 @@
 %% every run of the host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/4,
-         documented/1, chunk/1,
+-export([ensure_loaded/1, own_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0,
+         load/4, documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          holder/1, ground/1, grounded/1, forms/1, recorded/2, definitions/2,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
@@ -102,18 +102,30 @@
 %% as the host's code:ensure_loaded/1 loads one at its first call: a unit
 %% of the toolchain's own from its `.erc` (own_file/1), in the table as it
 %% loads (load/3), and any other module as the host loads it, one of its
-%% own or a `.beam` of the load path. The runtime's error handler loads so
-%% (ern_rt:undefined_function/3), on every process the runtime starts; a
-%% job's own process reaches a unit through function/2, which loads it so.
+%% own or a `.beam` of the load path. A job's own process reaches a unit
+%% through function/2, which loads it so.
 -spec ensure_loaded(module()) -> {module, module()} | {error, term()}.
 ensure_loaded(Module) ->
+    case own_loaded(Module) of
+        none -> code:ensure_loaded(Module);
+        Loaded -> Loaded
+    end.
+
+%% The same of a module the host holds or a unit of the toolchain's own,
+%% and none of any other module, which is left to the host's loader. The
+%% runtime's error handler loads so (ern_rt:undefined_function/3), on
+%% every process the runtime starts, and leaves the rest to the host's
+%% handler, which tries a module whose load fails once at the call, so
+%% that its on_load function runs once (§12.3).
+-spec own_loaded(module()) -> {module, module()} | {error, term()} | none.
+own_loaded(Module) ->
     case erlang:module_loaded(Module) of
         true ->
             {module, Module};
         false ->
             case own_file(Module) of
                 {ok, File} -> loaded_from(Module, File);
-                none -> code:ensure_loaded(Module)
+                none -> none
             end
     end.
 

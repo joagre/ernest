@@ -85,26 +85,43 @@ raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
 
 %% Report §12.3, §8.4: what follows the function's name in a raise's cause:
 %% where the host lacked the function itself as the call was made, its
-%% undef met in the call's own frame, that the module is not on the load
-%% path, or that it does not export the function; else the raise, so that
-%% an undef met deeper, in a function the foreign function called, stays
-%% one. Read only once the call has failed.
+%% undef met in the call's own frame, that the module does not export the
+%% function, or why the host holds no code of the module (unloaded/1);
+%% else the raise, so that an undef met deeper, in a function the foreign
+%% function called, stays one. Read only once the call has failed.
 lacked(HostModule, HostFunction, Arity, error, undef, [{HostModule, HostFunction, Args, _} | _])
   when length(Args) =:= Arity ->
-    case code:ensure_loaded(HostModule) of
-        {error, nofile} ->
-            io_lib:format(": no module ~tw on the load path", [HostModule]);
-        {module, HostModule} ->
+    case erlang:module_loaded(HostModule) of
+        true ->
             case erlang:function_exported(HostModule, HostFunction, Arity) of
                 false ->
                     io_lib:format(": ~tw exports no ~tw/~B", [HostModule, HostFunction, Arity]);
                 true -> raise_text(error, undef)
             end;
-        {error, _} ->
-            raise_text(error, undef)
+        false ->
+            unloaded(HostModule)
     end;
 lacked(_, _, _, Class, Error, _) ->
     raise_text(Class, Error).
+
+%% Report §12.3: why the host holds no code of a module the call could not
+%% load, as the host's loader answers again by preparing the module's
+%% code, which loads nothing and runs no on_load function, so that the
+%% cause is worded without a further load: no module on the load path, an
+%% on_load function, which failed as the call loaded the module, or a file
+%% that is no compiled module, the emulator's report of which a job does
+%% not write (ern_cli's said_otherwise/2); any other answer is the raise's.
+unloaded(HostModule) ->
+    case code:prepare_loading([HostModule]) of
+        {error, [{HostModule, nofile}]} ->
+            io_lib:format(": no module ~tw on the load path", [HostModule]);
+        {error, [{HostModule, on_load_not_allowed}]} ->
+            io_lib:format(": ~tw's on_load function failed", [HostModule]);
+        {error, [{HostModule, badfile}]} ->
+            io_lib:format(": the host cannot load ~tw.beam", [HostModule]);
+        _ ->
+            raise_text(error, undef)
+    end.
 
 raise_text(Class, Error) ->
     [" raised ", ern_rt:host_cause(Class, Error)].

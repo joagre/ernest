@@ -3663,14 +3663,16 @@ undefined_lambda(ErlangModule, Function, Arguments) ->
     load(ErlangModule),
     error_handler:undefined_lambda(ErlangModule, Function, Arguments).
 
-%% Report §8.7, §11.2: a module loaded on demand, a unit of the
-%% toolchain's own from its `.erc` and in the code table as it loads, any
-%% other as the host loads it (ern_code:ensure_loaded/1), the host's work
-%% as the load is. The code table's own module the host loads, since its
-%% first call would come back here.
+%% Report §8.7, §11.2: a unit of the toolchain's own loaded on demand from
+%% its `.erc`, in the code table as it loads, the host's work as the load
+%% is; any other module is left to the host's handler, which loads it as
+%% the host does, so that a module whose load fails is tried once at the
+%% call, and its on_load function runs once (§12.3, ern_code:own_loaded/1).
+%% The code table's own module the host loads, since its first call would
+%% come back here.
 load(ErlangModule) ->
     {module, ern_code} = code:ensure_loaded(ern_code),
-    ern_code:ensure_loaded(ErlangModule).
+    ern_code:own_loaded(ErlangModule).
 
 %%
 %% Report §7: a process body; an exception is a fault
