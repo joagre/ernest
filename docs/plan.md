@@ -71,14 +71,15 @@ both copies have taken it (the log's *The Template's Tag Is Out*). ernest-epx's 
 issue 1, a module that does not load named in a foreign call's fault, is built for 0.12.0
 (the log's *A Module That Does Not Load Is Named*).
 
-The items are taken in this order, not by their numbers: the two releases above; items 6, 7
-and 8 while item 1 waits for ernest-httpd's lines; item 1 as they come; item 2, the release,
-with the last read before its tag; item 3; item 4; and item 5 last.
+The items are taken in this order, not by their numbers, decided with the user on
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): the two releases above; item 7,
+its two decisions first; item 1; items 6 and 8; item 2, the release, with the last read
+before its tag; item 3; item 4; and item 5 last.
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
-   What is Ernest's among it comes as lines of its feedback file, sorted when its session
-   sends them, each mended for 0.12.0 or filed as `docs/reviews/full.md`'s *The findings*
-   says.
+   What is Ernest's among it came as lines of its feedback file, each mended for 0.12.0 or
+   filed as `docs/reviews/full.md`'s *The findings* says. Its session said on 2026-11-28
+   that it knows of no more, so the lines below are the item's whole.
 
    Three are in hand since 2026-11-23, its feedback's entries 35 to 37 on `Tcp.close` (the
    log's *The Ten of the Cold Reading*), each with a probe its session ran. Two are
@@ -104,6 +105,13 @@ with the last read before its tag; item 3; item 4; and item 5 last.
    answers `None` for an IPv4 part written with a leading zero, `192.0.2.07`, which is the
    host's strict reading and what 0.11.0 does. E.18 gains the clause, with a test, for
    this milestone's release.
+
+   A decision came with its turn of 2026-11-28, *An absolute form's authority*. G.11 does
+   not say that `Http.target` reads an absolute form's authority as written, userinfo and
+   an empty host among them, nor that it reads one with none, so that `Http.filePath`
+   places `http://user@host/a.txt`, `http:///a.txt` and `http:/host/a.txt` under the root,
+   which RFC 9110 rules out for `http`. Either the page says that the authority's fit is
+   the server's, as the scheme's and the `Host` header's are, or `target` refuses them.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 
@@ -164,8 +172,7 @@ with the last read before its tag; item 3; item 4; and item 5 last.
    a shell's start line. `make version` does not write it and no test holds it, so the user
    sets it to the release's version before sending it (the log's *The Front Page in the
    Announcement's Manner*).
-6. **Which libraries become packages**, a decision, taken while item 1 waits and built
-   for 0.12 where it is taken (the log's *What Stands on Every Load Path*, *The Report
+6. **Which libraries become packages**, a decision, built for 0.12 where it is taken (the log's *What Stands on Every Load Path*, *The Report
    Read Whole Against the Verdicts*). Seven stand on every load path that no job of the
    toolchain's calls: `Json`, `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization`.
    A proposal weighs the rule that a library stands there only where the toolchain's
@@ -185,7 +192,7 @@ with the last read before its tag; item 3; item 4; and item 5 last.
    each of those owners before the user decides.
 7. **Three faults that vanish**, taken up by the user on 2026-11-23 from three lines of
    the known issues (the log's *Four Verdicts Changed After the Round*), and
-   built while item 1 waits, for 0.12.0: a fault a listener or a socket never meets, after
+   built for 0.12.0: a fault a listener or a socket never meets, after
    a fault in an adapted address's function over it or a bad message through its check
    (§6.5, §8.4; was item 135); a wrap's fault lost in the process kept for an adapted
    address (§6.9; was item 136, two runs and not diagnosed); and an `Os.exit` that such a
