@@ -23,7 +23,7 @@ this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](README.md#starting-point); [Kept from Unison](README.md#kept-from-unison); [Dropped from Unison](README.md#dropped-from-unison); [Tried and Rejected](README.md#tried-and-rejected); [Toolchain and Guide](README.md#toolchain-and-guide); [Reasons Lifted Out of the Report](README.md#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](README.md#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](README.md#paper-programs-and-measurements); [Form of the Report](README.md#form-of-the-report); [Measure](README.md#measure).
 
-**2026-11-28.** [A Module That Does Not Load Is Named](2026-11-28.md#a-module-that-does-not-load-is-named-2026-11-28).
+**2026-11-28.** [A Module That Does Not Load Is Named](2026-11-28.md#a-module-that-does-not-load-is-named-2026-11-28); [The Launch's Release Is 0.12.0](2026-11-28.md#the-launchs-release-is-0120-2026-11-28).
 
 **2026-11-27.** [The Lines Go by the Tracker](2026-11-27.md#the-lines-go-by-the-tracker-2026-11-27); [The Tracker Read as an Item Opens](2026-11-27.md#the-tracker-read-as-an-item-opens-2026-11-27); [The Template's Tag Is Out](2026-11-27.md#the-templates-tag-is-out-2026-11-27); [A Reader Follows Its Brief Instead](2026-11-27.md#a-reader-follows-its-brief-instead-2026-11-27); [Ernest's Session Files on the Template's Tracker](2026-11-27.md#ernests-session-files-on-the-templates-tracker-2026-11-27); [The Path Test's Directories Come From Git](2026-11-27.md#the-path-tests-directories-come-from-git-2026-11-27).
 
