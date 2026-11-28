@@ -115,14 +115,18 @@ Sitemap Before the Tag*).
    which RFC 9110 rules out for `http`. Either the page says that the authority's fit is
    the server's, as the scheme's and the `Host` header's are, or `target` refuses them.
 
-   Read on 2026-11-28 before its decisions, with nothing decided (the log's *Item 1 Read
-   Before Its Decisions*). After a failed handshake the socket's process waits in the
-   first thing it asks of the host's `ssl`: with OTP alone `ssl:setopts/2` and
-   `ssl:close/1` each took 5,000 ms, and a socket that asked nothing took none, the host
-   ending the connection itself. OTP's own fix, #12237, open, sets `alert_timeout` to 0.
-   For the closer's second the host documents nothing that wakes a process as its queue
-   drains, so the ways are a sentence in E.18, or looks that begin a millisecond apart
-   and double to the second.
+   Read on 2026-11-28 before its decisions (the log's *Item 1 Read Before Its
+   Decisions*), which are taken with the user one at a time.
+
+   The 5 seconds are decided (the log's *The Host's Wait After Its Alert Goes*). Ernest
+   sets the host's `alert_timeout` to 0 where it starts the host's TLS, beside
+   `internal_active_n` in `ern_tcp:with_ssl/3`, so that the host closes a connection at
+   once after an alert of its own, and E.18 gains the sentence. Its test: a close and a
+   kill after a failed handshake answer at once, and the host's socket is gone.
+
+   Left to decide: the closer's second, where the host documents nothing that wakes a
+   process as its queue drains, so the ways are a sentence in E.18, or looks that begin
+   a millisecond apart and double to the second; and *An absolute form's authority*.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 
