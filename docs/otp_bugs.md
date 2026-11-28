@@ -1794,3 +1794,218 @@ OTP 29.1.2, erts 17.1.1 with the JIT, stdlib 8.1.1, on Linux x86_64.
 Frames of distinct call sites between the raise and the run spare the raise where they fill the entries, so a higher `backtrace_depth` spares fewer raises. The map's run is read whole at every depth of 5 or more: 40,000 elements take 3 ms at a depth of 4 and 700 ms at 5.
 
 Found by a language that compiles to Erlang, whose conversion of a text to an integer answers an optional value by catching `binary_to_integer/1`'s error: its map over 80,000 texts that are no integers took 2.7 s, against 5 ms over texts that are.
+
+## 29. `file:read_file_info/1,2` gives an inode's low 32 bits
+
+Not filed. Found on 2026-11-22 (the log's *A Copy Onto Itself*), read in erts and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it where it tells that two paths name one file by their device and inode: the shell's two source roots (`ern_shell:is_same_file/2`, a line of [`known_issues.md`](known_issues.md)) and a job's standard error against `JOURNAL_STREAM` (`ern_cli:is_journal/0`).
+
+**Title:** file:read_file_info/1,2 returns the low 32 bits of an inode number
+
+**Describe the bug**
+
+The `inode` of a `#file_info{}` is documented as the inode number, a non-negative integer. The NIF keeps it in 32 bits: `efile_fileinfo_t` declares `Uint32 inode` (`erts/emulator/nifs/common/prim_file_nif.h`, line 88), `unix_prim_file.c` assigns `st_ino` to it (line 733), and `prim_file_nif.c` builds the term with `enif_make_uint` (line 1013). Where `ino_t` is 64 bits, a file whose inode number is 2^32 or more is given its low 32 bits, and two files of one device whose numbers agree there are given one number. XFS, CephFS, NFS and an overlay with `xino` give such numbers.
+
+A program that tells whether two names are one file by `major_device` and `inode` then takes two files for one, and one that compares the number with what another program printed takes one file for two. `logger_std_h` compares a file's inode with the one it opened to learn that its log was replaced.
+
+**To Reproduce**
+
+On Linux, as any user where user namespaces are allowed, an overlay whose lower layer is another file system than its upper:
+
+```sh
+mkdir low up work mnt
+unshare -Urm sh -c '
+    mount -t tmpfs tmpfs low && echo hello > low/a &&
+    mount -t overlay overlay -o lowerdir=low,upperdir=up,workdir=work,xino=on,userxattr mnt &&
+    stat -c "stat(1): %i" mnt/a &&
+    erl -noshell -eval "
+        {ok, Info} = file:read_file_info(\"mnt/a\"),
+        io:format(\"file:read_file_info/1: ~p~n\", [element(12, Info)]),
+        halt()."'
+```
+
+It prints:
+
+```
+stat(1): 9223372036854775810
+file:read_file_info/1: 2
+```
+
+**Expected behavior**
+
+The inode number whole, as `stat(2)` gives it: 9223372036854775810.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, on Linux x86_64.
+
+## 30. `inet:parse_strict_address/1` takes a sign in an IPv4 field
+
+Not filed. Found on 2026-11-26 by the build of `Tcp.address`, now `Tcp.ipAddress` (the log's *The Applications' Lines Built*), and shown again on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest's `Tcp.ipAddress` answers `None` for a text that holds `+` or `-` before it asks the host (`src/stdlib/tcp.ern`; E.18).
+
+**Title:** inet:parse_strict_address/1,2 and inet:parse_ipv4strict_address/1 accept a sign in an IPv4 field: "+1.2.3.4", "-0.0.0.0"
+
+**Describe the bug**
+
+The strict parsers take an IPv4 address as four decimal fields, with no short form and no leading zero: `inet_parse.erl` heads the code "Parse IPv4 strict dotted decimal address, no leading zeros". A field is not held to digits. `inet_parse:ipv4_field/4` gathers up to three characters, whatever they are, and gives them to `list_to_integer/2`, which reads a sign; a value below 0 is refused after it. So `"+1.2.3.4"` and `"1.+2.3.4"` are `{1,2,3,4}`, and `"-0.0.0.0"` is `{0,0,0,0}`, where a leading zero, `"01.2.3.4"`, is refused. `inet:parse_address/1` and `inet:parse_ipv4_address/1` take the same texts.
+
+A program that asks for the strict form to hold one text for one address, a list of allowed addresses or a count by address, is given one address under several texts.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    [io:format("~-10s ~p~n", [Text, inet:parse_strict_address(Text)])
+     || Text <- ["1.2.3.4", "+1.2.3.4", "1.+2.3.4", "-0.0.0.0", "01.2.3.4"]],
+    halt().'
+```
+
+It prints:
+
+```
+1.2.3.4    {ok,{1,2,3,4}}
++1.2.3.4   {ok,{1,2,3,4}}
+1.+2.3.4   {ok,{1,2,3,4}}
+-0.0.0.0   {ok,{0,0,0,0}}
+01.2.3.4   {error,einval}
+```
+
+**Expected behavior**
+
+`{error, einval}` for a field that holds a character that is no decimal digit, as for a field with a leading zero.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
+
+## 31. `ssl:shutdown/2` of the writing side sends no `close_notify`
+
+Not filed. Found on 2026-11-21 by the build of MVP 4.16's item 100 (the log's *The Close Follows the Last Byte*), and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's calls it: a socket over TLS ends by `ssl:shutdown/2` of both ways, which sends the alert, and `ssl:close/1` (`ern_tcp:lingering/6`; E.18).
+
+**Title:** ssl:shutdown(Socket, write) shuts the TCP connection's writing side without sending close_notify, so the peer reads a truncated stream
+
+**Describe the bug**
+
+`ssl:shutdown(Socket, write)` is documented to close the socket for writing while reading from it is still possible. It calls the transport's `shutdown` alone: in `ssl_gen_statem:handle_call/4` the clause for `read_write` sends a `close_notify` alert first, and the clause every other `How` takes does not. The peer then reads the end of the TCP stream with no `close_notify` before it, which TLS has it take for a truncation: RFC 8446, section 6.1, "Each party MUST send a "close_notify" alert before closing its write side of the connection, unless it has already sent some error alert." Once the writing side is shut, a later `ssl:close/1` cannot send the alert either.
+
+A client that reads a response to the end of the stream reports an error for a response that arrived whole: Python's `ssl` raises "EOF occurred in violation of protocol", and curl exits with status 56.
+
+**To Reproduce**
+
+With a certificate and its key in `cert.pem` and `key.pem`, as `openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 -subj /CN=localhost` writes them, `shut.erl` sends `hello` through a relay that prints the type and the length of the last two TLS records the server sent before its side of the stream ended:
+
+```erlang
+-module(shut).
+-export([main/0]).
+
+main() ->
+    {ok, _} = application:ensure_all_started(ssl),
+    [run(Version, Stop) || Version <- ['tlsv1.3', 'tlsv1.2'], Stop <- [shutdown, close]],
+    halt().
+
+run(Version, Stop) ->
+    {ok, Listener} = ssl:listen(0, [{certfile, "cert.pem"}, {keyfile, "key.pem"},
+                                    {active, false}, {versions, [Version]}]),
+    {ok, {_, ServerPort}} = ssl:sockname(Listener),
+    Port = relay(ServerPort, self()),
+    spawn(fun() ->
+              {ok, Client} = ssl:connect("localhost", Port, [{verify, verify_none}, {active, false}]),
+              ssl:recv(Client, 0), ssl:recv(Client, 0)
+          end),
+    {ok, Accepted} = ssl:transport_accept(Listener),
+    {ok, Socket} = ssl:handshake(Accepted),
+    ok = ssl:send(Socket, "hello"),
+    ok = case Stop of
+             shutdown -> ssl:shutdown(Socket, write);
+             close -> ssl:close(Socket)
+         end,
+    receive {records, Records} -> io:format("~s ~-8s ~w~n", [Version, Stop, Records]) end,
+    ssl:close(Listener).
+
+relay(ServerPort, Owner) ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listener),
+    spawn(fun() ->
+              {ok, Client} = gen_tcp:accept(Listener),
+              {ok, Server} = gen_tcp:connect("localhost", ServerPort, [binary]),
+              ok = inet:setopts(Client, [{active, true}]),
+              relay(Client, Server, <<>>, Owner)
+          end),
+    Port.
+
+relay(Client, Server, Sent, Owner) ->
+    receive
+        {tcp, Client, Bytes} ->
+            gen_tcp:send(Server, Bytes),
+            relay(Client, Server, Sent, Owner);
+        {tcp, Server, Bytes} ->
+            gen_tcp:send(Client, Bytes),
+            relay(Client, Server, <<Sent/binary, Bytes/binary>>, Owner);
+        {tcp_closed, Server} ->
+            All = records(Sent),
+            Owner ! {records, lists:nthtail(length(All) - 2, All)},
+            gen_tcp:close(Client);
+        {tcp_closed, Client} ->
+            relay(Client, Server, Sent, Owner)
+    end.
+
+records(<<Type, _:16, Size:16, _:Size/binary, Rest/binary>>) -> [{Type, Size} | records(Rest)];
+records(<<>>) -> [].
+```
+
+`erlc shut.erl && erl -noshell -s shut main` prints:
+
+```
+tlsv1.3 shutdown [{23,69},{23,22}]
+tlsv1.3 close    [{23,22},{23,19}]
+tlsv1.2 shutdown [{22,40},{23,29}]
+tlsv1.2 close    [{23,29},{21,26}]
+```
+
+After `ssl:close/1` the server's last record is the alert, 19 bytes of type 23 over TLS 1.3 and a record of type 21 over TLS 1.2, after the record that holds `hello`. After `ssl:shutdown(Socket, write)` the last record is the one that holds `hello`.
+
+**Expected behavior**
+
+`ssl:shutdown(Socket, write)` sends `close_notify` before it shuts the transport's writing side, as `ssl:shutdown(Socket, read_write)` does, so that the peer reads an orderly end.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, ssl 11.7.9, on Linux x86_64.
+
+## 32. `dialyzer --raw` ends with `function_clause` on a warning of a module that names no file
+
+Not filed. Found on 2026-11-22 by `make dialyzer` over the compiled units (the log's *A Result Never Empty, Counted*), and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it over its compiled units, which name no source file (a line of [`known_issues.md`](known_issues.md)).
+
+**Title:** dialyzer --raw crashes with function_clause in dialyzer_cl:set_warning_id/2 on a warning from a module whose abstract code has no file attribute
+
+**Describe the bug**
+
+A module compiled from forms that hold no `file` attribute, as a compiler that writes Erlang's abstract format may make one, is analyzed, and a warning of it carries `[]` for its file and no function. The plain output prints such a warning with an empty file name, `:3: Function f/0 has no local return`. Under `--raw`, `dialyzer_cl:set_warning_id/2` matches every warning's place as `{File, Location, MorMFA}` (`dialyzer_cl.erl`, line 708), and this one's is `{[], 3}`, so the run ends with `function_clause` and a crash dump where it would have printed the warnings.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    Forms = [{attribute, 1, module, nofile},
+             {attribute, 2, export, [{f, 0}]},
+             {function, 3, f, 0, [{clause, 3, [], [], [{match, 4, {integer, 4, 1}, {integer, 4, 2}}]}]}],
+    {ok, nofile, Beam, _} = compile:forms(Forms, [debug_info, return]),
+    ok = file:write_file("nofile.beam", Beam),
+    halt().'
+dialyzer --build_plt --apps erts --output_plt erts.plt
+dialyzer --plt erts.plt nofile.beam
+dialyzer --raw --plt erts.plt nofile.beam
+```
+
+The plain run prints two warnings, `:3: Function f/0 has no local return` and `:4: The pattern 1 can never match the type 2`. The raw run prints:
+
+```
+  Proceeding with analysis...{error,function_clause,[{dialyzer_cl,'-set_warning_id/2-inlined-0-',[{warn_return_no_exit,{[],3},{no_return,[only_normal,f,0]}}],[{file,"dialyzer_cl.erl"},{line,708}]},{lists,map,2,[{file,"lists.erl"},{line,2384}]},{dialyzer_cl,print_warnings,1,[{file,"dialyzer_cl.erl"},{line,835}]},...
+```
+
+**Expected behavior**
+
+The raw run prints the two warnings as terms, each with the file it has, an empty one here, and the plain run names the module where a warning has no file.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, dialyzer 6.0.4, on Linux x86_64.

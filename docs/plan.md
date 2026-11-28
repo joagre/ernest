@@ -135,10 +135,14 @@ tag; item 3; item 4; and item 5 last.
    One reader from outside, an Erlang programmer, reads the tour and the guide's first
    chapters and says where they stopped. The user asks them as item 1 closes, since the wait
    is about a week.
-3. **ernest-httpd's release**, with its readers, by its own session on the user's word, once
-   0.12.0 is out (the log's *The Floors and the Releases*). Ernest's session tells it the
-   tag by a message that names every line of its own the release answers, and it answers
-   with any line it keeps, as `docs/clean_room.md`'s *The answer* says.
+3. **ernest-template's release, then ernest-httpd's**, each by its own session on the
+   user's word, once 0.12.0 is out (the log's *The Floors and the Releases*, *The
+   Template's Release Before ernest-httpd's*). The template's comes first, since
+   ernest-epx and ernest-httpd copy from it and may have to follow its tag before
+   ernest-httpd's release, which is made with its readers. Ernest's session tells each
+   the tag by a message, ernest-httpd's naming every line of its own the release answers,
+   and ernest-httpd answers with any line it keeps, as `docs/clean_room.md`'s *The answer*
+   says.
 4. **The site live at ernest-lang.org**, so that each project it lists builds on the release
    it names (the log's *The Site Goes Live With 1.0*, *Ernest Stays at 0.x*): `make site` from
    0.12.0's tag, the copy of `build/site/` to the host, and the smoke test against the live site.
