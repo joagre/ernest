@@ -90,6 +90,9 @@ before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2
    - an absolute form's authority, and a `CONNECT` target's: G.11 says that its fit is
      the server's (*The Authority's Fit Is the Server's*).
 
+   ernest-httpd's session checked each verdict on an archive of `c4553aa8` and agrees
+   with all five (the log's *ernest-httpd's Answer on Item 1*).
+
    Four `decide` lines of the findings' are a server's security too, each decided (the
    log's *The Applications' Lines Decided*): a command's environment, *H39*, and a
    client's renegotiation, *H53*, were built for 0.11.0; a call's wait under a backlog,
@@ -179,6 +182,12 @@ before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2
    pages and ernest-httpd's manifest become. It also asks whether the draw of
    `Peer.computeAnywhere` follows them, as a policy a library holds. It is read against
    each of those owners before the user decides.
+
+   The proposal is [`proposals/libraries/`](proposals/libraries/README.md), written
+   2026-11-28 and read against those owners (the log's *The Libraries' Proposal
+   Written*). It recommends that none moves for 0.12.0, that Appendix G states its rule
+   with six libraries listed by name, that E.0 keeps the three modules as it names them,
+   and that E.0's rule 3 names E.27's draw. The decision is the user's.
 7. **Three faults that vanish**, taken up by the user on 2026-11-23 from three lines of
    the known issues (the log's *Four Verdicts Changed After the Round*), built for 0.12.0
    and closed 2026-11-28, each line of the known issues gone with its fix. An `Os.exit`
