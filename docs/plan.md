@@ -229,7 +229,7 @@ Sitemap Before the Tag*).
    proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
    `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
 
-## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about three weeks, after the launch
+## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
