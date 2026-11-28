@@ -152,16 +152,17 @@ before its tag; item 3; item 4; and item 5 last.
    *The Site's Proposal Read*); `docs/design/site.md`'s *The root* lists them then.
 
    ernest-httpd rehearses the switch on the machine, under a second unit on scratch ports,
-   with Ernest 0.10.0's archive and, since MVP 4.6, with the client, so that the switch at
-   the launch swaps one archive for another on a path already walked; then, with its release
-   of item 3 made, it switches once, the machine serving its one page meanwhile. Its
+   with Ernest 0.11.0's archive since 2026-11-28 and, since MVP 4.6, with the client, so
+   that the switch at the launch swaps one archive for another on a path already walked;
+   then, with its release of item 3 made, it switches once, the machine serving its one
+   page meanwhile. Its
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
    (the log's *A Node's Schedulers*).
 
-   Before the switch, a node of 0.11's form starts on the rehearsal, since 0.11.0 made two
-   refusals that can stop a deployed node: an `ernest.conf` that holds `public-key` or
+   A node of 0.11's form started on the rehearsal on 2026-11-28, past the two refusals
+   0.11.0 made that can stop a deployed node: an `ernest.conf` that holds `public-key` or
    `utilization`, and a directory or an `ernest.conf` that any but its owner may write
-   (the log's *The Nodes' Build*).
+   (the log's *The Nodes' Build*, *The Rehearsal on 0.11.0*).
 
    Decided with the user on 2026-11-17: the site's server takes a new build while it
    serves after the launch, if at all. A deploy ends at most six demo shells, the deploys
