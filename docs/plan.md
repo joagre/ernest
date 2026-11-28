@@ -409,7 +409,8 @@ What the line left, in the order it is taken:
   `make flakes` is run over the nodes' tests, and a failure is diagnosed; where none comes
   in an hour, the item closes on a log line. `make cover` failed it in each of its three
   runs on 2026-11-23, a way to make it show (the log's *The Helper's Failure Under
-  Recording*).
+  Recording*). It failed one full run of three on 2026-11-28 (*A Far End's Read Missed
+  the Record*).
 - **168. A row of the library's bench in a process of its own**, found 2026-11-22 by MVP
   4.4's item 2 (the log's *The Cost's Rows Read*). `Bytes.toList` at 10,000 bytes reads 5.4
   times the host's with nothing added: in the harness's process a compiled call of

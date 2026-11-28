@@ -3743,10 +3743,8 @@ watches(Pid, Watched) ->
 %% no clock: it holds the closer's calls, in their order, by the host's
 %% trace. Where the host's process of the
 %% connection has closed the host's socket after the shutdown, the closer
-%% makes no close of its own. A far end of the host's that reads only
-%% after the record has come ends as the transport's close, not the
-%% peer's, so this one does not tell the record (the test of the four ends
-%% does).
+%% makes no close of its own. This test does not tell the record; the test
+%% of the four ends does.
 %%
 %% Written first, a regression test: the closer made the host's close alone,
 %% which wrote the record and then waited 5 seconds for the far end's
@@ -3841,11 +3839,25 @@ looked_late(Closer, Since) ->
     end.
 
 %% Every byte the far end over TLS reads, and how the connection then ends.
+%% It reads by `{active, once}`, as a socket's process does, so that the
+%% host's process of the connection ends as the peer's close whenever the
+%% record that ends the connection came. The host's `ssl:recv` heeds that
+%% record only where a read waits as it comes: after one that came between
+%% two reads, the next read waits for the transport's close, and that
+%% process ends as that close.
 -spec tls_taken(ssl:sslsocket(), non_neg_integer()) -> {non_neg_integer(), term()}.
 tls_taken(Connection, Count) ->
-    case ssl:recv(Connection, 0, 10000) of
-        {ok, Bytes} -> tls_taken(Connection, Count + byte_size(Bytes));
-        Ended -> {Count, Ended}
+    case ssl:setopts(Connection, [{active, once}]) of
+        ok ->
+            receive
+                {ssl, Connection, Bytes} -> tls_taken(Connection, Count + byte_size(Bytes));
+                {ssl_closed, Connection} -> {Count, {error, closed}};
+                {ssl_error, Connection, Reason} -> {Count, {error, Reason}}
+            after 10000 ->
+                {Count, {error, timeout}}
+            end;
+        Ended ->
+            {Count, Ended}
     end.
 
 %% A far end over TLS of the host's own, a process that listens on the

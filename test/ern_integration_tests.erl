@@ -1827,17 +1827,25 @@ close_sends_before_the_run_ends() ->
 %% host takes, closes its socket and ends cuts nothing off: `close` answers
 %% once the bytes and the record that ends the connection are with the
 %% kernel, so a far end outside the program, of the host's own `ssl`, which
-%% begins to read once the program says that it closes, takes every byte
-%% and then the record, and the run ends with status 0. The far end tells
-%% the record by how its process of the connection ends: as the peer's
-%% close after the record, and as the transport's close without it.
+%% begins to read once the program says that it closes, takes every byte,
+%% the run ends with status 0, and the far end, reading on only then, reads
+%% the record. The far end tells the record by how its process of the
+%% connection ends: as the peer's close after the record, and as the
+%% transport's close without it.
 %%
 %% Written first, a regression test of the close that waits for the record
 %% alone: on the code before it, whose close waited for the host's close,
-%% it passed too. Its steps: the build, the program's line and the run's
-%% end.
+%% it passed too, in its first form, which read the close at once. Its
+%% steps: the build, the program's line, the far end's taking of the bytes
+%% and the run's end.
+%%
+%% The far end reads the close only once the run has ended, so that the
+%% record has come before it reads. Written first again, a regression test
+%% of the far end: reading by the host's `ssl:recv`, it ended as the
+%% transport's close in every run, the record having come
+%% (ern_tcp_tests:tls_taken/2).
 close_sends_its_record_before_the_run_ends_test_() ->
-    ern_harness:counted_test({waits, 3}, fun close_sends_its_record_before_the_run_ends/0).
+    ern_harness:counted_test({waits, 4}, fun close_sends_its_record_before_the_run_ends/0).
 
 close_sends_its_record_before_the_run_ends() ->
     Dir = close_sends_built("build/close_sends_tls"),
@@ -1847,6 +1855,7 @@ close_sends_its_record_before_the_run_ends() ->
                                   {certfile, Certificate}, {keyfile, Key}]),
     {ok, {_, Port}} = ssl:sockname(Listen),
     Megabytes = 64,
+    Size = Megabytes * 1048576,
     Program = close_sends_run(Dir, [Port, Megabytes, tls]),
     try
         {ok, Handshaking} = ssl:transport_accept(Listen, 10000),
@@ -1854,10 +1863,15 @@ close_sends_its_record_before_the_run_ends() ->
         Connection = ern_tcp_tests:tls_connection_of(self()),
         ConnectionRef = erlang:monitor(process, Connection),
         ?assertEqual(ok, said_line(Program, <<"closing\n">>)),
-        ?assertEqual({Megabytes * 1048576, {error, closed}}, ern_tcp_tests:tls_taken(FarEnd, 0)),
+        ok = ern_harness:step({taken, FarEnd}),
+        ?assertEqual(Size, case ssl:recv(FarEnd, Size, ern_harness:wait_ms()) of
+                               {ok, Bytes} -> byte_size(Bytes);
+                               Failed -> Failed
+                           end),
+        ?assertEqual({0, <<>>}, ern_harness:collected(Program, 1)),
+        ?assertEqual({0, {error, closed}}, ern_tcp_tests:tls_taken(FarEnd, 0)),
         ?assertEqual({shutdown, peer_close},
-                     receive {'DOWN', ConnectionRef, process, Connection, Why} -> Why end),
-        ?assertEqual({0, <<>>}, ern_harness:collected(Program, 1))
+                     receive {'DOWN', ConnectionRef, process, Connection, Why} -> Why end)
     after
         ssl:close(Listen),
         killed(Program)
