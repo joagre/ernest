@@ -15,8 +15,8 @@
 %% documents, an export of HEAD. `make site-expected` writes the expected
 %% pages again after a change to the look that is meant (write_expected/0).
 %% Run from this directory by its Makefile, after `make`, which builds the
-%% generator into ../build/tools. Every test here was written after the
-%% generator, a regression test.
+%% generator into ../build/tools. Every test here but robots/0 and
+%% sitemap/0 was written after the generator, a regression test.
 %%
 %% The tests need the repository's history: the pages' dates are read at
 %% ?TAG, and head/0 exports HEAD, so they run in a clone that holds both,
@@ -51,7 +51,8 @@ generated_test_() ->
     {setup, fun generated/0, fun(_) -> ok end,
      [{"pages", fun pages/0}, {"assets", fun assets/0}, {"icons", fun icons/0},
       {"qualified", fun qualified/0}, {"logged", fun logged/0}, {"parts", fun parts/0},
-      {"described", fun described/0}, {"refused", {timeout, 30, fun refused/0}},
+      {"described", fun described/0}, {"robots", fun robots/0}, {"sitemap", fun sitemap/0},
+      {"refused", {timeout, 30, fun refused/0}},
       {"collided", {timeout, 30, fun collided/0}},
       {"unlogged", {timeout, 30, fun unlogged/0}},
       {"absolute", {timeout, 30, fun absolute/0}},
@@ -104,15 +105,17 @@ pages() ->
 %% root copied, laid out as served, the stylesheet, the script and the
 %% icons' file each under a name holding the first eight hexadecimal digits
 %% of its SHA-1 digest, and named so by every page; the vendored files and
-%% the rest under their own names; and the three logos at their paths in
-%% the repository's assets/.
+%% the rest under their own names; the three logos at their paths in the
+%% repository's assets/; and beside them the robots' file and the sitemap,
+%% which robots/0 and sitemap/0 hold.
 assets() ->
     Root = files("../site/root"),
     Named = maps:from_list([{File, digested(read("../site/root", File), File)}
                             || File <- ?DIGESTED]),
     Icons = gathered(),
     ?assertEqual(lists:sort([maps:get(File, Named, File) || File <- Root]
-                            ++ [Icons] ++ ["assets/" ++ Logo || Logo <- ?LOGOS]),
+                            ++ [Icons] ++ ["assets/" ++ Logo || Logo <- ?LOGOS]
+                            ++ ["robots.txt", "sitemap.xml"]),
                  [File || File <- files(?OUT), filename:extension(File) =/= ".html"]),
     ?assertEqual([], [File || File <- Root,
                               read("../site/root", File)
@@ -222,7 +225,7 @@ collided() ->
     ?assertMatch({_, _}, binary:match(Output, <<"report/toolchain.md: two parts of section 11.2 "
                                                 "are anchored 11.2-the-shell">>)).
 
-%% docs/design/site.md *Links*: the site's own pages, the
+%% docs/design/site.md *Every page*: the site's own pages, the
 %% homepage, the shell's and the 404 page, are each described by the first
 %% sentence of their text, which the generator states for the two whose
 %% text a template holds, home.html's heading and shell.html's opening.
@@ -236,6 +239,39 @@ is_described(Page) ->
     [_, Main] = binary:split(Page, <<"<main">>),
     Text = re:replace(Main, "<[^>]*>", "", [global, {return, binary}]),
     binary:match(Text, string:trim(Description, trailing, ".")) =/= nomatch.
+
+%% docs/design/site.md *The root*: /robots.txt lets every crawler read
+%% every path and names the sitemap at ernest-lang.org.
+robots() ->
+    ?assertEqual(<<"User-agent: *\nAllow: /\n\nSitemap: https://ernest-lang.org/sitemap.xml\n">>,
+                 read(?OUT, "robots.txt")).
+
+%% docs/design/site.md *The root* and *The templates*: /sitemap.xml names
+%% every page the generator wrote but the 404 page, each once, by
+%% https://ernest-lang.org and its address as a link names it, a directory
+%% by its own form, in the order of the addresses, and nothing else, each
+%% element on a line of its own.
+sitemap() ->
+    Pages = [File || File <- files(?OUT), filename:extension(File) =:= ".html",
+                     File =/= "404.html"],
+    ?assertEqual(26, length(Pages)),
+    Located = lists:sort(["https://ernest-lang.org" ++ address(File) || File <- Pages]),
+    Written = iolist_to_binary(["<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+                                "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
+                                [["    <url>\n        <loc>", Loc, "</loc>\n    </url>\n"]
+                                 || Loc <- Located],
+                                "</urlset>\n"]),
+    ?assertEqual(Written, read(?OUT, "sitemap.xml")).
+
+%% A page's address as a link names it, `/guide/` for guide/index.html and
+%% `/` for the homepage.
+address("index.html") ->
+    "/";
+address(File) ->
+    case lists:suffix("/index.html", File) of
+        true -> "/" ++ lists:sublist(File, length(File) - length("index.html"));
+        false -> "/" ++ File
+    end.
 
 %% The generator writes the site into a directory of its own, so that no
 %% page whose source is gone stays, and refuses one that is there already.

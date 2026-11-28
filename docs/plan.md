@@ -70,7 +70,7 @@ that names every line of the application's that the release answers. ernest-epx'
 log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers, decided with the user on
-2026-11-28 (the log's *ernest-httpd's Lines Are All In*): items 7 and 1, closed that day; items 6, 8, 9 and 10; item 2, the release, with the last read
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): items 7, 1 and 9, closed that day; items 6, 8 and 10; item 2, the release, with the last read
 before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2026-11-28
 (*Robots and the Sitemap Before the Tag*, *The First Hour Before the Tag*).
 
@@ -207,11 +207,13 @@ before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2
    one node taking every compute where a reader who types at once sees the work spread
    (*L7*): which run the page shows. And the shell page's sentence that it runs in a
    container with no network, true of ernest-lang.org's server alone (*Z7*).
-9. **`/robots.txt` and `/sitemap.xml`**, taken with items 6 and 8, before the release, since
-   the site is built from 0.12.0's tag (the log's *Robots and the Sitemap Before the Tag*).
-   The generator writes both, the second naming ernest-lang.org alone, which the site's
-   proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
-   `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
+9. **`/robots.txt` and `/sitemap.xml`**, closed 2026-11-28 (the log's *Robots and the
+   Sitemap Built*), taken before the release since the site is built from 0.12.0's tag
+   (*Robots and the Sitemap Before the Tag*). The generator writes both: the first lets
+   every crawler read every path and names the sitemap, and the second names every page
+   but the 404 page under ernest-lang.org alone, which the site's proposal decided and
+   MVP 4.2 did not build (*The Site's Proposal Read*). `docs/design/site.md`'s *The
+   root* lists them, and the site's test holds them.
 10. **What a first hour meets, decided**, the first family of MVP 4.5's item 176, taken
     before the tag with items 6, 8 and 9, decided with the user on 2026-11-28 (the log's
     *The First Hour Before the Tag*): entries 289, 294, 297, 305, 309 and 313 of
@@ -308,8 +310,9 @@ What the line left, in the order it is taken:
 - **176. The full review's feedback, decided**, from MVP 4.4's item 5, placed 2026-11-26
   (the log's *The Feedback Held by an Item*): the 42 entries of
   [`language_feedback.md`](language_feedback.md) that the full review and the builds
-  around it left, and the 21 the release review before 0.11.0 added, entries 321 to 341,
-  each a question where the report is true. Nothing is built before its verdict.
+  around it left, the 21 the release review before 0.11.0 added, entries 321 to 341,
+  and entries 342 and 343, which a build of 2026-11-28 added, each a question where the
+  report is true. Nothing is built before its verdict.
 
   They are decided by family, as the review's `decide` round was. The session searches the
   log for each entry and runs its program, and writes a verdict for each line against §0
@@ -322,7 +325,7 @@ What the line left, in the order it is taken:
     decided before the launch;
   - the language's rules: 278, 283, 286, 292, 295, 304, 308, 314 and 317;
   - processes and calls: 287, 296, 300, 303 and 318;
-  - the library's functions: 275, 277, 279, 280, 288, 298, 306, 307 and 310;
+  - the library's functions: 275, 277, 279, 280, 288, 298, 306, 307, 310, 342 and 343;
   - the system's modules and the terminal: 271, 285, 290, 291, 293, 299, 311 and 319;
   - the toolchain: 282, 284, 302, 315 and 316;
   - the release review's, 321 to 341, each placed in one of the six as the item starts.

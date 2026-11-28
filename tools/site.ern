@@ -6,11 +6,12 @@
 // the icons gathered into one file, and the three logos the site shows; each
 // kind of page through the module that knows it, the guide and the tour
 // (Site.Book), the report (Site.Report), the library (Site.Library) and the
-// documents of a page each (Site.Document); and the site's own pages, the
-// homepage, the shell's and the 404 page. Every page's qualified names link
-// to the library's declarations, and its citations of the log to the log's
-// entries, so the two are read first; and the site's links are checked last
-// (Site.Check), so that a site with one that leads nowhere is refused.
+// documents of a page each (Site.Document); the site's own pages, the
+// homepage, the shell's and the 404 page; and the robots' file and the
+// sitemap. Every page's qualified names link to the library's
+// declarations, and its citations of the log to the log's entries, so the
+// two are read first; and the site's links are checked last (Site.Check),
+// so that a site with one that leads nowhere is refused.
 //
 // `ern run site.erc root out version tag`: `root` holds the repository's
 // files, a checkout or a tag's export; `out`, which must not be there yet,
@@ -27,15 +28,23 @@ let claimsShown : Int = 4
 
 // The descriptions of the pages whose text a template holds, each its
 // text's first sentence: the homepage's heading, and the shell page's
-// opening (site.md *Links*).
+// opening (site.md *Every page*).
 let homeDescription : String = "Start a process on another node, and its code goes with it."
 
 let shellDescription : String =
     "This page runs an Ernest shell of your own and a second node named foo beside it."
 
-// The 404 page's fixed body (site.md *The generation*).
+// The 404 page's fixed body (site.md *The generation*), and its address,
+// which the sitemap leaves out.
 let notFoundText : String =
     "No page of the site has this address. The [homepage](/) leads to every part of it."
+
+let notFoundAddress : String = "/404.html"
+
+// The site's address, which the sitemap names each page under and the
+// robots' file names the sitemap under: ernest-lang.org alone, to which
+// every path on ernest-lang.se redirects (site.md *The root*).
+let siteAddress : String = "https://ernest-lang.org"
 
 // The attributes of an icon's `svg` element its symbol keeps, and those it
 // leaves: the namespace to the icons' file, the size to the page, and the
@@ -85,6 +94,8 @@ fn generated(root : Path, out : Path, version : String, tag : String) : Either(S
     let _ <- homeWritten(run);
     let _ <- shellWritten(run);
     let _ <- notFoundWritten(run);
+    let _ <- robotsWritten(out);
+    let _ <- sitemapWritten(out);
     Check.checked(out)
 }
 
@@ -218,13 +229,58 @@ fn notFoundWritten(run : Run.Run) : Either(String, Unit) = {
                     #("page_nav_html", Template.Markup([]))]);
     let description <- Run.described("the 404 page", blocks);
     Run.pageWritten(run,
-                    Run.Output(address = "/404.html",
+                    Run.Output(address = notFoundAddress,
                                title = Run.titled("Not found"),
                                =description,
                                room = None,
                                =main,
                                source = None))
 }
+
+//
+// The robots' file and the sitemap
+//
+
+// The robots' file, which lets every crawler read every path and names the
+// sitemap (site.md *The root*).
+fn robotsWritten(out : Path) : Either(String, Unit) =
+    linesWritten(out <> Path("robots.txt"),
+                 ["User-agent: *", "Allow: /", "", "Sitemap: " <> siteAddress <> "/sitemap.xml"])
+
+// The sitemap: a `<url>` for every page the site holds but the 404 page,
+// each its `<loc>` alone, in the order of the addresses, so that each run
+// writes it the same, and each element on a line of its own, indented four
+// spaces a level, as a page's HTML is (site.md *The root*, *The
+// templates*).
+fn sitemapWritten(out : Path) : Either(String, Unit) = {
+    let pages <- Check.pages(out);
+    let listed = List.sort(List.filter(pages, fn(address) = address != notFoundAddress));
+    let urls =
+        List.flatMap(listed,
+                     fn(address) =
+                         ["    <url>",
+                          "        <loc>" <> located(address) <> "</loc>",
+                          "    </url>"]);
+    linesWritten(out <> Path("sitemap.xml"),
+                 ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                  "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"]
+                     <> urls
+                     <> ["</urlset>"])
+}
+
+// A page's URL under the site's address, each segment of its address
+// percent-encoded by `Uri.encode`, every character but an unreserved one, so
+// that the URL is one RFC 3986 writes and holds no character XML escapes.
+fn located(address : String) : String =
+    siteAddress
+        <> String.join(List.map(String.split(address, "/"),
+                                fn(segment) = Uri.encode(String.toUtf8(segment))),
+                       "/")
+
+// A file of text written whole, its lines each ended by a line feed, as a
+// page's are.
+fn linesWritten(path : Path, lines : List(String)) : Either(String, Unit) =
+    Run.fileWritten(path, String.toUtf8(Template.text(List.map(lines, Template.Line))))
 
 //
 // The files

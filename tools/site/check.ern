@@ -6,7 +6,7 @@
 // `id` of a page or a symbol of the icons' file, as docs/design/site.md's
 // *Links* says. A link with a scheme leads off the site and is not read. A
 // site with a link that leads nowhere is refused, each such link named with
-// its page.
+// its page. It gives the sitemap the pages too (`pages`).
 //
 
 // A page of the site as the check reads it: its path under the site's
@@ -49,6 +49,11 @@ export fn checked(out : Path) : Either(String, Unit) = {
                  <> " holds links that lead nowhere:\n"
                  <> String.join(unresolved, "\n"))
 }
+
+/// The address of every page under `out`, as a link names it, `/guide/`
+/// for guide/index.html, which the sitemap names.
+export fn pages(out : Path) : Either(String, List(String)) =
+    Either.map(filesUnder(out, ""), fn(files) = List.map(List.filter(files, isPage), addressOf))
 
 fn isPage(file : String) : Bool =
     String.endsWith(file, ".html")

@@ -14,6 +14,8 @@ The site's files as served.
 
     /                               the homepage
     /404.html                       any unmatched path, served with HTTP 404
+    /robots.txt                     for crawlers
+    /sitemap.xml                    the pages, for crawlers
     /why/                           guide/why.md
     /faq/                           guide/faq.md
     /tour/                          contents
@@ -43,7 +45,9 @@ The site's files as served.
     /assets/img/projects/           each project's icon, <project>.png
     /assets/<logo>                  the logos the site shows, at their paths in assets/
 
-- The site is ernest-lang.org. Every path on ernest-lang.se redirects to the same path there, which is the server's configuration.
+- The site is ernest-lang.org. Every path on ernest-lang.se redirects to the same path there, which is the server's configuration. The sitemap names ernest-lang.org alone.
+- `/robots.txt` lets every crawler read every path and names the sitemap: `User-agent: *`, `Allow: /`, a blank line, and `Sitemap: https://ernest-lang.org/sitemap.xml`.
+- `/sitemap.xml` is the XML declaration and a `urlset` of the sitemaps protocol, with a `<url>` for each page, every `.html` file but `/404.html`, holding its `<loc>` alone. A `<loc>` is `https://ernest-lang.org` and the page's address as a link names it, each segment percent-encoded by `Uri.encode`. The entries stand in the order of the addresses. The file is written to be read, as a page's HTML is (*The templates*).
 - A report page is one of the report's files, whole. A citation's first number or letter names its page.
 - A chapter is addressed by its number, as a citation names it.
 - Every contents page is generated: a book's from its headings, the report's with its opening from `report/README.md`, and the library's from the indexes of the build's pages, which `make doc` writes: `build/man/README.md`, `build/stdlib/index.md` and `build/man/libs/README.md`. There is no symlink, and no page at two addresses.
@@ -176,7 +180,7 @@ The log's *The Site's Look, by Hand*, *The Client's Questions* and *The Site's P
 - The sources stay Markdown: the report, the guide, the build's pages, and the tour's document, `tour/README.md`. A source's opening logo and its contents block are dropped, since the site has its own.
 - A chapter of the guide or the tour is a second-level heading. Previous and next follow their order, and the report's pages run language, toolchain, library.
 - The library's pages are written first, and the modules' pages they read are held no longer than that, so that no later collection of the run copies them (the log's *Lean at the Limits*).
-- `make site` builds the site from a release's tag without a worktree. It exports the tag with `git archive` into `build/site-source/`, builds the toolchain there, the checkout untouched, and runs `make doc` there, which writes the pages. It wipes `build/site/`, copies the root and the logos there, and writes every generated page beside them, so a page whose source is gone goes. `build/site/` is never edited in place, and its copy to the host is the operator's step, the server's own.
+- `make site` builds the site from a release's tag without a worktree. It exports the tag with `git archive` into `build/site-source/`, builds the toolchain there, the checkout untouched, and runs `make doc` there, which writes the pages. It wipes `build/site/`, copies the root and the logos there, and writes every generated page, the robots' file and the sitemap beside them, so a page whose source is gone goes. `build/site/` is never edited in place, and its copy to the host is the operator's step, the server's own.
 - `make site` takes any revision as its tag, a release's for the site and `HEAD` for a look at the work in hand. A revision whose tree holds no `site/templates/` is refused, since the generator comes from it.
 - Everything comes from the tag, the documents and the site's own files, its templates, its root and its generator, but the server's client. So the site is a release exactly, and a fix to the site's look or its generator goes live with the next release.
 - A page's text, links and navigation are complete in its HTML, and read without a script, but the shell page's numbers. A script adds to a page, the shell panel, the navigation that keeps it and the code blocks' buttons, and never holds what the page says.
