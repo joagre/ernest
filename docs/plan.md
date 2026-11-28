@@ -193,14 +193,19 @@ with the last read before its tag; item 3; item 4; and item 5 last.
    Each ends a run with status 0 or writes no fault's line. Each line of the known issues
    goes with its fix.
 
-   The `Os.exit` is built (the log's *An Os.exit After the Wait Gives Its Status*). The
-   wrap's fault is built as §6.9 and §6.5 stand, once an agent has shown where it goes.
-   That showing also takes up a `Tcp.connect` in an adapted address's function whose
-   target has ended, which did not return in 30 seconds. The listener's waits on a
-   decision, *A resource's process at a fault*, which the log's *Item 135 Stands After
-   the Launch* left to the user at the item's turn: the resource ends at the fault, as
-   §6.5's exit signal ends a foreign process, or a narrower sentence drops the fault. A
-   sentence of §6.5 may change with either, and is read cold before the build.
+   The `Os.exit` is built (the log's *An Os.exit After the Wait Gives Its Status*), and
+   so is a wrap's fault that the kept process meets while its function waits (*A Wrap's
+   Fault Met in the Function Is the Target's*). Two decisions are left, taken together
+   before either is built, and a sentence of §6.5 or §6.9 that either changes is read
+   cold first:
+
+   - *A wrap's fault after the function*: where the function has returned before the
+     fault reaches the kept process, the fault waits in its mailbox and is lost, and
+     §6.9 does not say whether the kept process's wait for its next message is a wait,
+     nor what a fault met there is.
+   - *A resource's process at a fault*, which the log's *Item 135 Stands After the
+     Launch* left to the user at the item's turn: the resource ends at the fault, as
+     §6.5's exit signal ends a foreign process, or a narrower sentence drops the fault.
 8. **Three lines of the release review before 0.11.0**, each met by a first reader, placed
    2026-11-26 (the log's *The Release Review Before 0.11.0, Decided*). A help where a
    token means one thing, the test of 2026-11-11's `++`: an assignment `total = total +

@@ -8487,6 +8487,96 @@ adapted_fault(Base) ->
     {_, SenderErr} = ern_harness:said(Sender),
     ?assertEqual(nomatch, string:find(SenderErr, "fault")).
 
+%% report §6.9, §6.5: a monitor made in an adapted address's function that
+%% the node that made the address applies for a sender on b, over a target
+%% on b, is the monitor of the process kept for the address, and a fault in
+%% its wrap is that process's, which meets it at its next wait, in the
+%% function; that is a fault in the function, and so the target's, which
+%% takes it as a message and faults with the wrap's cause, its node writing
+%% the fault's line. The function waits in a call never answered as the
+%% victim it monitors is stopped. Written before the fix, on which it
+%% failed (the log's *A Wrap's Fault Met in the Function Is the Target's*):
+%% the fault was sent to the kept process as an exit signal, which ended it,
+%% and the target was never told
+kept_wrap_fault_test_() ->
+    ern_harness:nodes_test({waits, 7}, fun kept_wrap_fault/1).
+
+kept_wrap_fault(Base) ->
+    Program = kept_wrap(filename:join(Base, "build")),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "the target ended: Fault(\"the wrap faulted\")\n"),
+    ?assertEqual(0, WaitA()),
+    ern_harness:says(B, "the process of KeptWrap.main:12 faulted: the wrap faulted, spawned by"
+                        " the peer a\n    KeptWrap.watching:30\n"),
+    ern_harness:stop(B, WaitB),
+    {_, ErrA} = ern_harness:said(A),
+    ?assertEqual(nomatch, string:find(ErrA, "faulted")).
+
+%% Report §6.9, §6.5: a program that spawns a target on the peer b and a
+%% sender there that sends 1 to an adapted address over the target made
+%% here, whose function monitors a victim of this node with a wrap that
+%% faults, and waits in a call it is never answered; once it waits, the
+%% victim is stopped, and the program says how the target ended. Built in
+%% Root: one step. Answers its compiled form.
+kept_wrap(Root) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "kept_wrap.ern"), [<<"
+type TargetMsg = Got(Int)
+
+type VictimMsg = Stop
+
+type MainMsg = Hold(Reply(Unit)) | Ended(Down)
+
+export fn main() : Unit receiving MainMsg = {
+    let victim = spawn(fn() = receive {
+        Stop -> Unit
+    });
+    match Peer.spawn(\"b\", fn() = serve(), waitMs()) {
+        Right(target) -> {
+            monitor(Process.fromAddress(target), Ended);
+            let front = adapted(target, watching(self(), Process.fromAddress(victim)));
+            match Peer.spawn(\"b\", fn() = send(front, 1), waitMs()) {
+                Right(_) -> held(victim)
+              | Left(error) -> Io.println(\"no sender: \" <> Io.show(error))
+            }
+        }
+      | Left(error) ->
+            Io.println(\"no target: \" <> Io.show(error))
+    }
+}
+
+// Report §6.9, §6.5: the monitor is the kept process's, and its wrap's
+// fault is met at the call's wait, a fault in the function.
+fn watching(main : Address(MainMsg), victim : Process) : (Int) -> TargetMsg =
+    fn(n : Int) = {
+        monitor(victim, fn(_) = fault(\"the wrap faulted\"));
+        Address.callForever(main, Hold);
+        Got(n)
+    }
+
+fn held(victim : Address(VictimMsg)) : Unit receiving MainMsg =
+    receive {
+        Hold(_) -> {
+            send(victim, Stop);
+            held(victim)
+        }
+      | Ended(Down(=reason)) ->
+            Io.println(\"the target ended: \" <> Io.show(reason))
+    }
+
+fn serve() : Unit receiving TargetMsg =
+    receive {
+        Got(_) -> serve()
+    }
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    filename:join(Root, "kept_wrap.erc").
+
 %% report §6.5: an adapted address held on another node keeps nothing alive
 %% on the node that made it. Two holders on the maker each make a cell the
 %% host holds, an `atomics` array behind a foreign type, and an address

@@ -286,6 +286,11 @@
 %% is on another node, and the process acts for itself. Under either, a
 %% restart is refused there (restarting/2).
 -define(ACTING, '$ern_acting').
+%% Report §6.5, §6.9: the mark of a process kept for an adapted address
+%% (kept/1), which has no row and waits in the address's function, so that a
+%% fault sent to it is taken there as a program's process takes one
+%% (faulted/3).
+-define(KEPT, '$ern_kept').
 
 %% An adapted address holds the process that made it, whose node is the
 %% one its function runs on (report §6.5), and the reference of the launch
@@ -440,22 +445,30 @@ sent({Pid, Message}) ->
 %% Report §6.5, §8.4: a fault sent to Pid, a fault in an adapted address's
 %% function or a bad message's. A process of this node the runtime started
 %% takes Thrown at its next wait, which raises it there as at a fault of its
-%% own. One it did not start, which has no row and no wait of Ernest's, is
-%% sent ExitReason, the host's term of a fault's end (§12.2), as an exit
-%% signal from the process that sends the fault. A process of another node
-%% takes Thrown as a message, which one the runtime started there raises at
-%% its next wait.
+%% own: one with a row, and one kept for an adapted address, which has none
+%% (is_kept/1). One it did not start, which has no row and no wait of
+%% Ernest's, is sent ExitReason, the host's term of a fault's end (§12.2), as
+%% an exit signal from the process that sends the fault. A process of
+%% another node takes Thrown as a message, which one the runtime started
+%% there raises at its next wait.
 -spec faulted(pid(), {ern, #fault{}} | {ern, fault, binary()},
               {ern, fault, binary(), binary()}) -> ok.
 faulted(Pid, Thrown, ExitReason) when node(Pid) =:= node() ->
-    case ets_lookup(?PROCESSES, Pid) of
-        [_] -> Pid ! {'$ern_fault', Thrown};
-        [] -> exit(Pid, ExitReason)
+    case ets_lookup(?PROCESSES, Pid) =/= [] orelse is_kept(Pid) of
+        true -> Pid ! {'$ern_fault', Thrown};
+        false -> exit(Pid, ExitReason)
     end,
     ok;
 faulted(Pid, Thrown, _) ->
     Pid ! {'$ern_fault', Thrown},
     ok.
+
+%% Report §6.5, §6.9: whether Pid, a process of this node with no row, is
+%% one kept for an adapted address, which marks itself so as it starts
+%% (kept/1), the host reading that one key of its dictionary; one that has
+%% ended is none.
+is_kept(Pid) ->
+    erlang:process_info(Pid, {dictionary, ?KEPT}) =:= {{dictionary, ?KEPT}, true}.
 
 %% Report §6.5, §12.6: the process this node keeps for an adapted address it
 %% made and a peer that sends to it, started by the gateway's worker for
@@ -477,6 +490,12 @@ faulted(Pid, Thrown, _) ->
 %% of the runtime is the target's, as a wrap's is its recipient's
 %% (acting_for/1). It is no delivery to its target, and the target's end
 %% does not end it (abandoned/1).
+%%
+%% Report §6.9, §6.5: where the target is on another node, a monitor the
+%% function makes is the kept process's own, and a fault in its wrap, sent
+%% to the kept process as to a program's process (faulted/3), is met at the
+%% process's next wait in the function, a fault in the function and so the
+%% target's (adapted_way/2).
 %%
 %% None is kept where no run is in progress to apply the function in,
 %% between two runs of `ern test` over a directory, in one host, and before
@@ -508,6 +527,7 @@ kept({adapted, _, _, _, Launch} = Address) ->
             none;
         true ->
             try reaper_held(Reaper, fun() ->
+                                        _ = erlang:put(?KEPT, true),
                                         acting_for(process_of(Address)),
                                         kept_loop(Address, Worker)
                                     end)
