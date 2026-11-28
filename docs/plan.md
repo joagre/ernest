@@ -73,8 +73,9 @@ issue 1, a module that does not load named in a foreign call's fault, is built f
 
 The items are taken in this order, not by their numbers, decided with the user on
 2026-11-28 (the log's *ernest-httpd's Lines Are All In*): the two releases above; item 7,
-closed that day; item 1; items 6 and 8; item 2, the release, with the last read before its
-tag; item 3; item 4; and item 5 last.
+closed that day; item 1; items 6, 8 and 9; item 2, the release, with the last read before
+its tag; item 3; item 4; and item 5 last. Item 9 joined them on 2026-11-28 (*Robots and the
+Sitemap Before the Tag*).
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
    What is Ernest's among it came as lines of its feedback file, each mended for 0.12.0 or
@@ -161,9 +162,7 @@ tag; item 3; item 4; and item 5 last.
    entry in a `package.conf` and `ern unpack`, since MVP 4.17's item 9 wrote the sentence
    before that release. Where it fails, the site waits for the archive.
 
-   Before it, the generator writes `/robots.txt` and `/sitemap.xml`, the second naming
-   ernest-lang.org alone, which the site's proposal decided and MVP 4.2 did not build (the log's
-   *The Site's Proposal Read*); `docs/design/site.md`'s *The root* lists them then.
+   The generator writes `/robots.txt` and `/sitemap.xml` since item 9, before the tag.
 
    ernest-httpd rehearses the switch on the machine, under a second unit on scratch ports,
    with Ernest 0.11.0's archive since 2026-11-28 and, since MVP 4.6, with the client, so
@@ -515,6 +514,11 @@ What the line left, in the order it is taken:
   become loops, which covers every raise in a function `List` calls and leaves a program's
   own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
   against keeping no code only for speed.
+9. **`/robots.txt` and `/sitemap.xml`**, taken with items 6 and 8, before the release, since
+   the site is built from 0.12.0's tag (the log's *Robots and the Sitemap Before the Tag*).
+   The generator writes both, the second naming ernest-lang.org alone, which the site's
+   proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
+   `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
 
 ---
 
@@ -577,5 +581,5 @@ What the line left, in the order it is taken:
 | MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
 | The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
 | Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
-| MVP 4.18 | the two releases that follow 0.11.0, ernest-template's and ernest-epx's; what ernest-httpd's review found of security, the release of 0.12.0, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; and three lines of the release review before 0.11.0 that a first reader meets | | | above |
+| MVP 4.18 | the two releases that follow 0.11.0, ernest-template's and ernest-epx's; what ernest-httpd's review found of security, the release of 0.12.0, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; and the site's `/robots.txt` and `/sitemap.xml` | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
