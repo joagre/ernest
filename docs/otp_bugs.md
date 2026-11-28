@@ -2169,3 +2169,70 @@ A resumed process whose timeout has passed runs again.
 **Affected versions**
 
 OTP 29.1.3, erts 17.1.2, on Linux x86_64.
+
+## 36. A passive `ssl:recv/2,3` after a `close_notify` that came between two reads waits for the transport's close
+
+Not filed as an issue of its own: it is part of [erlang/otp#12296](https://github.com/erlang/otp/issues/12296), another's, open since 2026-11-27, which names the clause, and a [comment of 2026-11-28](https://github.com/erlang/otp/issues/12296#issuecomment-7244237114) gives it the reproduction below. Found on 2026-11-28 by a test that failed 2 runs of 100, `close_sends_its_record_before_the_run_ends`, whose far end read by `ssl:recv/3`; the log's *A Far End's Read Missed the Record*. Nothing of Ernest's meets it but a test's far end, which reads by `{active, once}` since that day: a socket's process reads so too, and `ssl_gen_statem:handle_active_option/5` heeds the alert (`ern_tcp_tests:tls_taken/2`).
+
+**Describe the bug**
+
+Where a `close_notify` comes to a passive socket while no `ssl:recv` waits, `tls_gen_connection:handle_alerts/2` keeps the connection and notes the alert as `socket_tls_closed = true`. `ssl_gen_statem:passive_receive/3` has a clause for that field where it holds an alert, and none for `true`. So the next `ssl:recv` waits for the transport, answers `{error, closed}` only when the peer closes it, and the connection's process ends with `{shutdown, transport_closed}`, where a read that waited as the alert came answers at once and the process ends with `{shutdown, peer_close}`. The reader sends no `close_notify` of its own meanwhile, so a peer that keeps the TCP connection, as `ssl:close/2` with a new controller does, waits out its time.
+
+**To Reproduce**
+
+A server sends `hello` and hands its socket back with `ssl:close(Socket, {self(), 2000})`. A passive client reads `hello` and then reads again, at once or 200 ms later:
+
+```erlang
+-module(late_close).
+-export([main/0]).
+
+main() ->
+    {ok, _} = application:ensure_all_started(ssl),
+    Chain = #{root => [{digest, sha256}, {key, {namedCurve, secp256r1}}], intermediates => [],
+              peer => [{digest, sha256}, {key, {namedCurve, secp256r1}}]},
+    #{server_config := Config} =
+        public_key:pkix_test_data(#{server_chain => Chain, client_chain => Chain}),
+    Keys = [Option || {Name, _} = Option <- Config, lists:member(Name, [cert, key])],
+    [io:format("~p~n", [run(Keys, Wait)]) || Wait <- [0, 200]],
+    halt().
+
+run(Keys, Wait) ->
+    {ok, Listener} = ssl:listen(0, [binary, {active, false} | Keys]),
+    {ok, {_, Port}} = ssl:sockname(Listener),
+    Self = self(),
+    spawn(fun() ->
+              {ok, Accepted} = ssl:transport_accept(Listener),
+              {ok, Server} = ssl:handshake(Accepted),
+              ok = ssl:send(Server, <<"hello">>),
+              Self ! closing,
+              Self ! {downgraded, ssl:close(Server, {self(), 2000})}
+          end),
+    {ok, Client} = ssl:connect("localhost", Port, [binary, {active, false},
+                                                  {verify, verify_none}]),
+    receive closing -> ok end,
+    timer:sleep(Wait),
+    {ok, <<"hello">>} = ssl:recv(Client, 0),
+    Before = erlang:monotonic_time(millisecond),
+    Closed = ssl:recv(Client, 0),
+    Ms = erlang:monotonic_time(millisecond) - Before,
+    Downgraded = receive {downgraded, Answer} -> Answer end,
+    ssl:close(Listener),
+    {Wait, Closed, Ms, Downgraded}.
+```
+
+`erlc late_close.erl && erl -noshell -s late_close main` prints the client's delay, what its second read answered, the milliseconds that read took, and what the server's `ssl:close/2` answered:
+
+```
+{0,{error,closed},41,{ok,#Port<0.7>}}
+{200,{error,closed},1799,{error,timeout}}
+```
+
+With `{versions, ['tlsv1.2']}` in the client's options both lines wait, 1960 and 1800 ms, each with `{error,timeout}`. After a peer's `ssl:shutdown(Socket, read_write)` behind 4 MB, a passive reader's process of the connection ended with `{shutdown, transport_closed}` in 100 runs of 100.
+
+**Expected behavior**
+
+A read after the alert answers `{error, closed}` at once, as a read that waited does, and the connection ends as the peer's close.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, ssl 11.7.9, on Linux x86_64.

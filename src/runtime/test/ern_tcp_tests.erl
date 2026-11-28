@@ -3844,7 +3844,7 @@ looked_late(Closer, Since) ->
 %% record that ends the connection came. The host's `ssl:recv` heeds that
 %% record only where a read waits as it comes: after one that came between
 %% two reads, the next read waits for the transport's close, and that
-%% process ends as that close.
+%% process ends as that close (docs/otp_bugs.md, 36).
 -spec tls_taken(ssl:sslsocket(), non_neg_integer()) -> {non_neg_integer(), term()}.
 tls_taken(Connection, Count) ->
     case ssl:setopts(Connection, [{active, once}]) of
