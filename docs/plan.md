@@ -112,8 +112,10 @@ Sitemap Before the Tag*).
    not say that `Http.target` reads an absolute form's authority as written, userinfo and
    an empty host among them, nor that it reads one with none, so that `Http.filePath`
    places `http://user@host/a.txt`, `http:///a.txt` and `http:/host/a.txt` under the root,
-   which RFC 9110 rules out for `http`. Either the page says that the authority's fit is
-   the server's, as the scheme's and the `Host` header's are, or `target` refuses them.
+   which RFC 9110 rules out for `http`. Decided with the user on 2026-11-28: the page
+   says that the authority's fit is the server's, as the scheme's and the `Host`
+   header's are, and `target` refuses none (the log's *The Authority's Fit Is the
+   Server's*). G.11 gains the sentences, with a test and the two doc blocks.
 
    Read on 2026-11-28 before its decisions (the log's *Item 1 Read Before Its
    Decisions*), which are taken with the user one at a time.
@@ -132,7 +134,7 @@ Sitemap Before the Tag*).
    (`docs/otp_bugs.md`, 35), and need another hold. Where the build finds no simple
    one, E.18 states the second over TCP instead, and the look is an item of MVP 4.5.
 
-   Left to decide: *An absolute form's authority*.
+   Every decision of the item is taken, and what is left is its build.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 
