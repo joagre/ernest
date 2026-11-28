@@ -3530,14 +3530,21 @@ stalled(Base, Stream, Ending) ->
 %% Program run by `ern run` with Options before it, given the port of a
 %% listener of the test's, Stream and Arguments, the program's arguments
 %% after them; its Stream, out or err, the pipe Dir names with `.pipe`
-%% after it, whose reading end is held open and never read, its other
+%% after it, whose reading end is held open and not read, its other
 %% stream the port's: the port that started the run, whose writes are its
 %% standard input, the program's connection, which the test has taken, and
-%% the holder of the reading end, which holds it until its input ends. The
-%% run is the port's own process, so that no shell between them writes of
-%% a signal's end to the pipe and waits there. The program is sent the line
-%% that has it write. One step.
+%% the holder of the reading end, which holds it until its input ends, or
+%% until a line comes, when it reads the pipe to its end and writes what it
+%% read. The run is the port's own process, so that no shell between them
+%% writes of a signal's end to the pipe and waits there. The program is
+%% sent the line that has it write. One step.
 held_run(Dir, Options, Program, Stream, Arguments) ->
+    {Run, [Socket], Holder} = held_run(Dir, Options, Program, Stream, Arguments, 1),
+    {Run, Socket, Holder}.
+
+%% The same, the program's Count connections taken in the order they came:
+%% Count steps.
+held_run(Dir, Options, Program, Stream, Arguments, Count) ->
     {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Listener),
     Pipe = Dir ++ ".pipe",
@@ -3551,11 +3558,12 @@ held_run(Dir, Options, Program, Stream, Arguments) ->
                              Redirected]),
     Run = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
     Holder = open_port({spawn_executable, "/bin/sh"},
-                       [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
-    Socket = ern_harness:accepted(Listener),
+                       [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line && exec cat <&3"]},
+                        exit_status, binary]),
+    Sockets = [ern_harness:accepted(Listener) || _ <- lists:seq(1, Count)],
     ok = gen_tcp:close(Listener),
     true = port_command(Run, "go\n"),
-    {Run, Socket, Holder}.
+    {Run, Sockets, Holder}.
 
 %% Report §8.6: a program whose process of its own holds a connection to
 %% the port of the loopback interface its first argument names until the
@@ -3744,6 +3752,182 @@ exit_cuts_a_stalled_wait(Base) ->
                                      flushed_and_ended(Run, Socket, 7)
                                  end)
                   end, stalled_runs()).
+
+%% report §8.6, §6.5, §12.6: an Os.exit once the end's wait is over ends
+%% the node with its status, and the end's flush goes on. A node's main
+%% writes a megabyte to the stream that stalls and returns, its end waiting
+%% for no subscriber. Once the end has ended the program's processes, which
+%% closes the program's connection, a peer sends 7 to an adapted address the
+%% node made, and the node's process kept for the address applies its
+%% function, which tells the peer's process and calls Os.exit(7); the
+%% peer's process says so on its own connection. The other stream cannot
+%% carry the word, since the host writes both through one thread, which the
+%% stalled one holds. The node is still in its flush; once the stalled
+%% stream's reader reads, the megabyte comes out whole and the node ends
+%% with the exit's status, 7. Each stream stalled.
+exit_after_the_wait_test_() ->
+    ern_harness:nodes_test({waits, 16}, fun exit_after_the_wait/1).
+
+exit_after_the_wait(Base) ->
+    kept_exits(Base, fun(Run, Holder) ->
+                         true = port_command(Holder, "read\n"),
+                         ?assertMatch({7, _}, ern_harness:collected(Run, 1)),
+                         {0, Read} = ern_harness:collected(Holder, 1),
+                         ?assertNotEqual(nomatch,
+                                         binary:match(Read, binary:copy(<<"x">>, 1048576)))
+                     end).
+
+%% report §8.6, §12.4, §11.8: the same, a termination ending the stalled
+%% flush in place of the reader: the node ends with the exit's status, 7,
+%% which stands through the termination, and not with the return's 0.
+termination_after_a_late_exit_test_() ->
+    ern_harness:nodes_test({waits, 14}, fun termination_after_a_late_exit/1).
+
+termination_after_a_late_exit(Base) ->
+    kept_exits(Base, fun(Run, _Holder) ->
+                         true = ern_harness:run_signaled(Run, "TERM"),
+                         ?assertMatch({7, _}, ern_harness:collected(Run, 1))
+                     end).
+
+%% Check run on a node of kept_exiter/1's program from a directory of its
+%% own under Base, first with standard error stalled and then with standard
+%% output, beside one bare node, b, which lists both and is stopped after
+%% (kept_exit/4). Four steps beside each run's.
+kept_exits(Base, Check) ->
+    Program = kept_exiter(filename:join(Base, "build")),
+    Nodes = [{Stream, ern_harness:made(Base, "a_" ++ atom_to_list(Stream), none)}
+             || Stream <- [err, out]],
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{filename:basename(A), A, none} || {_, A} <- Nodes]),
+    WaitB = ern_harness:bare_started(B, []),
+    PortB = ern_harness:bound_port(B),
+    lists:foreach(fun({Stream, A}) ->
+                      ern_harness:lists(A, [{"b", B, PortB}]),
+                      kept_exit(A, Program, Stream, Check)
+                  end, Nodes),
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()).
+
+%% Check run on the node of A's directory, Program given Stream and the
+%% peer b (held_run/6), once its end's wait is over and its process kept
+%% for the address b sends to has told b's process that it calls Os.exit,
+%% which b's process says on its connection, the node still running; given
+%% the run's port and the holder of the stalled stream's reading end, both
+%% closed after, however Check ended. Four steps beside Check's.
+kept_exit(A, Program, Stream, Check) ->
+    {Run, [Held, Firer], Holder} = held_run(A, [" --config-dir ", A], Program, Stream, "b", 2),
+    try
+        ?assertEqual({error, closed}, ern_harness:received(Held, 0)),
+        ok = gen_tcp:send(Firer, <<"fire\n">>),
+        ?assertEqual({ok, <<"exiting\n">>}, ern_harness:received(Firer, 8)),
+        ?assert(ern_harness:run_signaled(Run, "0")),
+        Check(Run, Holder)
+    after
+        ern_harness:closed(Holder),
+        ern_harness:closed(Run)
+    end.
+
+%% Report §8.6, §6.5: a program whose process of its own holds a connection
+%% to the port of the loopback interface its first argument names until the
+%% program's end, and that then spawns on the peer its third names a process
+%% that connects to the port too and, once a line comes on its connection,
+%% sends an adapted address of this node's 7 and its own address. The
+%% address's function tells the peer's process, which says `exiting` on its
+%% connection, and calls Os.exit with the status it is sent. Once a line
+%% comes on standard input, the program writes a megabyte to the stream its
+%% second argument names, `out` or `err`, and returns. Built in Root: one
+%% step. Answers its compiled form.
+-spec kept_exiter(file:filename()) -> file:filename().
+kept_exiter(Root) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "kept_exiter.ern"), [<<"
+// Report §8.6, §6.5: a program whose process of its own holds a connection
+// until the program's end, and that spawns on a peer a process that sends
+// an adapted address of this node's a status, whose function tells the
+// peer's process and calls Os.exit with the status. Once a line comes, the
+// program writes a megabyte to the stream it is given and returns.
+
+type MainMsg = Connected
+
+type ExitMsg = Exit(firer : Address(Unit), status : Int)
+
+export fn main() : Unit receiving MainMsg =
+    match Os.arguments {
+        [port, stream, peer] -> started(port, stream, peer)
+      | _ -> Io.printlnError(\"usage: port out|err peer\")
+    }
+
+fn started(port : String, stream : String, peer : String) : Unit receiving MainMsg =
+    match String.toInt(port) {
+        Some(number) -> writeMegabyte(number, stream, peer)
+      | None -> Io.printlnError(\"not a port: \" <> port)
+    }
+
+fn writeMegabyte(port : Int, stream : String, peer : String) : Unit receiving MainMsg = {
+    let me = self();
+    let _ = spawn(fn() = hold(port, me));
+    receive {
+        Connected -> Unit
+    };
+    let exiter = adapted(me, exiting);
+    match Peer.spawn(peer, fn() = fire(exiter, port), waitMs()) {
+        Right(_) -> Unit
+      | Left(error) -> Io.printlnError(\"not spawned: \" <> Io.show(error))
+    };
+    let _ = Io.readLine();
+    let megabyte = Bytes.repeat(<<120>>, 1048576);
+    match stream {
+        \"err\" -> Io.writeError(megabyte)
+      | _ -> Io.write(megabyte)
+    }
+}
+
+// Report §8.6: tells the peer's process that it calls Os.exit, and calls
+// it with the status it is sent.
+fn exiting(message : ExitMsg) : MainMsg =
+    match message {
+        Exit(firer = firer, status = status) -> {
+            send(firer, Unit);
+            Os.exit(status)
+        }
+    }
+
+// Report §8.6: the connection held until the program's end ends this
+// process, which closes it.
+fn hold(port : Int, main : Address(MainMsg)) : Unit receiving Unit =
+    match Tcp.connect(\"127.0.0.1\", port, waitMs()) {
+        Right(_) -> {
+            send(main, Connected);
+            held()
+        }
+      | Left(error) -> Io.printlnError(\"not connected: \" <> Io.show(error))
+    }
+
+fn held() : Unit receiving Unit =
+    receive {
+        _ -> held()
+    }
+
+// Report §6.5, §8.7: on the peer, a process that connects, and once a line
+// comes sends the address 7 and its own address, which the node that made
+// the address applies; once told, it says so on its connection.
+fn fire(exiter : Address(ExitMsg), port : Int) : Unit receiving Unit =
+    match Tcp.connect(\"127.0.0.1\", port, waitMs()) {
+        Right(socket) -> {
+            let _ = Tcp.read(socket, waitMs());
+            send(exiter, Exit(firer = self(), status = 7));
+            receive {
+                Unit -> {
+                    let _ = Tcp.write(socket, String.toUtf8(\"exiting\\n\"), waitMs());
+                    Unit
+                }
+            }
+        }
+      | Left(_) -> Unit
+    }
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    filename:join(Root, "kept_exiter.erc").
 
 %% report §8.6, §11.2: the lines of the end's wait keep their place among
 %% what the subscribers write on standard error where nothing stalls. The

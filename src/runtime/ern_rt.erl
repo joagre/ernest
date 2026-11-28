@@ -97,7 +97,7 @@
                          delivery_ended/1, fault_courier/0, courier_ended/1,
                          write_loop/2, stream_loop/2, is_captured/3, collect/3,
                          written_back/3, dropping/0, stdin_loop/2, input_taken/1,
-                         clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
+                         clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/3,
                          wait_for_collectors/0, sink_flushed/1, stop/1, stopped_in_order/1]}).
 
 -define(UNIT, 'Unit').
@@ -338,7 +338,7 @@
 
 %% Report §8.5, §8.6, §11.2: the launch in progress, a row of its own
 %% table, made as it begins and gone with the table at its end
-%% (launched/1, end_program/4): its runner; the reference that tags it,
+%% (launched/1, end_program/3): its runner; the reference that tags it,
 %% which the runner's messages carry; its reaper, none until it is started;
 %% its killer, which carries out every kill (killed/2), none
 %% until it is started; its standard error process while it takes the
@@ -524,7 +524,7 @@ kept({adapted, _, _, _, Launch} = Address) ->
 %% Report §6.5, §6.9, §8.6: a process of the runtime's own that runs Work,
 %% held by the reaper as its deliveries are: linked to it, which lives as
 %% long as the run, so that the process ends with the program as the
-%% reaper is stopped (end_program/4), and which traps its exit, so that its
+%% reaper is stopped (end_program/3), and which traps its exit, so that its
 %% end, however it comes, ends nothing else (reaper/1). It runs nothing
 %% where the reaper has gone. Its error handler is this module, as every
 %% process's the runtime starts is (run/1).
@@ -1562,7 +1562,7 @@ reason(Other) -> {'Fault', host_term(Other)}.
 %% for an adapted address (kept/1), each checker, which it makes
 %% (started_checker/3), and each of the end's tellers (tell_all/4), linked
 %% to it, so that each ends with the run as the reaper is stopped
-%% (end_program/4); it traps their exits, so that one that ends otherwise
+%% (end_program/3); it traps their exits, so that one that ends otherwise
 %% than it returns, killed from foreign code among the ways, ends nothing
 %% but itself (held_ended/3).
 %%
@@ -4712,11 +4712,13 @@ run_main(EntryPoint, Site, Options) ->
             catch
                 Class:Error:Stack -> {raised, Class, Error, Stack}
             end,
-    {Gone, Living} = end_program(Launch, Reaper, System, Encodings),
+    {Gone, Living} = end_program(Reaper, System, Encodings),
     %% report §11.2: how many processes the end ended, which `ern run
     %% --verbose` says
     (maps:get(ended, Options, fun(_) -> ok end))(Living),
-    outcome_flushed(Ended, Gone).
+    Exited = exit_read(Ended, Launch),
+    flush_launch(Launch),
+    outcome_flushed(Exited, Gone).
 
 %% Report §8.6: before the program ends, each subscriber of
 %% Os.subscribeTermination is told (Appendix E.23), and the end waits until
@@ -4740,7 +4742,8 @@ run_main(EntryPoint, Site, Options) ->
 %% Report §8.6: the runner waits for no line it says (say/2), so that it
 %% reads each word the wait is sent while a stream is stalled. The line
 %% that names the subscribers to be told is sent before they are, so that
-%% it stands before what they write once told.
+%% it stands before what they write once told. An Os.exit that cut the wait
+%% is answered as {cut, Exit}, so that no later one is read (exit_read/2).
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
     case untold(subscriptions(), #{}) of
@@ -4795,12 +4798,31 @@ waited(Outcome, Launch, Say, Waiting) ->
             waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting));
         {exit, Launch, Status} ->
             cut_short(Say, Waiting),
-            {exit, Status};
+            {cut, {exit, Status}};
         {signal, Launch, {_, Word}} ->
             taken(Word),
             cut_short(Say, Waiting),
             Outcome
     end.
+
+%% Report §8.6: an Os.exit once the end has begun ends the program at once
+%% with its status, the first the runner reads. One the end's wait did not
+%% read, which a process that outlives the wait calls while the end's flush
+%% goes on (kept/1), gives its status once the flush is over, in place of
+%% what began the end, as one read during the wait does; a termination
+%% that ended the flush meanwhile changes nothing, since it only ends the
+%% flush (end_at_once/0). After an Os.exit that cut the wait, a later one
+%% is not read, as a second one during the wait is not.
+exit_read({ended, {cut, Exit}}, _Launch) ->
+    {ended, Exit};
+exit_read({ended, Outcome}, Launch) ->
+    receive
+        {exit, Launch, Status} -> {ended, {exit, Status}}
+    after 0 ->
+        {ended, Outcome}
+    end;
+exit_read(Raised, _Launch) ->
+    Raised.
 
 %% The subscribers a last read finds, the mark gone first: a process that
 %% subscribed after the runner's last read, while the mark stood, told a
@@ -5000,7 +5022,7 @@ passed_on(_System, _Options) ->
 %% Report §12.1, §12.5, §11.2: a line of the toolchain's own on standard
 %% error, Line, its line feed ending it. While a launch's standard error
 %% process runs, from its start until its launch's end has written the
-%% program's output (end_program/4), the line is written by it, as a
+%% program's output (end_program/3), the line is written by it, as a
 %% fault's line is, so that it keeps its place among what the program wrote
 %% there: a write the process answers once it has taken the line, under a
 %% monitor, so that a line the process never took, the end having stopped
@@ -5016,7 +5038,7 @@ passed_on(_System, _Options) ->
 %% Report §8.6, §11.2: the runner's own line, the end's wait's (told/3), is
 %% sent to the process bare, as a fault's line is, and not waited for, so
 %% that the runner reads every word while a stream is stalled. The end's
-%% flush waits for it as for anything the process was sent (end_program/4),
+%% flush waits for it as for anything the process was sent (end_program/3),
 %% and where the stream has gone the line goes with it.
 -spec say(binary(), fun((binary()) -> term())) -> ok.
 say(Line, Outside) ->
@@ -5306,7 +5328,7 @@ input(Key, Options) ->
 %% bytes a program sends, UTF-8 text among them, so the host's streams take
 %% bytes as they are while the program's streams run, from their start
 %% until what was sent them is written; what they took before is put back
-%% then (end_program/4).
+%% then (end_program/3).
 bytes_out() ->
     lists:foldr(fun(Device, Taken) ->
                     case encoding(Device) of
@@ -6245,8 +6267,9 @@ restarted(How) ->
 %% whose caller ended took is written back (Appendix E.24), the sinks'
 %% output is flushed, the system processes and the reaper are stopped, and
 %% the terminal goes back as the program found it (§12.1). The answer is
-%% the streams that could not be flushed, standard output's first.
-end_program(Launch, Reaper, System, Encodings) ->
+%% the streams that could not be flushed, standard output's first. What
+%% the run's processes sent the runner meanwhile is read after (run_main/3).
+end_program(Reaper, System, Encodings) ->
     Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
     Reaper ! {end_program, erlang:self(), Ref},
@@ -6290,7 +6313,6 @@ end_program(Launch, Reaper, System, Encodings) ->
     %% has nothing to end (signal/1), and an adapted address the run made
     %% is dead (adapted_way/2)
     lists:foreach(fun ets:delete/1, tables()),
-    flush_launch(Launch),
     {Gone, Living}.
 
 %% Report Appendix E.24, §8.6: each collector that has not ended told that
@@ -6477,7 +6499,7 @@ program_utilization() ->
 
 %% Report §8.7, Appendix E.27: what a peer's frame asks of the run in
 %% progress, answered by its reaper, which ends before the run's tables go
-%% (end_program/4), so that no answer reads a table that is gone: what this
+%% (end_program/3), so that no answer reads a table that is gone: what this
 %% node offers under a name at a type's hash (offered/2), or a process
 %% started on this node for the peer of node Peer, as spawn/2 starts one but
 %% heading a chain of its own, where every binding of the function's reach,

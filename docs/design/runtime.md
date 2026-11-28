@@ -82,6 +82,8 @@ The word carries a reference of its own, and the runner writes a row for each wo
 
 The end at once tells the terminal's process too, which writes nothing more of the terminal's mode and leaves a write of it under way, so that the end of the paste mode is lost with the rest; its holder gives the settings back without waiting for what was written to go out (§12.1, §12.4; `ern_tty:at_once/1`; the log's *The Shell Ends at Once*).
 
+An `Os.exit` once the end has begun gives the program its status, the first one the runner reads. One read during the wait cuts it, and no later one is read. One that a process outliving the wait calls during the end's flush, a process kept for an adapted address on a node among them, is read once the flush is over, from the runner's mailbox before what the run sent it is dropped, and gives its status in place of what began the end. The flush goes on meanwhile, and a termination that ends it changes nothing (`ern_rt:exit_read/2`; §8.6; the log's *An Os.exit After the Wait Gives Its Status*).
+
 ## What the runtime keeps, and where
 
 A process's own, in its dictionary, dying with it, read by the process and by the look, and by another process where a line says so:
