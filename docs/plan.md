@@ -223,6 +223,11 @@ Sitemap Before the Tag*).
    one node taking every compute where a reader who types at once sees the work spread
    (*L7*): which run the page shows. And the shell page's sentence that it runs in a
    container with no network, true of ernest-lang.org's server alone (*Z7*).
+9. **`/robots.txt` and `/sitemap.xml`**, taken with items 6 and 8, before the release, since
+   the site is built from 0.12.0's tag (the log's *Robots and the Sitemap Before the Tag*).
+   The generator writes both, the second naming ernest-lang.org alone, which the site's
+   proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
+   `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about three weeks, after the launch
 
@@ -514,11 +519,6 @@ What the line left, in the order it is taken:
   become loops, which covers every raise in a function `List` calls and leaves a program's
   own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
   against keeping no code only for speed.
-9. **`/robots.txt` and `/sitemap.xml`**, taken with items 6 and 8, before the release, since
-   the site is built from 0.12.0's tag (the log's *Robots and the Sitemap Before the Tag*).
-   The generator writes both, the second naming ernest-lang.org alone, which the site's
-   proposal decided and MVP 4.2 did not build (*The Site's Proposal Read*).
-   `docs/design/site.md`'s *The root* lists them then, and the site's test holds them.
 
 ---
 
