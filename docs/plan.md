@@ -70,9 +70,10 @@ that names every line of the application's that the release answers. ernest-epx'
 log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers, decided with the user on
-2026-11-28 (the log's *ernest-httpd's Lines Are All In*): items 7, 1 and 9, closed that day; items 6, 8 and 10; item 2, the release, with the last read
-before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2026-11-28
-(*Robots and the Sitemap Before the Tag*, *The First Hour Before the Tag*).
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): items 7, 1 and 9, closed that day; items 6, 8 and 10, with item 11's diagnosis beside
+them; item 2, the release, with the last read before its tag; item 3; item 4; and item 5
+last. Items 9, 10 and 11 joined them on 2026-11-28 (*Robots and the Sitemap Before the
+Tag*, *The First Hour Before the Tag*, *The Flake Before the Tag*).
 
 1. **What ernest-httpd's review found of security**, closed 2026-11-28 (the log's *Item 1
    Built*). ernest-httpd's session mends its own, and said that day that it knows of no
@@ -117,10 +118,6 @@ before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2
    A mark is a place and three words: skimmed, tripped, wrong or not what was meant, or good
    and to be kept. The read changes sentences alone. Anything larger is an item after the
    launch, since a round of fixes would leave the text unread again.
-
-   One reader from outside, an Erlang programmer, reads the tour and the guide's first
-   chapters and says where they stopped. The user asks them as item 1 closes, since the wait
-   is about a week.
 3. **ernest-template's release, then ernest-epx's, then ernest-httpd's**, each by its own
    session on the user's word, once 0.12.0 is out (the log's *The Floors and the
    Releases*, *The Template's Release Before ernest-httpd's*, *All Three Release on
@@ -222,6 +219,19 @@ before its tag; item 3; item 4; and item 5 last. Items 9 and 10 joined them on 2
     item 176 says: the session searches the log for each and runs its program, and the
     user answers the family once. A verdict that is cheap to build is built for 0.12.0.
     Any other is an item of MVP 4.5, a line of the known issues, or dropped in the log.
+11. **`reload_waits_on_no_stopped_peer`, diagnosed**, was MVP 4.5's item 166, taken
+    before the tag on 2026-11-28, which the user left to the session (the log's *The Flake
+    Before the Tag*). Found by MVP 4.16's item 100's `make test-full` on 2026-11-21 (*A
+    Close Answers Once Its Bytes Are Sent*; was items 159 and 163). In about one full run
+    of four the maker says the stopped third's loss before the asker's end. Whether that
+    order is the code's, which §12.5's reload would then break, or the test's own is not
+    known. `make cover` failed it in each of its three runs on 2026-11-23, a way to make
+    it show (*The Helper's Failure Under Recording*), and it failed one full run of three
+    on 2026-11-28 (*A Far End's Read Missed the Record*).
+
+    One agent diagnoses it to its cause. A cause in the test is mended there, and one in
+    the code that keeps every sentence of the report is mended with its test. One that
+    breaks a sentence of §12.5 comes to the user first.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), after the launch
 
@@ -239,7 +249,7 @@ Plan Sorted Against the Known Issues*). A find of that kind gets its line there 
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Item
 176 follows, since a need met in use is what drives a change, then items 1 to 4, then items
-68, 96, 113, 158, 174, 165, 166, 168 to 173, 175, 177 and 178, and item 167 last, so that
+68, 96, 113, 158, 174, 165, 168 to 173, 175, 177 and 178, and item 167 last, so that
 OTP's answer to its report may come first. The numbered items stand first below and the
 rest after them, in the order they are taken.
 
@@ -401,16 +411,6 @@ What the line left, in the order it is taken:
   directory does. The failure is the test's, and says nothing of the code. The test's
   directory is made where its path is short, and the test is run once under a long
   `TMPDIR`.
-- **166. `reload_waits_on_no_stopped_peer` failed once**, from MVP 4.17's item 163 (the
-  log's *The Known Issues Sorted*), found by MVP 4.16's item 100's `make test-full` on
-  2026-11-21 (*A Close Answers Once Its Bytes Are Sent*; was item 159). In one full run of
-  four the maker said the stopped third's loss before the asker's end. Whether that order
-  is the code's, which §12.5's reload would then break, or the test's own is not known.
-  `make flakes` is run over the nodes' tests, and a failure is diagnosed; where none comes
-  in an hour, the item closes on a log line. `make cover` failed it in each of its three
-  runs on 2026-11-23, a way to make it show (the log's *The Helper's Failure Under
-  Recording*). It failed one full run of three on 2026-11-28 (*A Far End's Read Missed
-  the Record*).
 - **168. A row of the library's bench in a process of its own**, found 2026-11-22 by MVP
   4.4's item 2 (the log's *The Cost's Rows Read*). `Bytes.toList` at 10,000 bytes reads 5.4
   times the host's with nothing added: in the harness's process a compiled call of
@@ -583,5 +583,5 @@ What the line left, in the order it is taken:
 | MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
 | The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
 | Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
-| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.12.0, the three applications' releases on it, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; the site's `/robots.txt` and `/sitemap.xml`; and the six entries of the feedback that a first hour meets, decided | | | above |
+| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.12.0, the three applications' releases on it, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; the site's `/robots.txt` and `/sitemap.xml`; the six entries of the feedback that a first hour meets, decided; and a test of the nodes' that fails about one full run in four, diagnosed | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
