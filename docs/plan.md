@@ -57,23 +57,20 @@ announcement waits with the site, since it sends a reader there. Its release is 
 and it is 0.12.0, decided with the user on 2026-11-28 (the log's *The Launch's Release Is
 0.12.0*).
 
-**First, the two releases that follow 0.11.0**, moved here from MVP 4.4's item 5 on
-2026-11-26, each by its own session on the user's word, in this order: ernest-template's,
-since the others copy from it, and ernest-epx's, not waiting for its milestone 9 (the log's
-*The Floors and the Releases*). Ernest's session told all three applications the tag by a
-message on 2026-11-26 that names every line of the application's that the release answers,
-and asks each in turn when the one before it is out. Each application checks every verdict
-against the release before its own, and answers with any line it keeps, as
-`docs/clean_room.md`'s *The answer* says. ernest-httpd's release is item 3.
+**The applications release on 0.12.0**, all three, in item 3, decided with the user on
+2026-11-28 (the log's *All Three Release on 0.12.0*). Of the two releases that were to
+follow 0.11.0, moved here from MVP 4.4's item 5 on 2026-11-26, ernest-template's is out
+since 2026-11-27, its tag `v0.11.0` at `23e2bdc` on GitHub, and both copies have taken it
+(the log's *The Template's Tag Is Out*). ernest-epx's is not made: it releases once, on
+0.12.0.
 
-ernest-template's is out since 2026-11-27, its tag `v0.11.0` at `23e2bdc` on GitHub, and
-both copies have taken it (the log's *The Template's Tag Is Out*). ernest-epx's is left. Its
-issue 1, a module that does not load named in a foreign call's fault, is built for 0.12.0
-(the log's *A Module That Does Not Load Is Named*).
+Ernest's session told all three applications the tag of 0.11.0 by a message on 2026-11-26
+that names every line of the application's that the release answers. ernest-epx's issue
+1, a module that does not load named in a foreign call's fault, is built for 0.12.0 (the
+log's *A Module That Does Not Load Is Named*).
 
 The items are taken in this order, not by their numbers, decided with the user on
-2026-11-28 (the log's *ernest-httpd's Lines Are All In*): the two releases above; item 7,
-closed that day; item 1; items 6, 8 and 9; item 2, the release, with the last read before
+2026-11-28 (the log's *ernest-httpd's Lines Are All In*): item 7, closed that day; item 1; items 6, 8 and 9; item 2, the release, with the last read before
 its tag; item 3; item 4; and item 5 last. Item 9 joined them on 2026-11-28 (*Robots and the
 Sitemap Before the Tag*).
 
@@ -158,14 +155,17 @@ Sitemap Before the Tag*).
    One reader from outside, an Erlang programmer, reads the tour and the guide's first
    chapters and says where they stopped. The user asks them as item 1 closes, since the wait
    is about a week.
-3. **ernest-template's release, then ernest-httpd's**, each by its own session on the
-   user's word, once 0.12.0 is out (the log's *The Floors and the Releases*, *The
-   Template's Release Before ernest-httpd's*). The template's comes first, since
-   ernest-epx and ernest-httpd copy from it and may have to follow its tag before
-   ernest-httpd's release, which is made with its readers. Ernest's session tells each
-   the tag by a message, ernest-httpd's naming every line of its own the release answers,
-   and ernest-httpd answers with any line it keeps, as `docs/clean_room.md`'s *The answer*
-   says.
+3. **ernest-template's release, then ernest-epx's, then ernest-httpd's**, each by its own
+   session on the user's word, once 0.12.0 is out (the log's *The Floors and the
+   Releases*, *The Template's Release Before ernest-httpd's*, *All Three Release on
+   0.12.0*). The template's comes first, since ernest-epx and ernest-httpd copy from it
+   and may have to follow its tag. ernest-epx's does not wait for its milestone 9.
+   ernest-httpd's comes last, made with its readers.
+
+   Ernest's session tells each the tag by a message that names every line of the
+   application's own that the release answers, and asks each in turn when the one before
+   it is out. Each application checks every verdict against the release before its own,
+   and answers with any line it keeps, as `docs/clean_room.md`'s *The answer* says.
 4. **The site live at ernest-lang.org**, so that each project it lists builds on the release
    it names (the log's *The Site Goes Live With 1.0*, *Ernest Stays at 0.x*): `make site` from
    0.12.0's tag, the copy of `build/site/` to the host, and the smoke test against the live site.
@@ -598,5 +598,5 @@ What the line left, in the order it is taken:
 | MVP 4.4 | the road's last milestone before a program: the promise of stability dropped, Ernest staying at 0.x; what each row of the bench may pay, read and decided, with §10 stating it; what a raise reads, the depth staying 64; the full review, the principles review inside it, with the three applications' lines; the mechanisms read against what they force, every row staying; a result that is never empty, the type staying `List`; and the release review and the release of 0.11.0, on Linux; its item 6, the site live, moved to MVP 4.18, and the two releases that follow 0.11.0 with it | 2026-11-26 | Ernest 0.11.0, tag `v0.11.0` | the log's *MVP 4.4, the Road's End*, *The Cost Read*, *What a Raise Reads*, *The Full Review Closed*, *A Result Never Empty, Built* and its entries of 2026-11-26 |
 | The release review's findings before 0.11.0 | the 382 lines of the review run over `6c6b8ef1`: 198 `fix`, made by two writers and eleven builders; 123 decided with the user in eleven families, 47 made, 54 MVP 4.5's item 177, 3 MVP 4.18's item 8, 7 lines of the known issues, 10 dropped, one item 169's and one done; 39 filed; 22 matters of clarity dropped; and the round's cold reading of the review's own diff, 18 defects and 6 matters of clarity, four decided sentences among them read otherwise | 2026-11-26 | | `findings.md` as it stood at `3051fbf5`; the log's entries of 2026-11-26 from *The Release Review Before 0.11.0, Its Readers* |
 | Ernest 0.11.0 | the release of packages, and of the language, the library and the toolchain held against each other, with the release review before it | 2026-11-26 | tag `v0.11.0` | the log's *Ernest 0.11.0* |
-| MVP 4.18 | the two releases that follow 0.11.0, ernest-template's and ernest-epx's; what ernest-httpd's review found of security, the release of 0.12.0, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; and the site's `/robots.txt` and `/sitemap.xml` | | | above |
+| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.12.0, the three applications' releases on it, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; three faults that vanish, from the known issues; three lines of the release review before 0.11.0 that a first reader meets; and the site's `/robots.txt` and `/sitemap.xml` | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, the library bench's rows each in a process of its own from MVP 4.4's item 2, the map's square from its item 3, five decisions from its item 4, the 42 entries of the feedback file that the full review left and the 21 of the release review before 0.11.0, decided by family, that review's 54 questions where the report is true, and an abandoned line's end in the shell | | | above |
