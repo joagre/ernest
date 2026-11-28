@@ -112,6 +112,16 @@ tag; item 3; item 4; and item 5 last.
    places `http://user@host/a.txt`, `http:///a.txt` and `http:/host/a.txt` under the root,
    which RFC 9110 rules out for `http`. Either the page says that the authority's fit is
    the server's, as the scheme's and the `Host` header's are, or `target` refuses them.
+
+   Read on 2026-11-28 before its decisions, with nothing decided (the log's *Item 1 Read
+   Before Its Decisions*). After a failed handshake the socket's process waits in the
+   first thing it asks of the host's `ssl`: with OTP alone `ssl:setopts/2` and
+   `ssl:close/1` each took 5,000 ms, and a socket that asked nothing took none, the host
+   ending the connection itself. OTP's own fix, #12237, open, sets `alert_timeout` to 0.
+   For the closer's second the host documents nothing that wakes a process as its queue
+   drains, so the ways are a sentence in E.18, or looks that begin a millisecond apart
+   and double to the second. The gap is feedback 270, which MVP 4.5's item 158 holds
+   too: whether it is built for 0.12.0 is this item's first decision.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 
