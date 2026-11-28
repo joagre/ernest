@@ -8577,6 +8577,209 @@ fn serve() : Unit receiving TargetMsg =
     0 = ern_harness:built([Root]),
     filename:join(Root, "kept_wrap.erc").
 
+%% report §6.5, §6.9: a monitor made in an adapted address's function that
+%% the node that made the address applies for a sender on b, over a target
+%% on b, is the monitor of the process kept for the address. Where the
+%% function has returned before its wrap's fault is met, the process meets
+%% it at its wait for its next message, and the fault is the target's as a
+%% fault in the function is, taking no message's place: the target takes the
+%% message the function was applied to and then faults with the wrap's
+%% cause, its node writing the fault's line with the wrap's trace.
+%%
+%% The order is held without a time: the function monitors a process that
+%% has ended, whose Down is delivered at once, and waits in foreign code,
+%% which is no wait of Ernest's, until the delivery that applies the wrap
+%% has ended. The host orders what one process sends another, so the fault
+%% that delivery sent the kept process is in its mailbox by then, and the
+%% function returns before the worker can tell the process to stop. Written
+%% before the fix, on which it failed (the log's *A Wrap's Fault After the
+%% Function Is the Target's*): the process's loop between messages did not
+%% read the fault, which went with the process at the worker's stop
+kept_wrap_fault_after_return_test_() ->
+    ern_harness:nodes_test({waits, 7}, fun kept_wrap_fault_after_return/1).
+
+kept_wrap_fault_after_return(Base) ->
+    Program = kept_returned(filename:join(Base, "build")),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "the target took 1\nthe target ended: Fault(\"the wrap faulted\")\n"),
+    ?assertEqual(0, WaitA()),
+    ern_harness:says(B, "the process of KeptReturned.main:18 faulted: the wrap faulted, spawned"
+                        " by the peer a\n    KeptReturned.watching:41\n"),
+    ern_harness:stop(B, WaitB),
+    {_, ErrA} = ern_harness:said(A),
+    ?assertEqual(nomatch, string:find(ErrA, "faulted")).
+
+%% Report §6.9, §6.5: a program that spawns a target on the peer b, which
+%% tells the program each number it takes, and a sender there that sends 1
+%% to an adapted address over the target made here, whose function monitors
+%% a process that has ended with a wrap that faults, waits in the host
+%% module ern_kept_held until the wrap's delivery has ended, and returns;
+%% the program says what the target took and how it ended. Built in Root
+%% with the host module beside it: one step. Answers its compiled form.
+kept_returned(Root) ->
+    ok = filelib:ensure_path(Root),
+    Host = filename:join(Root, "ern_kept_held.erl"),
+    ok = file:write_file(Host, <<"
+-module(ern_kept_held).
+-export([holder/0, told/1, held/0]).
+
+%% The calling process, the one kept for the address.
+holder() -> self().
+
+%% In the wrap, which a delivery of its own applies: the kept process told
+%% which delivery that is.
+told(Holder) ->
+    Holder ! {wrapped, self()},
+    'Unit'.
+
+%% In the function: until the wrap's delivery has ended, after the fault it
+%% sent this process.
+held() ->
+    receive {wrapped, Delivery} -> ok end,
+    MonitorRef = erlang:monitor(process, Delivery),
+    receive {'DOWN', MonitorRef, process, Delivery, _} -> 'Unit' end.
+">>),
+    {ok, _} = compile:file(Host, [{outdir, Root}]),
+    ok = file:write_file(filename:join(Root, "kept_returned.ern"), [<<"
+foreign fn holder() : Foreign.Term = \"ern_kept_held:holder/0\"
+
+foreign fn told(holder : Foreign.Term) : Unit = \"ern_kept_held:told/1\"
+
+foreign fn held() : Unit = \"ern_kept_held:held/0\"
+
+type TargetMsg = Got(Int)
+
+type MainMsg = Gone(Down) | Took(Int) | Ended(Down)
+
+export fn main() : Unit receiving MainMsg = {
+    let victim = Process.fromAddress(spawnMonitored(fn() = Unit, Gone));
+    receive {
+        Gone(_) -> Unit
+    };
+    let me = self();
+    match Peer.spawn(\"b\", fn() = serve(me), waitMs()) {
+        Right(target) -> {
+            monitor(Process.fromAddress(target), Ended);
+            let front = adapted(target, watching(victim));
+            match Peer.spawn(\"b\", fn() = send(front, 1), waitMs()) {
+                Right(_) -> heard()
+              | Left(error) -> Io.println(\"no sender: \" <> Io.show(error))
+            }
+        }
+      | Left(error) ->
+            Io.println(\"no target: \" <> Io.show(error))
+    }
+}
+
+// Report §6.9, §6.5: the monitor is the kept process's, of a process that
+// has ended, so its Down is delivered at once; the function waits in
+// foreign code until the wrap's delivery has ended, and returns with the
+// wrap's fault in the kept process's mailbox.
+fn watching(victim : Process) : (Int) -> TargetMsg =
+    fn(n : Int) = {
+        let holder = holder();
+        monitor(victim, fn(_) = {
+            told(holder);
+            fault(\"the wrap faulted\")
+        });
+        held();
+        Got(n)
+    }
+
+fn heard() : Unit receiving MainMsg = {
+    receive {
+        Took(n) -> Io.println(\"the target took \" <> Int.toString(n))
+    };
+    receive {
+        Ended(Down(=reason)) -> Io.println(\"the target ended: \" <> Io.show(reason))
+    }
+}
+
+fn serve(main : Address(MainMsg)) : Unit receiving TargetMsg =
+    receive {
+        Got(n) -> {
+            send(main, Took(n));
+            serve(main)
+        }
+    }
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    filename:join(Root, "kept_returned.erc").
+
+%% report §6.5, §8.7, Appendix E.18: a fault in an adapted address's
+%% function is the target's on every node: an address adapted on b over an
+%% address adapted on a over a listener of a, whose outer function faults on
+%% b for a sender there, sends the listener the fault as a message across
+%% the nodes, and the listener, which has no wait of Ernest's, ends at it as
+%% at a kill, with the reason `Fault(cause)`: its monitor on a is told so,
+%% and a writes the fault's line, its trace where the fault was met on b;
+%% the sender goes on. Written before the fix, on which it failed (the log's
+%% *A Resource Ends at a Fault*): the listener's loop did not read the
+%% fault, and the listener lived on
+listener_fault_across_nodes_test_() ->
+    ern_harness:nodes_test({waits, 7}, fun listener_fault_across_nodes/1).
+
+listener_fault_across_nodes(Base) ->
+    Program = far_fault(filename:join(Base, "build")),
+    A = ern_harness:made(Base, "a", none),
+    B = ern_harness:made(Base, "b", 0),
+    ern_harness:lists(B, [{"a", A, none}]),
+    WaitB = ern_harness:bare_started(B, []),
+    ern_harness:lists(A, [{"b", B, ern_harness:bound_port(B)}]),
+    WaitA = ern_harness:start(A, Program, []),
+    ern_harness:prints(A, "the listener ended: Fault(\"boom 1\") at Tcp.listen\n"),
+    ?assertEqual(0, WaitA()),
+    {_, ErrA} = ern_harness:said(A),
+    ern_harness:has(ErrA, "the process of Tcp.listen faulted: boom 1\n    FarFault.boom:30\n"),
+    ern_harness:stop(B, WaitB),
+    {_, ErrB} = ern_harness:said(B),
+    ?assertEqual(nomatch, string:find(ErrB, "faulted")).
+
+%% Report §6.5, Appendix E.18: a program that listens, adapts the listener
+%% here, and spawns on the peer b a sender that sends 1 to an address it
+%% adapts there over that one, whose function faults; the program says how
+%% the listener ended. Built in Root: one step. Answers its compiled form.
+far_fault(Root) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "far_fault.ern"), [<<"
+type MainMsg = Ended(Down)
+
+export fn main() : Unit receiving MainMsg =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> {
+            monitor(Process.fromAddress(listener), Ended);
+            let inner = adapted(listener, unapplied);
+            match Peer.spawn(\"b\", fn() = send(adapted(inner, boom), 1), waitMs()) {
+                Right(_) ->
+                    receive {
+                        Ended(Down(=reason, =site)) ->
+                            Io.println(\"the listener ended: \" <> Io.show(reason) <> \" at \"
+                                       <> site)
+                    }
+              | Left(error) -> Io.println(\"no sender: \" <> Io.show(error))
+            }
+        }
+      | Left(error) ->
+            Io.println(\"no listener: \" <> Io.show(error))
+    }
+
+// Report §6.5: the inner function, which the outer one's fault keeps from
+// being applied.
+fn unapplied(n : Int) : Tcp.ListenerMsg =
+    fault(\"the inner function was applied to \" <> Int.toString(n))
+
+// Report §6.5: the outer function, applied on b by the send there.
+fn boom(n : Int) : Int =
+    fault(\"boom \" <> Int.toString(n))
+"/utf8>>, ern_harness:wait_ms_declaration()]),
+    0 = ern_harness:built([Root]),
+    filename:join(Root, "far_fault.erc").
+
 %% report §6.5: an adapted address held on another node keeps nothing alive
 %% on the node that made it. Two holders on the maker each make a cell the
 %% host holds, an `atomics` array behind a foreign type, and an address

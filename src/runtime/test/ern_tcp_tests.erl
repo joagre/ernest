@@ -976,6 +976,150 @@ killed_socket_faults_a_waiting_read_forever_test() ->
     gen_tcp:close(Listen),
     ?assertEqual({'Fault', <<"callee was killed">>}, ern_waits:wait(ended)).
 
+%% report §6.5, §6.6, §7.3, Appendix E.18: a fault in an adapted address's
+%% function over a listener ends the listener, which has no wait of
+%% Ernest's, as a kill ends it, with the reason `Fault(cause)`: its monitor
+%% is told so with its site, the fault is reported with the trace of where
+%% it was met, an `acceptForever` waiting on it faults with the fault's
+%% cause, the listener's site beside it, and a later call answers
+%% `Left(Closed)`. The accept is made through an address adapted over the
+%% listener whose function sends the fault first, so that the accept waits
+%% in the listener's mailbox behind the fault, the call's monitor made
+%% before either. Written before the fix, on which it failed (the log's *A
+%% Resource Ends at a Fault*): the listener's loop did not read the fault,
+%% and the listener lived on
+fault_ends_a_listener_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    {ok, Output} = ern_program:run(['M'],
+        "type Msg = Ended(Down) | Waiter(Down)\n"
+        "fn boom(n : Int) : Tcp.ListenerMsg = fault(\"boom \" <> Int.toString(n))\n"
+        "fn faultFirst(listener : Address(Tcp.ListenerMsg)) :"
+        " (Tcp.ListenerMsg) -> Tcp.ListenerMsg =\n"
+        "    fn(request) = {\n"
+        "        send(adapted(listener, boom), 1);\n"
+        "        request\n"
+        "    }\n"
+        "fn said(answer : Either(Io.Error, a)) : String =\n"
+        "    match answer {\n"
+        "        Left(error) -> \"Left(\" <> Io.show(error) <> \")\"\n"
+        "      | Right(_) -> \"Right\"\n"
+        "    }\n"
+        "export fn main() : Unit receiving Msg =\n"
+        "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "        Left(error) -> Io.println(Io.show(error))\n"
+        "      | Right(listener) -> {\n"
+        "            monitor(Process.fromAddress(listener), Ended);\n"
+        "            let front = adapted(listener, faultFirst(listener));\n"
+        "            let _ = spawnMonitored(fn() = {\n"
+        "                let _ = Tcp.acceptForever(front);\n"
+        "                Unit\n"
+        "            }, Waiter);\n"
+        "            receive {\n"
+        "                Ended(Down(=reason, =site)) ->\n"
+        "                    Io.println(Io.show(reason) <> \" \" <> site)\n"
+        "            };\n"
+        "            receive {\n"
+        "                Waiter(Down(=reason)) -> Io.println(Io.show(reason))\n"
+        "            };\n"
+        "            Io.println(said(Tcp.port(listener)));\n"
+        "            Io.println(said(Tcp.accept(listener, 1000)))\n"
+        "        }\n"
+        "    }\n", #{faults => Reporter}),
+    ?assertEqual(<<"Fault(\"boom 1\") Tcp.listen\nFault(\"boom 1\")\n"
+                   "Left(Io.Closed)\nLeft(Io.Closed)\n">>, Output),
+    Reports = reported([]),
+    [{'FaultReport', _, <<"Tcp.listen">>, <<"boom 1">>, false, Trace, _, 'None', 'None', _}] =
+        [Report || {'FaultReport', _, <<"Tcp.listen">>, _, _, _, _, _, _, _} = Report <- Reports],
+    ?assertEqual(<<"M.boom:2\nM.faultFirst:5\nM.main:20\n">>, Trace),
+    ?assertMatch([{'FaultReport', _, <<"M.main:19">>, <<"boom 1">>, false, <<"M.main:20\n">>, _,
+                   {'Some', {'Faulted', <<"Tcp.listen">>}}, 'None', _}],
+                 [Report || {'FaultReport', _, <<"M.", _/binary>>, _, _, _, _, _, _, _} = Report
+                                <- Reports]).
+
+%% report §6.5, §7.3, Appendix E.18: a fault in an adapted address's
+%% function over a socket ends the socket as a kill ends it, with the reason
+%% `Fault(cause)`: its monitor is told so with its site, the fault is
+%% reported with the trace of where it was met, a later read answers
+%% `Left(Closed)`, and the far end reads the connection's close. Written
+%% before the fix, on which it failed (the log's *A Resource Ends at a
+%% Fault*): the socket's loop did not read the fault, and the socket lived on
+fault_ends_a_socket_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    {ok, Output} = ern_program:run(['M'],
+        "type Msg = Ended(Down)\n"
+        "fn boom(n : Int) : Tcp.SocketMsg = fault(\"boom \" <> Int.toString(n))\n"
+        "fn said(answer : Either(Io.Error, a)) : String =\n"
+        "    match answer {\n"
+        "        Left(error) -> \"Left(\" <> Io.show(error) <> \")\"\n"
+        "      | Right(_) -> \"Right\"\n"
+        "    }\n"
+        "fn faulted() : Either(Io.Error, Unit) receiving Msg = {\n"
+        "    let listener <- Tcp.listen(\"127.0.0.1\", 0);\n"
+        "    let port <- Tcp.port(listener);\n"
+        "    let client <- Tcp.connect(\"127.0.0.1\", port, 1000);\n"
+        "    let server <- Tcp.accept(listener, 1000);\n"
+        "    monitor(Process.fromAddress(server), Ended);\n"
+        "    send(adapted(server, boom), 1);\n"
+        "    receive {\n"
+        "        Ended(Down(=reason, =site)) -> Io.println(Io.show(reason) <> \" \" <> site)\n"
+        "    };\n"
+        "    Io.println(said(Tcp.read(server, 1000)));\n"
+        "    Io.println(said(Tcp.read(client, 1000)));\n"
+        "    Tcp.close(client);\n"
+        "    Right(Tcp.closeListener(listener))\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg =\n"
+        "    match faulted() {\n"
+        "        Left(error) -> Io.println(Io.show(error))\n"
+        "      | Right(_) -> Unit\n"
+        "    }\n", #{faults => Reporter}),
+    ?assertEqual(<<"Fault(\"boom 1\") Tcp.accept\nLeft(Io.Closed)\nLeft(Io.Closed)\n">>, Output),
+    ?assertMatch([{'FaultReport', _, <<"Tcp.accept">>, <<"boom 1">>, false,
+                   <<"M.boom:2\nM.faulted:14\n", _/binary>>, _, 'None', 'None', _}],
+                 reported([])).
+
+%% report §8.4, §6.5, Appendix E.18: a bad message foreign code sends
+%% through the check in front of a listener ends the listener, which has no
+%% wait of Ernest's, as a fault in an adapted address's function does, with
+%% the reason `Fault("message does not match Tcp.ListenerMsg")`: its monitor
+%% is told so, the fault is reported with an empty trace, since it was met
+%% in no code of the program's, and a later call answers `Left(Closed)`.
+%% Written before the fix, on which it failed (the log's *A Resource Ends at
+%% a Fault*): the listener's loop did not read the fault, and the listener
+%% lived on
+bad_message_ends_a_listener_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    {ok, Output} = ern_program:run(['M'],
+        "foreign fn sent(listener : Address(Tcp.ListenerMsg), message : Foreign.Term) :"
+        " Foreign.Term = \"erlang:send/2\"\n"
+        "type Msg = Ended(Down)\n"
+        "fn said(answer : Either(Io.Error, a)) : String =\n"
+        "    match answer {\n"
+        "        Left(error) -> \"Left(\" <> Io.show(error) <> \")\"\n"
+        "      | Right(_) -> \"Right\"\n"
+        "    }\n"
+        "export fn main() : Unit receiving Msg =\n"
+        "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "        Left(error) -> Io.println(Io.show(error))\n"
+        "      | Right(listener) -> {\n"
+        "            monitor(Process.fromAddress(listener), Ended);\n"
+        "            let _ = sent(listener, Foreign.term(1));\n"
+        "            receive {\n"
+        "                Ended(Down(=reason, =site)) ->\n"
+        "                    Io.println(Io.show(reason) <> \" \" <> site)\n"
+        "            };\n"
+        "            Io.println(said(Tcp.port(listener)))\n"
+        "        }\n"
+        "    }\n", #{faults => Reporter}),
+    ?assertEqual(<<"Fault(\"message does not match Tcp.ListenerMsg\") Tcp.listen\n"
+                   "Left(Io.Closed)\n">>, Output),
+    ?assertMatch([{'FaultReport', _, <<"Tcp.listen">>, <<"message does not match Tcp.ListenerMsg">>,
+                   false, <<>>, _, 'None', 'None', _}],
+                 reported([])).
+
 %% report §6.6, Appendix E.18: an `acceptForever` and a `readForever` fault
 %% as `accept` and `read` do on a listener or a socket that has ended: with
 %% `callee was closed` where the close ends it while the call waits in its

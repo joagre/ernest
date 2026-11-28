@@ -40,9 +40,9 @@
 %% docs/design/nodes.md's.
 -module(ern_rt).
 
--export([send/2, faulted/3, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/4,
-         is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
-         spawn_root/2, spawn_monitored_root/3, self/0,
+-export([send/2, faulted/3, fault_ended/1, kept/1, acting_for/1, launch_reaper/0, process_of/1,
+         held/4, is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0,
+         spawn_monitored/3, spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
          call_unlimited/2, call_until_ended/2, finished_by/2, compute/4, answer/2, refuse/2,
          reply_process/1, is_reply/1,
@@ -381,9 +381,9 @@ send(Address, Message) ->
 %% to the target and can pass a message that takes the one step more on
 %% another node, and the target faults at the wait that reaches it, as at
 %% a bad message's fault (§8.4), which `restarting` restarts (§6.9); a
-%% target of this node the runtime did not start, a foreign process, has
-%% no wait of Ernest's and is sent the fault as an exit signal
-%% (faulted/3); the sender goes on.
+%% target with no wait of Ernest's takes it otherwise: a resource's process
+%% ends at it as at a kill (fault_ended/1), and a foreign process of this
+%% node is sent it as an exit signal (faulted/3); the sender goes on.
 %%
 %% Report §8.7, §11.2: an address made by an earlier start of this node, or
 %% by an earlier run of `ern test` over a directory, is dead, and a message
@@ -446,11 +446,13 @@ sent({Pid, Message}) ->
 %% function or a bad message's. A process of this node the runtime started
 %% takes Thrown at its next wait, which raises it there as at a fault of its
 %% own: one with a row, and one kept for an adapted address, which has none
-%% (is_kept/1). One it did not start, which has no row and no wait of
+%% (is_kept/1). A resource's process, which has a row and no wait of
+%% Ernest's, ends at Thrown in its own loop as at a kill (fault_ended/1).
+%% One it did not start, which has no row and no wait of
 %% Ernest's, is sent ExitReason, the host's term of a fault's end (§12.2), as
 %% an exit signal from the process that sends the fault. A process of
 %% another node takes Thrown as a message, which one the runtime started
-%% there raises at its next wait.
+%% there raises at its next wait, or, a resource's process, ends at.
 -spec faulted(pid(), {ern, #fault{}} | {ern, fault, binary()},
               {ern, fault, binary(), binary()}) -> ok.
 faulted(Pid, Thrown, ExitReason) when node(Pid) =:= node() ->
@@ -462,6 +464,21 @@ faulted(Pid, Thrown, ExitReason) when node(Pid) =:= node() ->
 faulted(Pid, Thrown, _) ->
     Pid ! {'$ern_fault', Thrown},
     ok.
+
+%% Report §6.5, §8.4, §12.2: the host's term of the end that a fault sent to
+%% the calling process, a resource's process (faulted/3), gives it, ending
+%% it as a kill does but with the reason `Fault(cause)`: the fault in its
+%% row, which the reaper reports (died/6), its trace and its moment those
+%% it was met with, and a bad message's, met in no code of the program's,
+%% with an empty trace. Report §8.6, §11.2: one met once the end's wait is
+%% over ends it with the program, and is not reported.
+-spec fault_ended({ern, #fault{}} | {ern, fault, binary()}) ->
+          {ern, fault, binary(), binary()} | {ern, program_end}.
+fault_ended(Thrown) ->
+    case is_program_ending(erlang:self()) of
+        true -> {ern, program_end};
+        false -> ended_with(erlang:self(), met(throw, Thrown, []))
+    end.
 
 %% Report §6.5, §6.9: whether Pid, a process of this node with no row, is
 %% one kept for an adapted address, which marks itself so as it starts
@@ -495,7 +512,9 @@ is_kept(Pid) ->
 %% function makes is the kept process's own, and a fault in its wrap, sent
 %% to the kept process as to a program's process (faulted/3), is met at the
 %% process's next wait in the function, a fault in the function and so the
-%% target's (adapted_way/2).
+%% target's (adapted_way/2), or, where the function has returned first, at
+%% its wait for the next message, where it is the target's too and takes
+%% no message's place (kept_loop/2).
 %%
 %% None is kept where no run is in progress to apply the function in,
 %% between two runs of `ern test` over a directory, in one host, and before
@@ -559,11 +578,20 @@ reaper_held(Reaper, Work) ->
                      end
                  end).
 
+%% Report §6.5, §6.9, §7.4: the wait for the next message is a wait of the
+%% kept process's too, where a fault it was given once the function had
+%% returned, a fault in the wrap of a monitor the function made among them,
+%% is met and is the target's as a fault in the function is, sent as
+%% adapted_way/2's is, with the trace and the moment it was met with; it
+%% takes no message's place, and the process goes on.
 kept_loop(Address, Worker) ->
     receive
         {apply, Message} ->
             deliver(Address, Message),
             Worker ! {applied, erlang:self()},
+            kept_loop(Address, Worker);
+        {'$ern_fault', Thrown} ->
+            sent({fault, process_of(Address), met(throw, Thrown, [])}),
             kept_loop(Address, Worker);
         stop ->
             ok
@@ -2077,11 +2105,11 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
 %%
 %% The process that faults asks it as it meets the fault, so that the
 %% answer is the fault's moment's: a process's body (run/1), a restarting
-%% process before it restarts (restarts/4) and a compute's process before
-%% it answers (answered_compute/2). Report §11.2: a fault met before the
-%% entry's end is reported however late the reaper learns of it, behind
-%% the entry's end among them, and one the entry's end causes is met after
-%% it.
+%% process before it restarts (restarts/4), a compute's process before it
+%% answers (answered_compute/2) and a resource's process at a fault sent
+%% it (fault_ended/1). Report §11.2: a fault met before the entry's end is
+%% reported however late the reaper learns of it, behind the entry's end
+%% among them, and one the entry's end causes is met after it.
 is_program_ending(Pid) ->
     case ets_lookup(?LAUNCH, entry_process) of
         [{_, Pid}] ->

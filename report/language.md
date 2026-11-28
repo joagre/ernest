@@ -820,7 +820,9 @@ Messages from one process to another are received in sending order, but for the 
 
 `adapted(addr, f)`, §9.5, is an *adapted address*, `addr` seen through `f : (a) -> b`: sending `v` to `adapted(addr, f)` sends `f(v)` to `addr`. `f` is applied on the node where `adapted(addr, f)` was made: by the `send`, in the sender, when the sender is on that node, and when it is not, on arrival there, in a process the node keeps for the address and the sending node, started as a message arrives and ended once none waits. A function that never finishes holds the messages to the address from that node and nothing else.
 
-What `f` opens, spawns or asks of the runtime is the sender's where the send applies `f`. On arrival it is the target's where the target is on that node, as a wrap's is its recipient's (§6.9); where the target is on another node, a resource `f` opens ends with the process kept for the address, and a process it spawns heads a chain of its own. In each of the three cases `self()` in `f` is the address of the process that owns what `f` opens, the sender, the target or the process kept for the address, `Process.current()` in `f` is that process (Appendix E.21), and a `monitor` in `f` is that process's monitor, whose wrap is as a `monitor`'s in a `wrap` (§6.9).
+What `f` opens, spawns or asks of the runtime is the sender's where the send applies `f`. On arrival it is the target's where the target is on that node, as a wrap's is its recipient's (§6.9); where the target is on another node, a resource `f` opens and a monitor `f` makes end with the process kept for the address, and a process it spawns heads a chain of its own. In each of the three cases `self()` in `f` is the address of the process that owns what `f` opens, the sender, the target or the process kept for the address, `Process.current()` in `f` is that process (Appendix E.21), and a `monitor` in `f` is that process's monitor, whose wrap is as a `monitor`'s in a `wrap` (§6.9).
+
+A fault that §6.9 or §7.4 gives the process kept for the address, one in the wrap of a `monitor` that `f` made among them, is met at that process's next wait in `f`, or once `f` has returned where no wait in `f` comes first. The process goes on, and the fault is then the target's as a fault in `f` is (below); one met once `f` has returned takes no message's place.
 
 A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4), with one exception: a message to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it to another address can pass it.
 
@@ -830,7 +832,7 @@ An adapted address held on another node keeps nothing alive on the node that mad
 
 `adapted(self(), Wrap)`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`.
 
-A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, with one exception (below), and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target the runtime did not start, a foreign process (§8.4), has no wait of Ernest's and is sent the fault as an exit signal, and one on another node takes the fault as a message; the sender goes on.
+A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, with one exception (below), and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target with no wait of Ernest's takes it otherwise: a resource's process (§6.9) ends at the fault as at a `kill`, but with the reason `Fault(cause)`, and a foreign process the runtime did not start (§8.4) is sent the fault as an exit signal, or, where it is on another node, takes it as a message; the sender goes on.
 
 The fault goes straight to the target. Where `f`'s results go on through an adapted address made on another node than the one that applies `f`, they take the one step more on the node that made it (above), and the fault can pass a message sent through that address before it.
 
@@ -951,7 +953,7 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Each cause is stated with its text in the section §7.4 names for it, the supervisor's in Appendix E.22. A process that is killed, or that ends with the program, has not faulted. A function that receives nothing can fault.
+A fault ends the process that meets it, or, for a function applied on a message's way (§6.5, §6.9), the process the message is for, or, where the process kept for an adapted address meets it, that address's target (§6.5), with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Each cause is stated with its text in the section §7.4 names for it, the supervisor's in Appendix E.22. A process that is killed, or that ends with the program, has not faulted. A function that receives nothing can fault.
 
 A fault carries a trace, the host's stack where the fault was met, at the moment it was (Appendix E.21); the fault's report shows it (§11.2), and `Down` carries the cause alone.
 
@@ -1011,7 +1013,7 @@ A message foreign code sends to an adapted address is checked against the type t
 
 Foreign code sends as the process it runs in, the calling process or a foreign process. A message that goes through a check takes one step more, in the check's process (§10), on the node where its address crossed. It need not be in its receiver's mailbox when the foreign function that sent it has returned. Messages one process sends through one check are received in sending order, and a message it sends the same receiver after one of them another way can pass it.
 
-A bad message's fault goes straight to the receiver. It can pass a message foreign code sent to the same address before it where the checked messages take the one step more of §6.5 on their way. A receiver that is a foreign process the runtime did not start takes the fault as such a target takes a fault in `f` (§6.5).
+A bad message's fault goes straight to the receiver. It can pass a message foreign code sent to the same address before it where the checked messages take the one step more of §6.5 on their way. A receiver that is a resource's process, or a foreign process the runtime did not start, takes the fault as such a target takes a fault in `f` (§6.5).
 
 **Functions.** A function that crosses into foreign code, a foreign function's argument or one inside it, in a message, in an answer or in what a function that crossed returns to foreign code, has each argument foreign code calls it with checked against its parameter's type, and a mismatch faults the calling process with `Fault("an argument of f from foreign code does not match T")`, `f` the function's qualified name, or, for a lambda or a local `fn`, that of the top-level declaration it is written in (§6.9). `Foreign.term` gives its value as a foreign function's argument of the value's type crosses, an address in it behind its check and a function with its own (Appendix E.12).
 

@@ -73,8 +73,8 @@ issue 1, a module that does not load named in a foreign call's fault, is built f
 
 The items are taken in this order, not by their numbers, decided with the user on
 2026-11-28 (the log's *ernest-httpd's Lines Are All In*): the two releases above; item 7,
-its two decisions first; item 1; items 6 and 8; item 2, the release, with the last read
-before its tag; item 3; item 4; and item 5 last.
+closed that day; item 1; items 6 and 8; item 2, the release, with the last read before its
+tag; item 3; item 4; and item 5 last.
 
 1. **What ernest-httpd's review found of security.** ernest-httpd's session mends its own.
    What is Ernest's among it came as lines of its feedback file, each mended for 0.12.0 or
@@ -192,28 +192,15 @@ before its tag; item 3; item 4; and item 5 last.
    `Peer.computeAnywhere` follows them, as a policy a library holds. It is read against
    each of those owners before the user decides.
 7. **Three faults that vanish**, taken up by the user on 2026-11-23 from three lines of
-   the known issues (the log's *Four Verdicts Changed After the Round*), and
-   built for 0.12.0: a fault a listener or a socket never meets, after
-   a fault in an adapted address's function over it or a bad message through its check
-   (§6.5, §8.4; was item 135); a wrap's fault lost in the process kept for an adapted
-   address (§6.9; was item 136, two runs and not diagnosed); and an `Os.exit` that such a
-   process calls on a node, not read once the end's wait is over (§8.6; was item 140).
-   Each ends a run with status 0 or writes no fault's line. Each line of the known issues
-   goes with its fix.
-
-   The `Os.exit` is built (the log's *An Os.exit After the Wait Gives Its Status*), and
-   so is a wrap's fault that the kept process meets while its function waits (*A Wrap's
-   Fault Met in the Function Is the Target's*). Two decisions are left, taken together
-   before either is built, and a sentence of §6.5 or §6.9 that either changes is read
-   cold first:
-
-   - *A wrap's fault after the function*: where the function has returned before the
-     fault reaches the kept process, the fault waits in its mailbox and is lost, and
-     §6.9 does not say whether the kept process's wait for its next message is a wait,
-     nor what a fault met there is.
-   - *A resource's process at a fault*, which the log's *Item 135 Stands After the
-     Launch* left to the user at the item's turn: the resource ends at the fault, as
-     §6.5's exit signal ends a foreign process, or a narrower sentence drops the fault.
+   the known issues (the log's *Four Verdicts Changed After the Round*), built for 0.12.0
+   and closed 2026-11-28, each line of the known issues gone with its fix. An `Os.exit`
+   that a process kept for an adapted address calls once the end's wait is over gives the
+   node its status (§8.6; the log's *An Os.exit After the Wait Gives Its Status*). A
+   wrap's fault that such a process meets is the target's, in its function and once the
+   function has returned (§6.5, §6.9; *A Wrap's Fault Met in the Function Is the
+   Target's*, *A Wrap's Fault After the Function Is the Target's*). And a fault sent to
+   a listener, a socket or a started program ends it (§6.5, §8.4; *A Resource Ends at a
+   Fault*).
 8. **Three lines of the release review before 0.11.0**, each met by a first reader, placed
    2026-11-26 (the log's *The Release Review Before 0.11.0, Decided*). A help where a
    token means one thing, the test of 2026-11-11's `++`: an assignment `total = total +

@@ -641,11 +641,14 @@ failed(Transport, Error) ->
 %% timed one's is, and the socket it opens has its own site, the function
 %% that opened it.
 %%
-%% Report Appendix E.18, §6.6: a kill, the owner's death and the program's
-%% end end the listener at once, with its host's socket open, which the
-%% host closes as the listener dies, each accept it holds left unanswered
-%% (accept_closed/2), so that its caller faults as a call does whose callee
-%% ends so, `callee was killed` at a kill.
+%% Report Appendix E.18, §6.6: a kill, a fault, the owner's death and the
+%% program's end end the listener at once, with its host's socket open,
+%% which the host closes as the listener dies, each accept it holds left
+%% unanswered (accept_closed/2), so that its caller faults as a call does
+%% whose callee ends so, `callee was killed` at a kill and the fault's cause
+%% at a fault. Report §6.5, §8.4: a fault sent to the listener, which has no
+%% wait of Ernest's, ends it as a kill does, with the fault's end
+%% (ern_rt:fault_ended/1).
 listener_loop(#listener{transport = Transport, socket = Socket, monitor_ref = MonitorRef,
                         workers = Workers} = Listener) ->
     receive
@@ -676,7 +679,11 @@ listener_loop(#listener{transport = Transport, socket = Socket, monitor_ref = Mo
             listener_loop(Listener);
         %% report Appendix E.18: killed, or ended with the program
         {'EXIT', _, ExitReason} ->
-            exit(ExitReason)
+            exit(ExitReason);
+        %% report §6.5, §8.4, Appendix E.18: a fault in an adapted address's
+        %% function, or a bad message's
+        {'$ern_fault', Thrown} ->
+            exit(ern_rt:fault_ended(Thrown))
     end.
 
 %% The listener with an accept's worker started, which answers Reply.
@@ -700,8 +707,8 @@ close_listener(#listener{transport = Transport, socket = Socket} = Listener) ->
     listener_closed(Listener).
 
 %% Report Appendix E.18: a closed listener ends once its last worker has,
-%% and at once where it is killed, its owner dies or the program ends
-%% meanwhile, a worker that finds it ended so answering nothing
+%% and at once where it is killed, a fault ends it, its owner dies or the
+%% program ends meanwhile, a worker that finds it ended so answering nothing
 %% (accept_closed/2). A request that comes meanwhile stays in its mailbox,
 %% and is answered at the end as one that comes as a close ends a listener
 %% is, `Left(Closed)`, or its caller faulted with `callee was closed` for
@@ -717,7 +724,9 @@ listener_closed(#listener{monitor_ref = MonitorRef, workers = Workers} = Listene
         {'EXIT', _, normal} ->
             listener_closed(Listener);
         {'EXIT', _, ExitReason} ->
-            exit(ExitReason)
+            exit(ExitReason);
+        {'$ern_fault', Thrown} ->
+            exit(ern_rt:fault_ended(Thrown))
     end.
 
 port(gen_tcp, Socket) ->
@@ -953,6 +962,13 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             ern_rt:stop(Writer),
             close_socket(Transport, Socket, ending(Transport, State)),
             exit(ExitReason);
+        %% report §6.5, §8.4, Appendix E.18: a fault in an adapted address's
+        %% function, or a bad message's, which ends the socket as a kill does
+        {'$ern_fault', Thrown} ->
+            Ended = ern_rt:fault_ended(Thrown),
+            ern_rt:stop(Writer),
+            close_socket(Transport, Socket, ending(Transport, State)),
+            exit(Ended);
         {'Remote', Reply} ->
             Inet = inet_module(Transport),
             ern_rt:answer(Reply, endpoint(State, fun() -> Inet:peername(Socket) end)),

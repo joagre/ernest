@@ -89,6 +89,9 @@ serve(Os) ->
 %% end of a process it is linked to end it with their reason, the program
 %% with it, as they would have. The host never holds it at the port, which
 %% its writer writes to (writing/1), so it takes each of them at once.
+%% Report §6.5, §8.4: a fault sent it, a fault in an adapted address's
+%% function or a bad message's, which it has no wait of Ernest's to meet,
+%% ends it as a kill does, with the fault's end (ern_rt:fault_ended/1).
 spawn_program(Os, Command, Kind, Owner, Reply) ->
     try erlang:spawn(fun() ->
                          link(Os),
@@ -412,6 +415,8 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
             starting(Running, Directory, Reply);
         {'EXIT', _, ExitReason} ->
             ended_with(Running, ExitReason);
+        {'$ern_fault', Thrown} ->
+            ended_with(Running, ern_rt:fault_ended(Thrown));
         {'DOWN', _, process, _, _} ->
             die_with_owner(Running)
     end.
@@ -546,6 +551,8 @@ running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Tim
             running(Running, Waiting, Owed, Kept);
         {'EXIT', _, ExitReason} ->
             ended_with(Running, ExitReason);
+        {'$ern_fault', Thrown} ->
+            ended_with(Running, ern_rt:fault_ended(Thrown));
         {'DOWN', MonitorRef, process, _, _} ->
             die_with_owner(Running);
         {{read, Place}, _, process, _, _} ->
@@ -820,6 +827,9 @@ over(Last, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
             over(Last, Running);
         {'EXIT', _, ExitReason} ->
             exit(ExitReason);
+        %% report §6.5, Appendix E.23: a fault ends it as a kill does
+        {'$ern_fault', Thrown} ->
+            exit(ern_rt:fault_ended(Thrown));
         _ ->
             over(Last, Running)
     end.
@@ -866,7 +876,8 @@ die_with_owner(Running) ->
 %% Report §6.9, §8.6: the process killed, ended with the program, or ended
 %% with a process it is linked to, which it takes as a message since it
 %% traps exits: the program is killed with it, and it ends with that
-%% reason, as it would have without the trap.
+%% reason, as it would have without the trap. Report §6.5, Appendix E.23:
+%% so too where a fault ends it, with the fault's end.
 -spec ended_with(#program{}, term()) -> no_return().
 ended_with(Running, ExitReason) ->
     stop(Running),

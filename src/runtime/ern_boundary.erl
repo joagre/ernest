@@ -674,12 +674,13 @@ checker_loop(Behind, Heard, Descriptor, Bound, Cause) ->
                 %% fault of its own, which `restarting` restarts (§6.9),
                 %% its trace the receiver's stack there (§7.3)
                 %%
-                %% Report §8.4, §6.5: a receiver that is a foreign process
-                %% the runtime did not start takes it as a fault in an
-                %% adapted address's function (ern_rt:faulted/3). It is met
-                %% at no wait, and this is the runtime's own code, whose
-                %% frames a trace leaves out (Appendix E.21), so the trace
-                %% of its end is empty.
+                %% Report §8.4, §6.5: a receiver that is a resource's
+                %% process, or a foreign process the runtime did not start,
+                %% takes it as a fault in an adapted address's function
+                %% (ern_rt:faulted/3, ern_rt:fault_ended/1). It is met at
+                %% no wait, and this is the runtime's own code, whose frames
+                %% a trace leaves out (Appendix E.21), so the trace of its
+                %% end is empty.
                 error ->
                     ern_rt:faulted(ern_rt:process_of(Behind), {ern, fault, Cause},
                                    {ern, fault, Cause, <<>>})

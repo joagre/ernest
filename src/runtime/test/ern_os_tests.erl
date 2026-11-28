@@ -1640,6 +1640,46 @@ read_forever_on_an_ended_program_faults_test() ->
     ?assertMatch({'Down', _, {'Fault', <<"callee was killed">>}, _}, ern_waits:wait(waiting)),
     ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, ern_waits:wait(later)).
 
+%% report §6.5, §7.3, Appendix E.23: a fault in an adapted address's
+%% function over a running program ends the program's process, which has no
+%% wait of Ernest's, as a kill ends it, with the reason `Fault(cause)`: its
+%% monitor is told so with its site, the fault is reported with the trace of
+%% where it was met, and a later read answers `Left(Closed)`. Written before
+%% the fix, on which it failed (the log's *A Resource Ends at a Fault*): the
+%% process's loop did not read the fault, and the program ran on
+fault_ends_a_program_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    {ok, Output} = ern_program:run(['M'],
+        "type Msg = Ended(Down)\n"
+        "fn boom(n : Int) : Os.ProgramMsg = fault(\"boom \" <> Int.toString(n))\n"
+        "fn said(answer : Either(Io.Error, a)) : String =\n"
+        "    match answer {\n"
+        "        Left(error) -> \"Left(\" <> Io.show(error) <> \")\"\n"
+        "      | Right(_) -> \"Right\"\n"
+        "    }\n"
+        "export fn main() : Unit receiving Msg =\n"
+        "    match Os.start(Os.command(\"cat\", [])) {\n"
+        "        Left(error) -> Io.println(Io.show(error))\n"
+        "      | Right(program) -> {\n"
+        "            monitor(Process.fromAddress(program), Ended);\n"
+        "            send(adapted(program, boom), 1);\n"
+        "            receive {\n"
+        "                Ended(Down(=reason, =site)) ->\n"
+        "                    Io.println(Io.show(reason) <> \" \" <> site)\n"
+        "            };\n"
+        "            Io.println(said(Os.read(program, 1000)))\n"
+        "        }\n"
+        "    }\n", #{faults => Reporter}),
+    ?assertEqual(<<"Fault(\"boom 1\") Os.start\nLeft(Io.Closed)\n">>, Output),
+    ?assertMatch([{'FaultReport', _, <<"Os.start">>, <<"boom 1">>, false,
+                   <<"M.boom:2\nM.main:13\n", _/binary>>, _, 'None', 'None', _}],
+                 reported([])).
+
+%% The fault reports a run gave, in order.
+reported(Acc) ->
+    receive {reported, Report} -> reported([Report | Acc]) after 0 -> lists:reverse(Acc) end.
+
 %% report Appendix E.23: a `readForever` whose caller has ended before it is
 %% answered is dropped as a `read` is, and what it would have taken is the
 %% next read's: the piece `cat` writes after a reader was killed in its
