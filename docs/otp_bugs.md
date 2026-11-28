@@ -2,6 +2,16 @@
 
 The defects of OTP that building Ernest has found, each written as a report for OTP's tracker, [github.com/erlang/otp/issues](https://github.com/erlang/otp/issues), and reproduced with OTP alone. Filing is the user's, and a report's first line names its issue once it is filed. What Ernest needs of OTP and OTP lacks is a request, an item of the plan until the user files it. A report stays here until OTP has fixed its defect in a release Ernest requires, and one OTP will not fix stays; the release review reads OTP's release notes and the issues' states against the reports ([`reviews/release.md`](reviews/release.md), step 6). Where a defect still shows in Ernest, the code's comment at the place says how, and the decisions log why Ernest meets it as it does.
 
+Since 2026-11-28 the reports go to OTP one a week, so that no burst of them wears on its maintainers (the log's *OTP's Reports Go One a Week*). A report where something is lost or wrong is put to the user at once. Every other waits in the queue below, each with the day it may be filed on or after, and a new find joins its end. A session that opens on or after a day whose report is not filed says so, and files it on the user's word. An answer of OTP's gets a thumbs-up, and a question an answer.
+
+| On or after | Report |
+|---|---|
+| 2026-12-05 | 28, a raise's walk of a run of frames |
+| 2026-12-12 | 33, `net_kernel:setopts(new, Options)` under TLS distribution |
+| 2026-12-19 | 34, `net_kernel:setopts/2` after `nodeup` |
+| 2026-12-26 | 30, a sign in an IPv4 field |
+| 2027-01-02 | 32, `dialyzer --raw` on a module that names no file |
+
 ## 1. `erl_child_setup` prints a line when the emulator ends while a port starts
 
 Filed 2026-11-15 as [erlang/otp#12203](https://github.com/erlang/otp/issues/12203). Found on 2026-10-01; the log's *A Port Lost While It Starts*.
@@ -184,7 +194,7 @@ The same holds of a list argument, line 5. Splitting text at `"\n"` that has Win
 
 ## 5. `memsup` closes its port while a collection is under way
 
-Filed 2026-11-15 as [erlang/otp#12207](https://github.com/erlang/otp/issues/12207). A contributor's fix, [#12269](https://github.com/erlang/otp/pull/12269), against `maint`, is open on 2026-11-26. Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
+Filed 2026-11-15 as [erlang/otp#12207](https://github.com/erlang/otp/issues/12207). A contributor's fix, [#12269](https://github.com/erlang/otp/pull/12269), against `maint`, is open on 2026-11-28, and was acknowledged with a thumbs-up that day. Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
 
 **Title:** memsup: "Error writing to pipe: Broken pipe" when os_mon is stopped during a memory collection
 
@@ -231,7 +241,7 @@ The line comes from the port program, not from the emulator, so no logger filter
 
 ## 6. `erl_lint`'s check of unused functions costs the square of the module
 
-Filed 2026-11-15 as [erlang/otp#12208](https://github.com/erlang/otp/issues/12208). Closed on 2026-11-23 as one OTP will not fix: "we don't see a concrete use-case for this to be concerning", with `+nowarn_unused_function` named as the way around it and the issue to be opened again for "a real project that has a module with ~7000 unused functions". A contributor's fix, [#12268](https://github.com/erlang/otp/pull/12268), was closed unmerged the same day. The report stays. Found on 2026-10-26; the log's *The Build's Cost per Function*.
+Filed 2026-11-15 as [erlang/otp#12208](https://github.com/erlang/otp/issues/12208). Closed on 2026-11-23 as one OTP will not fix: "we don't see a concrete use-case for this to be concerning", with `+nowarn_unused_function` named as the way around it and the issue to be opened again for "a real project that has a module with ~7000 unused functions". A contributor's fix, [#12268](https://github.com/erlang/otp/pull/12268), was closed unmerged the same day. The report stays. The answer and the contributor's fix were acknowledged with a thumbs-up on 2026-11-28. Found on 2026-10-26; the log's *The Build's Cost per Function*.
 
 **Title:** erl_lint: check_unused_functions is quadratic in the number of unused functions
 
@@ -804,7 +814,7 @@ Where the connection's supervisor is started but one of its children is not, the
 
 ## 16. `ssl:format_error/1` raises `badarg` for a reason it does not name
 
-Filed 2026-11-15 as [erlang/otp#12218](https://github.com/erlang/otp/issues/12218). A contributor's fix, [#12270](https://github.com/erlang/otp/pull/12270), against `maint`, is open on 2026-11-26. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
+Filed 2026-11-15 as [erlang/otp#12218](https://github.com/erlang/otp/issues/12218). A contributor's fix, [#12270](https://github.com/erlang/otp/pull/12270), against `maint`, is open on 2026-11-28, and was acknowledged with a thumbs-up that day. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
 
 **Title:** ssl:format_error/1 raises badarg for a reason that is neither an atom nor a form it names
 
@@ -875,7 +885,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
 
 ## 18. `beam_lib:chunks/2,3` raises, and `beam_lib:md5/1` answers `{'EXIT', _}`, for a module whose atom chunk it cannot read
 
-Filed 2026-11-15 as [erlang/otp#12220](https://github.com/erlang/otp/issues/12220). Found on 2026-11-09 (the log's *A Compiled Module the Host Cannot Read*); Ernest reads a chunk and a digest through `ern_chunk`, which takes both answers as the error.
+Filed 2026-11-15 as [erlang/otp#12220](https://github.com/erlang/otp/issues/12220). A contributor's fix, [#12299](https://github.com/erlang/otp/pull/12299), against `maint`, is open on 2026-11-28, and was acknowledged with a thumbs-up that day. Found on 2026-11-09 (the log's *A Compiled Module the Host Cannot Read*); Ernest reads a chunk and a digest through `ern_chunk`, which takes both answers as the error.
 
 **Title:** beam_lib:chunks/2,3 raises badmatch, and beam_lib:md5/1 returns {'EXIT', ...}, for a malformed atom chunk
 
@@ -1799,7 +1809,7 @@ Found by a language that compiles to Erlang, whose conversion of a text to an in
 
 ## 29. `file:read_file_info/1,2` gives an inode's low 32 bits
 
-Not filed. Found on 2026-11-22 (the log's *A Copy Onto Itself*), read in erts and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it where it tells that two paths name one file by their device and inode: the shell's two startup files (`ern_shell:is_same_file/2`, a line of [`known_issues.md`](known_issues.md)) and a job's standard error against `JOURNAL_STREAM` (`ern_cli:is_journal/0`).
+Filed 2026-11-28 as [erlang/otp#12301](https://github.com/erlang/otp/issues/12301). Found on 2026-11-22 (the log's *A Copy Onto Itself*), read in erts and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Ernest meets it where it tells that two paths name one file by their device and inode: the shell's two startup files (`ern_shell:is_same_file/2`, a line of [`known_issues.md`](known_issues.md)) and a job's standard error against `JOURNAL_STREAM` (`ern_cli:is_journal/0`).
 
 **Title:** file:read_file_info/1,2 returns the low 32 bits of an inode number
 
@@ -1881,7 +1891,7 @@ OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
 
 ## 31. `ssl:shutdown/2` of the writing side sends no `close_notify`
 
-Not filed. Found on 2026-11-21 by the build of MVP 4.16's item 100 (the log's *The Close Follows the Last Byte*), and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's calls it: a socket over TLS ends by `ssl:shutdown/2` of both ways, which sends the alert, and `ssl:close/1` (`ern_tcp:lingering/6`; E.18).
+Filed 2026-11-28 as [erlang/otp#12302](https://github.com/erlang/otp/issues/12302). Found on 2026-11-21 by the build of MVP 4.16's item 100 (the log's *The Close Follows the Last Byte*), and shown with OTP alone on 2026-11-28; the log's *Four More Reports for OTP*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's calls it: a socket over TLS ends by `ssl:shutdown/2` of both ways, which sends the alert, and `ssl:close/1` (`ern_tcp:lingering/6`; E.18).
 
 **Title:** ssl:shutdown(Socket, write) shuts the TCP connection's writing side without sending close_notify, so the peer reads a truncated stream
 
@@ -2098,7 +2108,7 @@ OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
 
 ## 35. A process suspended just before its `receive ... after` timeout is due never wakes
 
-Not filed. Found on 2026-11-28 by a probe for MVP 4.18's item 1, a closer that looks at its socket a millisecond after the look before, under which four tests that hold the closer by `erlang:suspend_process/1` never ended; the log's *The Closer Looks Sooner*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's meets it but a test: the runtime suspends only a process it is killing, and the exit ends that process.
+Filed 2026-11-28 as [erlang/otp#12300](https://github.com/erlang/otp/issues/12300). Found on 2026-11-28 by a probe for MVP 4.18's item 1, a closer that looks at its socket a millisecond after the look before, under which four tests that hold the closer by `erlang:suspend_process/1` never ended; the log's *The Closer Looks Sooner*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's meets it but a test: the runtime suspends only a process it is killing, and the exit ends that process.
 
 **Title:** A process suspended in the last half millisecond before its receive timeout is due stays waiting forever after erlang:resume_process/1
 
