@@ -124,9 +124,15 @@ Sitemap Before the Tag*).
    once after an alert of its own, and E.18 gains the sentence. Its test: a close and a
    kill after a failed handshake answer at once, and the host's socket is gone.
 
-   Left to decide: the closer's second, where the host documents nothing that wakes a
-   process as its queue drains, so the ways are a sentence in E.18, or looks that begin
-   a millisecond apart and double to the second; and *An absolute form's authority*.
+   The closer's second is decided (the log's *The Closer Looks Sooner*). The closer
+   looks again after as long as has passed since the socket's end, a millisecond at
+   least and a second at most, so that a close answers within about twice the time its
+   bytes took, and E.18 says so. Four tests of `ern_tcp_tests` hold the closer by
+   `erlang:suspend_process`, after which the host loses a short wait
+   (`docs/otp_bugs.md`, 35), and need another hold. Where the build finds no simple
+   one, E.18 states the second over TCP instead, and the look is an item of MVP 4.5.
+
+   Left to decide: *An absolute form's authority*.
 2. **The release of 0.12.0**, by `docs/reviews/release.md`'s step. It is a minor release,
    and so a new floor (report §8.7).
 

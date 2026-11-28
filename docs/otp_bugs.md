@@ -2093,3 +2093,72 @@ One run printed `#{{ok,true} => 996,{{error,noconnection},true} => 4}`.
 **Affected versions**
 
 OTP 29.1.3, erts 17.1.2, kernel 11.0.4, on Linux x86_64.
+
+## 35. A process that waits by `receive ... after` may never wake once it has been suspended and resumed
+
+Not filed. Found on 2026-11-28 by a probe for MVP 4.18's item 1, a closer that looks at its socket a millisecond after the look before, under which four tests that hold the closer by `erlang:suspend_process/1` never ended; the log's *The Closer Looks Sooner*. A search of OTP's tracker on 2026-11-28 found no earlier issue. Nothing of Ernest's meets it but a test: the runtime suspends only a process it is killing.
+
+**Title:** A process in a loop of short `receive ... after` waits can stay waiting forever after erlang:suspend_process/1 and erlang:resume_process/1
+
+**Describe the bug**
+
+A process that loops over `receive stop -> ok after 1 -> ... end` is suspended with `erlang:suspend_process/1` at a moment not chosen and resumed 50 ms later. In about half of the runs it never runs again: `process_info/2` shows it `waiting` in the `receive`, and its timeout never comes. A message that matches no clause, sent after the resume, does not wake it either. At a wait of 5 ms it is lost in about a sixth of the runs. A process suspended as its one wait begins is not lost.
+
+`erlang:suspend_process/1` is documented for debugging only, and a process that a debugger or a test suspended is then lost for good, with nothing to say so.
+
+**To Reproduce**
+
+`lost_tick.erl`:
+
+```erlang
+-module(lost_tick).
+-export([main/1]).
+
+main([After, Held]) ->
+    T = list_to_integer(After),
+    H = list_to_integer(Held),
+    Outcomes = [once(T, H) || _ <- lists:seq(1, 200)],
+    Stuck = [O || O <- Outcomes, O =/= went_on],
+    io:format("a wait of ~p ms, held ~p ms: ~p of 200 never went on~s~n",
+              [T, H, length(Stuck),
+               case Stuck of [] -> ""; [S | _] -> io_lib:format("; the first: ~p", [S]) end]),
+    halt().
+
+tick(Parent, T) ->
+    receive stop -> ok after T -> Parent ! {tick, self()}, tick(Parent, T) end.
+
+flush() ->
+    receive {tick, _} -> flush() after 0 -> ok end.
+
+once(T, H) ->
+    Self = self(),
+    P = spawn(fun() -> tick(Self, T) end),
+    timer:sleep(rand:uniform(20)),
+    true = erlang:suspend_process(P),
+    timer:sleep(H),
+    flush(),
+    true = erlang:resume_process(P),
+    Outcome = receive {tick, P} -> went_on
+              after 2000 -> erlang:process_info(P, [status, current_stacktrace, message_queue_len])
+              end,
+    exit(P, kill),
+    flush(),
+    Outcome.
+```
+
+```sh
+erlc lost_tick.erl
+erl -noshell -run lost_tick main 1 50
+erl -noshell -run lost_tick main 5 50
+erl -noshell +S 1 -run lost_tick main 1 50
+```
+
+The three runs printed 106, 33 and 98 of 200, each with the first lost process `waiting` in `lost_tick:tick/2` and its message queue empty. With `P ! junk` after the resume, 20 of 60 were lost, each with one message in its queue.
+
+**Expected behavior**
+
+A resumed process whose timeout has passed runs again.
+
+**Affected versions**
+
+OTP 29.1.3, erts 17.1.2, on Linux x86_64.
